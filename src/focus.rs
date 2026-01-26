@@ -4,7 +4,7 @@
 //! sessions across various terminal emulators including VS Code, Cursor, iTerm2,
 //! Kitty, and Terminal.app.
 
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::config::Config;
 use crate::session::Session;
@@ -29,39 +29,23 @@ pub fn focus_terminal(
     }
 }
 
-/// Focus an editor window (VS Code, Cursor, etc.) and open its integrated terminal.
+/// Focus an editor window (VS Code, Cursor, etc.).
 ///
-/// Uses AppleScript to:
-/// 1. Find the window containing the project name in its title
-/// 2. Raise the window using AXRaise accessibility action
-/// 3. Set the process as frontmost
-/// 4. Send Ctrl+` (key code 50) to toggle the integrated terminal
-///
-/// If no matching window is found, falls back to opening the project via CLI.
+/// Uses the editor's CLI command with --goto flag to focus the project window.
+/// This approach doesn't require Accessibility permissions.
 fn focus_editor(session: &Session, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
-    let process_name = &config.editor.process_name;
     let cli_command = &config.editor.cli_command;
-    let project_name = &session.project_name;
     let project_path = &session.project_path;
 
-    let script = format!(
-        r#"
-        tell application "System Events" to tell process "{process_name}"
-            repeat with handle in windows
-                if name of handle contains "{project_name}" then
-                    perform action "AXRaise" of handle
-                    tell application "System Events" to set frontmost of process "{process_name}" to true
-                    delay 0.1
-                    key code 50 using control down
-                    return
-                end if
-            end repeat
-        end tell
-        do shell script "{cli_command} '{project_path}'"
-    "#
-    );
+    // Use CLI to open/focus the project - this brings the window to front
+    // Suppress stdout/stderr to avoid polluting the TUI
+    Command::new(cli_command)
+        .arg("--goto")
+        .arg(project_path)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
 
-    Command::new("osascript").arg("-e").arg(&script).output()?;
     Ok(())
 }
 
@@ -136,8 +120,11 @@ fn focus_terminal_app() -> Result<(), Box<dyn std::error::Error>> {
 /// Opens the project path in the configured editor via CLI command.
 fn focus_generic(project_path: &str, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     Command::new(&config.editor.cli_command)
+        .arg("--goto")
         .arg(project_path)
-        .output()?;
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
     Ok(())
 }
 

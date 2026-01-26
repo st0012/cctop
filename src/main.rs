@@ -5,6 +5,7 @@
 //! Usage: cctop [OPTIONS]
 //!
 //! Options:
+//!   -l, --list       List sessions as text and exit (no TUI)
 //!   --cleanup-stale  Run stale session cleanup and exit
 //!   --print-config   Print the loaded configuration and exit
 //!   -V, --version    Print version and exit
@@ -16,9 +17,9 @@
 //! - q or Esc: Quit
 
 use cctop::config::Config;
-use cctop::session::{cleanup_stale_sessions, Session};
+use cctop::session::{cleanup_stale_sessions, Session, Status};
 use cctop::tui::{init_terminal, restore_terminal, App};
-use chrono::Duration;
+use chrono::{Duration, Utc};
 use std::env;
 
 fn main() {
@@ -34,6 +35,10 @@ fn main() {
             "--print-config" => {
                 let config = Config::load();
                 println!("{:#?}", config);
+                std::process::exit(0);
+            }
+            "--list" | "-l" => {
+                list_sessions();
                 std::process::exit(0);
             }
             "--cleanup-stale" => {
@@ -61,7 +66,7 @@ fn main() {
             }
             _ => {
                 eprintln!("Unknown argument: {}", arg);
-                eprintln!("Usage: cctop [--cleanup-stale | --print-config | -V | --version]");
+                eprintln!("Usage: cctop [-l | --list | --cleanup-stale | --print-config | -V | --version]");
                 std::process::exit(1);
             }
         }
@@ -92,5 +97,111 @@ fn main() {
     if let Err(e) = result {
         eprintln!("Error: {}", e);
         std::process::exit(1);
+    }
+}
+
+/// List sessions as text output (non-TUI mode).
+fn list_sessions() {
+    let sessions_dir = Config::sessions_dir();
+    let mut sessions = match Session::load_all(&sessions_dir) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to load sessions: {}", e);
+            return;
+        }
+    };
+
+    // Filter out dead sessions
+    sessions.retain(|s| is_session_alive(&s.project_path));
+
+    if sessions.is_empty() {
+        println!("No active sessions");
+        return;
+    }
+
+    // Sort by status priority, then by last_activity
+    sessions.sort_by(|a, b| {
+        let priority = |s: &Status| match s {
+            Status::NeedsAttention => 0,
+            Status::Working => 1,
+            Status::Idle => 2,
+        };
+        priority(&a.status)
+            .cmp(&priority(&b.status))
+            .then_with(|| b.last_activity.cmp(&a.last_activity))
+    });
+
+    println!("{} session(s):\n", sessions.len());
+
+    for session in &sessions {
+        let status = match session.status {
+            Status::NeedsAttention => "NEEDS_ATTENTION",
+            Status::Working => "WORKING",
+            Status::Idle => "IDLE",
+        };
+
+        let time_ago = format_relative_time(session.last_activity);
+
+        println!(
+            "[{}] {} ({}) - {}",
+            status, session.project_name, session.branch, time_ago
+        );
+
+        if let Some(prompt) = &session.last_prompt {
+            let truncated = if prompt.len() > 60 {
+                format!("{}...", &prompt[..57])
+            } else {
+                prompt.clone()
+            };
+            println!("  \"{}\"", truncated);
+        }
+    }
+}
+
+/// Check if a session is still alive by verifying a claude process is running in that directory.
+fn is_session_alive(project_path: &str) -> bool {
+    use std::process::Command;
+
+    // Use ps + lsof to find any process with claude in its command line that has this cwd
+    // First get PIDs of claude processes, then check their cwd
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(format!(
+            "ps aux | grep -E 'claude|Claude' | grep -v grep | awk '{{print $2}}' | while read pid; do lsof -p $pid 2>/dev/null | grep cwd | grep -q '{}' && echo found; done",
+            project_path
+        ))
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            stdout.contains("found")
+        }
+        Err(_) => true,
+    }
+}
+
+/// Format a timestamp as a relative time string.
+fn format_relative_time(time: chrono::DateTime<Utc>) -> String {
+    let now = Utc::now();
+    let duration = now.signed_duration_since(time);
+
+    if duration.num_seconds() < 0 {
+        return "just now".to_string();
+    }
+
+    let seconds = duration.num_seconds();
+    let minutes = duration.num_minutes();
+    let hours = duration.num_hours();
+    let days = duration.num_days();
+
+    if seconds < 60 {
+        format!("{}s ago", seconds)
+    } else if minutes < 60 {
+        format!("{}m ago", minutes)
+    } else if hours < 24 {
+        format!("{}h ago", hours)
+    } else {
+        format!("{}d ago", days)
     }
 }
