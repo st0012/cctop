@@ -15,12 +15,21 @@ use crossterm::{
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
 };
 use std::fs;
 use std::io::stdout;
 use std::path::PathBuf;
 use std::time::Duration;
+
+/// View mode for the TUI
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewMode {
+    /// List view showing all sessions
+    List,
+    /// Detail view showing full info for selected session
+    Detail,
+}
 
 /// Main application state for the TUI.
 pub struct App {
@@ -36,6 +45,10 @@ pub struct App {
     should_quit: bool,
     /// Demo mode - skip session liveness checks
     demo_mode: bool,
+    /// Current view mode (list or detail)
+    view_mode: ViewMode,
+    /// Vertical scroll offset for detail view
+    detail_scroll: u16,
 }
 
 impl App {
@@ -51,6 +64,8 @@ impl App {
             list_state,
             should_quit: false,
             demo_mode: false,
+            view_mode: ViewMode::List,
+            detail_scroll: 0,
         }
     }
 
@@ -61,8 +76,10 @@ impl App {
     }
 
     /// Load sessions from ~/.cctop/sessions/
-    pub fn load_sessions(&mut self) {
-        self.sessions = load_all_sessions(self.demo_mode).unwrap_or_default();
+    /// If `check_liveness` is true, validates each session is still alive (slow).
+    pub fn load_sessions_with_liveness(&mut self, check_liveness: bool) {
+        let skip_check = self.demo_mode || !check_liveness;
+        self.sessions = load_all_sessions(skip_check).unwrap_or_default();
 
         // Sort by status priority, then by last_activity
         self.sessions.sort_by(|a, b| {
@@ -93,26 +110,45 @@ impl App {
         &mut self,
         terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
     ) -> Result<()> {
-        // Cleanup stale sessions on startup
+        use std::time::Instant;
+
+        // Cleanup old session files (timestamp-based, fast)
         let _ = cleanup_stale_sessions(chrono::Duration::hours(24));
 
-        // Initial load
-        self.load_sessions();
+        // Initial load WITHOUT liveness check for fast startup
+        self.load_sessions_with_liveness(false);
+
+        // Track refresh times
+        let mut last_refresh = Instant::now();
+        let mut last_liveness_check = Instant::now();
+        let refresh_interval = Duration::from_secs(2);
+        // Liveness check runs less frequently (every 30 seconds) since it's slow
+        let liveness_interval = Duration::from_secs(30);
 
         while !self.should_quit {
             // Draw the UI
             terminal.draw(|frame| self.draw(frame))?;
 
-            // Poll for events with 200ms timeout for auto-refresh
-            if event::poll(Duration::from_millis(200))? {
+            // Poll for events with short timeout for responsiveness
+            if event::poll(Duration::from_millis(50))? {
                 if let Event::Key(key) = event::read()? {
                     if key.kind == KeyEventKind::Press && self.handle_key(key) {
                         break;
                     }
                 }
-            } else {
-                // No event - auto-refresh
-                self.load_sessions();
+            }
+
+            // Auto-refresh sessions periodically (fast, no liveness check)
+            if last_refresh.elapsed() >= refresh_interval {
+                self.load_sessions_with_liveness(false);
+                last_refresh = Instant::now();
+            }
+
+            // Periodically check liveness to clean up dead sessions (slow, runs infrequently)
+            if last_liveness_check.elapsed() >= liveness_interval {
+                self.load_sessions_with_liveness(true);
+                last_liveness_check = Instant::now();
+                last_refresh = Instant::now();
             }
         }
 
@@ -124,7 +160,7 @@ impl App {
         let area = frame.area();
 
         // Layout: header, content, footer
-        let chunks = Layout::default()
+        let main_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // header
@@ -133,9 +169,15 @@ impl App {
             ])
             .split(area);
 
-        self.render_header(frame, chunks[0]);
-        self.render_sessions(frame, chunks[1]);
-        self.render_footer(frame, chunks[2]);
+        self.render_header(frame, main_chunks[0]);
+
+        // Render content based on view mode
+        match self.view_mode {
+            ViewMode::List => self.render_sessions(frame, main_chunks[1]),
+            ViewMode::Detail => self.render_detail_view(frame, main_chunks[1]),
+        }
+
+        self.render_footer(frame, main_chunks[2]);
     }
 
     /// Handle a key event. Returns true if the app should quit.
@@ -154,15 +196,34 @@ impl App {
                 true
             }
             KeyCode::Char('r') => {
-                self.load_sessions();
+                self.load_sessions_with_liveness(false);
                 false
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                self.select_previous();
+                match self.view_mode {
+                    ViewMode::List => self.select_previous(),
+                    ViewMode::Detail => self.scroll_detail_up(),
+                }
                 false
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.select_next();
+                match self.view_mode {
+                    ViewMode::List => self.select_next(),
+                    ViewMode::Detail => self.scroll_detail_down(),
+                }
+                false
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                if self.view_mode == ViewMode::List && !self.sessions.is_empty() {
+                    self.view_mode = ViewMode::Detail;
+                    self.detail_scroll = 0;
+                }
+                false
+            }
+            KeyCode::Left | KeyCode::Char('h') => {
+                if self.view_mode == ViewMode::Detail {
+                    self.view_mode = ViewMode::List;
+                }
                 false
             }
             KeyCode::Enter => {
@@ -204,6 +265,16 @@ impl App {
             self.selected_index += 1;
         }
         self.list_state.select(Some(self.selected_index));
+    }
+
+    /// Scroll detail view up by one line.
+    fn scroll_detail_up(&mut self) {
+        self.detail_scroll = self.detail_scroll.saturating_sub(1);
+    }
+
+    /// Scroll detail view down by one line.
+    fn scroll_detail_down(&mut self) {
+        self.detail_scroll = self.detail_scroll.saturating_add(1);
     }
 
     /// Render the header bar.
@@ -372,12 +443,77 @@ impl App {
         ListItem::new(content).style(Style::default().fg(color))
     }
 
+    /// Render the full-screen detail view for the selected session.
+    fn render_detail_view(&self, frame: &mut Frame, area: Rect) {
+        let session = match self.sessions.get(self.selected_index) {
+            Some(s) => s,
+            None => return,
+        };
+
+        let status_str = match session.status {
+            Status::NeedsAttention => "needs_attention",
+            Status::Working => "working",
+            Status::Idle => "idle",
+        };
+
+        let started = format_relative_time(session.started_at);
+        let active = format_relative_time(session.last_activity);
+
+        let terminal_info = format!(
+            "{}\n  TTY: {}{}",
+            session.terminal.program,
+            session.terminal.tty.as_deref().unwrap_or("unknown"),
+            session
+                .terminal
+                .session_id
+                .as_ref()
+                .map(|id| format!("\n  ID: {}", id))
+                .unwrap_or_default()
+        );
+
+        let prompt_text = session.last_prompt.as_deref().unwrap_or("(no prompt)");
+
+        let details_text = format!(
+            "Project:\n  {}\n\n\
+             Branch:  {}\n\
+             Status:  {}\n\n\
+             Started: {}\n\
+             Active:  {}\n\n\
+             Terminal:\n  {}\n\n\
+             Prompt:\n\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\n{}",
+            session.project_path,
+            session.branch,
+            status_str,
+            started,
+            active,
+            terminal_info,
+            prompt_text
+        );
+
+        let details = Paragraph::new(details_text)
+            .block(
+                Block::default()
+                    .title(format!(" {} ", session.project_name))
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::DarkGray)),
+            )
+            .wrap(Wrap { trim: false })
+            .scroll((self.detail_scroll, 0));
+
+        frame.render_widget(details, area);
+    }
+
     /// Render the footer with keyboard shortcuts.
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
-        let footer = Paragraph::new(
-            "  \u{2191}/\u{2193}: navigate   enter: jump to session   r: refresh   q/Ctrl+C: quit",
-        )
-        .style(Style::default().fg(Color::DarkGray));
+        let footer_text = match self.view_mode {
+            ViewMode::List => {
+                "  \u{2191}/\u{2193}: nav   \u{2192}: details   enter: jump   r: refresh   q: quit"
+            }
+            ViewMode::Detail => {
+                "  \u{2191}/\u{2193}: scroll   \u{2190}: back   enter: jump   q: quit"
+            }
+        };
+        let footer = Paragraph::new(footer_text).style(Style::default().fg(Color::DarkGray));
         frame.render_widget(footer, area);
     }
 }
@@ -623,6 +759,8 @@ mod tests {
         assert!(app.sessions.is_empty());
         assert_eq!(app.selected_index, 0);
         assert!(!app.should_quit);
+        assert_eq!(app.view_mode, ViewMode::List);
+        assert_eq!(app.detail_scroll, 0);
     }
 
     #[test]
@@ -746,6 +884,114 @@ mod tests {
         let key = KeyEvent::new(KeyCode::Char('k'), crossterm::event::KeyModifiers::NONE);
         app.handle_key(key);
         assert_eq!(app.selected_index, 0);
+    }
+
+    #[test]
+    fn test_handle_key_right_arrow_enters_detail_view() {
+        let config = Config::default();
+        let mut app = App::new(config);
+        app.sessions = vec![make_test_session("1", Status::Idle, "proj1")];
+
+        assert_eq!(app.view_mode, ViewMode::List);
+
+        let key = KeyEvent::new(KeyCode::Right, crossterm::event::KeyModifiers::NONE);
+        let should_quit = app.handle_key(key);
+
+        assert!(!should_quit);
+        assert_eq!(app.view_mode, ViewMode::Detail);
+        assert_eq!(app.detail_scroll, 0);
+    }
+
+    #[test]
+    fn test_handle_key_right_arrow_no_effect_when_empty() {
+        let config = Config::default();
+        let mut app = App::new(config);
+        // No sessions
+
+        let key = KeyEvent::new(KeyCode::Right, crossterm::event::KeyModifiers::NONE);
+        app.handle_key(key);
+
+        assert_eq!(app.view_mode, ViewMode::List);
+    }
+
+    #[test]
+    fn test_handle_key_left_arrow_returns_to_list() {
+        let config = Config::default();
+        let mut app = App::new(config);
+        app.sessions = vec![make_test_session("1", Status::Idle, "proj1")];
+        app.view_mode = ViewMode::Detail;
+
+        let key = KeyEvent::new(KeyCode::Left, crossterm::event::KeyModifiers::NONE);
+        app.handle_key(key);
+
+        assert_eq!(app.view_mode, ViewMode::List);
+    }
+
+    #[test]
+    fn test_detail_view_up_down_scrolls() {
+        let config = Config::default();
+        let mut app = App::new(config);
+        app.sessions = vec![make_test_session("1", Status::Idle, "proj1")];
+        app.view_mode = ViewMode::Detail;
+        app.detail_scroll = 5;
+
+        // Down scrolls down
+        let key = KeyEvent::new(KeyCode::Down, crossterm::event::KeyModifiers::NONE);
+        app.handle_key(key);
+        assert_eq!(app.detail_scroll, 6);
+
+        // Up scrolls up
+        let key = KeyEvent::new(KeyCode::Up, crossterm::event::KeyModifiers::NONE);
+        app.handle_key(key);
+        assert_eq!(app.detail_scroll, 5);
+    }
+
+    #[test]
+    fn test_detail_view_scroll_up_saturates_at_zero() {
+        let config = Config::default();
+        let mut app = App::new(config);
+        app.sessions = vec![make_test_session("1", Status::Idle, "proj1")];
+        app.view_mode = ViewMode::Detail;
+        app.detail_scroll = 0;
+
+        let key = KeyEvent::new(KeyCode::Up, crossterm::event::KeyModifiers::NONE);
+        app.handle_key(key);
+
+        assert_eq!(app.detail_scroll, 0); // Stays at 0, doesn't underflow
+    }
+
+    #[test]
+    fn test_list_view_up_down_navigates() {
+        let config = Config::default();
+        let mut app = App::new(config);
+        app.sessions = vec![
+            make_test_session("1", Status::Idle, "proj1"),
+            make_test_session("2", Status::Idle, "proj2"),
+        ];
+        app.view_mode = ViewMode::List;
+        app.selected_index = 0;
+
+        let key = KeyEvent::new(KeyCode::Down, crossterm::event::KeyModifiers::NONE);
+        app.handle_key(key);
+
+        assert_eq!(app.selected_index, 1);
+        assert_eq!(app.view_mode, ViewMode::List);
+    }
+
+    #[test]
+    fn test_enter_works_in_detail_view() {
+        let config = Config::default();
+        let mut app = App::new(config);
+        app.sessions = vec![make_test_session("1", Status::Idle, "proj1")];
+        app.view_mode = ViewMode::Detail;
+
+        let key = KeyEvent::new(KeyCode::Enter, crossterm::event::KeyModifiers::NONE);
+        let should_quit = app.handle_key(key);
+
+        assert!(!should_quit);
+        // focus_selected() is called but we can't easily verify in unit test
+        // The important thing is it doesn't error or change view_mode
+        assert_eq!(app.view_mode, ViewMode::Detail);
     }
 
     #[test]
