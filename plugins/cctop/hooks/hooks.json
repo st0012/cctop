@@ -1,0 +1,53 @@
+{
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "startup|resume",
+      "hooks": [{
+        "type": "command",
+        "command": "$HOME/.cargo/bin/cctop-hook SessionStart"
+      }]
+    }],
+    "UserPromptSubmit": [{
+      "matcher": ".*",
+      "hooks": [{
+        "type": "command",
+        "command": "$HOME/.cargo/bin/cctop-hook UserPromptSubmit"
+      }]
+    }],
+    "PreToolUse": [{
+      "matcher": ".*",
+      "hooks": [{
+        "type": "command",
+        "command": "$HOME/.cargo/bin/cctop-hook PreToolUse"
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": ".*",
+      "hooks": [{
+        "type": "command",
+        "command": "$HOME/.cargo/bin/cctop-hook PostToolUse"
+      }]
+    }],
+    "Stop": [{
+      "matcher": ".*",
+      "hooks": [{
+        "type": "command",
+        "command": "$HOME/.cargo/bin/cctop-hook Stop"
+      }]
+    }],
+    "Notification": [{
+      "matcher": "idle_prompt",
+      "hooks": [{
+        "type": "command",
+        "command": "$HOME/.cargo/bin/cctop-hook Notification"
+      }]
+    }],
+    "SessionEnd": [{
+      "matcher": ".*",
+      "hooks": [{
+        "type": "command",
+        "command": "$HOME/.cargo/bin/cctop-hook SessionEnd"
+      }]
+    }]
+  }
+}
