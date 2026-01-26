@@ -1,0 +1,19 @@
+{
+  "name": "cctop",
+  "owner": {
+    "name": "Stan Lo",
+    "email": "stan001212@gmail.com"
+  },
+  "metadata": {
+    "description": "Claude Code session monitor",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "cctop",
+      "source": "./plugins/cctop",
+      "description": "Monitor and navigate Claude Code sessions across workspaces",
+      "version": "0.1.0"
+    }
+  ]
+}
