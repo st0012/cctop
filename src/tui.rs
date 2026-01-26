@@ -411,7 +411,36 @@ fn sessions_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".cctop").join("sessions"))
 }
 
+/// Check if a session is still alive by verifying a claude process is running in that directory.
+///
+/// Uses `ps` and `lsof` to check if any claude process has the session's project_path as cwd.
+fn is_session_alive(project_path: &str) -> bool {
+    use std::process::Command;
+
+    // Use ps + lsof to find any process with claude in its command line that has this cwd
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(format!(
+            "ps aux | grep -E 'claude|Claude' | grep -v grep | awk '{{print $2}}' | while read pid; do lsof -p $pid 2>/dev/null | grep cwd | grep -q '{}' && echo found; done",
+            project_path
+        ))
+        .output();
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            stdout.contains("found")
+        }
+        Err(_) => {
+            // If the check fails, assume session is alive to avoid false deletions
+            true
+        }
+    }
+}
+
 /// Load all sessions from ~/.cctop/sessions/
+///
+/// Also validates sessions and removes stale ones whose Claude Code process has ended.
 fn load_all_sessions() -> Result<Vec<Session>> {
     let dir = match sessions_dir() {
         Some(d) => d,
@@ -430,7 +459,15 @@ fn load_all_sessions() -> Result<Vec<Session>> {
 
         if path.extension().map(|e| e == "json").unwrap_or(false) {
             match Session::from_file(&path) {
-                Ok(session) => sessions.push(session),
+                Ok(session) => {
+                    // Validate session is still alive
+                    if is_session_alive(&session.project_path) {
+                        sessions.push(session);
+                    } else {
+                        // Session has ended, remove the stale file
+                        let _ = fs::remove_file(&path);
+                    }
+                }
                 Err(e) => eprintln!("Failed to load {}: {}", path.display(), e),
             }
         }
