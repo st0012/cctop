@@ -489,15 +489,246 @@ cctop/
 
 ---
 
-## Verification
+## Testing Plan
 
-**Test locally:**
-1. Install plugin: copy to ~/.claude/plugins/
-2. Start CC session in a project
-3. Run `cctop` in separate terminal
-4. Verify session appears with correct status
-5. Submit prompt → verify status changes
-6. Press Enter → verify VS Code window focuses
+### 1. Rust Unit Tests
+
+**session.rs:**
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_session_from_json() {
+        let json = r#"{"session_id": "abc", "project_path": "/tmp/test", ...}"#;
+        let session = Session::from_json(json).unwrap();
+        assert_eq!(session.session_id, "abc");
+    }
+
+    #[test]
+    fn test_session_status_display() {
+        assert_eq!(Status::Working.indicator(), "◉");
+        assert_eq!(Status::Idle.indicator(), "·");
+        assert_eq!(Status::NeedsAttention.indicator(), "→");
+    }
+
+    #[test]
+    fn test_truncate_prompt() {
+        let long = "a".repeat(100);
+        assert_eq!(truncate_prompt(&long, 50).len(), 50);
+        assert!(truncate_prompt(&long, 50).ends_with("..."));
+    }
+
+    #[test]
+    fn test_relative_time() {
+        // 5 minutes ago
+        let past = Utc::now() - Duration::minutes(5);
+        assert_eq!(format_relative_time(past), "5m ago");
+    }
+}
+```
+
+**config.rs:**
+```rust
+#[test]
+fn test_config_defaults() {
+    let config = Config::default();
+    assert_eq!(config.editor.process_name, "Code");
+    assert_eq!(config.editor.cli_command, "code");
+}
+
+#[test]
+fn test_config_from_toml() {
+    let toml = r#"
+        [editor]
+        process_name = "Cursor"
+        cli_command = "cursor"
+    "#;
+    let config = Config::from_toml(toml).unwrap();
+    assert_eq!(config.editor.process_name, "Cursor");
+}
+
+#[test]
+fn test_config_invalid_toml_uses_defaults() {
+    let config = Config::from_toml("invalid { toml").unwrap_or_default();
+    assert_eq!(config.editor.process_name, "Code");
+}
+```
+
+**cctop-hook (bin):**
+```rust
+#[test]
+fn test_parse_hook_stdin() {
+    let json = r#"{"session_id": "abc", "cwd": "/tmp", "hook_event_name": "Stop"}"#;
+    let input = HookInput::from_json(json).unwrap();
+    assert_eq!(input.session_id, "abc");
+}
+
+#[test]
+fn test_status_from_hook_event() {
+    assert_eq!(Status::from_hook("SessionStart"), Status::Idle);
+    assert_eq!(Status::from_hook("UserPromptSubmit"), Status::Working);
+    assert_eq!(Status::from_hook("PreToolUse"), Status::Working);
+    assert_eq!(Status::from_hook("Stop"), Status::Idle);
+}
+
+#[test]
+fn test_extract_project_name() {
+    assert_eq!(extract_project_name("/Users/st0012/projects/irb"), "irb");
+    assert_eq!(extract_project_name("/tmp/"), "tmp");
+}
+```
+
+### 2. Rust Integration Tests
+
+**tests/session_file_io.rs:**
+```rust
+#[test]
+fn test_write_and_read_session_file() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let sessions_dir = temp_dir.path().join("sessions");
+
+    let session = Session { session_id: "test123".into(), ... };
+    session.write_to_dir(&sessions_dir).unwrap();
+
+    let sessions = Session::load_all(&sessions_dir).unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].session_id, "test123");
+}
+
+#[test]
+fn test_atomic_write_creates_no_partial_files() {
+    // Simulate crash during write - temp file should be cleaned up
+}
+
+#[test]
+fn test_stale_session_cleanup() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let sessions_dir = temp_dir.path().join("sessions");
+
+    // Create a session file with old timestamp
+    let old_session = Session {
+        last_activity: Utc::now() - Duration::hours(25),
+        ..
+    };
+    old_session.write_to_dir(&sessions_dir).unwrap();
+
+    cleanup_stale_sessions(&sessions_dir, Duration::hours(24)).unwrap();
+
+    assert!(Session::load_all(&sessions_dir).unwrap().is_empty());
+}
+```
+
+**tests/hook_e2e.rs:**
+```rust
+#[test]
+fn test_hook_binary_processes_stdin() {
+    let input = r#"{"session_id":"abc","cwd":"/tmp","hook_event_name":"SessionStart"}"#;
+
+    let output = Command::new("cargo")
+        .args(["run", "--bin", "cctop-hook", "--", "SessionStart"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    output.stdin.unwrap().write_all(input.as_bytes()).unwrap();
+    let status = output.wait().unwrap();
+
+    assert!(status.success());
+    // Verify session file was created
+}
+```
+
+### 3. Agent-Executable Tests (Claude can run these)
+
+**After building the binaries:**
+
+```bash
+# Build
+cargo build --release
+
+# Test hook binary with mock input
+echo '{"session_id":"test-123","cwd":"/tmp","hook_event_name":"SessionStart"}' | \
+  ./target/release/cctop-hook SessionStart
+
+# Verify session file created
+cat ~/.cctop/sessions/test-123.json
+
+# Test session file cleanup
+./target/release/cctop --cleanup-stale
+
+# Test TUI launches without error (non-interactive)
+timeout 2 ./target/release/cctop || true  # exits after 2s
+
+# Test config parsing
+mkdir -p ~/.cctop
+echo '[editor]
+process_name = "TestEditor"
+cli_command = "test-editor"' > ~/.cctop/config.toml
+./target/release/cctop --print-config
+
+# Run all Rust tests
+cargo test
+
+# Run with coverage (if tarpaulin installed)
+cargo tarpaulin --out Html
+```
+
+### 4. Manual Tests (User only)
+
+**These require human interaction or real CC sessions:**
+
+| Test | Steps | Expected Result |
+|------|-------|-----------------|
+| **Real CC session detection** | 1. Start CC in a project<br>2. Run `cctop` | Session appears in TUI with correct repo/branch |
+| **Status transitions** | 1. Submit prompt in CC<br>2. Watch cctop | Status changes: idle → working → idle |
+| **Needs attention** | 1. Trigger permission prompt in CC<br>2. Watch cctop | Status shows "needs_attention" with → indicator |
+| **Window focus (VS Code)** | 1. Have CC running in VS Code<br>2. Press Enter in cctop | VS Code window focuses, terminal activates |
+| **Window focus (iTerm2)** | 1. Run CC in iTerm2<br>2. Press Enter in cctop | iTerm2 session focuses |
+| **Window focus (Kitty)** | 1. Enable remote_control in kitty.conf<br>2. Run CC in Kitty<br>3. Press Enter in cctop | Kitty window focuses |
+| **Multiple sessions** | 1. Start 3+ CC sessions<br>2. Run cctop | All sessions listed, grouped by status |
+| **Cursor editor** | 1. Set config to Cursor<br>2. Run CC in Cursor<br>3. Press Enter | Cursor window focuses |
+| **Session end cleanup** | 1. Exit CC session<br>2. Watch cctop | Session disappears from list |
+| **CC crash recovery** | 1. Kill CC process (kill -9)<br>2. Restart cctop after 24h | Stale session file cleaned up |
+| **Keyboard navigation** | 1. Run cctop<br>2. Press ↑/↓/q/r | Navigation works, q quits, r refreshes |
+| **Last prompt display** | 1. Submit long prompt in CC<br>2. Check cctop | Prompt truncated to ~50-80 chars |
+| **International keyboard** | 1. Use non-US keyboard<br>2. Test terminal focus | Note if Ctrl+` fails (known limitation) |
+
+### 5. CI Pipeline (GitHub Actions)
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run tests
+        run: cargo test --all
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Test hook binary
+        run: |
+          echo '{"session_id":"ci-test","cwd":"/tmp","hook_event_name":"SessionStart"}' | \
+            ./target/release/cctop-hook SessionStart
+          test -f ~/.cctop/sessions/ci-test.json
+
+      - name: Lint
+        run: cargo clippy -- -D warnings
+
+      - name: Format check
+        run: cargo fmt -- --check
+```
 
 ---
 
