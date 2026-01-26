@@ -146,3 +146,31 @@ cat ~/.cctop/sessions/*.json | jq '.project_name + " | " + .status'
 - `~/.claude/debug/<session-id>.txt` - Claude Code debug logs
 - `~/.claude/plugins/cache/cctop/` - Installed plugin cache
 - `~/.claude/settings.json` - Check if plugin is enabled
+
+## Demo Recording
+
+Uses [VHS](https://github.com/charmbracelet/vhs) for scriptable terminal recordings.
+
+### Setup
+```bash
+brew install vhs
+```
+
+### Recording
+```bash
+# Generate demo GIF from tape file
+vhs docs/demo.tape
+```
+
+### Tape File Format
+The `docs/demo.tape` file defines the recording:
+- `Output <path>` - Output file (GIF, MP4, WebM)
+- `Set FontSize/Width/Height/Theme` - Terminal appearance
+- `Type "<text>"` - Type text
+- `Enter/Down/Up` - Key presses
+- `Sleep <duration>` - Wait between actions
+
+### Tips
+- Run with active Claude Code sessions for realistic content
+- Or create mock session files in `~/.cctop/sessions/` before recording
+- Re-run `vhs docs/demo.tape` to regenerate after changes
