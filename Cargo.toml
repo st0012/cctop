@@ -2,6 +2,14 @@
 name = "cctop"
 version = "0.1.0"
 edition = "2021"
+description = "TUI for monitoring Claude Code sessions across workspaces"
+license = "MIT"
+repository = "https://github.com/st0012/cctop"
+homepage = "https://github.com/st0012/cctop"
+readme = "README.md"
+keywords = ["cli", "tui", "claude", "monitoring", "terminal"]
+categories = ["command-line-utilities"]
+authors = ["Stan Lo <stan001212@gmail.com>"]
 
 [[bin]]
 name = "cctop"
