@@ -9,7 +9,7 @@ use crate::session::{Session, Status};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
@@ -34,6 +34,8 @@ pub struct App {
     list_state: ListState,
     /// Flag to signal the app should quit
     should_quit: bool,
+    /// Demo mode - skip session liveness checks
+    demo_mode: bool,
 }
 
 impl App {
@@ -48,12 +50,19 @@ impl App {
             config,
             list_state,
             should_quit: false,
+            demo_mode: false,
         }
+    }
+
+    /// Enable demo mode (skip session liveness checks).
+    pub fn with_demo_mode(mut self, demo_mode: bool) -> Self {
+        self.demo_mode = demo_mode;
+        self
     }
 
     /// Load sessions from ~/.cctop/sessions/
     pub fn load_sessions(&mut self) {
-        self.sessions = load_all_sessions().unwrap_or_default();
+        self.sessions = load_all_sessions(self.demo_mode).unwrap_or_default();
 
         // Sort by status priority, then by last_activity
         self.sessions.sort_by(|a, b| {
@@ -133,6 +142,14 @@ impl App {
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => {
+                self.should_quit = true;
+                true
+            }
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.should_quit = true;
+                true
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
                 true
             }
@@ -358,7 +375,7 @@ impl App {
     /// Render the footer with keyboard shortcuts.
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
         let footer = Paragraph::new(
-            "  \u{2191}/\u{2193}: navigate   enter: jump to session   r: refresh   q: quit",
+            "  \u{2191}/\u{2193}: navigate   enter: jump to session   r: refresh   q/Ctrl+C: quit",
         )
         .style(Style::default().fg(Color::DarkGray));
         frame.render_widget(footer, area);
@@ -441,7 +458,8 @@ fn is_session_alive(project_path: &str) -> bool {
 /// Load all sessions from ~/.cctop/sessions/
 ///
 /// Also validates sessions and removes stale ones whose Claude Code process has ended.
-fn load_all_sessions() -> Result<Vec<Session>> {
+/// If `skip_liveness_check` is true (demo mode), sessions are loaded without validation.
+fn load_all_sessions(skip_liveness_check: bool) -> Result<Vec<Session>> {
     let dir = match sessions_dir() {
         Some(d) => d,
         None => return Ok(Vec::new()),
@@ -460,8 +478,8 @@ fn load_all_sessions() -> Result<Vec<Session>> {
         if path.extension().map(|e| e == "json").unwrap_or(false) {
             match Session::from_file(&path) {
                 Ok(session) => {
-                    // Validate session is still alive
-                    if is_session_alive(&session.project_path) {
+                    // In demo mode, skip liveness check
+                    if skip_liveness_check || is_session_alive(&session.project_path) {
                         sessions.push(session);
                     } else {
                         // Session has ended, remove the stale file
@@ -535,13 +553,22 @@ fn format_relative_time(time: DateTime<Utc>) -> String {
 }
 
 /// Truncate a prompt to max_len characters, adding "..." if truncated.
+/// Also normalizes whitespace (newlines, multiple spaces) to single spaces.
 fn truncate_prompt(prompt: &str, max_len: usize) -> String {
-    if prompt.len() <= max_len {
-        prompt.to_string()
+    // Normalize whitespace: replace newlines and multiple spaces with single space
+    let normalized: String = prompt
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    if normalized.len() <= max_len {
+        normalized
     } else if max_len <= 3 {
         "...".to_string()
     } else {
-        format!("{}...", &prompt[..max_len - 3])
+        // Ensure we don't cut in the middle of a multi-byte character
+        let truncated: String = normalized.chars().take(max_len - 3).collect();
+        format!("{}...", truncated)
     }
 }
 
@@ -651,6 +678,30 @@ mod tests {
     }
 
     #[test]
+    fn test_handle_key_ctrl_c_quit() {
+        let config = Config::default();
+        let mut app = App::new(config);
+
+        let key = KeyEvent::new(KeyCode::Char('c'), crossterm::event::KeyModifiers::CONTROL);
+        let should_quit = app.handle_key(key);
+
+        assert!(should_quit);
+        assert!(app.should_quit);
+    }
+
+    #[test]
+    fn test_handle_key_ctrl_d_quit() {
+        let config = Config::default();
+        let mut app = App::new(config);
+
+        let key = KeyEvent::new(KeyCode::Char('d'), crossterm::event::KeyModifiers::CONTROL);
+        let should_quit = app.handle_key(key);
+
+        assert!(should_quit);
+        assert!(app.should_quit);
+    }
+
+    #[test]
     fn test_handle_key_navigation() {
         let config = Config::default();
         let mut app = App::new(config);
@@ -718,5 +769,10 @@ mod tests {
         );
         assert_eq!(truncate_prompt("hello", 3), "...");
         assert_eq!(truncate_prompt("hello", 8), "hello");
+        // Test newline normalization
+        assert_eq!(truncate_prompt("hello\nworld", 50), "hello world");
+        assert_eq!(truncate_prompt("line1\n\nline2\nline3", 50), "line1 line2 line3");
+        // Test combined truncation and normalization
+        assert_eq!(truncate_prompt("hello\nworld", 10), "hello w...");
     }
 }
