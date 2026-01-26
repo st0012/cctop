@@ -182,55 +182,70 @@ impl App {
 
     /// Handle a key event. Returns true if the app should quit.
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
+        // Handle quit keys
+        let is_quit_key = match key.code {
+            KeyCode::Char('q') | KeyCode::Esc => true,
+            KeyCode::Char('c' | 'd') if key.modifiers.contains(KeyModifiers::CONTROL) => true,
+            _ => false,
+        };
+
+        if is_quit_key {
+            self.should_quit = true;
+            return true;
+        }
+
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => {
-                self.should_quit = true;
-                true
-            }
-            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.should_quit = true;
-                true
-            }
-            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.should_quit = true;
-                true
-            }
             KeyCode::Char('r') => {
                 self.load_sessions_with_liveness(false);
-                false
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                match self.view_mode {
-                    ViewMode::List => self.select_previous(),
-                    ViewMode::Detail => self.scroll_detail_up(),
-                }
-                false
+                self.handle_up();
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                match self.view_mode {
-                    ViewMode::List => self.select_next(),
-                    ViewMode::Detail => self.scroll_detail_down(),
-                }
-                false
+                self.handle_down();
             }
             KeyCode::Right | KeyCode::Char('l') => {
-                if self.view_mode == ViewMode::List && !self.sessions.is_empty() {
-                    self.view_mode = ViewMode::Detail;
-                    self.detail_scroll = 0;
-                }
-                false
+                self.enter_detail_view();
             }
             KeyCode::Left | KeyCode::Char('h') => {
-                if self.view_mode == ViewMode::Detail {
-                    self.view_mode = ViewMode::List;
-                }
-                false
+                self.exit_detail_view();
             }
             KeyCode::Enter => {
                 self.focus_selected();
-                false
             }
-            _ => false,
+            _ => {}
+        }
+        false
+    }
+
+    /// Handle up key based on current view mode.
+    fn handle_up(&mut self) {
+        match self.view_mode {
+            ViewMode::List => self.select_previous(),
+            ViewMode::Detail => self.scroll_detail_up(),
+        }
+    }
+
+    /// Handle down key based on current view mode.
+    fn handle_down(&mut self) {
+        match self.view_mode {
+            ViewMode::List => self.select_next(),
+            ViewMode::Detail => self.scroll_detail_down(),
+        }
+    }
+
+    /// Enter detail view if there are sessions.
+    fn enter_detail_view(&mut self) {
+        if self.view_mode == ViewMode::List && !self.sessions.is_empty() {
+            self.view_mode = ViewMode::Detail;
+            self.detail_scroll = 0;
+        }
+    }
+
+    /// Exit detail view and return to list.
+    fn exit_detail_view(&mut self) {
+        if self.view_mode == ViewMode::Detail {
+            self.view_mode = ViewMode::List;
         }
     }
 
@@ -315,34 +330,34 @@ impl App {
 
         // Build list items with section headers
         let mut items: Vec<ListItem> = Vec::new();
-        let mut flat_index = 0;
 
         // Helper to add a section
         let mut add_section = |title: &str, sessions: Vec<&Session>, color: Color| {
-            if !sessions.is_empty() {
-                // Add section header
-                let header_line = format!("  {} ", title);
-                let header_width = area.width as usize;
-                let padding = header_width.saturating_sub(header_line.len() + 2);
-                let header = format!("{}{}", header_line, "\u{2500}".repeat(padding));
-                items.push(
-                    ListItem::new(Line::from(Span::styled(
-                        header,
-                        Style::default().fg(Color::DarkGray),
-                    )))
-                    .style(Style::default()),
-                );
-
-                // Add sessions in this group
-                for session in sessions {
-                    let item = self.session_to_list_item(session, area.width, color, flat_index);
-                    items.push(item);
-                    flat_index += 1;
-                }
-
-                // Add blank line after section
-                items.push(ListItem::new(""));
+            if sessions.is_empty() {
+                return;
             }
+
+            // Add section header
+            let header_line = format!("  {} ", title);
+            let header_width = area.width as usize;
+            let padding = header_width.saturating_sub(header_line.len() + 2);
+            let header = format!("{}{}", header_line, "\u{2500}".repeat(padding));
+            items.push(
+                ListItem::new(Line::from(Span::styled(
+                    header,
+                    Style::default().fg(Color::DarkGray),
+                )))
+                .style(Style::default()),
+            );
+
+            // Add sessions in this group
+            for session in sessions {
+                let item = self.session_to_list_item(session, area.width, color);
+                items.push(item);
+            }
+
+            // Add blank line after section
+            items.push(ListItem::new(""));
         };
 
         add_section("NEEDS ATTENTION", needs_attention, Color::Yellow);
@@ -370,34 +385,26 @@ impl App {
         }
 
         let (needs_attention, working, idle) = group_sessions_by_status(&self.sessions);
+        let sections = [needs_attention, working, idle];
+
         let mut offset = 0;
         let mut session_count = 0;
 
-        // Check needs_attention section
-        if !needs_attention.is_empty() {
+        for (i, section) in sections.iter().enumerate() {
+            if section.is_empty() {
+                continue;
+            }
+
             offset += 1; // section header
-            if self.selected_index < session_count + needs_attention.len() {
+            if self.selected_index < session_count + section.len() {
                 return offset + (self.selected_index - session_count);
             }
-            session_count += needs_attention.len();
-            offset += needs_attention.len() + 1; // sessions + blank line
-        }
+            session_count += section.len();
 
-        // Check working section
-        if !working.is_empty() {
-            offset += 1; // section header
-            if self.selected_index < session_count + working.len() {
-                return offset + (self.selected_index - session_count);
-            }
-            session_count += working.len();
-            offset += working.len() + 1; // sessions + blank line
-        }
-
-        // Check idle section
-        if !idle.is_empty() {
-            offset += 1; // section header
-            if self.selected_index < session_count + idle.len() {
-                return offset + (self.selected_index - session_count);
+            // Add sessions + blank line (except for last section which doesn't need trailing offset)
+            let is_last = i == sections.len() - 1;
+            if !is_last {
+                offset += section.len() + 1;
             }
         }
 
@@ -410,14 +417,8 @@ impl App {
         session: &Session,
         width: u16,
         color: Color,
-        _index: usize,
     ) -> ListItem<'static> {
-        let indicator = match session.status {
-            Status::NeedsAttention => "\u{2192}", // ->
-            Status::Working => "\u{25C9}",        // (o)
-            Status::Idle => "\u{00B7}",           // .
-        };
-
+        let indicator = session.status.indicator();
         let time = format_relative_time(session.last_activity);
 
         // Format: indicator project_name branch time
@@ -445,30 +446,25 @@ impl App {
 
     /// Render the full-screen detail view for the selected session.
     fn render_detail_view(&self, frame: &mut Frame, area: Rect) {
-        let session = match self.sessions.get(self.selected_index) {
-            Some(s) => s,
-            None => return,
-        };
-
-        let status_str = match session.status {
-            Status::NeedsAttention => "needs_attention",
-            Status::Working => "working",
-            Status::Idle => "idle",
+        let Some(session) = self.sessions.get(self.selected_index) else {
+            return;
         };
 
         let started = format_relative_time(session.started_at);
         let active = format_relative_time(session.last_activity);
 
+        let terminal_session_id = session
+            .terminal
+            .session_id
+            .as_ref()
+            .map(|id| format!("\n  ID: {}", id))
+            .unwrap_or_default();
+
         let terminal_info = format!(
             "{}\n  TTY: {}{}",
             session.terminal.program,
             session.terminal.tty.as_deref().unwrap_or("unknown"),
-            session
-                .terminal
-                .session_id
-                .as_ref()
-                .map(|id| format!("\n  ID: {}", id))
-                .unwrap_or_default()
+            terminal_session_id
         );
 
         let prompt_text = session.last_prompt.as_deref().unwrap_or("(no prompt)");
@@ -483,7 +479,7 @@ impl App {
              Prompt:\n\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\n{}",
             session.project_path,
             session.branch,
-            status_str,
+            session.status.as_str(),
             started,
             active,
             terminal_info,
