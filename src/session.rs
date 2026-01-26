@@ -34,6 +34,15 @@ impl Status {
         }
     }
 
+    /// Returns the snake_case string representation of this status.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Status::Idle => "idle",
+            Status::Working => "working",
+            Status::NeedsAttention => "needs_attention",
+        }
+    }
+
     /// Determines the status from a hook event name.
     ///
     /// - SessionStart -> Idle
@@ -314,6 +323,13 @@ mod tests {
         assert_eq!(Status::Idle.indicator(), "\u{00B7}");
         assert_eq!(Status::Working.indicator(), "\u{25C9}");
         assert_eq!(Status::NeedsAttention.indicator(), "\u{2192}");
+    }
+
+    #[test]
+    fn test_status_as_str() {
+        assert_eq!(Status::Idle.as_str(), "idle");
+        assert_eq!(Status::Working.as_str(), "working");
+        assert_eq!(Status::NeedsAttention.as_str(), "needs_attention");
     }
 
     #[test]
