@@ -8,6 +8,9 @@
 //!   -l, --list       List sessions as text and exit (no TUI)
 //!   --cleanup-stale  Run stale session cleanup and exit
 //!   --print-config   Print the loaded configuration and exit
+//!
+//! Environment variables:
+//!   CCTOP_DEMO=1     Skip session liveness checks (for demos with mock data)
 //!   -V, --version    Print version and exit
 //!
 //! Keyboard shortcuts:
@@ -25,6 +28,9 @@ use std::env;
 fn main() {
     // Parse command line arguments
     let args: Vec<String> = env::args().collect();
+
+    // Check for demo mode via environment variable
+    let demo_mode = env::var("CCTOP_DEMO").map(|v| v == "1").unwrap_or(false);
 
     if let Some(arg) = args.get(1) {
         match arg.as_str() {
@@ -85,7 +91,7 @@ fn main() {
     };
 
     // Create and run the app
-    let mut app = App::new(config);
+    let mut app = App::new(config).with_demo_mode(demo_mode);
     let result = app.run(&mut terminal);
 
     // Restore terminal state before handling any errors
