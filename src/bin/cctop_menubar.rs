@@ -79,24 +79,15 @@ fn run_menubar() -> anyhow::Result<()> {
             std::time::Instant::now() + std::time::Duration::from_millis(500),
         );
 
-        match event {
-            Event::NewEvents(StartCause::Init) => {
-                // App just started
-            }
-            Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
-                // Check for file changes
-                if let Some(ref mut w) = *watcher.borrow_mut() {
-                    if let Some(new_sessions) = w.poll_changes() {
-                        // Update stored sessions
-                        *sessions.borrow_mut() = new_sessions;
-
-                        // Rebuild and update menu
-                        let new_menu = build_menu(&sessions.borrow());
-                        tray_icon.borrow().set_menu(Some(Box::new(new_menu)));
-                    }
+        // Check for file changes on timer
+        if let Event::NewEvents(StartCause::ResumeTimeReached { .. }) = event {
+            if let Some(ref mut w) = *watcher.borrow_mut() {
+                if let Some(new_sessions) = w.poll_changes() {
+                    *sessions.borrow_mut() = new_sessions;
+                    let new_menu = build_menu(&sessions.borrow());
+                    tray_icon.borrow().set_menu(Some(Box::new(new_menu)));
                 }
             }
-            _ => {}
         }
 
         // Handle menu events

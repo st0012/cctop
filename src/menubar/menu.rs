@@ -18,28 +18,20 @@ pub mod ids {
 /// Menu structure:
 /// - Active sessions (needs_attention + working) at top
 /// - Separator
-/// - "Idle" label, then idle sessions (dimmed)
+/// - "Idle" label, then idle sessions
 /// - Separator
-/// - "Open TUI" item
 /// - "Quit cctop" item
 ///
-/// Each session item shows: project_name (branch)
+/// Each session item shows: emoji project_name (branch)
 pub fn build_menu(sessions: &[Session]) -> Menu {
     let menu = Menu::new();
 
-    // Group sessions by status
-    let (needs_attention, working, idle) = group_sessions_by_status(sessions);
-
-    // Active sessions section (needs_attention + working)
-    let active_sessions: Vec<&Session> = needs_attention
-        .into_iter()
-        .chain(working.into_iter())
-        .collect();
+    // Group sessions into active (needs_attention, working) and idle
+    let (active_sessions, idle) = partition_sessions_by_activity(sessions);
 
     if !active_sessions.is_empty() {
         for session in &active_sessions {
-            let item = create_session_item(session, true);
-            let _ = menu.append(&item);
+            let _ = menu.append(&create_session_item(session));
         }
     } else {
         // Show "No active sessions" when there are no active sessions
@@ -67,8 +59,7 @@ pub fn build_menu(sessions: &[Session]) -> Menu {
         let _ = menu.append(&idle_label);
 
         for session in &idle {
-            let item = create_session_item(session, true); // clickable to jump to session
-            let _ = menu.append(&item);
+            let _ = menu.append(&create_session_item(session));
         }
     }
 
@@ -85,7 +76,7 @@ pub fn build_menu(sessions: &[Session]) -> Menu {
 /// Create a menu item for a session.
 ///
 /// Format: "emoji project_name (branch)"
-fn create_session_item(session: &Session, _is_active: bool) -> MenuItem {
+fn create_session_item(session: &Session) -> MenuItem {
     let emoji = match session.status {
         Status::NeedsAttention => "🟡",
         Status::Working => "🟢",
@@ -94,28 +85,38 @@ fn create_session_item(session: &Session, _is_active: bool) -> MenuItem {
     let text = format!("{} {} ({})", emoji, session.project_name, session.branch);
     let id = format!("{}{}", ids::SESSION_PREFIX, session.session_id);
 
-    MenuItem::with_id(id, text, true, None::<Accelerator>) // always enabled/clickable
+    MenuItem::with_id(id, text, true, None::<Accelerator>)
 }
 
-/// Group sessions by their status.
+/// Partition sessions into active (needs_attention + working) and idle.
 ///
-/// Returns three vectors: (needs_attention, working, idle)
-fn group_sessions_by_status(
-    sessions: &[Session],
-) -> (Vec<&Session>, Vec<&Session>, Vec<&Session>) {
-    let mut needs_attention = Vec::new();
-    let mut working = Vec::new();
+/// Active sessions are sorted with needs_attention first, then working.
+fn partition_sessions_by_activity(sessions: &[Session]) -> (Vec<&Session>, Vec<&Session>) {
+    let mut active = Vec::new();
     let mut idle = Vec::new();
 
+    // First pass: collect needs_attention (highest priority)
     for session in sessions {
-        match session.status {
-            Status::NeedsAttention => needs_attention.push(session),
-            Status::Working => working.push(session),
-            Status::Idle => idle.push(session),
+        if session.status == Status::NeedsAttention {
+            active.push(session);
         }
     }
 
-    (needs_attention, working, idle)
+    // Second pass: collect working sessions
+    for session in sessions {
+        if session.status == Status::Working {
+            active.push(session);
+        }
+    }
+
+    // Third pass: collect idle sessions
+    for session in sessions {
+        if session.status == Status::Idle {
+            idle.push(session);
+        }
+    }
+
+    (active, idle)
 }
 
 #[cfg(test)]
@@ -143,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn test_group_sessions_by_status() {
+    fn test_partition_sessions_by_activity() {
         let sessions = vec![
             make_test_session("1", Status::Idle, "proj1", "main"),
             make_test_session("2", Status::Working, "proj2", "feature"),
@@ -151,14 +152,14 @@ mod tests {
             make_test_session("4", Status::Idle, "proj4", "develop"),
         ];
 
-        let (needs_attention, working, idle) = group_sessions_by_status(&sessions);
+        let (active, idle) = partition_sessions_by_activity(&sessions);
 
-        assert_eq!(needs_attention.len(), 1);
-        assert_eq!(working.len(), 1);
+        assert_eq!(active.len(), 2);
         assert_eq!(idle.len(), 2);
 
-        assert_eq!(needs_attention[0].session_id, "3");
-        assert_eq!(working[0].session_id, "2");
+        // Needs attention should come first, then working
+        assert_eq!(active[0].session_id, "3");
+        assert_eq!(active[1].session_id, "2");
     }
 
     // Note: Tests for build_menu are skipped because tray-icon Menu
