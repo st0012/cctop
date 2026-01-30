@@ -1,8 +1,10 @@
 pub mod config;
 pub mod focus;
 pub mod git;
+pub mod menubar;
 pub mod session;
 pub mod tui;
+pub mod watcher;
 
 pub use config::{Config, EditorConfig};
 pub use focus::focus_terminal;

@@ -1,0 +1,6 @@
+//! Menubar module for cctop.
+//!
+//! Provides menu building functionality for the macOS menubar app.
+
+#[cfg(target_os = "macos")]
+pub mod menu;
