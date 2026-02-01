@@ -3,7 +3,7 @@
 //! Uses the `notify` crate to watch `~/.cctop/sessions/` for file changes
 //! and reloads sessions when files are created, modified, or deleted.
 
-use crate::session::Session;
+use crate::session::{load_live_sessions, Session};
 use anyhow::{Context, Result};
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::PathBuf;
@@ -97,8 +97,8 @@ impl SessionWatcher {
         }
 
         if has_changes {
-            // Reload all sessions
-            match Session::load_all(&self.sessions_dir) {
+            // Reload all sessions, filtering out dead ones by PID
+            match load_live_sessions(&self.sessions_dir) {
                 Ok(sessions) => Some(sessions),
                 Err(e) => {
                     eprintln!("Failed to reload sessions: {}", e);
@@ -138,8 +138,8 @@ mod tests {
     fn create_test_session(session_id: &str) -> Session {
         Session {
             session_id: session_id.to_string(),
-            project_path: "/Users/test/projects/myproject".to_string(),
-            project_name: "myproject".to_string(),
+            project_path: "/nonexistent/test/projects/testproj".to_string(),
+            project_name: "testproj".to_string(),
             branch: "main".to_string(),
             status: Status::Idle,
             last_prompt: Some("Test prompt".to_string()),
@@ -150,6 +150,7 @@ mod tests {
                 session_id: None,
                 tty: None,
             },
+            pid: None,
         }
     }
 
