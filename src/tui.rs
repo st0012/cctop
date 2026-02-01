@@ -560,13 +560,27 @@ fn sessions_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|home| home.join(".cctop").join("sessions"))
 }
 
-/// Check if a session is still alive by verifying a claude process is running in that directory.
+/// Check if a session is still alive by checking if its PID is running.
 ///
+/// If the session has a PID, uses `is_pid_alive` for a fast check.
+/// Falls back to the slower ps+lsof check for sessions without PID (backwards compatibility).
+fn is_session_alive(session: &Session) -> bool {
+    use crate::session::is_pid_alive;
+
+    // If session has a PID, use the fast PID check
+    if let Some(pid) = session.pid {
+        return is_pid_alive(pid);
+    }
+
+    // Fallback for old sessions without PID: use the slow ps+lsof approach
+    is_session_alive_by_path(&session.project_path)
+}
+
+/// Fallback liveness check for sessions without PID.
 /// Uses `ps` and `lsof` to check if any claude process has the session's project_path as cwd.
-fn is_session_alive(project_path: &str) -> bool {
+fn is_session_alive_by_path(project_path: &str) -> bool {
     use std::process::Command;
 
-    // Use ps + lsof to find any process with claude in its command line that has this cwd
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!(
@@ -611,7 +625,7 @@ fn load_all_sessions(skip_liveness_check: bool) -> Result<Vec<Session>> {
             match Session::from_file(&path) {
                 Ok(session) => {
                     // In demo mode, skip liveness check
-                    if skip_liveness_check || is_session_alive(&session.project_path) {
+                    if skip_liveness_check || is_session_alive(&session) {
                         sessions.push(session);
                     } else {
                         // Session has ended, remove the stale file
@@ -713,7 +727,7 @@ mod tests {
     fn make_test_session(id: &str, status: Status, project: &str) -> Session {
         Session {
             session_id: id.to_string(),
-            project_path: format!("/tmp/{}", project),
+            project_path: format!("/nonexistent/test/projects/{}", project),
             project_name: project.to_string(),
             branch: "main".to_string(),
             status,
@@ -725,6 +739,7 @@ mod tests {
                 session_id: None,
                 tty: None,
             },
+            pid: None,
         }
     }
 
@@ -974,21 +989,9 @@ mod tests {
         assert_eq!(app.view_mode, ViewMode::List);
     }
 
-    #[test]
-    fn test_enter_works_in_detail_view() {
-        let config = Config::default();
-        let mut app = App::new(config);
-        app.sessions = vec![make_test_session("1", Status::Idle, "proj1")];
-        app.view_mode = ViewMode::Detail;
-
-        let key = KeyEvent::new(KeyCode::Enter, crossterm::event::KeyModifiers::NONE);
-        let should_quit = app.handle_key(key);
-
-        assert!(!should_quit);
-        // focus_selected() is called but we can't easily verify in unit test
-        // The important thing is it doesn't error or change view_mode
-        assert_eq!(app.view_mode, ViewMode::Detail);
-    }
+    // Note: test_enter_works_in_detail_view was removed because it triggers real
+    // subprocess spawning (code --goto) which causes VS Code to open files during tests.
+    // The focus functionality cannot be properly unit tested without mocking.
 
     #[test]
     fn test_format_relative_time() {

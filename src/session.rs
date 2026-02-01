@@ -101,6 +101,9 @@ pub struct Session {
     pub started_at: DateTime<Utc>,
     /// Terminal information for window focusing
     pub terminal: TerminalInfo,
+    /// Process ID of the Claude Code session (for liveness detection)
+    #[serde(default)]
+    pub pid: Option<u32>,
 }
 
 impl Session {
@@ -124,6 +127,7 @@ impl Session {
             last_activity: now,
             started_at: now,
             terminal,
+            pid: None,
         }
     }
 
@@ -295,6 +299,48 @@ pub fn extract_project_name(path: &str) -> String {
         .to_string()
 }
 
+/// Check if a process with the given PID is still alive.
+///
+/// Uses `kill -0` which checks if the process exists without sending a signal.
+/// Returns false if the process doesn't exist or we don't have permission to signal it.
+pub fn is_pid_alive(pid: u32) -> bool {
+    use std::process::Command;
+
+    // kill -0 checks if process exists without sending a signal
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+/// Load all sessions and filter out dead ones based on PID.
+///
+/// Sessions with a PID that is no longer running are considered dead and
+/// their session files are removed. Sessions without a PID (old format)
+/// are kept for backwards compatibility.
+pub fn load_live_sessions(sessions_dir: &Path) -> Result<Vec<Session>> {
+    let sessions = Session::load_all(sessions_dir)?;
+    let mut live_sessions = Vec::new();
+
+    for session in sessions {
+        if let Some(pid) = session.pid {
+            if is_pid_alive(pid) {
+                live_sessions.push(session);
+            } else {
+                // Dead session - remove the file
+                let _ = session.remove_from_dir(sessions_dir);
+            }
+        } else {
+            // No PID stored (old session format) - keep it for now
+            // These will be cleaned up by timestamp-based cleanup
+            live_sessions.push(session);
+        }
+    }
+
+    Ok(live_sessions)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,8 +349,8 @@ mod tests {
     fn create_test_session(session_id: &str) -> Session {
         Session {
             session_id: session_id.to_string(),
-            project_path: "/Users/test/projects/myproject".to_string(),
-            project_name: "myproject".to_string(),
+            project_path: "/nonexistent/test/projects/testproj".to_string(),
+            project_name: "testproj".to_string(),
             branch: "main".to_string(),
             status: Status::Idle,
             last_prompt: Some("Fix the bug".to_string()),
@@ -315,7 +361,62 @@ mod tests {
                 session_id: Some("w0t0p0:12345".to_string()),
                 tty: Some("/dev/ttys003".to_string()),
             },
+            pid: None,
         }
+    }
+
+    #[test]
+    fn test_session_has_pid_field() {
+        let mut session = create_test_session("test");
+        session.pid = Some(12345);
+        assert_eq!(session.pid, Some(12345));
+    }
+
+    #[test]
+    fn test_session_pid_serialization() {
+        let mut session = create_test_session("test");
+        session.pid = Some(12345);
+        let json = serde_json::to_string(&session).unwrap();
+        assert!(json.contains("\"pid\":12345"));
+
+        let parsed: Session = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.pid, Some(12345));
+    }
+
+    #[test]
+    fn test_session_pid_deserialization_missing() {
+        // Old session files without pid field should deserialize with pid = None
+        let json = r#"{
+            "session_id": "abc123",
+            "project_path": "/tmp/test",
+            "project_name": "test",
+            "branch": "main",
+            "status": "idle",
+            "last_prompt": null,
+            "last_activity": "2026-01-25T22:48:00Z",
+            "started_at": "2026-01-25T22:30:00Z",
+            "terminal": {
+                "program": "vscode",
+                "session_id": null,
+                "tty": null
+            }
+        }"#;
+
+        let session = Session::from_json(json).unwrap();
+        assert_eq!(session.pid, None);
+    }
+
+    #[test]
+    fn test_is_pid_alive_with_current_process() {
+        // Current process should be alive
+        let pid = std::process::id();
+        assert!(is_pid_alive(pid));
+    }
+
+    #[test]
+    fn test_is_pid_alive_with_nonexistent_pid() {
+        // Very high PID that almost certainly doesn't exist
+        assert!(!is_pid_alive(999999999));
     }
 
     #[test]
@@ -546,7 +647,7 @@ mod tests {
         let sessions = Session::load_all(&sessions_dir).unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].session_id, "test123");
-        assert_eq!(sessions[0].project_name, "myproject");
+        assert_eq!(sessions[0].project_name, "testproj");
     }
 
     #[test]

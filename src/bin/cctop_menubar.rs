@@ -24,7 +24,7 @@ fn run_menubar() -> anyhow::Result<()> {
     use cctop::focus::focus_terminal;
     use cctop::menubar::popup::{calculate_popup_height, render_popup, POPUP_WIDTH, QUIT_ACTION};
     use cctop::menubar::popup_state::PopupState;
-    use cctop::session::Session;
+    use cctop::session::{load_live_sessions, Session};
     use cctop::watcher::SessionWatcher;
     use std::sync::Arc;
     use tao::dpi::{LogicalSize, PhysicalPosition};
@@ -42,8 +42,8 @@ fn run_menubar() -> anyhow::Result<()> {
         .join(".cctop")
         .join("sessions");
 
-    // Load initial sessions
-    let sessions = Session::load_all(&sessions_dir).unwrap_or_default();
+    // Load initial sessions, filtering out dead ones by PID
+    let sessions = load_live_sessions(&sessions_dir).unwrap_or_default();
 
     // Load config for focus_terminal
     let config = Config::load();

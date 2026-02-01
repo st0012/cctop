@@ -11,7 +11,7 @@ use tempfile::tempdir;
 fn create_test_session(session_id: &str, project: &str) -> Session {
     Session {
         session_id: session_id.to_string(),
-        project_path: format!("/Users/test/projects/{}", project),
+        project_path: format!("/nonexistent/test/projects/{}", project),
         project_name: project.to_string(),
         branch: "main".to_string(),
         status: Status::Idle,
@@ -23,6 +23,7 @@ fn create_test_session(session_id: &str, project: &str) -> Session {
             session_id: Some("w0t0p0:12345".to_string()),
             tty: Some("/dev/ttys003".to_string()),
         },
+        pid: None,
     }
 }
 
@@ -220,8 +221,8 @@ fn test_remove_nonexistent_session_ok() {
 fn test_session_serialization_roundtrip_all_fields() {
     let original = Session {
         session_id: "roundtrip-all".to_string(),
-        project_path: "/Users/test/projects/myproject".to_string(),
-        project_name: "myproject".to_string(),
+        project_path: "/nonexistent/test/projects/testproj".to_string(),
+        project_name: "testproj".to_string(),
         branch: "feature/test".to_string(),
         status: Status::NeedsAttention,
         last_prompt: Some("A very long prompt that tests serialization".to_string()),
@@ -232,6 +233,7 @@ fn test_session_serialization_roundtrip_all_fields() {
             session_id: Some("12345".to_string()),
             tty: Some("/dev/ttys007".to_string()),
         },
+        pid: Some(12345),
     };
 
     let json = serde_json::to_string_pretty(&original).unwrap();
