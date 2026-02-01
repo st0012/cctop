@@ -20,9 +20,9 @@
 //! - q or Esc: Quit
 
 use cctop::config::Config;
-use cctop::session::{cleanup_stale_sessions, Session, Status};
+use cctop::session::{cleanup_stale_sessions, format_relative_time, Session, Status};
 use cctop::tui::{init_terminal, restore_terminal, App};
-use chrono::{Duration, Utc};
+use chrono::Duration;
 use std::env;
 
 fn main() {
@@ -184,30 +184,5 @@ fn is_session_alive(project_path: &str) -> bool {
             stdout.contains("found")
         }
         Err(_) => true,
-    }
-}
-
-/// Format a timestamp as a relative time string.
-fn format_relative_time(time: chrono::DateTime<Utc>) -> String {
-    let now = Utc::now();
-    let duration = now.signed_duration_since(time);
-
-    if duration.num_seconds() < 0 {
-        return "just now".to_string();
-    }
-
-    let seconds = duration.num_seconds();
-    let minutes = duration.num_minutes();
-    let hours = duration.num_hours();
-    let days = duration.num_days();
-
-    if seconds < 60 {
-        format!("{}s ago", seconds)
-    } else if minutes < 60 {
-        format!("{}m ago", minutes)
-    } else if hours < 24 {
-        format!("{}h ago", hours)
-    } else {
-        format!("{}d ago", days)
     }
 }

@@ -2,7 +2,7 @@
 //!
 //! Creates a tray menu displaying Claude Code sessions grouped by status.
 
-use crate::session::{Session, Status};
+use crate::session::{GroupedSessions, Session, Status};
 use tray_icon::menu::{accelerator::Accelerator, Menu, MenuItem, PredefinedMenuItem};
 
 /// Menu item IDs for handling menu events.
@@ -27,7 +27,8 @@ pub fn build_menu(sessions: &[Session]) -> Menu {
     let menu = Menu::new();
 
     // Group sessions by status
-    let (needs_attention, working, idle) = group_sessions_by_status(sessions);
+    let grouped = GroupedSessions::from_sessions(sessions);
+    let (needs_attention, working, idle) = grouped.as_tuple();
 
     let mut has_any_sessions = false;
 
@@ -91,25 +92,6 @@ fn create_session_item(session: &Session) -> MenuItem {
     MenuItem::with_id(id, text, true, None::<Accelerator>)
 }
 
-/// Group sessions by their status.
-///
-/// Returns three vectors: (needs_attention, working, idle)
-fn group_sessions_by_status(sessions: &[Session]) -> (Vec<&Session>, Vec<&Session>, Vec<&Session>) {
-    let mut needs_attention = Vec::new();
-    let mut working = Vec::new();
-    let mut idle = Vec::new();
-
-    for session in sessions {
-        match session.status {
-            Status::NeedsAttention => needs_attention.push(session),
-            Status::Working => working.push(session),
-            Status::Idle => idle.push(session),
-        }
-    }
-
-    (needs_attention, working, idle)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,7 +118,7 @@ mod tests {
     }
 
     #[test]
-    fn test_group_sessions_by_status() {
+    fn test_grouped_sessions() {
         let sessions = vec![
             make_test_session("1", Status::Idle, "proj1", "main"),
             make_test_session("2", Status::Working, "proj2", "feature"),
@@ -144,14 +126,14 @@ mod tests {
             make_test_session("4", Status::Idle, "proj4", "develop"),
         ];
 
-        let (needs_attention, working, idle) = group_sessions_by_status(&sessions);
+        let grouped = GroupedSessions::from_sessions(&sessions);
 
-        assert_eq!(needs_attention.len(), 1);
-        assert_eq!(working.len(), 1);
-        assert_eq!(idle.len(), 2);
+        assert_eq!(grouped.needs_attention.len(), 1);
+        assert_eq!(grouped.working.len(), 1);
+        assert_eq!(grouped.idle.len(), 2);
 
-        assert_eq!(needs_attention[0].session_id, "3");
-        assert_eq!(working[0].session_id, "2");
+        assert_eq!(grouped.needs_attention[0].session_id, "3");
+        assert_eq!(grouped.working[0].session_id, "2");
     }
 
     // Note: Tests for build_menu are skipped because tray-icon Menu

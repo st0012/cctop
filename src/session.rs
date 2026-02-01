@@ -255,13 +255,21 @@ pub fn cleanup_stale_sessions(sessions_dir: &Path, max_age: Duration) -> Result<
 }
 
 /// Truncate a prompt string to max_len, adding "..." if truncated.
+///
+/// Also normalizes whitespace (newlines, multiple spaces) to single spaces.
+/// This ensures prompts display properly in both TUI and other contexts.
 pub fn truncate_prompt(prompt: &str, max_len: usize) -> String {
-    if prompt.len() <= max_len {
-        prompt.to_string()
+    // Normalize whitespace: replace newlines and multiple spaces with single space
+    let normalized: String = prompt.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    if normalized.len() <= max_len {
+        normalized
     } else if max_len <= 3 {
-        ".".repeat(max_len)
+        "...".to_string()
     } else {
-        format!("{}...", &prompt[..max_len - 3])
+        // Ensure we don't cut in the middle of a multi-byte character
+        let truncated: String = normalized.chars().take(max_len - 3).collect();
+        format!("{}...", truncated)
     }
 }
 
@@ -297,6 +305,46 @@ pub fn extract_project_name(path: &str) -> String {
         .and_then(|s| s.to_str())
         .unwrap_or("unknown")
         .to_string()
+}
+
+/// Sessions grouped by status for display purposes.
+///
+/// Used by both the TUI and menubar to organize sessions by status.
+#[derive(Debug, Default)]
+pub struct GroupedSessions<'a> {
+    /// Sessions requiring user attention (permission prompts, etc.)
+    pub needs_attention: Vec<&'a Session>,
+    /// Sessions actively processing (running tools, generating response)
+    pub working: Vec<&'a Session>,
+    /// Sessions waiting for user input
+    pub idle: Vec<&'a Session>,
+}
+
+impl<'a> GroupedSessions<'a> {
+    /// Group sessions by their status.
+    pub fn from_sessions(sessions: &'a [Session]) -> Self {
+        let mut grouped = Self::default();
+        for session in sessions {
+            match session.status {
+                Status::NeedsAttention => grouped.needs_attention.push(session),
+                Status::Working => grouped.working.push(session),
+                Status::Idle => grouped.idle.push(session),
+            }
+        }
+        grouped
+    }
+
+    /// Returns true if there are any sessions in any group.
+    pub fn has_any(&self) -> bool {
+        !self.needs_attention.is_empty() || !self.working.is_empty() || !self.idle.is_empty()
+    }
+
+    /// Returns the groups as a tuple (needs_attention, working, idle).
+    ///
+    /// This is a convenience method for code that expects the tuple format.
+    pub fn as_tuple(self) -> (Vec<&'a Session>, Vec<&'a Session>, Vec<&'a Session>) {
+        (self.needs_attention, self.working, self.idle)
+    }
 }
 
 /// Check if a process with the given PID is still alive.
@@ -528,10 +576,20 @@ mod tests {
         assert!(truncated.ends_with("..."));
         assert_eq!(&truncated[..47], "a".repeat(47));
 
-        // Edge case: max_len <= 3
+        // Edge case: max_len <= 3 always returns "..."
         assert_eq!(truncate_prompt("Hello", 3), "...");
-        assert_eq!(truncate_prompt("Hello", 2), "..");
-        assert_eq!(truncate_prompt("Hello", 1), ".");
+        assert_eq!(truncate_prompt("Hello", 2), "...");
+        assert_eq!(truncate_prompt("Hello", 1), "...");
+
+        // Test whitespace normalization
+        assert_eq!(truncate_prompt("hello\nworld", 50), "hello world");
+        assert_eq!(
+            truncate_prompt("line1\n\nline2\nline3", 50),
+            "line1 line2 line3"
+        );
+
+        // Test combined truncation and normalization
+        assert_eq!(truncate_prompt("hello\nworld", 10), "hello w...");
     }
 
     #[test]

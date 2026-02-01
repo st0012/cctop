@@ -5,9 +5,9 @@
 
 use crate::config::Config;
 use crate::focus::focus_terminal;
-use crate::session::{Session, Status};
+use crate::session::{format_relative_time, truncate_prompt, GroupedSessions, Session, Status};
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -326,7 +326,8 @@ impl App {
         }
 
         // Group sessions by status
-        let (needs_attention, working, idle) = group_sessions_by_status(&self.sessions);
+        let grouped = GroupedSessions::from_sessions(&self.sessions);
+        let (needs_attention, working, idle) = grouped.as_tuple();
 
         // Build list items with section headers
         let mut items: Vec<ListItem> = Vec::new();
@@ -384,8 +385,8 @@ impl App {
             return 0;
         }
 
-        let (needs_attention, working, idle) = group_sessions_by_status(&self.sessions);
-        let sections = [needs_attention, working, idle];
+        let grouped = GroupedSessions::from_sessions(&self.sessions);
+        let sections = [grouped.needs_attention, grouped.working, grouped.idle];
 
         let mut offset = 0;
         let mut session_count = 0;
@@ -512,27 +513,6 @@ impl App {
         let footer = Paragraph::new(footer_text).style(Style::default().fg(Color::DarkGray));
         frame.render_widget(footer, area);
     }
-}
-
-/// Group sessions by their status.
-///
-/// Returns three vectors: (needs_attention, working, idle)
-pub fn group_sessions_by_status(
-    sessions: &[Session],
-) -> (Vec<&Session>, Vec<&Session>, Vec<&Session>) {
-    let mut needs_attention = Vec::new();
-    let mut working = Vec::new();
-    let mut idle = Vec::new();
-
-    for session in sessions {
-        match session.status {
-            Status::NeedsAttention => needs_attention.push(session),
-            Status::Working => working.push(session),
-            Status::Idle => idle.push(session),
-        }
-    }
-
-    (needs_attention, working, idle)
 }
 
 /// Initialize the terminal for TUI mode.
@@ -673,51 +653,6 @@ fn cleanup_stale_sessions(max_age: chrono::Duration) -> Result<usize> {
     Ok(removed)
 }
 
-/// Format a timestamp as a relative time string (e.g., "5m ago", "2h ago").
-fn format_relative_time(time: DateTime<Utc>) -> String {
-    let now = Utc::now();
-    let duration = now.signed_duration_since(time);
-
-    if duration.num_seconds() < 0 {
-        return "just now".to_string();
-    }
-
-    let seconds = duration.num_seconds();
-    let minutes = duration.num_minutes();
-    let hours = duration.num_hours();
-    let days = duration.num_days();
-
-    if seconds < 60 {
-        format!("{}s ago", seconds)
-    } else if minutes < 60 {
-        format!("{}m ago", minutes)
-    } else if hours < 24 {
-        format!("{}h ago", hours)
-    } else {
-        format!("{}d ago", days)
-    }
-}
-
-/// Truncate a prompt to max_len characters, adding "..." if truncated.
-/// Also normalizes whitespace (newlines, multiple spaces) to single spaces.
-fn truncate_prompt(prompt: &str, max_len: usize) -> String {
-    // Normalize whitespace: replace newlines and multiple spaces with single space
-    let normalized: String = prompt
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    if normalized.len() <= max_len {
-        normalized
-    } else if max_len <= 3 {
-        "...".to_string()
-    } else {
-        // Ensure we don't cut in the middle of a multi-byte character
-        let truncated: String = normalized.chars().take(max_len - 3).collect();
-        format!("{}...", truncated)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -744,7 +679,7 @@ mod tests {
     }
 
     #[test]
-    fn test_group_sessions_by_status() {
+    fn test_grouped_sessions() {
         let sessions = vec![
             make_test_session("1", Status::Idle, "proj1"),
             make_test_session("2", Status::Working, "proj2"),
@@ -752,14 +687,14 @@ mod tests {
             make_test_session("4", Status::Idle, "proj4"),
         ];
 
-        let (needs_attention, working, idle) = group_sessions_by_status(&sessions);
+        let grouped = GroupedSessions::from_sessions(&sessions);
 
-        assert_eq!(needs_attention.len(), 1);
-        assert_eq!(working.len(), 1);
-        assert_eq!(idle.len(), 2);
+        assert_eq!(grouped.needs_attention.len(), 1);
+        assert_eq!(grouped.working.len(), 1);
+        assert_eq!(grouped.idle.len(), 2);
 
-        assert_eq!(needs_attention[0].session_id, "3");
-        assert_eq!(working[0].session_id, "2");
+        assert_eq!(grouped.needs_attention[0].session_id, "3");
+        assert_eq!(grouped.working[0].session_id, "2");
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //!
 //! Renders the session list popup with status dots, hover effects, and proper styling.
 
-use crate::session::{Session, Status};
+use crate::session::{GroupedSessions, Session, Status};
 use egui::{Color32, Frame, Margin, Pos2, Rect, RichText, Rounding, Sense, Vec2};
 
 /// Special return value indicating the user clicked "Quit".
@@ -39,35 +39,6 @@ pub mod colors {
     /// Separator color
     pub fn separator() -> Color32 {
         Color32::from_rgba_unmultiplied(255, 255, 255, 20)
-    }
-}
-
-/// Sessions grouped by status for rendering.
-struct GroupedSessions<'a> {
-    needs_attention: Vec<&'a Session>,
-    working: Vec<&'a Session>,
-    idle: Vec<&'a Session>,
-}
-
-impl<'a> GroupedSessions<'a> {
-    fn from_sessions(sessions: &'a [Session]) -> Self {
-        let mut grouped = Self {
-            needs_attention: Vec::new(),
-            working: Vec::new(),
-            idle: Vec::new(),
-        };
-        for session in sessions {
-            match session.status {
-                Status::NeedsAttention => grouped.needs_attention.push(session),
-                Status::Working => grouped.working.push(session),
-                Status::Idle => grouped.idle.push(session),
-            }
-        }
-        grouped
-    }
-
-    fn has_any(&self) -> bool {
-        !self.needs_attention.is_empty() || !self.working.is_empty() || !self.idle.is_empty()
     }
 }
 
