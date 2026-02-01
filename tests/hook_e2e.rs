@@ -214,6 +214,8 @@ fn test_hook_binary_status_transitions() {
 
 #[test]
 fn test_hook_binary_session_end() {
+    // SessionEnd is no longer used - PID-based liveness detection replaces it.
+    // This test verifies the hook still succeeds (is a no-op) for backwards compatibility.
     let session_id = "e2e-test-session-end";
     cleanup_session(session_id);
 
@@ -227,7 +229,8 @@ fn test_hook_binary_session_end() {
     let session_path = sessions_dir().join(format!("{}.json", session_id));
     assert!(session_path.exists(), "Session file should exist");
 
-    // End session
+    // SessionEnd hook is now a no-op (file is NOT removed)
+    // Dead sessions are detected via PID checking instead
     let json = format!(
         r#"{{"session_id":"{}","cwd":"/tmp","hook_event_name":"SessionEnd"}}"#,
         session_id
@@ -235,11 +238,13 @@ fn test_hook_binary_session_end() {
     let output = run_hook("SessionEnd", &json);
     assert!(output.status.success());
 
-    // Verify session file was removed
+    // Session file still exists (will be cleaned up by PID-based liveness check)
     assert!(
-        !session_path.exists(),
-        "Session file should be removed after SessionEnd"
+        session_path.exists(),
+        "Session file should still exist (cleaned up by liveness check, not SessionEnd)"
     );
+
+    cleanup_session(session_id);
 }
 
 #[test]
@@ -247,7 +252,7 @@ fn test_hook_binary_session_end_nonexistent() {
     let session_id = "e2e-test-nonexistent-session";
     cleanup_session(session_id);
 
-    // Try to end a session that doesn't exist - should not error
+    // SessionEnd on non-existent session should still succeed (it's a no-op)
     let json = format!(
         r#"{{"session_id":"{}","cwd":"/tmp","hook_event_name":"SessionEnd"}}"#,
         session_id
