@@ -99,7 +99,8 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 - Check hooks.json uses the full path, not bare `cctop-hook`
 
 ### Stale sessions showing
-- Sessions are validated by checking if a claude process is running in that directory
+- Sessions store the PID of the Claude process and are validated by checking if that PID is still running
+- For old sessions without PID, falls back to checking if a claude process is running in that directory
 - Use `cctop --list` to see current sessions and trigger cleanup
 - Manual cleanup: `rm ~/.cctop/sessions/<session-id>.json`
 
@@ -116,13 +117,14 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 
 | Hook Event | Status |
 |------------|--------|
-| SessionStart | idle |
+| SessionStart | idle (also stores PID for liveness detection) |
 | UserPromptSubmit | working |
 | PreToolUse | working |
 | PostToolUse | working |
 | Stop | idle |
 | Notification (idle_prompt) | needs_attention |
-| SessionEnd | (file deleted) |
+
+Note: SessionEnd hook is no longer used. Dead sessions are detected via PID checking.
 
 ## Debugging Tips
 
