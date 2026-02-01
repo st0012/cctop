@@ -41,13 +41,6 @@
         "type": "command",
         "command": "$HOME/.cargo/bin/cctop-hook Notification"
       }]
-    }],
-    "SessionEnd": [{
-      "matcher": ".*",
-      "hooks": [{
-        "type": "command",
-        "command": "$HOME/.cargo/bin/cctop-hook SessionEnd"
-      }]
     }]
   }
 }
