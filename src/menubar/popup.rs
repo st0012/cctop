@@ -89,9 +89,9 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
     let mut clicked_id: Option<String> = None;
     let grouped = GroupedSessions::from_sessions(sessions);
 
-    // Paint background to fill entire window
+    // Paint background to fill entire window (no rounding to avoid black corner leak)
     ctx.layer_painter(egui::LayerId::background())
-        .rect_filled(ctx.screen_rect(), Rounding::same(8.0), colors::background());
+        .rect_filled(ctx.screen_rect(), Rounding::ZERO, colors::background());
 
     egui::Area::new(egui::Id::new("cctop_popup"))
         .fixed_pos(Pos2::new(0.0, 0.0))
@@ -283,7 +283,7 @@ mod tests {
     fn make_test_session(id: &str, status: Status, project: &str, branch: &str) -> Session {
         Session {
             session_id: id.to_string(),
-            project_path: format!("/tmp/{}", project),
+            project_path: format!("/nonexistent/test/projects/{}", project),
             project_name: project.to_string(),
             branch: branch.to_string(),
             status,
@@ -295,6 +295,7 @@ mod tests {
                 session_id: None,
                 tty: None,
             },
+            pid: None,
         }
     }
 
