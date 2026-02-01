@@ -119,7 +119,7 @@ mod tests {
     fn make_test_session(id: &str, status: Status, project: &str, branch: &str) -> Session {
         Session {
             session_id: id.to_string(),
-            project_path: format!("/tmp/{}", project),
+            project_path: format!("/nonexistent/test/projects/{}", project),
             project_name: project.to_string(),
             branch: branch.to_string(),
             status,
@@ -131,6 +131,7 @@ mod tests {
                 session_id: None,
                 tty: None,
             },
+            pid: None,
         }
     }
 
