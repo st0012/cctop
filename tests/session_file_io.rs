@@ -24,6 +24,10 @@ fn create_test_session(session_id: &str, project: &str) -> Session {
             tty: Some("/dev/ttys003".to_string()),
         },
         pid: None,
+        last_tool: None,
+        last_tool_detail: None,
+        notification_message: None,
+        context_compacted: false,
     }
 }
 
@@ -234,6 +238,10 @@ fn test_session_serialization_roundtrip_all_fields() {
             tty: Some("/dev/ttys007".to_string()),
         },
         pid: Some(12345),
+        last_tool: None,
+        last_tool_detail: None,
+        notification_message: None,
+        context_compacted: false,
     };
 
     let json = serde_json::to_string_pretty(&original).unwrap();
