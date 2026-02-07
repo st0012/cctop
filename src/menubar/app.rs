@@ -5,7 +5,7 @@ use crate::focus::focus_terminal;
 use crate::menubar::popup::{calculate_popup_height, render_popup, POPUP_WIDTH, QUIT_ACTION};
 use crate::menubar::popup_state::PopupState;
 use crate::menubar::renderer::Renderer;
-use crate::session::{load_live_sessions, Session, Status};
+use crate::session::{load_live_sessions, Session};
 use crate::watcher::SessionWatcher;
 use anyhow::{Context, Result};
 use std::cell::RefCell;
@@ -17,6 +17,77 @@ use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
 use tao::window::{Window, WindowBuilder};
 use tray_icon::{TrayIcon, TrayIconBuilder};
 
+/// Install symlinks for bundled binaries into `~/.local/bin/`.
+///
+/// This allows .app-only users (who didn't `cargo install`) to use cctop-hook
+/// (for Claude Code hooks) and cctop (TUI) from the command line.
+/// Skips each binary if it already exists in `~/.cargo/bin/` (cargo install users).
+fn install_bundled_binaries() {
+    use std::fs;
+    use std::os::unix::fs as unix_fs;
+
+    let Ok(exe_path) = std::env::current_exe() else {
+        return;
+    };
+    let Some(exe_dir) = exe_path.parent() else {
+        return;
+    };
+    let Some(home) = dirs::home_dir() else {
+        return;
+    };
+
+    let cargo_bin = home.join(".cargo").join("bin");
+    let local_bin = home.join(".local").join("bin");
+
+    for binary_name in &["cctop-hook", "cctop"] {
+        let binary_in_bundle = exe_dir.join(binary_name);
+        if !binary_in_bundle.exists() {
+            continue;
+        }
+
+        // Skip if cargo install version already exists
+        if cargo_bin.join(binary_name).exists() {
+            continue;
+        }
+
+        // Create ~/.local/bin/ if needed
+        if let Err(e) = fs::create_dir_all(&local_bin) {
+            eprintln!("[cctop-menubar] Failed to create ~/.local/bin: {}", e);
+            return;
+        }
+
+        let symlink_path = local_bin.join(binary_name);
+
+        // Check if symlink already points to the right place
+        if symlink_path.exists() || symlink_path.symlink_metadata().is_ok() {
+            if let Ok(target) = fs::read_link(&symlink_path) {
+                if target == binary_in_bundle {
+                    continue; // Already correct
+                }
+            }
+            let _ = fs::remove_file(&symlink_path);
+        }
+
+        match unix_fs::symlink(&binary_in_bundle, &symlink_path) {
+            Ok(()) => {
+                eprintln!(
+                    "[cctop-menubar] Installed {} symlink: {} -> {}",
+                    binary_name,
+                    symlink_path.display(),
+                    binary_in_bundle.display()
+                );
+            }
+            Err(e) => {
+                eprintln!(
+                    "[cctop-menubar] Failed to create symlink at {}: {}",
+                    symlink_path.display(),
+                    e
+                );
+            }
+        }
+    }
+}
+
 /// Compute the tray title based on session states.
 ///
 /// Returns "CC" when no sessions need attention,
@@ -24,7 +95,7 @@ use tray_icon::{TrayIcon, TrayIconBuilder};
 fn tray_title(sessions: &[Session]) -> String {
     let attention_count = sessions
         .iter()
-        .filter(|s| s.status == Status::NeedsAttention)
+        .filter(|s| s.status.needs_attention())
         .count();
     if attention_count > 0 {
         format!("CC ({})", attention_count)
@@ -56,6 +127,9 @@ impl MenubarApp {
     /// Run the menubar application.
     pub fn run() -> Result<()> {
         eprintln!("[cctop-menubar] Starting...");
+
+        // Install symlinks for bundled binaries (.app-only users)
+        install_bundled_binaries();
 
         // Get sessions directory
         let sessions_dir = dirs::home_dir()
@@ -156,8 +230,10 @@ impl MenubarApp {
             // Handle window events
             match event {
                 Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
-                    app.borrow_mut().poll_session_changes();
-                    update_tray_title(&tray_icon.borrow(), &app.borrow().sessions);
+                    let changed = app.borrow_mut().poll_session_changes();
+                    if changed {
+                        update_tray_title(&tray_icon.borrow(), &app.borrow().sessions);
+                    }
                 }
 
                 Event::WindowEvent {
@@ -304,7 +380,7 @@ impl MenubarApp {
         self.window.set_visible(false);
     }
 
-    fn poll_session_changes(&mut self) {
+    fn poll_session_changes(&mut self) -> bool {
         if let Some(ref mut watcher) = self.watcher {
             if let Some(new_sessions) = watcher.poll_changes() {
                 self.sessions = new_sessions;
@@ -315,8 +391,10 @@ impl MenubarApp {
                         .set_inner_size(LogicalSize::new(POPUP_WIDTH as f64, popup_height as f64));
                     self.window.request_redraw();
                 }
+                return true;
             }
         }
+        false
     }
 
     fn handle_resize(&mut self, width: u32, height: u32) {

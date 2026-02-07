@@ -28,16 +28,26 @@ pub fn build_menu(sessions: &[Session]) -> Menu {
 
     // Group sessions by status
     let grouped = GroupedSessions::from_sessions(sessions);
-    let (needs_attention, working, idle) = grouped.as_tuple();
+    let (waiting_permission, waiting_input, working, idle) = grouped.as_tuple();
 
     let mut has_any_sessions = false;
 
-    // Needs Attention section
-    if !needs_attention.is_empty() {
+    // Waiting Permission section
+    if !waiting_permission.is_empty() {
         has_any_sessions = true;
-        let label = MenuItem::with_id("label_attention", "Needs Attention", false, None::<Accelerator>);
+        let label = MenuItem::with_id("label_permission", "Waiting for Permission", false, None::<Accelerator>);
         let _ = menu.append(&label);
-        for session in &needs_attention {
+        for session in &waiting_permission {
+            let _ = menu.append(&create_session_item(session));
+        }
+    }
+
+    // Waiting Input section
+    if !waiting_input.is_empty() {
+        has_any_sessions = true;
+        let label = MenuItem::with_id("label_input", "Waiting for Input", false, None::<Accelerator>);
+        let _ = menu.append(&label);
+        for session in &waiting_input {
             let _ = menu.append(&create_session_item(session));
         }
     }
@@ -82,7 +92,8 @@ pub fn build_menu(sessions: &[Session]) -> Menu {
 /// Format: "emoji project_name (branch)"
 fn create_session_item(session: &Session) -> MenuItem {
     let emoji = match session.status {
-        Status::NeedsAttention => "🟡",
+        Status::WaitingPermission => "🔴",
+        Status::WaitingInput | Status::NeedsAttention => "🟡",
         Status::Working => "🟢",
         Status::Idle => "⚪",
     };
@@ -114,6 +125,10 @@ mod tests {
                 tty: None,
             },
             pid: None,
+            last_tool: None,
+            last_tool_detail: None,
+            notification_message: None,
+            context_compacted: false,
         }
     }
 
@@ -122,17 +137,20 @@ mod tests {
         let sessions = vec![
             make_test_session("1", Status::Idle, "proj1", "main"),
             make_test_session("2", Status::Working, "proj2", "feature"),
-            make_test_session("3", Status::NeedsAttention, "proj3", "fix"),
+            make_test_session("3", Status::WaitingInput, "proj3", "fix"),
             make_test_session("4", Status::Idle, "proj4", "develop"),
+            make_test_session("5", Status::WaitingPermission, "proj5", "hotfix"),
         ];
 
         let grouped = GroupedSessions::from_sessions(&sessions);
 
-        assert_eq!(grouped.needs_attention.len(), 1);
+        assert_eq!(grouped.waiting_permission.len(), 1);
+        assert_eq!(grouped.waiting_input.len(), 1);
         assert_eq!(grouped.working.len(), 1);
         assert_eq!(grouped.idle.len(), 2);
 
-        assert_eq!(grouped.needs_attention[0].session_id, "3");
+        assert_eq!(grouped.waiting_permission[0].session_id, "5");
+        assert_eq!(grouped.waiting_input[0].session_id, "3");
         assert_eq!(grouped.working[0].session_id, "2");
     }
 

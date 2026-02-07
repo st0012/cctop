@@ -3,7 +3,7 @@
 //! Renders the session list popup with status dots, hover effects, and proper styling.
 //! Features an arrow pointing to the tray icon and rounded corners.
 
-use crate::session::{format_relative_time, truncate_prompt, GroupedSessions, Session, Status};
+use crate::session::{format_relative_time, format_tool_display, truncate_prompt, GroupedSessions, Session, Status};
 use egui::{Color32, ScrollArea, epaint::PathShape, Frame, Margin, Pos2, Rect, RichText, Rounding, Sense, Shape, Stroke, Vec2};
 
 /// Special return value indicating the user clicked "Quit".
@@ -52,7 +52,9 @@ pub mod colors {
     pub const TEXT_SECONDARY: Color32 = Color32::from_rgb(156, 163, 175);
     /// Dimmer text for context lines: slightly less visible than secondary
     pub const TEXT_DIM: Color32 = Color32::from_rgb(120, 127, 139);
-    /// Status amber: rgb(245, 158, 11) - Needs Attention
+    /// Status red: rgb(239, 68, 68) - Waiting Permission
+    pub const STATUS_RED: Color32 = Color32::from_rgb(239, 68, 68);
+    /// Status amber: rgb(245, 158, 11) - Waiting Input / Needs Attention
     pub const STATUS_AMBER: Color32 = Color32::from_rgb(245, 158, 11);
     /// Status green: rgb(34, 197, 94) - Working
     pub const STATUS_GREEN: Color32 = Color32::from_rgb(34, 197, 94);
@@ -67,17 +69,32 @@ pub mod colors {
 /// Get the status dot color for a session status.
 fn status_color(status: &Status) -> Color32 {
     match status {
-        Status::NeedsAttention => colors::STATUS_AMBER,
+        Status::WaitingPermission => colors::STATUS_RED,
+        Status::WaitingInput | Status::NeedsAttention => colors::STATUS_AMBER,
         Status::Working => colors::STATUS_GREEN,
         Status::Idle => colors::STATUS_GRAY,
     }
+}
+
+/// Get the optional background tint for attention rows.
+/// Currently disabled - the colored dots and section headers already convey status.
+fn row_bg_tint(_status: &Status) -> Option<Color32> {
+    None
+}
+
+/// Compute pulsing opacity for attention dots (1-2s cycle, 60-100% opacity).
+fn pulsing_alpha(ctx: &egui::Context) -> f32 {
+    let time = ctx.input(|i| i.time);
+    // Sine wave: 1.5s period, oscillating between 0.6 and 1.0
+    let t = (time * std::f64::consts::TAU / 1.5).sin() as f32;
+    0.8 + 0.2 * t // range [0.6, 1.0]
 }
 
 /// Get the row height for a session based on whether it has context to display.
 fn row_height_for_session(session: &Session) -> f32 {
     if session.status == Status::Idle {
         ROW_HEIGHT_MINIMAL
-    } else if session.last_prompt.is_some() {
+    } else if context_line(session).is_some() {
         ROW_HEIGHT_WITH_CONTEXT
     } else {
         ROW_HEIGHT_MINIMAL
@@ -89,15 +106,31 @@ fn row_height_for_session(session: &Session) -> f32 {
 fn context_line(session: &Session) -> Option<String> {
     match session.status {
         Status::Idle => None,
-        Status::NeedsAttention => {
+        Status::WaitingPermission => {
+            if let Some(ref msg) = session.notification_message {
+                Some(truncate_prompt(msg, 38))
+            } else {
+                Some("Permission needed".to_string())
+            }
+        }
+        Status::WaitingInput | Status::NeedsAttention => {
             session.last_prompt.as_ref().map(|p| {
-                format!("\"{}\"", truncate_prompt(p, 38))
+                format!("\"{}\"", truncate_prompt(p, 36))
             })
         }
         Status::Working => {
-            session.last_prompt.as_ref().map(|p| {
-                format!("\"{}\"", truncate_prompt(p, 38))
-            })
+            // Prefer tool display, fall back to prompt
+            if let Some(ref tool) = session.last_tool {
+                if let Some(ref detail) = session.last_tool_detail {
+                    Some(format_tool_display(tool, Some(detail), 38))
+                } else {
+                    Some(format_tool_display(tool, None, 38))
+                }
+            } else {
+                session.last_prompt.as_ref().map(|p| {
+                    format!("\"{}\"", truncate_prompt(p, 36))
+                })
+            }
         }
     }
 }
@@ -159,15 +192,32 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
                         .show(ui, |ui| {
                             ui.set_width(CONTENT_WIDTH);
 
-                            // Render each section
-                            if let Some(id) = render_section(ui, "NEEDS ATTENTION", &grouped.needs_attention, Some(colors::STATUS_AMBER)) {
+                            // Compute pulsing alpha once for all attention dots
+                            let has_attention = !grouped.waiting_permission.is_empty()
+                                || !grouped.waiting_input.is_empty();
+                            let pulse_alpha = if has_attention {
+                                Some(pulsing_alpha(ui.ctx()))
+                            } else {
+                                None
+                            };
+
+                            // Render each section (4-group model)
+                            if let Some(id) = render_section(ui, "WAITING FOR PERMISSION", &grouped.waiting_permission, Some(colors::STATUS_RED), pulse_alpha) {
                                 clicked_id = Some(id);
                             }
-                            if let Some(id) = render_section(ui, "WORKING", &grouped.working, None) {
+                            if let Some(id) = render_section(ui, "WAITING FOR INPUT", &grouped.waiting_input, Some(colors::STATUS_AMBER), pulse_alpha) {
                                 clicked_id = Some(id);
                             }
-                            if let Some(id) = render_section(ui, "IDLE", &grouped.idle, None) {
+                            if let Some(id) = render_section(ui, "WORKING", &grouped.working, None, None) {
                                 clicked_id = Some(id);
+                            }
+                            if let Some(id) = render_section(ui, "IDLE", &grouped.idle, None, None) {
+                                clicked_id = Some(id);
+                            }
+
+                            // Request continuous repaints while attention sessions exist
+                            if has_attention {
+                                ui.ctx().request_repaint();
                             }
 
                             // No sessions message
@@ -204,13 +254,13 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
 /// Render a section with header and session rows.
 /// Returns the clicked session ID if any row was clicked.
 /// If `header_color` is provided, the header text uses that color instead of the default.
-fn render_section(ui: &mut egui::Ui, header: &str, sessions: &[&Session], header_color: Option<Color32>) -> Option<String> {
+fn render_section(ui: &mut egui::Ui, header: &str, sessions: &[&Session], header_color: Option<Color32>, pulse_alpha: Option<f32>) -> Option<String> {
     if sessions.is_empty() {
         return None;
     }
     render_section_header(ui, header, header_color);
     for session in sessions {
-        if render_session_row(ui, session) {
+        if render_session_row(ui, session, pulse_alpha) {
             return Some(session.session_id.clone());
         }
     }
@@ -235,8 +285,9 @@ fn render_section_header(ui: &mut egui::Ui, text: &str, color: Option<Color32>) 
 }
 
 /// Render a session row with status dot, project name, branch, time, and optional context.
+/// If `pulse_alpha` is provided, the status dot pulses for attention statuses.
 /// Returns true if the row was clicked.
-fn render_session_row(ui: &mut egui::Ui, session: &Session) -> bool {
+fn render_session_row(ui: &mut egui::Ui, session: &Session, pulse_alpha: Option<f32>) -> bool {
     let height = row_height_for_session(session);
     let row_rect = Rect::from_min_size(
         ui.cursor().min,
@@ -247,14 +298,26 @@ fn render_session_row(ui: &mut egui::Ui, session: &Session) -> bool {
     let response = ui.allocate_rect(row_rect, Sense::click());
     let is_hovered = response.hovered();
 
-    // Draw hover background
+    // Draw background tint for attention rows
+    if let Some(tint) = row_bg_tint(&session.status) {
+        ui.painter().rect_filled(row_rect, 0.0, tint);
+    }
+
+    // Draw hover background (on top of tint)
     if is_hovered {
         ui.painter().rect_filled(row_rect, 0.0, colors::hover());
     }
 
     // Draw status dot (vertically centered relative to the first two lines)
     let dot_center = Pos2::new(row_rect.min.x + 24.0, row_rect.min.y + 16.0);
-    let dot_color = status_color(&session.status);
+    let base_color = status_color(&session.status);
+    // Apply pulsing alpha to attention dots
+    let dot_color = if let Some(alpha) = pulse_alpha {
+        let [r, g, b, _] = base_color.to_array();
+        Color32::from_rgba_unmultiplied(r, g, b, (alpha * 255.0) as u8)
+    } else {
+        base_color
+    };
     ui.painter().circle_filled(dot_center, 4.0, dot_color);
 
     let text_x = row_rect.min.x + 40.0;
@@ -278,11 +341,16 @@ fn render_session_row(ui: &mut egui::Ui, session: &Session) -> bool {
         colors::TEXT_SECONDARY,
     );
 
-    // Draw branch name (line 2)
+    // Draw branch name (line 2), with compacted indicator if context was compacted
+    let branch_text = if session.context_compacted {
+        format!("{} [compacted]", session.branch)
+    } else {
+        session.branch.clone()
+    };
     ui.painter().text(
         Pos2::new(text_x, row_rect.min.y + 24.0),
         egui::Align2::LEFT_TOP,
-        &session.branch,
+        &branch_text,
         egui::FontId::proportional(11.0),
         colors::TEXT_SECONDARY,
     );
@@ -347,7 +415,8 @@ fn section_height_for_sessions(sessions: &[&Session]) -> f32 {
 fn sessions_total_height(sessions: &[Session]) -> f32 {
     let grouped = GroupedSessions::from_sessions(sessions);
 
-    let content_height = section_height_for_sessions(&grouped.needs_attention)
+    let content_height = section_height_for_sessions(&grouped.waiting_permission)
+        + section_height_for_sessions(&grouped.waiting_input)
         + section_height_for_sessions(&grouped.working)
         + section_height_for_sessions(&grouped.idle);
 
@@ -390,6 +459,10 @@ mod tests {
                 tty: None,
             },
             pid: None,
+            last_tool: None,
+            last_tool_detail: None,
+            notification_message: None,
+            context_compacted: false,
         }
     }
 
@@ -404,13 +477,15 @@ mod tests {
         let sessions = vec![
             make_test_session("1", Status::Idle, "proj1", "main"),
             make_test_session("2", Status::Working, "proj2", "feature"),
-            make_test_session("3", Status::NeedsAttention, "proj3", "fix"),
+            make_test_session("3", Status::WaitingInput, "proj3", "fix"),
             make_test_session("4", Status::Idle, "proj4", "develop"),
+            make_test_session("5", Status::WaitingPermission, "proj5", "hotfix"),
         ];
 
         let grouped = GroupedSessions::from_sessions(&sessions);
 
-        assert_eq!(grouped.needs_attention.len(), 1);
+        assert_eq!(grouped.waiting_permission.len(), 1);
+        assert_eq!(grouped.waiting_input.len(), 1);
         assert_eq!(grouped.working.len(), 1);
         assert_eq!(grouped.idle.len(), 2);
         assert!(grouped.has_any());
@@ -425,6 +500,11 @@ mod tests {
 
     #[test]
     fn test_status_color() {
+        assert_eq!(
+            status_color(&Status::WaitingPermission),
+            colors::STATUS_RED
+        );
+        assert_eq!(status_color(&Status::WaitingInput), colors::STATUS_AMBER);
         assert_eq!(status_color(&Status::NeedsAttention), colors::STATUS_AMBER);
         assert_eq!(status_color(&Status::Working), colors::STATUS_GREEN);
         assert_eq!(status_color(&Status::Idle), colors::STATUS_GRAY);
@@ -450,7 +530,14 @@ mod tests {
 
     #[test]
     fn test_row_height_needs_attention_with_prompt_is_tall() {
-        let session = make_test_session("1", Status::NeedsAttention, "proj1", "main");
+        let session = make_test_session("1", Status::WaitingInput, "proj1", "main");
+        assert_eq!(row_height_for_session(&session), ROW_HEIGHT_WITH_CONTEXT);
+    }
+
+    #[test]
+    fn test_row_height_waiting_permission_is_tall() {
+        let session = make_test_session("1", Status::WaitingPermission, "proj1", "main");
+        // WaitingPermission always shows context ("Permission needed")
         assert_eq!(row_height_for_session(&session), ROW_HEIGHT_WITH_CONTEXT);
     }
 
@@ -517,6 +604,87 @@ mod tests {
         let total = sessions_total_height(&sessions);
         // 2 headers (idle + working) + 44 + 62 + 44
         let expected = (2.0 * HEADER_HEIGHT) + ROW_HEIGHT_MINIMAL + ROW_HEIGHT_WITH_CONTEXT + ROW_HEIGHT_MINIMAL;
+        assert!((total - expected).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_context_line_waiting_permission_default() {
+        let session = make_test_session("1", Status::WaitingPermission, "proj1", "main");
+        let line = context_line(&session).unwrap();
+        assert_eq!(line, "Permission needed");
+    }
+
+    #[test]
+    fn test_context_line_waiting_permission_with_message() {
+        let mut session = make_test_session("1", Status::WaitingPermission, "proj1", "main");
+        session.notification_message = Some("Allow Bash: npm test".to_string());
+        let line = context_line(&session).unwrap();
+        assert_eq!(line, "Allow Bash: npm test");
+    }
+
+    #[test]
+    fn test_context_line_waiting_input() {
+        let session = make_test_session("1", Status::WaitingInput, "proj1", "main");
+        let line = context_line(&session).unwrap();
+        assert!(line.starts_with('"'));
+        assert!(line.ends_with('"'));
+    }
+
+    #[test]
+    fn test_context_line_working_with_tool() {
+        let mut session = make_test_session("1", Status::Working, "proj1", "main");
+        session.last_tool = Some("Bash".to_string());
+        session.last_tool_detail = Some("npm test".to_string());
+        let line = context_line(&session).unwrap();
+        assert!(line.starts_with("Running: "));
+    }
+
+    #[test]
+    fn test_context_line_working_with_edit_tool() {
+        let mut session = make_test_session("1", Status::Working, "proj1", "main");
+        session.last_tool = Some("Edit".to_string());
+        session.last_tool_detail = Some("/src/main.rs".to_string());
+        let line = context_line(&session).unwrap();
+        assert!(line.starts_with("Editing "));
+    }
+
+    #[test]
+    fn test_row_bg_tint_disabled() {
+        // Background tints are disabled - dots and headers convey status
+        assert!(row_bg_tint(&Status::WaitingPermission).is_none());
+        assert!(row_bg_tint(&Status::WaitingInput).is_none());
+        assert!(row_bg_tint(&Status::Working).is_none());
+        assert!(row_bg_tint(&Status::Idle).is_none());
+    }
+
+    #[test]
+    fn test_context_line_uses_shared_format_tool_display() {
+        // Verify context_line uses the shared format_tool_display from session.rs
+        let mut session = make_test_session("1", Status::Working, "proj1", "main");
+        session.last_tool = Some("Bash".to_string());
+        session.last_tool_detail = Some("npm test".to_string());
+        let line = context_line(&session).unwrap();
+        assert_eq!(line, "Running: npm test");
+
+        // Edit shows filename (shared implementation behavior)
+        session.last_tool = Some("Edit".to_string());
+        session.last_tool_detail = Some("/very/long/path/to/file.rs".to_string());
+        let line = context_line(&session).unwrap();
+        assert!(line.starts_with("Editing "));
+        assert!(line.contains("file.rs"));
+    }
+
+    #[test]
+    fn test_four_group_height_calculation() {
+        let sessions = vec![
+            make_test_session("1", Status::WaitingPermission, "proj1", "main"),
+            make_test_session("2", Status::WaitingInput, "proj2", "feature"),
+            make_test_session("3", Status::Working, "proj3", "dev"),
+            make_test_session("4", Status::Idle, "proj4", "main"),
+        ];
+        let total = sessions_total_height(&sessions);
+        // 4 headers (28 each) + permission (62) + input (62) + working (62) + idle (44)
+        let expected = (4.0 * HEADER_HEIGHT) + ROW_HEIGHT_WITH_CONTEXT * 3.0 + ROW_HEIGHT_MINIMAL;
         assert!((total - expected).abs() < 1.0);
     }
 }
