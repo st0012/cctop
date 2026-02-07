@@ -63,7 +63,7 @@ else
 fi
 
 # Verify binaries exist
-for bin in cctop-menubar cctop-hook; do
+for bin in cctop-menubar cctop-hook cctop; do
     if [ ! -f "$BINARY_DIR/$bin" ]; then
         echo "Error: $BINARY_DIR/$bin not found. Run without --skip-build first."
         exit 1
@@ -111,6 +111,7 @@ PLIST
 # Copy binaries
 cp "$BINARY_DIR/cctop-menubar" "$MACOS_DIR/cctop-menubar"
 cp "$BINARY_DIR/cctop-hook" "$MACOS_DIR/cctop-hook"
+cp "$BINARY_DIR/cctop" "$MACOS_DIR/cctop"
 
 # Copy app icon if it exists
 if [ -f "$PROJECT_DIR/assets/AppIcon.icns" ]; then
@@ -120,6 +121,7 @@ fi
 # Strip debug symbols to reduce size (optional, safe for release builds)
 strip "$MACOS_DIR/cctop-menubar" 2>/dev/null || true
 strip "$MACOS_DIR/cctop-hook" 2>/dev/null || true
+strip "$MACOS_DIR/cctop" 2>/dev/null || true
 
 # Ad-hoc sign (required for arm64 macOS, sufficient for local use)
 codesign --force --deep --sign - "$APP_DIR" 2>/dev/null || true
@@ -127,12 +129,14 @@ codesign --force --deep --sign - "$APP_DIR" 2>/dev/null || true
 # Report results
 MENUBAR_SIZE=$(du -sh "$MACOS_DIR/cctop-menubar" | cut -f1)
 HOOK_SIZE=$(du -sh "$MACOS_DIR/cctop-hook" | cut -f1)
+TUI_SIZE=$(du -sh "$MACOS_DIR/cctop" | cut -f1)
 APP_SIZE=$(du -sh "$APP_DIR" | cut -f1)
 
 echo ""
 echo "Bundle created: $APP_DIR"
 echo "  cctop-menubar: $MENUBAR_SIZE"
 echo "  cctop-hook:    $HOOK_SIZE"
+echo "  cctop (TUI):   $TUI_SIZE"
 echo "  Total:         $APP_SIZE"
 echo ""
 echo "To install: cp -r $APP_DIR /Applications/"
