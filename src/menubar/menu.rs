@@ -35,7 +35,12 @@ pub fn build_menu(sessions: &[Session]) -> Menu {
     // Waiting Permission section
     if !waiting_permission.is_empty() {
         has_any_sessions = true;
-        let label = MenuItem::with_id("label_permission", "Waiting for Permission", false, None::<Accelerator>);
+        let label = MenuItem::with_id(
+            "label_permission",
+            "Waiting for Permission",
+            false,
+            None::<Accelerator>,
+        );
         let _ = menu.append(&label);
         for session in &waiting_permission {
             let _ = menu.append(&create_session_item(session));
@@ -45,7 +50,12 @@ pub fn build_menu(sessions: &[Session]) -> Menu {
     // Waiting Input section
     if !waiting_input.is_empty() {
         has_any_sessions = true;
-        let label = MenuItem::with_id("label_input", "Waiting for Input", false, None::<Accelerator>);
+        let label = MenuItem::with_id(
+            "label_input",
+            "Waiting for Input",
+            false,
+            None::<Accelerator>,
+        );
         let _ = menu.append(&label);
         for session in &waiting_input {
             let _ = menu.append(&create_session_item(session));
@@ -73,7 +83,8 @@ pub fn build_menu(sessions: &[Session]) -> Menu {
     }
 
     if !has_any_sessions {
-        let no_sessions = MenuItem::with_id("no_sessions", "No sessions", false, None::<Accelerator>);
+        let no_sessions =
+            MenuItem::with_id("no_sessions", "No sessions", false, None::<Accelerator>);
         let _ = menu.append(&no_sessions);
     }
 

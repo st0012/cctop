@@ -5,21 +5,12 @@
 use std::time::{Duration, Instant};
 
 /// State for the popup window.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PopupState {
     /// Whether the popup is currently visible.
     pub visible: bool,
     /// When the popup was last shown (for focus-dismiss debounce).
     shown_at: Option<Instant>,
-}
-
-impl Default for PopupState {
-    fn default() -> Self {
-        Self {
-            visible: false,
-            shown_at: None,
-        }
-    }
 }
 
 impl PopupState {
@@ -42,9 +33,7 @@ impl PopupState {
 
     /// Returns how long the popup has been visible, or zero if hidden.
     pub fn visible_duration(&self) -> Duration {
-        self.shown_at
-            .map(|t| t.elapsed())
-            .unwrap_or(Duration::ZERO)
+        self.shown_at.map(|t| t.elapsed()).unwrap_or(Duration::ZERO)
     }
 }
 

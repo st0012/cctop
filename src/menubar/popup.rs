@@ -3,8 +3,13 @@
 //! Renders the session list popup with status dots, hover effects, and proper styling.
 //! Features an arrow pointing to the tray icon and rounded corners.
 
-use crate::session::{format_relative_time, format_tool_display, truncate_prompt, GroupedSessions, Session, Status};
-use egui::{Color32, ScrollArea, epaint::PathShape, Frame, Margin, Pos2, Rect, RichText, Rounding, Sense, Shape, Stroke, Vec2};
+use crate::session::{
+    format_relative_time, format_tool_display, truncate_prompt, GroupedSessions, Session, Status,
+};
+use egui::{
+    epaint::PathShape, Color32, Frame, Margin, Pos2, Rect, RichText, Rounding, ScrollArea, Sense,
+    Shape, Stroke, Vec2,
+};
 
 /// Special return value indicating the user clicked "Quit".
 pub const QUIT_ACTION: &str = "__quit__";
@@ -113,11 +118,10 @@ fn context_line(session: &Session) -> Option<String> {
                 Some("Permission needed".to_string())
             }
         }
-        Status::WaitingInput | Status::NeedsAttention => {
-            session.last_prompt.as_ref().map(|p| {
-                format!("\"{}\"", truncate_prompt(p, 36))
-            })
-        }
+        Status::WaitingInput | Status::NeedsAttention => session
+            .last_prompt
+            .as_ref()
+            .map(|p| format!("\"{}\"", truncate_prompt(p, 36))),
         Status::Working => {
             // Prefer tool display, fall back to prompt
             if let Some(ref tool) = session.last_tool {
@@ -127,9 +131,10 @@ fn context_line(session: &Session) -> Option<String> {
                     Some(format_tool_display(tool, None, 38))
                 }
             } else {
-                session.last_prompt.as_ref().map(|p| {
-                    format!("\"{}\"", truncate_prompt(p, 36))
-                })
+                session
+                    .last_prompt
+                    .as_ref()
+                    .map(|p| format!("\"{}\"", truncate_prompt(p, 36)))
             }
         }
     }
@@ -138,7 +143,7 @@ fn context_line(session: &Session) -> Option<String> {
 /// Draw the arrow pointing up to the tray icon.
 fn draw_arrow(painter: &egui::Painter, center_x: f32, top_y: f32) {
     let points = vec![
-        Pos2::new(center_x, top_y),                              // Top point
+        Pos2::new(center_x, top_y),                                    // Top point
         Pos2::new(center_x - ARROW_WIDTH / 2.0, top_y + ARROW_HEIGHT), // Bottom left
         Pos2::new(center_x + ARROW_WIDTH / 2.0, top_y + ARROW_HEIGHT), // Bottom right
     ];
@@ -169,9 +174,16 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
     // Draw rounded content area below arrow (inset by WINDOW_PADDING)
     let content_rect = Rect::from_min_max(
         Pos2::new(WINDOW_PADDING, ARROW_HEIGHT),
-        Pos2::new(screen_rect.max.x - WINDOW_PADDING, screen_rect.max.y - WINDOW_PADDING),
+        Pos2::new(
+            screen_rect.max.x - WINDOW_PADDING,
+            screen_rect.max.y - WINDOW_PADDING,
+        ),
     );
-    painter.rect_filled(content_rect, Rounding::same(BORDER_RADIUS), colors::background());
+    painter.rect_filled(
+        content_rect,
+        Rounding::same(BORDER_RADIUS),
+        colors::background(),
+    );
 
     egui::Area::new(egui::Id::new("cctop_popup"))
         .fixed_pos(Pos2::new(WINDOW_PADDING, ARROW_HEIGHT))
@@ -184,7 +196,11 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
                     // Scrollable session area
                     let sessions_content_height = sessions_total_height(sessions);
                     let needs_scroll = sessions_content_height > MAX_SCROLL_HEIGHT;
-                    let scroll_height = if needs_scroll { MAX_SCROLL_HEIGHT } else { sessions_content_height };
+                    let scroll_height = if needs_scroll {
+                        MAX_SCROLL_HEIGHT
+                    } else {
+                        sessions_content_height
+                    };
 
                     ScrollArea::vertical()
                         .max_height(scroll_height)
@@ -202,16 +218,31 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
                             };
 
                             // Render each section (4-group model)
-                            if let Some(id) = render_section(ui, "WAITING FOR PERMISSION", &grouped.waiting_permission, Some(colors::STATUS_RED), pulse_alpha) {
+                            if let Some(id) = render_section(
+                                ui,
+                                "WAITING FOR PERMISSION",
+                                &grouped.waiting_permission,
+                                Some(colors::STATUS_RED),
+                                pulse_alpha,
+                            ) {
                                 clicked_id = Some(id);
                             }
-                            if let Some(id) = render_section(ui, "WAITING FOR INPUT", &grouped.waiting_input, Some(colors::STATUS_AMBER), pulse_alpha) {
+                            if let Some(id) = render_section(
+                                ui,
+                                "WAITING FOR INPUT",
+                                &grouped.waiting_input,
+                                Some(colors::STATUS_AMBER),
+                                pulse_alpha,
+                            ) {
                                 clicked_id = Some(id);
                             }
-                            if let Some(id) = render_section(ui, "WORKING", &grouped.working, None, None) {
+                            if let Some(id) =
+                                render_section(ui, "WORKING", &grouped.working, None, None)
+                            {
                                 clicked_id = Some(id);
                             }
-                            if let Some(id) = render_section(ui, "IDLE", &grouped.idle, None, None) {
+                            if let Some(id) = render_section(ui, "IDLE", &grouped.idle, None, None)
+                            {
                                 clicked_id = Some(id);
                             }
 
@@ -237,8 +268,10 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
 
                     // Separator (always visible, outside scroll area)
                     ui.add_space(4.0);
-                    let separator_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(CONTENT_WIDTH, 1.0));
-                    ui.painter().rect_filled(separator_rect, 0.0, colors::separator());
+                    let separator_rect =
+                        Rect::from_min_size(ui.cursor().min, Vec2::new(CONTENT_WIDTH, 1.0));
+                    ui.painter()
+                        .rect_filled(separator_rect, 0.0, colors::separator());
                     ui.add_space(5.0);
 
                     // Quit row (always visible, outside scroll area)
@@ -254,7 +287,13 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
 /// Render a section with header and session rows.
 /// Returns the clicked session ID if any row was clicked.
 /// If `header_color` is provided, the header text uses that color instead of the default.
-fn render_section(ui: &mut egui::Ui, header: &str, sessions: &[&Session], header_color: Option<Color32>, pulse_alpha: Option<f32>) -> Option<String> {
+fn render_section(
+    ui: &mut egui::Ui,
+    header: &str,
+    sessions: &[&Session],
+    header_color: Option<Color32>,
+    pulse_alpha: Option<f32>,
+) -> Option<String> {
     if sessions.is_empty() {
         return None;
     }
@@ -274,12 +313,7 @@ fn render_section_header(ui: &mut egui::Ui, text: &str, color: Option<Color32>) 
     ui.add_space(4.0);
     ui.horizontal(|ui| {
         ui.add_space(16.0);
-        ui.label(
-            RichText::new(text)
-                .color(header_color)
-                .size(10.0)
-                .strong(),
-        );
+        ui.label(RichText::new(text).color(header_color).size(10.0).strong());
     });
     ui.add_space(2.0);
 }
@@ -289,10 +323,7 @@ fn render_section_header(ui: &mut egui::Ui, text: &str, color: Option<Color32>) 
 /// Returns true if the row was clicked.
 fn render_session_row(ui: &mut egui::Ui, session: &Session, pulse_alpha: Option<f32>) -> bool {
     let height = row_height_for_session(session);
-    let row_rect = Rect::from_min_size(
-        ui.cursor().min,
-        Vec2::new(CONTENT_WIDTH, height),
-    );
+    let row_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(CONTENT_WIDTH, height));
 
     // Handle interaction
     let response = ui.allocate_rect(row_rect, Sense::click());
@@ -372,10 +403,7 @@ fn render_session_row(ui: &mut egui::Ui, session: &Session, pulse_alpha: Option<
 /// Render the "Quit cctop" row.
 /// Returns true if clicked.
 fn render_quit_row(ui: &mut egui::Ui) -> bool {
-    let row_rect = Rect::from_min_size(
-        ui.cursor().min,
-        Vec2::new(CONTENT_WIDTH, QUIT_ROW_HEIGHT),
-    );
+    let row_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(CONTENT_WIDTH, QUIT_ROW_HEIGHT));
 
     // Handle interaction
     let response = ui.allocate_rect(row_rect, Sense::click());
@@ -434,7 +462,12 @@ pub fn calculate_popup_height(sessions: &[Session]) -> f32 {
     let capped_height = sessions_height.min(MAX_SCROLL_HEIGHT);
 
     // Arrow + sessions (capped) + separator (4.0 + 1.0 + 5.0) + quit row + frame padding + bottom window padding
-    ARROW_HEIGHT + capped_height + 10.0 + QUIT_ROW_HEIGHT + (FRAME_VERTICAL_PADDING * 2.0) + WINDOW_PADDING
+    ARROW_HEIGHT
+        + capped_height
+        + 10.0
+        + QUIT_ROW_HEIGHT
+        + (FRAME_VERTICAL_PADDING * 2.0)
+        + WINDOW_PADDING
 }
 
 #[cfg(test)]
@@ -466,7 +499,12 @@ mod tests {
         }
     }
 
-    fn make_test_session_no_prompt(id: &str, status: Status, project: &str, branch: &str) -> Session {
+    fn make_test_session_no_prompt(
+        id: &str,
+        status: Status,
+        project: &str,
+        branch: &str,
+    ) -> Session {
         let mut s = make_test_session(id, status, project, branch);
         s.last_prompt = None;
         s
@@ -500,10 +538,7 @@ mod tests {
 
     #[test]
     fn test_status_color() {
-        assert_eq!(
-            status_color(&Status::WaitingPermission),
-            colors::STATUS_RED
-        );
+        assert_eq!(status_color(&Status::WaitingPermission), colors::STATUS_RED);
         assert_eq!(status_color(&Status::WaitingInput), colors::STATUS_AMBER);
         assert_eq!(status_color(&Status::NeedsAttention), colors::STATUS_AMBER);
         assert_eq!(status_color(&Status::Working), colors::STATUS_GREEN);
@@ -577,8 +612,14 @@ mod tests {
         ];
         let height = calculate_popup_height(&sessions);
         // Idle row (44) + Working row with prompt (62) + 2 headers (28 each) + chrome
-        let expected_sessions = ROW_HEIGHT_MINIMAL + ROW_HEIGHT_WITH_CONTEXT + (2.0 * HEADER_HEIGHT);
-        let expected_min = ARROW_HEIGHT + expected_sessions + 10.0 + QUIT_ROW_HEIGHT + (FRAME_VERTICAL_PADDING * 2.0) + WINDOW_PADDING;
+        let expected_sessions =
+            ROW_HEIGHT_MINIMAL + ROW_HEIGHT_WITH_CONTEXT + (2.0 * HEADER_HEIGHT);
+        let expected_min = ARROW_HEIGHT
+            + expected_sessions
+            + 10.0
+            + QUIT_ROW_HEIGHT
+            + (FRAME_VERTICAL_PADDING * 2.0)
+            + WINDOW_PADDING;
         assert!((height - expected_min).abs() < 1.0);
     }
 
@@ -587,23 +628,41 @@ mod tests {
         // Create many sessions to exceed MAX_SCROLL_HEIGHT
         let mut sessions = Vec::new();
         for i in 0..20 {
-            sessions.push(make_test_session(&format!("{}", i), Status::Working, &format!("proj{}", i), "main"));
+            sessions.push(make_test_session(
+                &format!("{}", i),
+                Status::Working,
+                &format!("proj{}", i),
+                "main",
+            ));
         }
         let height = calculate_popup_height(&sessions);
-        let max_height = ARROW_HEIGHT + MAX_SCROLL_HEIGHT + 10.0 + QUIT_ROW_HEIGHT + (FRAME_VERTICAL_PADDING * 2.0) + WINDOW_PADDING;
-        assert!(height <= max_height + 1.0, "Height {} should be capped at ~{}", height, max_height);
+        let max_height = ARROW_HEIGHT
+            + MAX_SCROLL_HEIGHT
+            + 10.0
+            + QUIT_ROW_HEIGHT
+            + (FRAME_VERTICAL_PADDING * 2.0)
+            + WINDOW_PADDING;
+        assert!(
+            height <= max_height + 1.0,
+            "Height {} should be capped at ~{}",
+            height,
+            max_height
+        );
     }
 
     #[test]
     fn test_variable_height_mixed_sessions() {
         let sessions = vec![
-            make_test_session("1", Status::Idle, "proj1", "main"),          // 44px
-            make_test_session("2", Status::Working, "proj2", "feature"),    // 62px
+            make_test_session("1", Status::Idle, "proj1", "main"), // 44px
+            make_test_session("2", Status::Working, "proj2", "feature"), // 62px
             make_test_session_no_prompt("3", Status::Working, "proj3", "dev"), // 44px (no prompt)
         ];
         let total = sessions_total_height(&sessions);
         // 2 headers (idle + working) + 44 + 62 + 44
-        let expected = (2.0 * HEADER_HEIGHT) + ROW_HEIGHT_MINIMAL + ROW_HEIGHT_WITH_CONTEXT + ROW_HEIGHT_MINIMAL;
+        let expected = (2.0 * HEADER_HEIGHT)
+            + ROW_HEIGHT_MINIMAL
+            + ROW_HEIGHT_WITH_CONTEXT
+            + ROW_HEIGHT_MINIMAL;
         assert!((total - expected).abs() < 1.0);
     }
 

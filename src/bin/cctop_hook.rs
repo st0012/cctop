@@ -249,20 +249,18 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
 
         "PermissionRequest" => {
             // Build notification message from title or tool details
-            let msg = input
-                .title
-                .or_else(|| {
-                    input.tool_name.as_ref().map(|t| {
-                        let detail = input
-                            .tool_input
-                            .as_ref()
-                            .and_then(|ti| extract_tool_detail(t, ti));
-                        match detail {
-                            Some(d) => format!("{}: {}", t, d),
-                            None => t.clone(),
-                        }
-                    })
-                });
+            let msg = input.title.or_else(|| {
+                input.tool_name.as_ref().map(|t| {
+                    let detail = input
+                        .tool_input
+                        .as_ref()
+                        .and_then(|ti| extract_tool_detail(t, ti));
+                    match detail {
+                        Some(d) => format!("{}: {}", t, d),
+                        None => t.clone(),
+                    }
+                })
+            });
             session.notification_message = msg;
             session.last_tool = None;
             session.last_tool_detail = None;
