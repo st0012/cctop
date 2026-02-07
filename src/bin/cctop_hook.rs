@@ -157,6 +157,30 @@ fn cleanup_sessions_with_pid(sessions_dir: &Path, pid: u32, current_session_id: 
     }
 }
 
+/// Clean up older session files for the same project path.
+///
+/// When a new session starts for a project that already has sessions,
+/// remove the older ones to avoid duplicates in the UI.
+fn cleanup_sessions_for_project(sessions_dir: &Path, project_path: &str, current_session_id: &str) {
+    use std::fs;
+
+    let Ok(entries) = fs::read_dir(sessions_dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().map(|e| e == "json").unwrap_or(false) {
+            if let Ok(session) = Session::from_file(&path) {
+                if session.project_path == project_path && session.session_id != current_session_id
+                {
+                    let _ = fs::remove_file(&path);
+                }
+            }
+        }
+    }
+}
+
 /// Handles a hook event by updating or creating the session file.
 fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::error::Error>> {
     // SessionEnd is a no-op (PID-based liveness detection handles cleanup)
@@ -219,7 +243,8 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
             let pid = get_parent_pid();
             session.pid = pid;
 
-            // Clean up old sessions with the same PID (e.g., when resuming a session)
+            // Clean up old sessions for the same project or PID
+            cleanup_sessions_for_project(&sessions_dir, &input.cwd, &input.session_id);
             if let Some(current_pid) = pid {
                 cleanup_sessions_with_pid(&sessions_dir, current_pid, &input.session_id);
             }
@@ -620,5 +645,66 @@ mod tests {
         assert!(sessions_dir.join("new-session.json").exists());
         // other-session should remain (different PID)
         assert!(sessions_dir.join("other-session.json").exists());
+    }
+
+    #[test]
+    fn test_cleanup_sessions_for_project() {
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        // Old session for same project (different PID, no PID, etc.)
+        let mut old_session = Session::new(
+            "old-session".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        old_session.pid = Some(11111);
+        old_session.write_to_dir(sessions_dir).unwrap();
+
+        // Another old session with no PID
+        let no_pid_session = Session::new(
+            "no-pid-session".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        no_pid_session.write_to_dir(sessions_dir).unwrap();
+
+        // Session for a different project (should not be removed)
+        let other_project = Session::new(
+            "other-project".to_string(),
+            "/nonexistent/test/other".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        other_project.write_to_dir(sessions_dir).unwrap();
+
+        // New session for same project
+        let new_session = Session::new(
+            "new-session".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        new_session.write_to_dir(sessions_dir).unwrap();
+
+        assert_eq!(
+            std::fs::read_dir(sessions_dir).unwrap().count(),
+            4,
+            "Should have 4 session files"
+        );
+
+        cleanup_sessions_for_project(sessions_dir, "/nonexistent/test/project", "new-session");
+
+        // Old sessions for the same project should be removed
+        assert!(!sessions_dir.join("old-session.json").exists());
+        assert!(!sessions_dir.join("no-pid-session.json").exists());
+        // New session should remain
+        assert!(sessions_dir.join("new-session.json").exists());
+        // Different project should remain
+        assert!(sessions_dir.join("other-project.json").exists());
     }
 }
