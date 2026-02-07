@@ -1,26 +1,40 @@
 //! egui popup rendering for the cctop menubar.
 //!
 //! Renders the session list popup with status dots, hover effects, and proper styling.
+//! Features an arrow pointing to the tray icon and rounded corners.
 
 use crate::session::{GroupedSessions, Session, Status};
-use egui::{Color32, Frame, Margin, Pos2, Rect, RichText, Rounding, Sense, Vec2};
+use egui::{Color32, epaint::PathShape, Frame, Margin, Pos2, Rect, RichText, Rounding, Sense, Shape, Stroke, Vec2};
 
 /// Special return value indicating the user clicked "Quit".
 pub const QUIT_ACTION: &str = "__quit__";
 
-/// Popup dimensions.
-pub const POPUP_WIDTH: f32 = 288.0;
+/// Content dimensions.
+pub const CONTENT_WIDTH: f32 = 288.0;
 pub const ROW_HEIGHT: f32 = 44.0;
 pub const HEADER_HEIGHT: f32 = 28.0;
 pub const QUIT_ROW_HEIGHT: f32 = 36.0;
 
-/// Colors matching the Minimal design.
+/// Arrow dimensions (pointing up to tray icon).
+pub const ARROW_HEIGHT: f32 = 12.0;
+pub const ARROW_WIDTH: f32 = 16.0;
+
+/// Border radius for rounded corners.
+pub const BORDER_RADIUS: f32 = 7.0;
+
+/// Padding around the content for rounded corners to be visible.
+pub const WINDOW_PADDING: f32 = 1.0;
+
+/// Total popup width including padding.
+pub const POPUP_WIDTH: f32 = CONTENT_WIDTH + (WINDOW_PADDING * 2.0);
+
+/// Colors matching the reference design.
 pub mod colors {
     use egui::Color32;
 
-    /// Background color: rgb(31, 41, 55) at ~95% opacity
+    /// Background color: #2f2f2f (47, 47, 47)
     pub fn background() -> Color32 {
-        Color32::from_rgba_unmultiplied(31, 41, 55, 242)
+        Color32::from_rgb(47, 47, 47)
     }
     /// Hover color: rgba(255, 255, 255, 0.1)
     pub fn hover() -> Color32 {
@@ -51,6 +65,22 @@ fn status_color(status: &Status) -> Color32 {
     }
 }
 
+/// Draw the arrow pointing up to the tray icon.
+fn draw_arrow(painter: &egui::Painter, center_x: f32, top_y: f32) {
+    let points = vec![
+        Pos2::new(center_x, top_y),                              // Top point
+        Pos2::new(center_x - ARROW_WIDTH / 2.0, top_y + ARROW_HEIGHT), // Bottom left
+        Pos2::new(center_x + ARROW_WIDTH / 2.0, top_y + ARROW_HEIGHT), // Bottom right
+    ];
+
+    let shape = Shape::Path(PathShape::convex_polygon(
+        points,
+        colors::background(),
+        Stroke::NONE,
+    ));
+    painter.add(shape);
+}
+
 /// Render the popup and return the clicked session ID (or QUIT_ACTION).
 ///
 /// Returns `Some(session_id)` if a session was clicked,
@@ -59,18 +89,27 @@ fn status_color(status: &Status) -> Color32 {
 pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String> {
     let mut clicked_id: Option<String> = None;
     let grouped = GroupedSessions::from_sessions(sessions);
+    let screen_rect = ctx.screen_rect();
+    let painter = ctx.layer_painter(egui::LayerId::background());
 
-    // Paint background to fill entire window (no rounding to avoid black corner leak)
-    ctx.layer_painter(egui::LayerId::background())
-        .rect_filled(ctx.screen_rect(), Rounding::ZERO, colors::background());
+    // Draw arrow at top center
+    let arrow_center_x = screen_rect.center().x;
+    draw_arrow(&painter, arrow_center_x, 0.0);
+
+    // Draw rounded content area below arrow (inset by WINDOW_PADDING)
+    let content_rect = Rect::from_min_max(
+        Pos2::new(WINDOW_PADDING, ARROW_HEIGHT),
+        Pos2::new(screen_rect.max.x - WINDOW_PADDING, screen_rect.max.y - WINDOW_PADDING),
+    );
+    painter.rect_filled(content_rect, Rounding::same(BORDER_RADIUS), colors::background());
 
     egui::Area::new(egui::Id::new("cctop_popup"))
-        .fixed_pos(Pos2::new(0.0, 0.0))
+        .fixed_pos(Pos2::new(WINDOW_PADDING, ARROW_HEIGHT))
         .show(ctx, |ui| {
             Frame::none()
                 .inner_margin(Margin::symmetric(0.0, FRAME_VERTICAL_PADDING))
                 .show(ui, |ui| {
-                    ui.set_width(POPUP_WIDTH);
+                    ui.set_width(CONTENT_WIDTH);
 
                     // Render each section
                     if let Some(id) = render_section(ui, "NEEDS ATTENTION", &grouped.needs_attention) {
@@ -99,7 +138,7 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
 
                     // Separator
                     ui.add_space(4.0);
-                    let separator_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(POPUP_WIDTH, 1.0));
+                    let separator_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(CONTENT_WIDTH, 1.0));
                     ui.painter().rect_filled(separator_rect, 0.0, colors::separator());
                     ui.add_space(5.0);
 
@@ -148,7 +187,7 @@ fn render_section_header(ui: &mut egui::Ui, text: &str) {
 fn render_session_row(ui: &mut egui::Ui, session: &Session) -> bool {
     let row_rect = Rect::from_min_size(
         ui.cursor().min,
-        Vec2::new(POPUP_WIDTH, ROW_HEIGHT),
+        Vec2::new(CONTENT_WIDTH, ROW_HEIGHT),
     );
 
     // Handle interaction
@@ -192,7 +231,7 @@ fn render_session_row(ui: &mut egui::Ui, session: &Session) -> bool {
 fn render_quit_row(ui: &mut egui::Ui) -> bool {
     let row_rect = Rect::from_min_size(
         ui.cursor().min,
-        Vec2::new(POPUP_WIDTH, QUIT_ROW_HEIGHT),
+        Vec2::new(CONTENT_WIDTH, QUIT_ROW_HEIGHT),
     );
 
     // Handle interaction
@@ -241,8 +280,8 @@ pub fn calculate_popup_height(sessions: &[Session]) -> f32 {
         content_height += ROW_HEIGHT; // "No active sessions" message
     }
 
-    // Separator (4.0 + 1.0 + 5.0) + quit row + frame padding
-    content_height + 10.0 + QUIT_ROW_HEIGHT + (FRAME_VERTICAL_PADDING * 2.0)
+    // Arrow + separator (4.0 + 1.0 + 5.0) + quit row + frame padding + bottom window padding
+    ARROW_HEIGHT + content_height + 10.0 + QUIT_ROW_HEIGHT + (FRAME_VERTICAL_PADDING * 2.0) + WINDOW_PADDING
 }
 
 #[cfg(test)]
