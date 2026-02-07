@@ -1,69 +1,87 @@
 # cctop
 
-A TUI for monitoring Claude Code sessions across workspaces.
+A macOS menubar app for monitoring Claude Code sessions across workspaces.
 
-![Demo](docs/demo.gif)
+See all your Claude Code sessions at a glance — which are working, which need your attention, and which are idle. Click any session to jump straight to it.
 
 ## Features
 
-- Monitor multiple Claude Code sessions in real-time
-- See status at a glance: idle, working, needs attention
-- Jump directly to any session with Enter
+- Lives in your menubar — always one click away
+- Real-time session status: idle, working, waiting for input, waiting for permission
+- Shows current tool or prompt context for each session
+- Click to jump directly to the session's terminal
+- Includes a TUI (`cctop`) for terminal-based monitoring
 
 ## Installation
 
-Requires [Rust](https://rustup.rs/) to be installed.
+### Download the app
+
+1. Download `cctop-macOS-arm64.zip` (Apple Silicon) or `cctop-macOS-x86_64.zip` (Intel) from the [latest release](https://github.com/st0012/cctop/releases/latest)
+2. Unzip and move `cctop.app` to `/Applications/`
+3. Right-click the app and select "Open" (required on first launch since the app is not notarized)
+
+Or from the command line:
 
 ```bash
-cargo install cctop
+curl -sL https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.zip -o cctop.zip
+unzip cctop.zip
+mv cctop.app /Applications/
+open /Applications/cctop.app
 ```
 
-Then install the Claude Code plugin to enable session tracking:
+### Install the Claude Code plugin
+
+The plugin registers hooks so Claude Code reports session activity to cctop.
 
 ```bash
 claude plugin add st0012/cctop
 ```
 
-**Important:** The plugin uses hooks to track session activity. Only sessions started *after* installing the plugin will be tracked. Restart any existing Claude Code sessions to begin tracking them.
+Restart any existing Claude Code sessions after installing the plugin.
 
-## Usage
+### Build from source
 
-Run `cctop` in a separate terminal while Claude Code sessions are active.
+Requires [Rust](https://rustup.rs/).
 
-### Keyboard Shortcuts
+```bash
+cargo install cctop
+```
+
+This installs all three binaries (`cctop`, `cctop-hook`, `cctop-menubar`). Run `cctop-menubar` to start the menubar app, or `cctop` for the TUI.
+
+## How It Works
+
+1. The cctop plugin registers hooks with Claude Code
+2. Hooks fire on session events (start, prompt, tool use, stop, notifications)
+3. `cctop-hook` writes session state to `~/.cctop/sessions/`
+4. The menubar app (and TUI) reads these files and displays live status
+
+## Configuration
+
+Create `~/.cctop/config.toml` to customize the editor used for "jump to session":
+
+```toml
+[editor]
+process_name = "Code"      # or "Cursor", "Code - Insiders"
+cli_command = "code"        # or "cursor", "code-insiders"
+```
+
+## TUI
+
+The `cctop` command launches a terminal-based UI as an alternative to the menubar app.
+
+```bash
+cctop              # Launch TUI
+cctop --list       # List sessions as text (no TUI)
+```
 
 | Key | Action |
 |-----|--------|
 | Up/Down or k/j | Navigate sessions |
 | Enter | Jump to selected session |
+| Right/Left | Detail view / back |
 | r | Refresh |
 | q, Esc, Ctrl+C | Quit |
-
-### CLI Options
-
-```bash
-cctop              # Launch TUI
-cctop --list       # List sessions as text (no TUI)
-cctop --cleanup-stale  # Remove stale session files
-cctop --version    # Print version
-```
-
-## Configuration
-
-Create `~/.cctop/config.toml` to customize behavior:
-
-```toml
-[editor]
-process_name = "Code"      # or "Cursor"
-cli_command = "code"       # or "cursor"
-```
-
-## How It Works
-
-1. The cctop plugin registers hooks with Claude Code
-2. Hooks fire on session events (start, prompt, tool use, stop, end)
-3. `cctop-hook` writes session state to `~/.cctop/sessions/`
-4. The cctop TUI polls these files and displays status
 
 ## License
 
