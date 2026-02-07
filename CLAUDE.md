@@ -31,6 +31,7 @@ cctop/
 ### Binaries
 - `cctop` - TUI application
 - `cctop-hook` - Hook handler called by Claude Code on session events
+- `cctop-menubar` - macOS menubar app (egui/wgpu/tao)
 
 ### Data Flow
 1. Claude Code fires hooks (SessionStart, UserPromptSubmit, Stop, etc.)
@@ -115,14 +116,19 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 
 ## Session Status Logic
 
+4-status model with `NeedsAttention` as `#[serde(other)]` fallback for forward compatibility.
+
 | Hook Event | Status |
 |------------|--------|
 | SessionStart | idle (also stores PID for liveness detection) |
 | UserPromptSubmit | working |
-| PreToolUse | working |
+| PreToolUse | working (sets last_tool/last_tool_detail) |
 | PostToolUse | working |
 | Stop | idle |
-| Notification (idle_prompt) | needs_attention |
+| Notification (idle_prompt) | waiting_input |
+| Notification (permission_prompt) | waiting_permission |
+| PermissionRequest | waiting_permission |
+| PreCompact | (preserves status, sets context_compacted) |
 
 Note: SessionEnd hook is no longer used. Dead sessions are detected via PID checking.
 
@@ -176,3 +182,23 @@ The `docs/demo.tape` file defines the recording:
 - Run with active Claude Code sessions for realistic content
 - Or create mock session files in `~/.cctop/sessions/` before recording
 - Re-run `vhs docs/demo.tape` to regenerate after changes
+
+## Agent Workflow Guidelines
+
+Learned from Phase 1-2 development. Changes in this codebase often flow sequentially (session.rs -> cctop_hook.rs -> tui.rs -> popup.rs -> menu.rs), which limits parallelization.
+
+### When to use what
+
+**Subagents** (focused, report-back-only): quick research ("what's the convention for X?"), codebase exploration, code review after milestones. Use when only the result matters, not discussion.
+
+**Agent teams** (inter-agent communication): debating approaches with competing hypotheses, parallel code review with different lenses, cross-file implementation where each teammate owns different files. Use when agents need to challenge each other or coordinate.
+
+**Solo** (no agents): sequential changes across coupled files, small fixes, tasks where context transfer overhead exceeds benefit.
+
+### Team best practices for this project
+- Use **delegate mode** (Shift+Tab) to keep the lead in coordination-only role
+- Design tasks around **file ownership**, not domain expertise (e.g., "own tui.rs" not "be a UX expert")
+- Aim for **5-6 tasks per teammate** to keep them productive
+- **Require plan approval** for implementation tasks
+- session.rs is the shared interface — have one teammate own it, others depend on it
+- Menubar (popup.rs, app.rs, menu.rs) is mostly independent from TUI (tui.rs) — good split for parallel work
