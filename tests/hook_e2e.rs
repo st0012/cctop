@@ -197,7 +197,7 @@ fn test_hook_binary_status_transitions() {
     let session = load_session(session_id);
     assert_eq!(session.status, "idle", "Stop should set idle");
 
-    // Notification (idle_prompt) -> needs_attention
+    // Notification (idle_prompt) -> waiting_input
     let json = format!(
         r#"{{"session_id":"{}","cwd":"/tmp","hook_event_name":"Notification","notification_type":"idle_prompt"}}"#,
         session_id
@@ -205,8 +205,8 @@ fn test_hook_binary_status_transitions() {
     run_hook("Notification", &json);
     let session = load_session(session_id);
     assert_eq!(
-        session.status, "needs_attention",
-        "Notification with idle_prompt should set needs_attention"
+        session.status, "waiting_input",
+        "Notification with idle_prompt should set waiting_input"
     );
 
     cleanup_session(session_id);
