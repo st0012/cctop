@@ -5,7 +5,7 @@
 //!
 //! Usage: cctop-hook <HookName>
 //!
-//! Hook names: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, Notification, SessionEnd
+//! Hook names: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, Notification, PermissionRequest, PreCompact, SessionEnd
 
 use std::env;
 use std::io::{self, Read};
@@ -14,6 +14,7 @@ use std::process;
 
 use chrono::Utc;
 use serde::Deserialize;
+use serde_json::Value;
 
 use cctop::config::Config;
 use cctop::git::get_current_branch;
@@ -39,26 +40,28 @@ struct HookInput {
     /// Only present for PreToolUse/PostToolUse
     #[serde(default)]
     tool_name: Option<String>,
+    /// Tool input JSON, present for PreToolUse/PostToolUse
+    #[serde(default)]
+    tool_input: Option<Value>,
     /// Only present for Notification
     #[serde(default)]
     notification_type: Option<String>,
+    /// Message content (Notification, PermissionRequest)
+    #[serde(default)]
+    message: Option<String>,
+    /// Title (PermissionRequest)
+    #[serde(default)]
+    title: Option<String>,
+    /// Trigger for SessionStart (e.g., "startup", "resume")
+    #[serde(default)]
+    trigger: Option<String>,
 }
 
 /// Gets the parent process ID.
 ///
 /// The hook is invoked by Claude Code, so the parent PID is the Claude process.
 fn get_parent_pid() -> Option<u32> {
-    use std::process::Command;
-
-    // Use ps to get the parent PID of the current process
-    let pid = process::id();
-    let output = Command::new("ps")
-        .args(["-o", "ppid=", "-p", &pid.to_string()])
-        .output()
-        .ok()?;
-
-    let ppid_str = String::from_utf8_lossy(&output.stdout);
-    ppid_str.trim().parse().ok()
+    Some(std::os::unix::process::parent_id())
 }
 
 /// Captures terminal information from environment variables.
@@ -82,16 +85,51 @@ fn capture_terminal_info() -> TerminalInfo {
 /// Determines the new status based on hook event and notification type.
 fn determine_status(event: &str, notification_type: Option<&str>) -> Status {
     match event {
-        "Notification" => {
-            if notification_type == Some("idle_prompt") {
-                Status::NeedsAttention
-            } else {
-                // Other notification types don't change status
-                Status::Working
-            }
-        }
+        "Notification" => match notification_type {
+            Some("idle_prompt") => Status::WaitingInput,
+            Some("permission_prompt") => Status::WaitingPermission,
+            _ => Status::Working,
+        },
+        "PermissionRequest" => Status::WaitingPermission,
         _ => Status::from_hook_event(event),
     }
+}
+
+/// Maximum length for extracted tool detail strings.
+const MAX_TOOL_DETAIL_LEN: usize = 120;
+
+/// Extracts a human-readable detail string from tool_input JSON.
+///
+/// Maps tool names to the most relevant field in their input:
+/// - Bash -> command
+/// - Edit/Write/Read -> file_path
+/// - Grep/Glob -> pattern
+/// - WebFetch -> url
+/// - WebSearch -> query
+/// - Task -> description
+fn extract_tool_detail(tool_name: &str, tool_input: &Value) -> Option<String> {
+    let field = match tool_name {
+        "Bash" => "command",
+        "Edit" | "Write" | "Read" => "file_path",
+        "Grep" | "Glob" => "pattern",
+        "WebFetch" => "url",
+        "WebSearch" => "query",
+        "Task" => "description",
+        _ => return None,
+    };
+
+    let value = tool_input.get(field)?.as_str()?;
+    if value.is_empty() {
+        return None;
+    }
+
+    let detail = if value.len() > MAX_TOOL_DETAIL_LEN {
+        let truncated: String = value.chars().take(MAX_TOOL_DETAIL_LEN - 3).collect();
+        format!("{}...", truncated)
+    } else {
+        value.to_string()
+    };
+    Some(detail)
 }
 
 /// Clean up any existing session files with the same PID.
@@ -121,6 +159,11 @@ fn cleanup_sessions_with_pid(sessions_dir: &Path, pid: u32, current_session_id: 
 
 /// Handles a hook event by updating or creating the session file.
 fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::error::Error>> {
+    // SessionEnd is a no-op (PID-based liveness detection handles cleanup)
+    if hook_name == "SessionEnd" {
+        return Ok(());
+    }
+
     let sessions_dir = Config::sessions_dir();
     let session_path = sessions_dir.join(format!("{}.json", input.session_id));
 
@@ -157,31 +200,97 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
         )
     };
 
-    // Update session fields
+    // Update common session fields
     session.status = new_status;
     session.last_activity = Utc::now();
     session.branch = branch;
-
-    // Update terminal info (in case it changed)
     session.terminal = terminal;
 
-    // On SessionStart, capture the parent PID (the Claude Code process)
-    // Also clean up any existing sessions with the same PID (happens on resume)
-    if hook_name == "SessionStart" {
-        let pid = get_parent_pid();
-        session.pid = pid;
+    // Apply state transition clearing logic per hook event
+    match hook_name {
+        "SessionStart" => {
+            // Clear transient fields on session start
+            session.last_tool = None;
+            session.last_tool_detail = None;
+            session.notification_message = None;
+            session.context_compacted = false;
 
-        // Clean up old sessions with the same PID (e.g., when resuming a session)
-        if let Some(current_pid) = pid {
-            cleanup_sessions_with_pid(&sessions_dir, current_pid, &input.session_id);
-        }
-    }
+            // Capture the parent PID (the Claude Code process)
+            let pid = get_parent_pid();
+            session.pid = pid;
 
-    // For UserPromptSubmit, update the last prompt
-    if hook_name == "UserPromptSubmit" {
-        if let Some(prompt) = input.prompt {
-            session.last_prompt = Some(prompt);
+            // Clean up old sessions with the same PID (e.g., when resuming a session)
+            if let Some(current_pid) = pid {
+                cleanup_sessions_with_pid(&sessions_dir, current_pid, &input.session_id);
+            }
         }
+
+        "UserPromptSubmit" => {
+            // Clear tool/notification state, set prompt
+            session.last_tool = None;
+            session.last_tool_detail = None;
+            session.notification_message = None;
+
+            if let Some(prompt) = input.prompt {
+                session.last_prompt = Some(prompt);
+            }
+        }
+
+        "PreToolUse" => {
+            // Set last_tool and extract detail from tool_input
+            if let Some(ref tool_name) = input.tool_name {
+                session.last_tool = Some(tool_name.clone());
+                session.last_tool_detail = input
+                    .tool_input
+                    .as_ref()
+                    .and_then(|ti| extract_tool_detail(tool_name, ti));
+            }
+        }
+
+        "PermissionRequest" => {
+            // Build notification message from title or tool details
+            let msg = input
+                .title
+                .or_else(|| {
+                    input.tool_name.as_ref().map(|t| {
+                        let detail = input
+                            .tool_input
+                            .as_ref()
+                            .and_then(|ti| extract_tool_detail(t, ti));
+                        match detail {
+                            Some(d) => format!("{}: {}", t, d),
+                            None => t.clone(),
+                        }
+                    })
+                });
+            session.notification_message = msg;
+            session.last_tool = None;
+            session.last_tool_detail = None;
+        }
+
+        "Notification" => {
+            // Clear stale tool info when transitioning out of Working
+            session.last_tool = None;
+            session.last_tool_detail = None;
+            // Store notification message if present
+            if let Some(ref msg) = input.message {
+                session.notification_message = Some(msg.clone());
+            }
+        }
+
+        "PreCompact" => {
+            // Mark that context has been compacted
+            session.context_compacted = true;
+        }
+
+        "Stop" => {
+            // Clear transient fields on stop
+            session.last_tool = None;
+            session.last_tool_detail = None;
+            session.notification_message = None;
+        }
+
+        _ => {}
     }
 
     // Write session file atomically
@@ -321,7 +430,7 @@ mod tests {
     fn test_determine_status_notification_idle_prompt() {
         assert_eq!(
             determine_status("Notification", Some("idle_prompt")),
-            Status::NeedsAttention
+            Status::WaitingInput
         );
     }
 
@@ -331,6 +440,118 @@ mod tests {
             determine_status("Notification", Some("other")),
             Status::Working
         );
+    }
+
+    #[test]
+    fn test_determine_status_permission_request() {
+        assert_eq!(
+            determine_status("PermissionRequest", None),
+            Status::WaitingPermission
+        );
+    }
+
+    #[test]
+    fn test_determine_status_notification_permission_prompt() {
+        assert_eq!(
+            determine_status("Notification", Some("permission_prompt")),
+            Status::WaitingPermission
+        );
+    }
+
+    #[test]
+    fn test_parse_hook_input_with_tool_input() {
+        let json = r#"{
+            "session_id": "abc123",
+            "cwd": "/tmp/test",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "npm test"}
+        }"#;
+
+        let input: HookInput = serde_json::from_str(json).unwrap();
+        assert_eq!(input.tool_name, Some("Bash".to_string()));
+        assert!(input.tool_input.is_some());
+        let ti = input.tool_input.unwrap();
+        assert_eq!(ti["command"].as_str(), Some("npm test"));
+    }
+
+    #[test]
+    fn test_parse_hook_input_with_message_and_title() {
+        let json = r#"{
+            "session_id": "abc123",
+            "cwd": "/tmp/test",
+            "hook_event_name": "PermissionRequest",
+            "title": "Allow Bash command?",
+            "message": "Run npm test",
+            "tool_name": "Bash"
+        }"#;
+
+        let input: HookInput = serde_json::from_str(json).unwrap();
+        assert_eq!(input.title, Some("Allow Bash command?".to_string()));
+        assert_eq!(input.message, Some("Run npm test".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tool_detail_bash() {
+        let input = serde_json::json!({"command": "npm test"});
+        assert_eq!(
+            extract_tool_detail("Bash", &input),
+            Some("npm test".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_tool_detail_edit() {
+        let input = serde_json::json!({"file_path": "/src/main.rs", "old_string": "foo", "new_string": "bar"});
+        assert_eq!(
+            extract_tool_detail("Edit", &input),
+            Some("/src/main.rs".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_tool_detail_grep() {
+        let input = serde_json::json!({"pattern": "TODO", "path": "/src"});
+        assert_eq!(
+            extract_tool_detail("Grep", &input),
+            Some("TODO".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_tool_detail_web_search() {
+        let input = serde_json::json!({"query": "rust egui tutorial"});
+        assert_eq!(
+            extract_tool_detail("WebSearch", &input),
+            Some("rust egui tutorial".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_tool_detail_unknown_tool() {
+        let input = serde_json::json!({"anything": "value"});
+        assert_eq!(extract_tool_detail("UnknownTool", &input), None);
+    }
+
+    #[test]
+    fn test_extract_tool_detail_missing_field() {
+        let input = serde_json::json!({"other_field": "value"});
+        assert_eq!(extract_tool_detail("Bash", &input), None);
+    }
+
+    #[test]
+    fn test_extract_tool_detail_truncation() {
+        let long_cmd = "a".repeat(200);
+        let input = serde_json::json!({"command": long_cmd});
+        let result = extract_tool_detail("Bash", &input).unwrap();
+        assert_eq!(result.len(), MAX_TOOL_DETAIL_LEN);
+        assert!(result.ends_with("..."));
+    }
+
+    #[test]
+    fn test_extract_tool_detail_empty_value() {
+        let input = serde_json::json!({"command": ""});
+        assert_eq!(extract_tool_detail("Bash", &input), None);
     }
 
     #[test]
