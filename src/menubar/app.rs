@@ -5,7 +5,7 @@ use crate::focus::focus_terminal;
 use crate::menubar::popup::{calculate_popup_height, render_popup, POPUP_WIDTH, QUIT_ACTION};
 use crate::menubar::popup_state::PopupState;
 use crate::menubar::renderer::Renderer;
-use crate::session::{load_live_sessions, Session};
+use crate::session::{load_live_sessions, Session, Status};
 use crate::watcher::SessionWatcher;
 use anyhow::{Context, Result};
 use std::cell::RefCell;
@@ -15,7 +15,29 @@ use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop};
 use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
 use tao::window::{Window, WindowBuilder};
-use tray_icon::TrayIconBuilder;
+use tray_icon::{TrayIcon, TrayIconBuilder};
+
+/// Compute the tray title based on session states.
+///
+/// Returns "CC" when no sessions need attention,
+/// or "CC (N)" when N sessions need attention.
+fn tray_title(sessions: &[Session]) -> String {
+    let attention_count = sessions
+        .iter()
+        .filter(|s| s.status == Status::NeedsAttention)
+        .count();
+    if attention_count > 0 {
+        format!("CC ({})", attention_count)
+    } else {
+        "CC".to_string()
+    }
+}
+
+/// Update the tray icon title based on current sessions.
+fn update_tray_title(tray_icon: &TrayIcon, sessions: &[Session]) {
+    let title = tray_title(sessions);
+    tray_icon.set_title(Some(&title));
+}
 
 /// Main menubar application.
 pub struct MenubarApp {
@@ -103,10 +125,11 @@ impl MenubarApp {
             });
         }
 
-        // Create tray icon
+        // Create tray icon with initial title based on loaded sessions
+        let initial_title = tray_title(&app.borrow().sessions);
         let tray_icon = TrayIconBuilder::new()
             .with_tooltip("cctop - Claude Code Sessions")
-            .with_title("CC")
+            .with_title(&initial_title)
             .build()
             .context("Failed to create tray icon")?;
 
@@ -134,6 +157,7 @@ impl MenubarApp {
             match event {
                 Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
                     app.borrow_mut().poll_session_changes();
+                    update_tray_title(&tray_icon.borrow(), &app.borrow().sessions);
                 }
 
                 Event::WindowEvent {
@@ -175,6 +199,15 @@ impl MenubarApp {
                     app.handle_mouse_input(state, button);
                 }
 
+                #[allow(deprecated)]
+                Event::WindowEvent {
+                    event: WindowEvent::MouseWheel { delta, .. },
+                    ..
+                } => {
+                    let mut app = app.borrow_mut();
+                    app.handle_mouse_wheel(delta);
+                }
+
                 Event::WindowEvent {
                     event:
                         WindowEvent::KeyboardInput {
@@ -189,6 +222,21 @@ impl MenubarApp {
                     ..
                 } => {
                     app.borrow_mut().hide_popup();
+                }
+
+                Event::WindowEvent {
+                    event: WindowEvent::Focused(false),
+                    ..
+                } => {
+                    let mut app = app.borrow_mut();
+                    // Debounce: don't dismiss if popup was just shown (<200ms ago).
+                    // This prevents a race where clicking the tray icon fires
+                    // Focused(false) on the old popup before the new show completes.
+                    if app.popup_state.visible
+                        && app.popup_state.visible_duration() > Duration::from_millis(200)
+                    {
+                        app.hide_popup();
+                    }
                 }
 
                 Event::RedrawRequested(_) => {
@@ -217,14 +265,37 @@ impl MenubarApp {
             let popup_y = y + 4;
             let popup_height = calculate_popup_height(&self.sessions);
 
+            // Position and resize window (still hidden)
             self.window
                 .set_outer_position(PhysicalPosition::new(popup_x, popup_y));
             self.window
                 .set_inner_size(LogicalSize::new(POPUP_WIDTH as f64, popup_height as f64));
-            self.window.set_visible(true);
 
+            // Use calculated size directly - don't query window as set_inner_size is async
+            let scale_factor = self.renderer.scale_factor();
+            let physical_width = (POPUP_WIDTH as f64 * scale_factor) as u32;
+            let physical_height = (popup_height as f64 * scale_factor) as u32;
+
+            // Update renderer for new size (this also resets layer opacity)
+            self.renderer.resize(physical_width, physical_height);
+
+            // Update egui input for new size
+            self.egui_input.screen_rect = Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(POPUP_WIDTH, popup_height),
+            ));
+
+            // Pre-render while hidden to ensure the first visible frame is correct
             self.popup_state.show();
-            self.window.request_redraw();
+            for _ in 0..2 {
+                let input = self.renderer.create_input();
+                let sessions = &self.sessions;
+                let _ = self.renderer.render(input, |ctx| render_popup(ctx, sessions));
+            }
+            self.egui_input = self.renderer.create_input();
+
+            // Now show the window with pre-rendered content
+            self.window.set_visible(true);
         }
     }
 
@@ -301,6 +372,38 @@ impl MenubarApp {
             pos: self.cursor_pos,
             button: egui_button,
             pressed: state == tao::event::ElementState::Pressed,
+            modifiers: egui::Modifiers::default(),
+        });
+
+        if self.popup_state.visible {
+            self.window.request_redraw();
+        }
+    }
+
+    fn handle_mouse_wheel(&mut self, delta: tao::event::MouseScrollDelta) {
+        use tao::event::MouseScrollDelta;
+
+        let (unit, delta) = match delta {
+            MouseScrollDelta::LineDelta(x, y) => (
+                egui::MouseWheelUnit::Line,
+                egui::vec2(x, y),
+            ),
+            MouseScrollDelta::PixelDelta(pos) => {
+                let scale_factor = self.renderer.scale_factor();
+                (
+                    egui::MouseWheelUnit::Point,
+                    egui::vec2(
+                        pos.x as f32 / scale_factor as f32,
+                        pos.y as f32 / scale_factor as f32,
+                    ),
+                )
+            }
+            _ => return,
+        };
+
+        self.egui_input.events.push(egui::Event::MouseWheel {
+            unit,
+            delta,
             modifiers: egui::Modifiers::default(),
         });
 

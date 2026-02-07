@@ -8,6 +8,7 @@ use tao::platform::macos::WindowExtMacOS;
 use tao::window::Window;
 
 /// Encapsulates wgpu device, surface, and egui renderer.
+/// Handles transparent window rendering on macOS.
 pub struct Renderer {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
@@ -16,11 +17,19 @@ pub struct Renderer {
     egui_ctx: egui::Context,
     egui_renderer: egui_wgpu::Renderer,
     scale_factor: f64,
+    /// Stored ns_view pointer for layer opacity management.
+    ns_view: *mut AnyObject,
 }
+
+// Safety: ns_view pointer is only used on the main thread for objc calls
+unsafe impl Send for Renderer {}
 
 impl Renderer {
     /// Create a new renderer for the given window.
     pub fn new(window: &Window) -> Result<Self> {
+        // Store ns_view pointer for later use
+        let ns_view = window.ns_view() as *mut AnyObject;
+
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -86,10 +95,10 @@ impl Renderer {
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
-        surface.configure(&device, &surface_config);
 
-        // Set CAMetalLayer to non-opaque for transparency
-        Self::set_layer_opaque(window, false);
+        // Configure surface and set layer opacity
+        surface.configure(&device, &surface_config);
+        Self::set_layer_opaque_raw(ns_view, false);
 
         // Initialize egui
         let egui_ctx = egui::Context::default();
@@ -111,13 +120,20 @@ impl Renderer {
             egui_ctx,
             egui_renderer,
             scale_factor,
+            ns_view,
         })
     }
 
+    /// Internal: configure surface and re-apply layer opacity.
+    /// This must be called instead of surface.configure() directly.
+    fn configure_surface(&self) {
+        self.surface.configure(&self.device, &self.surface_config);
+        Self::set_layer_opaque_raw(self.ns_view, false);
+    }
+
     /// Set the CAMetalLayer opacity for window transparency.
-    fn set_layer_opaque(window: &Window, opaque: bool) {
+    fn set_layer_opaque_raw(ns_view: *mut AnyObject, opaque: bool) {
         unsafe {
-            let ns_view = window.ns_view() as *mut AnyObject;
             let layer: *mut AnyObject = msg_send![ns_view, layer];
             if !layer.is_null() {
                 let _: () = msg_send![layer, setOpaque: opaque];
@@ -136,11 +152,12 @@ impl Renderer {
     }
 
     /// Resize the surface when the window changes size.
+    /// Automatically re-applies layer opacity for transparency.
     pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             self.surface_config.width = width;
             self.surface_config.height = height;
-            self.surface.configure(&self.device, &self.surface_config);
+            self.configure_surface();
         }
     }
 
@@ -160,7 +177,7 @@ impl Renderer {
         let output = match self.surface.get_current_texture() {
             Ok(output) => output,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                self.surface.configure(&self.device, &self.surface_config);
+                self.configure_surface();
                 return Err(anyhow::anyhow!("Surface lost, reconfigured"));
             }
             Err(e) => {
