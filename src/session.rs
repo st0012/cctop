@@ -17,20 +17,23 @@ pub enum Status {
     Idle,
     /// Session is actively processing (running tools, generating response)
     Working,
-    /// Session requires user attention (permission prompt, etc.)
+    /// Session is blocked on a permission approval (most urgent)
+    WaitingPermission,
+    /// Session finished, waiting for new prompt from user
+    WaitingInput,
+    /// Legacy fallback: any unknown status deserializes here
+    #[serde(other)]
     NeedsAttention,
 }
 
 impl Status {
     /// Returns the visual indicator character for this status.
-    /// - `->` for needs_attention (red)
-    /// - `*` for working (blue)
-    /// - `.` for idle (gray)
     pub fn indicator(&self) -> &'static str {
         match self {
-            Status::Idle => "\u{00B7}",           // .
-            Status::Working => "\u{25C9}",        // *
-            Status::NeedsAttention => "\u{2192}", // ->
+            Status::Idle => "\u{00B7}",                                   // middle dot
+            Status::Working => "\u{25C9}",                                // fisheye
+            Status::WaitingPermission | Status::NeedsAttention => "\u{2192}", // arrow
+            Status::WaitingInput => "\u{2192}",                           // arrow
         }
     }
 
@@ -39,8 +42,18 @@ impl Status {
         match self {
             Status::Idle => "idle",
             Status::Working => "working",
+            Status::WaitingPermission => "waiting_permission",
+            Status::WaitingInput => "waiting_input",
             Status::NeedsAttention => "needs_attention",
         }
+    }
+
+    /// Returns true if this status represents a state needing user attention.
+    pub fn needs_attention(&self) -> bool {
+        matches!(
+            self,
+            Status::WaitingPermission | Status::WaitingInput | Status::NeedsAttention
+        )
     }
 
     /// Determines the status from a hook event name.
@@ -50,7 +63,8 @@ impl Status {
     /// - PreToolUse -> Working
     /// - PostToolUse -> Working
     /// - Stop -> Idle
-    /// - Notification -> NeedsAttention
+    /// - Notification -> WaitingInput
+    /// - PermissionRequest -> WaitingPermission
     pub fn from_hook(event: &str) -> Status {
         match event {
             "SessionStart" => Status::Idle,
@@ -58,7 +72,8 @@ impl Status {
             "PreToolUse" => Status::Working,
             "PostToolUse" => Status::Working,
             "Stop" => Status::Idle,
-            "Notification" => Status::NeedsAttention,
+            "Notification" => Status::WaitingInput,
+            "PermissionRequest" => Status::WaitingPermission,
             _ => Status::Idle,
         }
     }
@@ -104,6 +119,18 @@ pub struct Session {
     /// Process ID of the Claude Code session (for liveness detection)
     #[serde(default)]
     pub pid: Option<u32>,
+    /// Last tool name from PreToolUse (e.g., "Bash", "Edit")
+    #[serde(default)]
+    pub last_tool: Option<String>,
+    /// Detail from last tool (command, file path, pattern, etc.)
+    #[serde(default)]
+    pub last_tool_detail: Option<String>,
+    /// Message from PermissionRequest or Notification
+    #[serde(default)]
+    pub notification_message: Option<String>,
+    /// Whether context has been compacted (set by PreCompact)
+    #[serde(default)]
+    pub context_compacted: bool,
 }
 
 impl Session {
@@ -128,6 +155,10 @@ impl Session {
             started_at: now,
             terminal,
             pid: None,
+            last_tool: None,
+            last_tool_detail: None,
+            notification_message: None,
+            context_compacted: false,
         }
     }
 
@@ -307,13 +338,57 @@ pub fn extract_project_name(path: &str) -> String {
         .to_string()
 }
 
+/// Format a tool name and optional detail for display.
+///
+/// Examples:
+/// - Bash + "npm test" -> "Running: npm test"
+/// - Edit + "/src/main.rs" -> "Editing main.rs"
+/// - Grep + "TODO" -> "Searching: TODO"
+/// - Glob + "**/*.ts" -> "Finding: **/*.ts"
+/// - Other + None -> "ToolName..."
+pub fn format_tool_display(tool: &str, detail: Option<&str>, max_len: usize) -> String {
+    let result = match (tool, detail) {
+        ("Bash", Some(cmd)) => format!("Running: {}", cmd),
+        ("Edit" | "Write" | "Read", Some(path)) => {
+            let filename = Path::new(path)
+                .file_name()
+                .and_then(|f| f.to_str())
+                .unwrap_or(path);
+            let action = match tool {
+                "Edit" => "Editing",
+                "Write" => "Writing",
+                _ => "Reading",
+            };
+            format!("{} {}", action, filename)
+        }
+        ("Grep", Some(pattern)) => format!("Searching: {}", pattern),
+        ("Glob", Some(pattern)) => format!("Finding: {}", pattern),
+        ("WebFetch", Some(url)) => format!("Fetching: {}", url),
+        ("WebSearch", Some(query)) => format!("Searching: {}", query),
+        ("Task", Some(desc)) => format!("Task: {}", desc),
+        (name, Some(detail)) => format!("{}: {}", name, detail),
+        (name, None) => format!("{}...", name),
+    };
+
+    if result.len() <= max_len {
+        result
+    } else if max_len <= 3 {
+        "...".to_string()
+    } else {
+        let truncated: String = result.chars().take(max_len - 3).collect();
+        format!("{}...", truncated)
+    }
+}
+
 /// Sessions grouped by status for display purposes.
 ///
 /// Used by both the TUI and menubar to organize sessions by status.
 #[derive(Debug, Default)]
 pub struct GroupedSessions<'a> {
-    /// Sessions requiring user attention (permission prompts, etc.)
-    pub needs_attention: Vec<&'a Session>,
+    /// Sessions blocked on permission approval (most urgent)
+    pub waiting_permission: Vec<&'a Session>,
+    /// Sessions finished, waiting for new prompt
+    pub waiting_input: Vec<&'a Session>,
     /// Sessions actively processing (running tools, generating response)
     pub working: Vec<&'a Session>,
     /// Sessions waiting for user input
@@ -326,7 +401,10 @@ impl<'a> GroupedSessions<'a> {
         let mut grouped = Self::default();
         for session in sessions {
             match session.status {
-                Status::NeedsAttention => grouped.needs_attention.push(session),
+                Status::WaitingPermission => grouped.waiting_permission.push(session),
+                Status::WaitingInput | Status::NeedsAttention => {
+                    grouped.waiting_input.push(session)
+                }
                 Status::Working => grouped.working.push(session),
                 Status::Idle => grouped.idle.push(session),
             }
@@ -336,14 +414,27 @@ impl<'a> GroupedSessions<'a> {
 
     /// Returns true if there are any sessions in any group.
     pub fn has_any(&self) -> bool {
-        !self.needs_attention.is_empty() || !self.working.is_empty() || !self.idle.is_empty()
+        !self.waiting_permission.is_empty()
+            || !self.waiting_input.is_empty()
+            || !self.working.is_empty()
+            || !self.idle.is_empty()
     }
 
-    /// Returns the groups as a tuple (needs_attention, working, idle).
-    ///
-    /// This is a convenience method for code that expects the tuple format.
-    pub fn as_tuple(self) -> (Vec<&'a Session>, Vec<&'a Session>, Vec<&'a Session>) {
-        (self.needs_attention, self.working, self.idle)
+    /// Returns the groups as a 4-tuple (waiting_permission, waiting_input, working, idle).
+    pub fn as_tuple(
+        self,
+    ) -> (
+        Vec<&'a Session>,
+        Vec<&'a Session>,
+        Vec<&'a Session>,
+        Vec<&'a Session>,
+    ) {
+        (
+            self.waiting_permission,
+            self.waiting_input,
+            self.working,
+            self.idle,
+        )
     }
 }
 
@@ -410,6 +501,10 @@ mod tests {
                 tty: Some("/dev/ttys003".to_string()),
             },
             pid: None,
+            last_tool: None,
+            last_tool_detail: None,
+            notification_message: None,
+            context_compacted: false,
         }
     }
 
@@ -471,6 +566,8 @@ mod tests {
     fn test_status_indicator() {
         assert_eq!(Status::Idle.indicator(), "\u{00B7}");
         assert_eq!(Status::Working.indicator(), "\u{25C9}");
+        assert_eq!(Status::WaitingPermission.indicator(), "\u{2192}");
+        assert_eq!(Status::WaitingInput.indicator(), "\u{2192}");
         assert_eq!(Status::NeedsAttention.indicator(), "\u{2192}");
     }
 
@@ -478,7 +575,18 @@ mod tests {
     fn test_status_as_str() {
         assert_eq!(Status::Idle.as_str(), "idle");
         assert_eq!(Status::Working.as_str(), "working");
+        assert_eq!(Status::WaitingPermission.as_str(), "waiting_permission");
+        assert_eq!(Status::WaitingInput.as_str(), "waiting_input");
         assert_eq!(Status::NeedsAttention.as_str(), "needs_attention");
+    }
+
+    #[test]
+    fn test_status_needs_attention() {
+        assert!(!Status::Idle.needs_attention());
+        assert!(!Status::Working.needs_attention());
+        assert!(Status::WaitingPermission.needs_attention());
+        assert!(Status::WaitingInput.needs_attention());
+        assert!(Status::NeedsAttention.needs_attention());
     }
 
     #[test]
@@ -488,7 +596,11 @@ mod tests {
         assert_eq!(Status::from_hook("PreToolUse"), Status::Working);
         assert_eq!(Status::from_hook("PostToolUse"), Status::Working);
         assert_eq!(Status::from_hook("Stop"), Status::Idle);
-        assert_eq!(Status::from_hook("Notification"), Status::NeedsAttention);
+        assert_eq!(Status::from_hook("Notification"), Status::WaitingInput);
+        assert_eq!(
+            Status::from_hook("PermissionRequest"),
+            Status::WaitingPermission
+        );
         assert_eq!(Status::from_hook("Unknown"), Status::Idle);
     }
 
@@ -501,6 +613,60 @@ mod tests {
         assert_eq!(Status::from_hook_event("PostToolUse"), Status::Working);
         assert_eq!(Status::from_hook_event("Stop"), Status::Idle);
         assert_eq!(Status::from_hook_event("Unknown"), Status::Idle);
+    }
+
+    #[test]
+    fn test_status_serde_new_variants() {
+        // WaitingPermission serializes to snake_case
+        let mut session = create_test_session("perm");
+        session.status = Status::WaitingPermission;
+        let json = serde_json::to_string(&session).unwrap();
+        assert!(json.contains("\"status\":\"waiting_permission\""));
+        let parsed: Session = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.status, Status::WaitingPermission);
+
+        // WaitingInput serializes to snake_case
+        session.status = Status::WaitingInput;
+        let json = serde_json::to_string(&session).unwrap();
+        assert!(json.contains("\"status\":\"waiting_input\""));
+        let parsed: Session = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.status, Status::WaitingInput);
+    }
+
+    #[test]
+    fn test_status_serde_unknown_falls_back_to_needs_attention() {
+        // Unknown status values should deserialize as NeedsAttention via #[serde(other)]
+        let json = r#"{
+            "session_id": "test",
+            "project_path": "/tmp/test",
+            "project_name": "test",
+            "branch": "main",
+            "status": "some_future_status",
+            "last_prompt": null,
+            "last_activity": "2026-01-25T22:48:00Z",
+            "started_at": "2026-01-25T22:30:00Z",
+            "terminal": {"program": "vscode", "session_id": null, "tty": null}
+        }"#;
+        let session = Session::from_json(json).unwrap();
+        assert_eq!(session.status, Status::NeedsAttention);
+    }
+
+    #[test]
+    fn test_status_serde_legacy_needs_attention() {
+        // Old "needs_attention" values should still deserialize as NeedsAttention
+        let json = r#"{
+            "session_id": "test",
+            "project_path": "/tmp/test",
+            "project_name": "test",
+            "branch": "main",
+            "status": "needs_attention",
+            "last_prompt": null,
+            "last_activity": "2026-01-25T22:48:00Z",
+            "started_at": "2026-01-25T22:30:00Z",
+            "terminal": {"program": "vscode", "session_id": null, "tty": null}
+        }"#;
+        let session = Session::from_json(json).unwrap();
+        assert_eq!(session.status, Status::NeedsAttention);
     }
 
     #[test]
@@ -833,11 +999,94 @@ mod tests {
         let json = serde_json::to_string(&session).unwrap();
         assert!(json.contains("\"status\":\"idle\""));
 
-        // Test needs_attention serialization
+        // NeedsAttention serializes as "needs_attention"
         let mut session = create_test_session("attention");
         session.status = Status::NeedsAttention;
         let json = serde_json::to_string(&session).unwrap();
         assert!(json.contains("\"status\":\"needs_attention\""));
+    }
+
+    #[test]
+    fn test_new_session_fields_default() {
+        // Old session files without new fields should deserialize with defaults
+        let json = r#"{
+            "session_id": "test",
+            "project_path": "/tmp/test",
+            "project_name": "test",
+            "branch": "main",
+            "status": "working",
+            "last_prompt": null,
+            "last_activity": "2026-01-25T22:48:00Z",
+            "started_at": "2026-01-25T22:30:00Z",
+            "terminal": {"program": "vscode", "session_id": null, "tty": null}
+        }"#;
+        let session = Session::from_json(json).unwrap();
+        assert_eq!(session.last_tool, None);
+        assert_eq!(session.last_tool_detail, None);
+        assert_eq!(session.notification_message, None);
+        assert!(!session.context_compacted);
+    }
+
+    #[test]
+    fn test_new_session_fields_roundtrip() {
+        let mut session = create_test_session("fields");
+        session.last_tool = Some("Bash".to_string());
+        session.last_tool_detail = Some("npm test".to_string());
+        session.notification_message = Some("Permission needed".to_string());
+        session.context_compacted = true;
+
+        let json = serde_json::to_string(&session).unwrap();
+        let parsed = Session::from_json(&json).unwrap();
+
+        assert_eq!(parsed.last_tool, Some("Bash".to_string()));
+        assert_eq!(parsed.last_tool_detail, Some("npm test".to_string()));
+        assert_eq!(
+            parsed.notification_message,
+            Some("Permission needed".to_string())
+        );
+        assert!(parsed.context_compacted);
+    }
+
+    #[test]
+    fn test_format_tool_display() {
+        assert_eq!(
+            format_tool_display("Bash", Some("npm test"), 50),
+            "Running: npm test"
+        );
+        assert_eq!(
+            format_tool_display("Edit", Some("/src/main.rs"), 50),
+            "Editing main.rs"
+        );
+        assert_eq!(
+            format_tool_display("Write", Some("/src/new.rs"), 50),
+            "Writing new.rs"
+        );
+        assert_eq!(
+            format_tool_display("Read", Some("/src/config.rs"), 50),
+            "Reading config.rs"
+        );
+        assert_eq!(
+            format_tool_display("Grep", Some("TODO"), 50),
+            "Searching: TODO"
+        );
+        assert_eq!(
+            format_tool_display("Glob", Some("**/*.ts"), 50),
+            "Finding: **/*.ts"
+        );
+        assert_eq!(
+            format_tool_display("WebSearch", Some("rust egui"), 50),
+            "Searching: rust egui"
+        );
+        assert_eq!(format_tool_display("Bash", None, 50), "Bash...");
+    }
+
+    #[test]
+    fn test_format_tool_display_truncation() {
+        let long_cmd = "a".repeat(100);
+        let result = format_tool_display("Bash", Some(&long_cmd), 30);
+        assert_eq!(result.len(), 30);
+        assert!(result.ends_with("..."));
+        assert!(result.starts_with("Running: "));
     }
 
     #[test]
