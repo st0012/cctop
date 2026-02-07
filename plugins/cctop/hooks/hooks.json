@@ -4,42 +4,56 @@
       "matcher": "startup|resume",
       "hooks": [{
         "type": "command",
-        "command": "$HOME/.cargo/bin/cctop-hook SessionStart"
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SessionStart"
       }]
     }],
     "UserPromptSubmit": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "$HOME/.cargo/bin/cctop-hook UserPromptSubmit"
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh UserPromptSubmit"
       }]
     }],
     "PreToolUse": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "$HOME/.cargo/bin/cctop-hook PreToolUse"
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh PreToolUse"
       }]
     }],
     "PostToolUse": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "$HOME/.cargo/bin/cctop-hook PostToolUse"
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh PostToolUse"
       }]
     }],
     "Stop": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "$HOME/.cargo/bin/cctop-hook Stop"
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh Stop"
       }]
     }],
     "Notification": [{
-      "matcher": "idle_prompt",
+      "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "$HOME/.cargo/bin/cctop-hook Notification"
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh Notification"
+      }]
+    }],
+    "PermissionRequest": [{
+      "matcher": ".*",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh PermissionRequest"
+      }]
+    }],
+    "PreCompact": [{
+      "matcher": ".*",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh PreCompact"
       }]
     }]
   }
