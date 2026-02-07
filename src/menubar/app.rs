@@ -10,7 +10,7 @@ use crate::watcher::SessionWatcher;
 use anyhow::{Context, Result};
 use std::cell::RefCell;
 use std::time::{Duration, Instant};
-use tao::dpi::{LogicalSize, PhysicalPosition};
+use tao::dpi::{LogicalPosition, LogicalSize};
 use tao::event::{Event, StartCause, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoop};
 use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
@@ -108,6 +108,19 @@ fn tray_title(sessions: &[Session]) -> String {
 fn update_tray_title(tray_icon: &TrayIcon, sessions: &[Session]) {
     let title = tray_title(sessions);
     tray_icon.set_title(Some(&title));
+}
+
+/// Calculate popup position in logical coordinates from tray icon rect.
+///
+/// `tray_icon::Rect` returns physical pixel coordinates. We convert to logical
+/// points so the centering math is consistent with `POPUP_WIDTH` (also logical).
+fn calculate_popup_position(rect: &tray_icon::Rect, scale_factor: f64) -> (f64, f64) {
+    let x = rect.position.x / scale_factor;
+    let y = rect.position.y / scale_factor + rect.size.height as f64 / scale_factor;
+    let icon_w = rect.size.width as f64 / scale_factor;
+    let popup_x = x - (POPUP_WIDTH as f64 / 2.0) + (icon_w / 2.0);
+    let popup_y = y + 4.0;
+    (popup_x, popup_y)
 }
 
 /// Main menubar application.
@@ -327,20 +340,17 @@ impl MenubarApp {
     }
 
     fn handle_tray_click(&mut self, rect: tray_icon::Rect) {
-        let x = rect.position.x as i32;
-        let y = rect.position.y as i32 + rect.size.height as i32;
+        let scale = self.window.scale_factor();
+        let (popup_x, popup_y) = calculate_popup_position(&rect, scale);
 
         if self.popup_state.visible {
             self.hide_popup();
         } else {
-            // Position popup centered below tray icon
-            let popup_x = x - (POPUP_WIDTH as i32 / 2) + (rect.size.width as i32 / 2);
-            let popup_y = y + 4;
             let popup_height = calculate_popup_height(&self.sessions);
 
             // Position and resize window (still hidden)
             self.window
-                .set_outer_position(PhysicalPosition::new(popup_x, popup_y));
+                .set_outer_position(LogicalPosition::new(popup_x, popup_y));
             self.window
                 .set_inner_size(LogicalSize::new(POPUP_WIDTH as f64, popup_height as f64));
 
@@ -527,5 +537,77 @@ impl MenubarApp {
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tao::dpi::{PhysicalPosition, PhysicalSize};
+
+    fn make_tray_rect(phys_x: f64, phys_y: f64, phys_w: u32, phys_h: u32) -> tray_icon::Rect {
+        tray_icon::Rect {
+            position: PhysicalPosition::new(phys_x, phys_y),
+            size: PhysicalSize::new(phys_w, phys_h),
+        }
+    }
+
+    #[test]
+    fn test_popup_centered_on_tray_icon_retina() {
+        // Retina display: scale_factor = 2.0
+        // Tray icon at physical (1240, 0), size 64x48 physical
+        // Logical: icon at (620, 0), size 32x24
+        let rect = make_tray_rect(1240.0, 0.0, 64, 48);
+        let (popup_x, popup_y) = calculate_popup_position(&rect, 2.0);
+
+        // Popup should be centered on icon: icon_center_x - popup_width/2
+        let icon_logical_x = 620.0;
+        let icon_logical_w = 32.0;
+        let expected_x = icon_logical_x - (POPUP_WIDTH as f64 / 2.0) + (icon_logical_w / 2.0);
+        assert!(
+            (popup_x - expected_x).abs() < 0.01,
+            "popup_x={popup_x}, expected={expected_x}"
+        );
+
+        // Y should be below icon + 4pt gap
+        let expected_y = 24.0 + 4.0; // icon bottom (24) + gap (4)
+        assert!(
+            (popup_y - expected_y).abs() < 0.01,
+            "popup_y={popup_y}, expected={expected_y}"
+        );
+    }
+
+    #[test]
+    fn test_popup_centered_on_tray_icon_non_retina() {
+        // Non-retina: scale_factor = 1.0
+        // Physical = logical, icon at (620, 0), size 32x24
+        let rect = make_tray_rect(620.0, 0.0, 32, 24);
+        let (popup_x, popup_y) = calculate_popup_position(&rect, 1.0);
+
+        let expected_x = 620.0 - (POPUP_WIDTH as f64 / 2.0) + 16.0;
+        assert!(
+            (popup_x - expected_x).abs() < 0.01,
+            "popup_x={popup_x}, expected={expected_x}"
+        );
+        assert!((popup_y - 28.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_popup_position_scales_consistently() {
+        // Same logical position, different scale factors should give same result
+        let rect_1x = make_tray_rect(620.0, 0.0, 32, 24);
+        let rect_2x = make_tray_rect(1240.0, 0.0, 64, 48);
+
+        let (x_1x, y_1x) = calculate_popup_position(&rect_1x, 1.0);
+        let (x_2x, y_2x) = calculate_popup_position(&rect_2x, 2.0);
+
+        assert!(
+            (x_1x - x_2x).abs() < 0.01,
+            "1x={x_1x}, 2x={x_2x} should match"
+        );
+        assert!(
+            (y_1x - y_2x).abs() < 0.01,
+            "1x={y_1x}, 2x={y_2x} should match"
+        );
     }
 }
