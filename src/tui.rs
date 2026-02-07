@@ -5,7 +5,9 @@
 
 use crate::config::Config;
 use crate::focus::focus_terminal;
-use crate::session::{format_relative_time, format_tool_display, truncate_prompt, GroupedSessions, Session, Status};
+use crate::session::{
+    format_relative_time, format_tool_display, truncate_prompt, GroupedSessions, Session, Status,
+};
 use crate::watcher::SessionWatcher;
 use anyhow::Result;
 use chrono::Utc;
@@ -377,11 +379,7 @@ impl App {
             waiting_permission,
             Color::Rgb(239, 68, 68),
         );
-        add_section(
-            "WAITING FOR INPUT",
-            waiting_input,
-            Color::Rgb(245, 158, 11),
-        );
+        add_section("WAITING FOR INPUT", waiting_input, Color::Rgb(245, 158, 11));
         add_section("WORKING", working, Color::Rgb(34, 197, 94));
         add_section("IDLE", idle, Color::DarkGray);
 
@@ -485,7 +483,10 @@ impl App {
             }
             Status::WaitingInput | Status::NeedsAttention => {
                 if let Some(ref prompt) = session.last_prompt {
-                    format!("\"{}\"", truncate_prompt(prompt, max_width.saturating_sub(2)))
+                    format!(
+                        "\"{}\"",
+                        truncate_prompt(prompt, max_width.saturating_sub(2))
+                    )
                 } else {
                     String::new()
                 }
@@ -493,13 +494,12 @@ impl App {
             Status::Working => {
                 // Prefer tool display, fall back to prompt
                 if let Some(ref tool) = session.last_tool {
-                    format_tool_display(
-                        tool,
-                        session.last_tool_detail.as_deref(),
-                        max_width,
-                    )
+                    format_tool_display(tool, session.last_tool_detail.as_deref(), max_width)
                 } else if let Some(ref prompt) = session.last_prompt {
-                    format!("\"{}\"", truncate_prompt(prompt, max_width.saturating_sub(2)))
+                    format!(
+                        "\"{}\"",
+                        truncate_prompt(prompt, max_width.saturating_sub(2))
+                    )
                 } else {
                     String::new()
                 }
@@ -1044,7 +1044,10 @@ mod tests {
         assert_eq!(truncate_prompt("hello", 8), "hello");
         // Test newline normalization
         assert_eq!(truncate_prompt("hello\nworld", 50), "hello world");
-        assert_eq!(truncate_prompt("line1\n\nline2\nline3", 50), "line1 line2 line3");
+        assert_eq!(
+            truncate_prompt("line1\n\nline2\nline3", 50),
+            "line1 line2 line3"
+        );
         // Test combined truncation and normalization
         assert_eq!(truncate_prompt("hello\nworld", 10), "hello w...");
     }
@@ -1119,10 +1122,10 @@ mod tests {
         ];
         app.sort_sessions();
 
-        assert_eq!(app.sessions[0].session_id, "perm");        // priority 0
-        assert_eq!(app.sessions[1].session_id, "input");        // priority 1
-        assert_eq!(app.sessions[2].session_id, "working");      // priority 2
-        assert_eq!(app.sessions[3].session_id, "idle");         // priority 3
+        assert_eq!(app.sessions[0].session_id, "perm"); // priority 0
+        assert_eq!(app.sessions[1].session_id, "input"); // priority 1
+        assert_eq!(app.sessions[2].session_id, "working"); // priority 2
+        assert_eq!(app.sessions[3].session_id, "idle"); // priority 3
     }
 
     #[test]

@@ -171,10 +171,7 @@ impl MenubarApp {
         let mut egui_input = renderer.create_input();
         egui_input.screen_rect = Some(egui::Rect::from_min_size(
             egui::Pos2::ZERO,
-            egui::vec2(
-                POPUP_WIDTH,
-                popup_height,
-            ),
+            egui::vec2(POPUP_WIDTH, popup_height),
         ));
 
         // Create app state
@@ -366,7 +363,9 @@ impl MenubarApp {
             for _ in 0..2 {
                 let input = self.renderer.create_input();
                 let sessions = &self.sessions;
-                let _ = self.renderer.render(input, |ctx| render_popup(ctx, sessions));
+                let _ = self
+                    .renderer
+                    .render(input, |ctx| render_popup(ctx, sessions));
             }
             self.egui_input = self.renderer.create_input();
 
@@ -425,7 +424,10 @@ impl MenubarApp {
 
     fn handle_cursor_move(&mut self, x: f64, y: f64) {
         let scale_factor = self.renderer.scale_factor();
-        let pos = egui::pos2(x as f32 / scale_factor as f32, y as f32 / scale_factor as f32);
+        let pos = egui::pos2(
+            x as f32 / scale_factor as f32,
+            y as f32 / scale_factor as f32,
+        );
         self.cursor_pos = pos;
         self.egui_input.events.push(egui::Event::PointerMoved(pos));
 
@@ -462,10 +464,7 @@ impl MenubarApp {
         use tao::event::MouseScrollDelta;
 
         let (unit, delta) = match delta {
-            MouseScrollDelta::LineDelta(x, y) => (
-                egui::MouseWheelUnit::Line,
-                egui::vec2(x, y),
-            ),
+            MouseScrollDelta::LineDelta(x, y) => (egui::MouseWheelUnit::Line, egui::vec2(x, y)),
             MouseScrollDelta::PixelDelta(pos) => {
                 let scale_factor = self.renderer.scale_factor();
                 (
@@ -500,7 +499,9 @@ impl MenubarApp {
         let sessions_dir = self.sessions_dir.clone();
         let config = &self.config;
 
-        let result = self.renderer.render(input, |ctx| render_popup(ctx, sessions));
+        let result = self
+            .renderer
+            .render(input, |ctx| render_popup(ctx, sessions));
 
         match result {
             Ok(Some(action)) => {

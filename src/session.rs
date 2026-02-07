@@ -30,10 +30,10 @@ impl Status {
     /// Returns the visual indicator character for this status.
     pub fn indicator(&self) -> &'static str {
         match self {
-            Status::Idle => "\u{00B7}",                                   // middle dot
-            Status::Working => "\u{25C9}",                                // fisheye
+            Status::Idle => "\u{00B7}",    // middle dot
+            Status::Working => "\u{25C9}", // fisheye
             Status::WaitingPermission | Status::NeedsAttention => "\u{2192}", // arrow
-            Status::WaitingInput => "\u{2192}",                           // arrow
+            Status::WaitingInput => "\u{2192}", // arrow
         }
     }
 

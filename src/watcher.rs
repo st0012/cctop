@@ -32,8 +32,9 @@ impl SessionWatcher {
 
         // Ensure the sessions directory exists
         if !sessions_dir.exists() {
-            std::fs::create_dir_all(&sessions_dir)
-                .with_context(|| format!("Failed to create sessions directory: {:?}", sessions_dir))?;
+            std::fs::create_dir_all(&sessions_dir).with_context(|| {
+                format!("Failed to create sessions directory: {:?}", sessions_dir)
+            })?;
         }
 
         // Create a channel for receiving events
