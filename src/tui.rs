@@ -6,6 +6,7 @@
 use crate::config::Config;
 use crate::focus::focus_terminal;
 use crate::session::{format_relative_time, truncate_prompt, GroupedSessions, Session, Status};
+use crate::watcher::SessionWatcher;
 use anyhow::Result;
 use chrono::Utc;
 use crossterm::{
@@ -49,6 +50,8 @@ pub struct App {
     view_mode: ViewMode,
     /// Vertical scroll offset for detail view
     detail_scroll: u16,
+    /// File watcher for instant session updates
+    watcher: Option<SessionWatcher>,
 }
 
 impl App {
@@ -66,6 +69,7 @@ impl App {
             demo_mode: false,
             view_mode: ViewMode::List,
             detail_scroll: 0,
+            watcher: SessionWatcher::new().ok(),
         }
     }
 
@@ -80,8 +84,12 @@ impl App {
     pub fn load_sessions_with_liveness(&mut self, check_liveness: bool) {
         let skip_check = self.demo_mode || !check_liveness;
         self.sessions = load_all_sessions(skip_check).unwrap_or_default();
+        self.sort_sessions();
+        self.clamp_selection();
+    }
 
-        // Sort by status priority, then by last_activity
+    /// Sort sessions by status priority, then by last_activity.
+    fn sort_sessions(&mut self) {
         self.sessions.sort_by(|a, b| {
             let priority = |s: &Status| match s {
                 Status::NeedsAttention => 0,
@@ -92,8 +100,10 @@ impl App {
                 .cmp(&priority(&b.status))
                 .then_with(|| b.last_activity.cmp(&a.last_activity))
         });
+    }
 
-        // Ensure selection stays valid
+    /// Ensure the selected index stays within bounds after sessions change.
+    fn clamp_selection(&mut self) {
         if !self.sessions.is_empty() {
             if self.selected_index >= self.sessions.len() {
                 self.selected_index = self.sessions.len() - 1;
@@ -118,10 +128,8 @@ impl App {
         // Initial load WITHOUT liveness check for fast startup
         self.load_sessions_with_liveness(false);
 
-        // Track refresh times
-        let mut last_refresh = Instant::now();
+        // Track liveness check time (watcher handles instant change detection)
         let mut last_liveness_check = Instant::now();
-        let refresh_interval = Duration::from_secs(2);
         // Liveness check runs less frequently (every 30 seconds) since it's slow
         let liveness_interval = Duration::from_secs(30);
 
@@ -138,17 +146,19 @@ impl App {
                 }
             }
 
-            // Auto-refresh sessions periodically (fast, no liveness check)
-            if last_refresh.elapsed() >= refresh_interval {
-                self.load_sessions_with_liveness(false);
-                last_refresh = Instant::now();
+            // Check file watcher for instant session updates
+            if let Some(ref mut watcher) = self.watcher {
+                if let Some(new_sessions) = watcher.poll_changes() {
+                    self.sessions = new_sessions;
+                    self.sort_sessions();
+                    self.clamp_selection();
+                }
             }
 
             // Periodically check liveness to clean up dead sessions (slow, runs infrequently)
             if last_liveness_check.elapsed() >= liveness_interval {
                 self.load_sessions_with_liveness(true);
                 last_liveness_check = Instant::now();
-                last_refresh = Instant::now();
             }
         }
 
@@ -318,7 +328,7 @@ impl App {
     fn render_sessions(&self, frame: &mut Frame, area: Rect) {
         if self.sessions.is_empty() {
             let msg =
-                Paragraph::new("No active sessions\n\nStart a Claude Code session to see it here.")
+                Paragraph::new("No active sessions\n\nInstall the cctop plugin to get started:\n  claude plugin install cctop\n\nThen restart your Claude Code sessions.")
                     .style(Style::default().fg(Color::DarkGray))
                     .alignment(Alignment::Center);
             frame.render_widget(msg, area);
@@ -361,8 +371,8 @@ impl App {
             items.push(ListItem::new(""));
         };
 
-        add_section("NEEDS ATTENTION", needs_attention, Color::Yellow);
-        add_section("WORKING", working, Color::Cyan);
+        add_section("NEEDS ATTENTION", needs_attention, Color::Rgb(245, 158, 11));
+        add_section("WORKING", working, Color::Rgb(34, 197, 94));
         add_section("IDLE", idle, Color::DarkGray);
 
         // Create list widget - we need to track selection separately
