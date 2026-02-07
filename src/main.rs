@@ -128,9 +128,10 @@ fn list_sessions() {
     // Sort by status priority, then by last_activity
     sessions.sort_by(|a, b| {
         let priority = |s: &Status| match s {
-            Status::NeedsAttention => 0,
-            Status::Working => 1,
-            Status::Idle => 2,
+            Status::WaitingPermission => 0,
+            Status::WaitingInput | Status::NeedsAttention => 1,
+            Status::Working => 2,
+            Status::Idle => 3,
         };
         priority(&a.status)
             .cmp(&priority(&b.status))
@@ -141,7 +142,8 @@ fn list_sessions() {
 
     for session in &sessions {
         let status = match session.status {
-            Status::NeedsAttention => "NEEDS_ATTENTION",
+            Status::WaitingPermission => "WAITING_PERMISSION",
+            Status::WaitingInput | Status::NeedsAttention => "WAITING_INPUT",
             Status::Working => "WORKING",
             Status::Idle => "IDLE",
         };

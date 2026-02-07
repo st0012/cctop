@@ -5,7 +5,7 @@
 
 use crate::config::Config;
 use crate::focus::focus_terminal;
-use crate::session::{format_relative_time, truncate_prompt, GroupedSessions, Session, Status};
+use crate::session::{format_relative_time, format_tool_display, truncate_prompt, GroupedSessions, Session, Status};
 use crate::watcher::SessionWatcher;
 use anyhow::Result;
 use chrono::Utc;
@@ -92,9 +92,10 @@ impl App {
     fn sort_sessions(&mut self) {
         self.sessions.sort_by(|a, b| {
             let priority = |s: &Status| match s {
-                Status::NeedsAttention => 0,
-                Status::Working => 1,
-                Status::Idle => 2,
+                Status::WaitingPermission => 0,
+                Status::WaitingInput | Status::NeedsAttention => 1,
+                Status::Working => 2,
+                Status::Idle => 3,
             };
             priority(&a.status)
                 .cmp(&priority(&b.status))
@@ -337,7 +338,7 @@ impl App {
 
         // Group sessions by status
         let grouped = GroupedSessions::from_sessions(&self.sessions);
-        let (needs_attention, working, idle) = grouped.as_tuple();
+        let (waiting_permission, waiting_input, working, idle) = grouped.as_tuple();
 
         // Build list items with section headers
         let mut items: Vec<ListItem> = Vec::new();
@@ -371,7 +372,16 @@ impl App {
             items.push(ListItem::new(""));
         };
 
-        add_section("NEEDS ATTENTION", needs_attention, Color::Rgb(245, 158, 11));
+        add_section(
+            "WAITING FOR PERMISSION",
+            waiting_permission,
+            Color::Rgb(239, 68, 68),
+        );
+        add_section(
+            "WAITING FOR INPUT",
+            waiting_input,
+            Color::Rgb(245, 158, 11),
+        );
         add_section("WORKING", working, Color::Rgb(34, 197, 94));
         add_section("IDLE", idle, Color::DarkGray);
 
@@ -396,7 +406,12 @@ impl App {
         }
 
         let grouped = GroupedSessions::from_sessions(&self.sessions);
-        let sections = [grouped.needs_attention, grouped.working, grouped.idle];
+        let sections = [
+            grouped.waiting_permission,
+            grouped.waiting_input,
+            grouped.working,
+            grouped.idle,
+        ];
 
         let mut offset = 0;
         let mut session_count = 0;
@@ -432,27 +447,64 @@ impl App {
         let indicator = session.status.indicator();
         let time = format_relative_time(session.last_activity);
 
+        // Show [compacted] indicator after branch if context was compacted
+        let branch_display = if session.context_compacted {
+            format!("{} [compacted]", session.branch)
+        } else {
+            session.branch.clone()
+        };
+
         // Format: indicator project_name branch time
         let main_line = format!(
             "  {} {:<20} {:<15} {}",
-            indicator, session.project_name, session.branch, time
+            indicator, session.project_name, branch_display, time
         );
 
-        let prompt_line = if let Some(prompt) = &session.last_prompt {
-            let max_width = (width as usize).saturating_sub(8);
-            let truncated = truncate_prompt(prompt, max_width.min(60));
-            format!("    \"{}\"", truncated)
-        } else {
-            String::new()
-        };
+        let max_width = (width as usize).saturating_sub(8);
+        let context_line = self.context_line_for_session(session, max_width.min(60));
 
-        let content = if prompt_line.is_empty() {
+        let content = if context_line.is_empty() {
             main_line
         } else {
-            format!("{}\n{}", main_line, prompt_line)
+            format!("{}\n    {}", main_line, context_line)
         };
 
         ListItem::new(content).style(Style::default().fg(color))
+    }
+
+    /// Get the context line for a session in the TUI list view.
+    fn context_line_for_session(&self, session: &Session, max_width: usize) -> String {
+        match session.status {
+            Status::Idle => String::new(),
+            Status::WaitingPermission => {
+                if let Some(ref msg) = session.notification_message {
+                    truncate_prompt(msg, max_width)
+                } else {
+                    "Permission needed".to_string()
+                }
+            }
+            Status::WaitingInput | Status::NeedsAttention => {
+                if let Some(ref prompt) = session.last_prompt {
+                    format!("\"{}\"", truncate_prompt(prompt, max_width.saturating_sub(2)))
+                } else {
+                    String::new()
+                }
+            }
+            Status::Working => {
+                // Prefer tool display, fall back to prompt
+                if let Some(ref tool) = session.last_tool {
+                    format_tool_display(
+                        tool,
+                        session.last_tool_detail.as_deref(),
+                        max_width,
+                    )
+                } else if let Some(ref prompt) = session.last_prompt {
+                    format!("\"{}\"", truncate_prompt(prompt, max_width.saturating_sub(2)))
+                } else {
+                    String::new()
+                }
+            }
+        }
     }
 
     /// Render the full-screen detail view for the selected session.
@@ -480,17 +532,41 @@ impl App {
 
         let prompt_text = session.last_prompt.as_deref().unwrap_or("(no prompt)");
 
+        // Build status line with compacted indicator
+        let status_line = if session.context_compacted {
+            format!("{}  [context compacted]", session.status.as_str())
+        } else {
+            session.status.as_str().to_string()
+        };
+
+        // Build tool info section if available
+        let tool_section = if let Some(ref tool) = session.last_tool {
+            let detail = session.last_tool_detail.as_deref().unwrap_or("");
+            format!("\n\nTool:    {} {}", tool, detail)
+        } else {
+            String::new()
+        };
+
+        // Build notification section if available
+        let notification_section = if let Some(ref msg) = session.notification_message {
+            format!("\n\nNotification:\n  {}", msg)
+        } else {
+            String::new()
+        };
+
         let details_text = format!(
             "Project:\n  {}\n\n\
              Branch:  {}\n\
-             Status:  {}\n\n\
+             Status:  {}{}{}\n\n\
              Started: {}\n\
              Active:  {}\n\n\
              Terminal:\n  {}\n\n\
              Prompt:\n\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\n{}",
             session.project_path,
             session.branch,
-            session.status.as_str(),
+            status_line,
+            tool_section,
+            notification_section,
             started,
             active,
             terminal_info,
@@ -685,6 +761,10 @@ mod tests {
                 tty: None,
             },
             pid: None,
+            last_tool: None,
+            last_tool_detail: None,
+            notification_message: None,
+            context_compacted: false,
         }
     }
 
@@ -693,17 +773,20 @@ mod tests {
         let sessions = vec![
             make_test_session("1", Status::Idle, "proj1"),
             make_test_session("2", Status::Working, "proj2"),
-            make_test_session("3", Status::NeedsAttention, "proj3"),
+            make_test_session("3", Status::WaitingInput, "proj3"),
             make_test_session("4", Status::Idle, "proj4"),
+            make_test_session("5", Status::WaitingPermission, "proj5"),
         ];
 
         let grouped = GroupedSessions::from_sessions(&sessions);
 
-        assert_eq!(grouped.needs_attention.len(), 1);
+        assert_eq!(grouped.waiting_permission.len(), 1);
+        assert_eq!(grouped.waiting_input.len(), 1);
         assert_eq!(grouped.working.len(), 1);
         assert_eq!(grouped.idle.len(), 2);
 
-        assert_eq!(grouped.needs_attention[0].session_id, "3");
+        assert_eq!(grouped.waiting_permission[0].session_id, "5");
+        assert_eq!(grouped.waiting_input[0].session_id, "3");
         assert_eq!(grouped.working[0].session_id, "2");
     }
 
@@ -964,5 +1047,102 @@ mod tests {
         assert_eq!(truncate_prompt("line1\n\nline2\nline3", 50), "line1 line2 line3");
         // Test combined truncation and normalization
         assert_eq!(truncate_prompt("hello\nworld", 10), "hello w...");
+    }
+
+    #[test]
+    fn test_context_line_idle_is_empty() {
+        let config = Config::default();
+        let app = App::new(config);
+        let session = make_test_session("1", Status::Idle, "proj1");
+        assert_eq!(app.context_line_for_session(&session, 60), "");
+    }
+
+    #[test]
+    fn test_context_line_working_with_tool() {
+        let config = Config::default();
+        let app = App::new(config);
+        let mut session = make_test_session("1", Status::Working, "proj1");
+        session.last_tool = Some("Bash".to_string());
+        session.last_tool_detail = Some("npm test".to_string());
+        let line = app.context_line_for_session(&session, 60);
+        assert_eq!(line, "Running: npm test");
+    }
+
+    #[test]
+    fn test_context_line_working_falls_back_to_prompt() {
+        let config = Config::default();
+        let app = App::new(config);
+        let session = make_test_session("1", Status::Working, "proj1");
+        let line = app.context_line_for_session(&session, 60);
+        assert!(line.starts_with('"'));
+        assert!(line.ends_with('"'));
+    }
+
+    #[test]
+    fn test_context_line_waiting_permission() {
+        let config = Config::default();
+        let app = App::new(config);
+        let session = make_test_session("1", Status::WaitingPermission, "proj1");
+        let line = app.context_line_for_session(&session, 60);
+        assert_eq!(line, "Permission needed");
+    }
+
+    #[test]
+    fn test_context_line_waiting_permission_with_message() {
+        let config = Config::default();
+        let app = App::new(config);
+        let mut session = make_test_session("1", Status::WaitingPermission, "proj1");
+        session.notification_message = Some("Allow Bash: rm -rf /tmp/test".to_string());
+        let line = app.context_line_for_session(&session, 60);
+        assert_eq!(line, "Allow Bash: rm -rf /tmp/test");
+    }
+
+    #[test]
+    fn test_context_line_waiting_input() {
+        let config = Config::default();
+        let app = App::new(config);
+        let session = make_test_session("1", Status::WaitingInput, "proj1");
+        let line = app.context_line_for_session(&session, 60);
+        assert!(line.starts_with('"'));
+        assert!(line.ends_with('"'));
+    }
+
+    #[test]
+    fn test_sort_sessions_priority() {
+        let config = Config::default();
+        let mut app = App::new(config);
+        app.sessions = vec![
+            make_test_session("idle", Status::Idle, "proj1"),
+            make_test_session("working", Status::Working, "proj2"),
+            make_test_session("perm", Status::WaitingPermission, "proj3"),
+            make_test_session("input", Status::WaitingInput, "proj4"),
+        ];
+        app.sort_sessions();
+
+        assert_eq!(app.sessions[0].session_id, "perm");        // priority 0
+        assert_eq!(app.sessions[1].session_id, "input");        // priority 1
+        assert_eq!(app.sessions[2].session_id, "working");      // priority 2
+        assert_eq!(app.sessions[3].session_id, "idle");         // priority 3
+    }
+
+    #[test]
+    fn test_calculate_actual_list_index_four_sections() {
+        let config = Config::default();
+        let mut app = App::new(config);
+        app.sessions = vec![
+            make_test_session("perm", Status::WaitingPermission, "proj1"),
+            make_test_session("input", Status::WaitingInput, "proj2"),
+            make_test_session("working", Status::Working, "proj3"),
+            make_test_session("idle", Status::Idle, "proj4"),
+        ];
+        app.sort_sessions();
+
+        // First session (WaitingPermission): header(0) + session(1) => index 1
+        app.selected_index = 0;
+        assert_eq!(app.calculate_actual_list_index(), 1);
+
+        // Second session (WaitingInput): header(0) + session(1) + blank(2) + header(3) + session(4) => index 4
+        app.selected_index = 1;
+        assert_eq!(app.calculate_actual_list_index(), 4);
     }
 }
