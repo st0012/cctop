@@ -90,11 +90,16 @@ impl Config {
     /// Returns the sessions directory: `~/.cctop/sessions/`
     ///
     /// Creates the directory if it doesn't exist.
+    /// Respects `CCTOP_SESSIONS_DIR` env var override for test isolation.
     pub fn sessions_dir() -> PathBuf {
-        let sessions_dir = dirs::home_dir()
-            .expect("Could not determine home directory")
-            .join(".cctop")
-            .join("sessions");
+        let sessions_dir = if let Ok(dir) = std::env::var("CCTOP_SESSIONS_DIR") {
+            PathBuf::from(dir)
+        } else {
+            dirs::home_dir()
+                .expect("Could not determine home directory")
+                .join(".cctop")
+                .join("sessions")
+        };
 
         if !sessions_dir.exists() {
             if let Err(e) = fs::create_dir_all(&sessions_dir) {
