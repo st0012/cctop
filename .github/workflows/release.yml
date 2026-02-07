@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS (${{ matrix.target }})
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+          - target: x86_64-apple-darwin
+            arch: x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binaries
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Run tests
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: cargo test --release
+
+      - name: Create .app bundle
+        run: ./scripts/bundle-macos.sh --skip-build --target ${{ matrix.target }}
+
+      - name: Create zip
+        run: |
+          cd dist
+          zip -r cctop-macOS-${{ matrix.arch }}.zip cctop.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cctop-macOS-${{ matrix.arch }}
+          path: dist/cctop-macOS-${{ matrix.arch }}.zip
+
+  release:
+    name: Create Release
+    needs: build-macos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: true
+          files: |
+            artifacts/cctop-macOS-arm64/cctop-macOS-arm64.zip
+            artifacts/cctop-macOS-x86_64/cctop-macOS-x86_64.zip
+          body: |
+            ## Installation
+
+            ### macOS (Apple Silicon)
+            ```bash
+            # Download and extract
+            curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-arm64.zip -o cctop.zip
+            unzip cctop.zip
+            mv cctop.app /Applications/
+
+            # Launch
+            open /Applications/cctop.app
+            ```
+
+            ### macOS (Intel)
+            ```bash
+            curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-x86_64.zip -o cctop.zip
+            unzip cctop.zip
+            mv cctop.app /Applications/
+            open /Applications/cctop.app
+            ```
+
+            ### From source (any platform)
+            ```bash
+            cargo install cctop
+            ```
+
+            > **Note:** The .app bundle is not notarized. On first launch, you may need to
+            > right-click the app and select "Open", or go to System Settings > Privacy &
+            > Security and click "Open Anyway".
