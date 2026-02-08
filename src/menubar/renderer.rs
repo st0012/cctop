@@ -168,8 +168,13 @@ impl Renderer {
     }
 
     /// Render a frame using the provided draw function.
-    /// Returns the result of the draw function.
-    pub fn render<T, F>(&mut self, input: egui::RawInput, draw_fn: F) -> Result<T>
+    /// Returns (result, repaint_after) where repaint_after is the duration
+    /// egui requests before the next repaint (Duration::MAX if no repaint needed).
+    pub fn render<T, F>(
+        &mut self,
+        input: egui::RawInput,
+        draw_fn: F,
+    ) -> Result<(T, std::time::Duration)>
     where
         F: FnOnce(&egui::Context) -> T,
     {
@@ -197,6 +202,15 @@ impl Renderer {
 
         // End egui frame
         let full_output = self.egui_ctx.end_pass();
+
+        // Extract the repaint delay from the root viewport output.
+        // This tells us when egui wants the next repaint (for animations).
+        let repaint_after = full_output
+            .viewport_output
+            .get(&egui::ViewportId::ROOT)
+            .map(|vo| vo.repaint_delay)
+            .unwrap_or(std::time::Duration::MAX);
+
         let paint_jobs = self
             .egui_ctx
             .tessellate(full_output.shapes, full_output.pixels_per_point);
@@ -260,7 +274,7 @@ impl Renderer {
             self.egui_renderer.free_texture(id);
         }
 
-        Ok(result)
+        Ok((result, repaint_after))
     }
 
     /// Perform a warmup render to initialize GPU resources.
@@ -279,7 +293,7 @@ impl Renderer {
             )),
             ..Default::default()
         };
-        self.render(input, draw_fn)?;
+        let _ = self.render(input, draw_fn)?;
         Ok(())
     }
 

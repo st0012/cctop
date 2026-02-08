@@ -43,6 +43,8 @@ wgpu = "22.0"
 raw-window-handle = "0.6"
 pollster = "0.4"
 objc2 = "0.5"
+image = "0.25"
 
 [dev-dependencies]
 tempfile = "3.10"
+image = "0.25"
