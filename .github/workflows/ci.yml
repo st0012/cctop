@@ -25,6 +25,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test
 
+  swift-lint:
+    name: Swift Lint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SwiftLint
+        run: brew install swiftlint
+      - name: SwiftLint
+        run: swiftlint lint --strict
+
   swift-test:
     name: Swift Build & Test
     runs-on: macos-15
