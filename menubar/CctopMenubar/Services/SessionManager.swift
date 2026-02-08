@@ -15,9 +15,6 @@ class SessionManager: ObservableObject {
     }
 
     func loadSessions() {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: sessionsDir,
             includingPropertiesForKeys: nil
@@ -26,14 +23,19 @@ class SessionManager: ObservableObject {
             return
         }
 
-        sessions = files
+        let allDecoded = files
             .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
-            .compactMap { url in
+            .compactMap { url -> (URL, Session)? in
                 guard let data = try? Data(contentsOf: url),
-                      let session = try? decoder.decode(Session.self, from: data),
-                      session.isAlive else { return nil }
-                return session
+                      let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+                else { return nil }
+                return (url, session)
             }
+        sessions = allDecoded.filter { $0.1.isAlive }.map(\.1)
+        // Clean up dead session files
+        for (url, session) in allDecoded where !session.isAlive {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     private func startWatching() {
@@ -48,10 +50,16 @@ class SessionManager: ObservableObject {
             queue: .main
         )
         source.setEventHandler { [weak self] in
-            self?.loadSessions()
+            Task { @MainActor in
+                self?.loadSessions()
+            }
         }
         source.setCancelHandler { close(fd) }
         source.resume()
         self.source = source
+    }
+
+    deinit {
+        source?.cancel()
     }
 }
