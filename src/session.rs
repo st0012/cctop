@@ -382,7 +382,7 @@ pub fn format_tool_display(tool: &str, detail: Option<&str>, max_len: usize) -> 
 
 /// Sessions grouped by status for display purposes.
 ///
-/// Used by both the TUI and menubar to organize sessions by status.
+/// Used by the TUI to organize sessions by status.
 #[derive(Debug, Default)]
 pub struct GroupedSessions<'a> {
     /// Sessions blocked on permission approval (most urgent)
