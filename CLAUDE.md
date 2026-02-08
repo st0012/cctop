@@ -22,9 +22,11 @@ cctop/
 ├── menubar/           # Swift/SwiftUI menubar app
 │   ├── CctopMenubar.xcodeproj/
 │   ├── CctopMenubar/
-│   │   ├── CctopApp.swift         # MenuBarExtra entry point
+│   │   ├── CctopApp.swift         # App entry point
+│   │   ├── AppDelegate.swift      # NSStatusItem + FloatingPanel toggle
+│   │   ├── FloatingPanel.swift    # NSPanel subclass (stays open)
 │   │   ├── Models/                # Session, SessionStatus (Codable)
-│   │   ├── Views/                 # PopupView, SessionCardView, etc.
+│   │   ├── Views/                 # PopupView, SessionCardView, QuitButton, etc.
 │   │   └── Services/              # SessionManager, FocusTerminal
 │   └── CctopMenubarTests/
 ├── plugins/cctop/     # Claude Code plugin
@@ -33,13 +35,15 @@ cctop/
 │   └── skills/cctop-setup/SKILL.md
 ├── scripts/
 │   └── bundle-macos.sh   # Build hybrid .app bundle
+├── packaging/
+│   └── homebrew-cask.rb  # Homebrew cask template
 └── .claude-plugin/
     └── marketplace.json  # For local plugin installation
 ```
 
 ### Swift Menubar App
 
-The macOS menubar app is built with Swift/SwiftUI (replacing the previous Rust/egui implementation).
+The macOS menubar app is built with Swift/SwiftUI. It uses a custom `AppDelegate` with `NSStatusItem` and a `FloatingPanel` (NSPanel subclass) that stays open until the user clicks the menubar icon again.
 
 **Location:** `menubar/`
 
@@ -60,7 +64,8 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 **Data flow:** The Swift app reads `~/.cctop/sessions/*.json` files written by `cctop-hook` (Rust). The JSON file format is the interface contract — no FFI.
 
 **Key files:**
-- `menubar/CctopMenubar/CctopApp.swift` — MenuBarExtra entry point
+- `menubar/CctopMenubar/AppDelegate.swift` — NSStatusItem + FloatingPanel management
+- `menubar/CctopMenubar/FloatingPanel.swift` — NSPanel subclass (persistent popup)
 - `menubar/CctopMenubar/Views/PopupView.swift` — Main popup layout
 - `menubar/CctopMenubar/Views/SessionCardView.swift` — Session card component
 - `menubar/CctopMenubar/Models/Session.swift` — Session data model (Codable)
@@ -76,7 +81,7 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 ### Data Flow
 1. Claude Code fires hooks (SessionStart, UserPromptSubmit, Stop, etc.)
 2. `cctop-hook` receives JSON via stdin, writes session files to `~/.cctop/sessions/`
-3. `cctop` TUI reads session files and displays them
+3. Both the menubar app (SessionManager file watcher) and `cctop` TUI read these files and display live status
 
 ## Development Commands
 
