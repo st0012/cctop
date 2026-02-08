@@ -8,7 +8,8 @@
 //! Hook names: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, Notification, PermissionRequest, PreCompact, SessionEnd
 
 use std::env;
-use std::io::{self, Read};
+use std::fs::OpenOptions;
+use std::io::{self, Read, Write as IoWrite};
 use std::path::Path;
 use std::process;
 
@@ -181,6 +182,36 @@ fn cleanup_sessions_for_project(sessions_dir: &Path, project_path: &str, current
     }
 }
 
+/// Appends a line to the hook log at `~/.cctop/hook.log`.
+///
+/// Each line records: timestamp, hook event, abbreviated session ID,
+/// and the status transition (old -> new). Failures are silently ignored
+/// so logging never blocks hook processing.
+fn append_hook_log(event: &str, session_id: &str, old_status: &str, new_status: &str, note: &str) {
+    let log_path = match dirs::home_dir() {
+        Some(home) => home.join(".cctop").join("hook.log"),
+        None => return,
+    };
+    let abbrev = &session_id[..session_id.len().min(8)];
+    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
+        let extra = if note.is_empty() {
+            String::new()
+        } else {
+            format!(" ({})", note)
+        };
+        let _ = writeln!(
+            f,
+            "{} {} session={} {} -> {}{}",
+            Utc::now().format("%H:%M:%S%.3f"),
+            event,
+            abbrev,
+            old_status,
+            new_status,
+            extra,
+        );
+    }
+}
+
 /// Handles a hook event by updating or creating the session file.
 fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::error::Error>> {
     // SessionEnd is a no-op (PID-based liveness detection handles cleanup)
@@ -224,8 +255,18 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
         )
     };
 
-    // Update common session fields
-    session.status = new_status;
+    // Track the old status for logging
+    let old_status = session.status.as_str().to_string();
+
+    // Update status: don't let Stop overwrite waiting states.
+    // When Claude finishes responding, Notification(idle_prompt) fires first setting
+    // waiting_input, then Stop fires. Without this guard, Stop would overwrite
+    // waiting_input with idle, causing the user to never see the "needs attention" state.
+    let status_preserved = hook_name == "Stop" && session.status.needs_attention();
+    if !status_preserved {
+        session.status = new_status;
+    }
+
     session.last_activity = Utc::now();
     session.branch = branch;
     session.terminal = terminal;
@@ -307,14 +348,28 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
         }
 
         "Stop" => {
-            // Clear transient fields on stop
+            // Always clear transient tool fields
             session.last_tool = None;
             session.last_tool_detail = None;
-            session.notification_message = None;
+            // Only clear notification_message if we actually transitioned to idle.
+            // When status was preserved (waiting_input/waiting_permission), keep the message.
+            if !status_preserved {
+                session.notification_message = None;
+            }
         }
 
         _ => {}
     }
+
+    // Log the status transition
+    let note = if status_preserved { "preserved" } else { "" };
+    append_hook_log(
+        hook_name,
+        &input.session_id,
+        &old_status,
+        session.status.as_str(),
+        note,
+    );
 
     // Write session file atomically
     session.write_to_file(&session_path)?;
@@ -706,5 +761,206 @@ mod tests {
         assert!(sessions_dir.join("new-session.json").exists());
         // Different project should remain
         assert!(sessions_dir.join("other-project.json").exists());
+    }
+
+    /// Helper: create a session file in the given directory with a specific status.
+    fn write_session_with_status(
+        sessions_dir: &std::path::Path,
+        session_id: &str,
+        status: Status,
+        notification_message: Option<String>,
+    ) {
+        let mut session = Session::new(
+            session_id.to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        session.status = status;
+        session.notification_message = notification_message;
+        session.write_to_dir(sessions_dir).unwrap();
+    }
+
+    /// Mutex to serialize tests that modify the CCTOP_SESSIONS_DIR env var,
+    /// since env vars are process-global and tests run in parallel.
+    static ENV_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Helper: run handle_hook with a given event against an existing session in a temp dir.
+    /// Must be called while holding ENV_MUTEX.
+    fn run_hook_in_dir(
+        sessions_dir: &std::path::Path,
+        session_id: &str,
+        event: &str,
+        notification_type: Option<&str>,
+    ) {
+        let input = HookInput {
+            session_id: session_id.to_string(),
+            cwd: "/nonexistent/test/project".to_string(),
+            transcript_path: None,
+            permission_mode: None,
+            hook_event_name: event.to_string(),
+            prompt: None,
+            tool_name: None,
+            tool_input: None,
+            notification_type: notification_type.map(|s| s.to_string()),
+            message: None,
+            title: None,
+            trigger: None,
+        };
+
+        // Override sessions dir via env var so handle_hook writes to our temp dir
+        std::env::set_var("CCTOP_SESSIONS_DIR", sessions_dir);
+        handle_hook(event, input).unwrap();
+        std::env::remove_var("CCTOP_SESSIONS_DIR");
+    }
+
+    #[test]
+    fn test_stop_preserves_waiting_input() {
+        use tempfile::tempdir;
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        // Set up a session in waiting_input state (as if Notification(idle_prompt) already fired)
+        write_session_with_status(
+            sessions_dir,
+            "preserve-test",
+            Status::WaitingInput,
+            Some("Your turn".to_string()),
+        );
+
+        // Fire Stop — should NOT overwrite waiting_input with idle
+        run_hook_in_dir(sessions_dir, "preserve-test", "Stop", None);
+
+        let session = Session::from_file(&sessions_dir.join("preserve-test.json")).unwrap();
+        assert_eq!(
+            session.status,
+            Status::WaitingInput,
+            "Stop should preserve waiting_input status"
+        );
+        assert_eq!(
+            session.notification_message,
+            Some("Your turn".to_string()),
+            "Stop should preserve notification_message when status is preserved"
+        );
+    }
+
+    #[test]
+    fn test_stop_preserves_waiting_permission() {
+        use tempfile::tempdir;
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        // Set up a session in waiting_permission state
+        write_session_with_status(
+            sessions_dir,
+            "perm-test",
+            Status::WaitingPermission,
+            Some("Allow Bash?".to_string()),
+        );
+
+        // Fire Stop — should NOT overwrite waiting_permission with idle
+        run_hook_in_dir(sessions_dir, "perm-test", "Stop", None);
+
+        let session = Session::from_file(&sessions_dir.join("perm-test.json")).unwrap();
+        assert_eq!(
+            session.status,
+            Status::WaitingPermission,
+            "Stop should preserve waiting_permission status"
+        );
+        assert_eq!(
+            session.notification_message,
+            Some("Allow Bash?".to_string()),
+            "Stop should preserve notification_message when status is preserved"
+        );
+    }
+
+    #[test]
+    fn test_stop_clears_working_to_idle() {
+        use tempfile::tempdir;
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        // Set up a session in working state
+        write_session_with_status(sessions_dir, "working-test", Status::Working, None);
+
+        // Fire Stop — should transition working -> idle as before
+        run_hook_in_dir(sessions_dir, "working-test", "Stop", None);
+
+        let session = Session::from_file(&sessions_dir.join("working-test.json")).unwrap();
+        assert_eq!(
+            session.status,
+            Status::Idle,
+            "Stop should transition working to idle"
+        );
+    }
+
+    #[test]
+    fn test_notification_then_stop_sequence() {
+        use tempfile::tempdir;
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        // Start with a working session
+        write_session_with_status(sessions_dir, "sequence-test", Status::Working, None);
+
+        // Notification(idle_prompt) fires first -> should set waiting_input
+        run_hook_in_dir(
+            sessions_dir,
+            "sequence-test",
+            "Notification",
+            Some("idle_prompt"),
+        );
+
+        let session = Session::from_file(&sessions_dir.join("sequence-test.json")).unwrap();
+        assert_eq!(session.status, Status::WaitingInput);
+
+        // Stop fires after -> should preserve waiting_input
+        run_hook_in_dir(sessions_dir, "sequence-test", "Stop", None);
+
+        let session = Session::from_file(&sessions_dir.join("sequence-test.json")).unwrap();
+        assert_eq!(
+            session.status,
+            Status::WaitingInput,
+            "Full sequence: Notification then Stop should end in waiting_input"
+        );
+    }
+
+    #[test]
+    fn test_user_prompt_after_preserved_waiting_input() {
+        use tempfile::tempdir;
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        // Session in waiting_input (after Notification + Stop preserved it)
+        write_session_with_status(
+            sessions_dir,
+            "resume-test",
+            Status::WaitingInput,
+            Some("Your turn".to_string()),
+        );
+
+        // User types a new prompt -> should transition to working and clear notification
+        run_hook_in_dir(sessions_dir, "resume-test", "UserPromptSubmit", None);
+
+        let session = Session::from_file(&sessions_dir.join("resume-test.json")).unwrap();
+        assert_eq!(
+            session.status,
+            Status::Working,
+            "UserPromptSubmit should transition waiting_input to working"
+        );
+        assert_eq!(
+            session.notification_message, None,
+            "UserPromptSubmit should clear notification_message"
+        );
     }
 }

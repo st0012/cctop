@@ -1,6 +1,6 @@
 [package]
 name = "cctop"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "TUI for monitoring Claude Code sessions across workspaces"
 license = "MIT"
@@ -19,10 +19,6 @@ path = "src/main.rs"
 name = "cctop-hook"
 path = "src/bin/cctop_hook.rs"
 
-[[bin]]
-name = "cctop-menubar"
-path = "src/bin/cctop_menubar.rs"
-
 [dependencies]
 ratatui = "0.29"
 crossterm = "0.28"
@@ -34,17 +30,5 @@ dirs = "5.0"
 anyhow = "1.0"
 notify = "7.0"
 
-[target.'cfg(target_os = "macos")'.dependencies]
-tray-icon = "0.19"
-tao = "0.30"
-egui = "0.29"
-egui-wgpu = "0.29"
-wgpu = "22.0"
-raw-window-handle = "0.6"
-pollster = "0.4"
-objc2 = "0.5"
-image = "0.25"
-
 [dev-dependencies]
 tempfile = "3.10"
-image = "0.25"
