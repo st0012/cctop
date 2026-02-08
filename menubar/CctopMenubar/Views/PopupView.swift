@@ -43,3 +43,10 @@ struct PopupView: View {
         NSApp.deactivate()
     }
 }
+
+#Preview("With sessions") {
+    PopupView(sessions: Session.mockSessions).frame(width: 320)
+}
+#Preview("Empty") {
+    PopupView(sessions: []).frame(width: 320)
+}
