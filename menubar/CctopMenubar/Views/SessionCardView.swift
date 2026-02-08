@@ -39,14 +39,25 @@ struct SessionCardView: View {
                 Text(session.relativeTime)
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
-                Text(session.status.label)
-                    .font(.system(size: 9))
-                    .foregroundStyle(session.status.color)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .background(session.status.color.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(session.status.color.opacity(0.25), lineWidth: 1))
+                HStack(spacing: 4) {
+                    if session.contextCompacted == true {
+                        Text("COMPACTED")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.purple)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.purple.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
+                    }
+                    Text(session.status.label)
+                        .font(.system(size: 9))
+                        .foregroundStyle(session.status.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(session.status.color.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(session.status.color.opacity(0.25), lineWidth: 1))
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -81,5 +92,9 @@ struct SessionCardView: View {
 }
 #Preview("Idle") {
     SessionCardView(session: .mock(status: .idle))
+        .frame(width: 300).padding()
+}
+#Preview("Compacted") {
+    SessionCardView(session: .mock(status: .working, lastTool: "Edit", lastToolDetail: "/src/main.rs", contextCompacted: true))
         .frame(width: 300).padding()
 }
