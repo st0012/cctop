@@ -7,8 +7,6 @@ enum SessionStatus: String, Codable {
     case waitingInput = "waiting_input"
     case needsAttention = "needs_attention"
 
-    // Forward compatibility: unknown statuses fall back to needsAttention
-    // (matches Rust's #[serde(other)] behavior)
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
         self = SessionStatus(rawValue: raw) ?? .needsAttention

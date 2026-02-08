@@ -5,16 +5,12 @@ struct SessionCardView: View {
     @State private var isHovered = false
     @State private var pulsing = false
 
-    var pulsingOpacity: Double {
-        pulsing ? 1.0 : 0.6
-    }
-
     var body: some View {
         HStack(spacing: 8) {
             Circle()
                 .fill(session.status.color)
                 .frame(width: 9, height: 9)
-                .opacity(session.status.needsAttention ? pulsingOpacity : 1.0)
+                .opacity(session.status.needsAttention && !pulsing ? 0.6 : 1.0)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -55,26 +51,22 @@ struct SessionCardView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(isHovered ? Color.primary.opacity(0.06) : Color.primary.opacity(0.03))
+        .background(Color.primary.opacity(isHovered ? 0.06 : 0.03))
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(isHovered ? 0.1 : 0.06), lineWidth: 1))
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
-        .onAppear {
-            if session.status.needsAttention {
-                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                    pulsing = true
-                }
+        .onAppear { updatePulsing(for: session.status) }
+        .onChange(of: session.status) { updatePulsing(for: $0) }
+    }
+
+    private func updatePulsing(for status: SessionStatus) {
+        if status.needsAttention {
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                pulsing = true
             }
-        }
-        .onChange(of: session.status) { newStatus in
-            if newStatus.needsAttention {
-                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                    pulsing = true
-                }
-            } else {
-                withAnimation(.default) { pulsing = false }
-            }
+        } else {
+            withAnimation(.default) { pulsing = false }
         }
     }
 }

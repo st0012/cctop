@@ -11,7 +11,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         sessionManager = SessionManager()
 
-        // Status bar icon
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.title = "CC"
@@ -19,7 +18,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
         }
 
-        // Floating panel with SwiftUI content
         let contentView = PanelContentView(sessionManager: sessionManager)
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
@@ -32,7 +30,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
         panel.contentView = hostingView
 
-        // Update status item title when sessions change
         cancellable = sessionManager.$sessions
             .receive(on: RunLoop.main)
             .sink { [weak self] sessions in
@@ -52,22 +49,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func positionPanel() {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
-        let buttonRect = button.convert(button.bounds, to: nil)
-        let screenRect = buttonWindow.convertToScreen(buttonRect)
+        let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
 
-        // Size the panel to fit its content
         panel.contentView?.layout()
-        if let fittingSize = panel.contentView?.fittingSize {
-            let width = max(fittingSize.width, 320)
-            let height = min(fittingSize.height, 600)
-            let x = screenRect.midX - width / 2
-            let y = screenRect.minY - height - 4
-            panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
-        }
+        guard let fittingSize = panel.contentView?.fittingSize else { return }
+
+        let width = max(fittingSize.width, 320)
+        let height = min(fittingSize.height, 600)
+        panel.setFrame(
+            NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4, width: width, height: height),
+            display: true
+        )
     }
 }
 
-/// Wrapper view that observes SessionManager and passes sessions to PopupView.
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
 

@@ -14,9 +14,7 @@ struct PopupView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 4) {
-                        ForEach(sessions.sorted {
-                            ($0.status.sortOrder, $1.lastActivity) < ($1.status.sortOrder, $0.lastActivity)
-                        }) { session in
+                        ForEach(sortedSessions) { session in
                             SessionCardView(session: session)
                                 .onTapGesture { focusSession(session) }
                         }
@@ -32,6 +30,12 @@ struct PopupView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+        }
+    }
+
+    private var sortedSessions: [Session] {
+        sessions.sorted {
+            ($0.status.sortOrder, $1.lastActivity) < ($1.status.sortOrder, $0.lastActivity)
         }
     }
 
