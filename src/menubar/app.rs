@@ -134,6 +134,9 @@ pub struct MenubarApp {
     sessions_dir: std::path::PathBuf,
     cursor_pos: egui::Pos2,
     egui_input: egui::RawInput,
+    /// When egui requests a future repaint (e.g. for animations), we schedule
+    /// a window redraw at this instant.
+    next_repaint: Option<Instant>,
 }
 
 impl MenubarApp {
@@ -198,6 +201,7 @@ impl MenubarApp {
             sessions_dir,
             cursor_pos: egui::pos2(0.0, 0.0),
             egui_input,
+            next_repaint: None,
         });
 
         // Warmup render
@@ -221,7 +225,14 @@ impl MenubarApp {
 
         // Run event loop
         event_loop.run(move |event, _event_loop, control_flow| {
-            *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(100));
+            // Use a shorter polling interval when an animation repaint is pending,
+            // otherwise fall back to the default 100ms session-polling interval.
+            let poll_interval = if app.borrow().next_repaint.is_some() {
+                Duration::from_millis(16) // ~60fps for smooth animation
+            } else {
+                Duration::from_millis(100) // session polling
+            };
+            *control_flow = ControlFlow::WaitUntil(Instant::now() + poll_interval);
 
             // Handle tray icon events
             while let Ok(tray_event) = tray_icon::TrayIconEvent::receiver().try_recv() {
@@ -243,6 +254,15 @@ impl MenubarApp {
                     let changed = app.borrow_mut().poll_session_changes();
                     if changed {
                         update_tray_title(&tray_icon.borrow(), &app.borrow().sessions);
+                    }
+
+                    // Check if egui scheduled an animation repaint
+                    let mut app = app.borrow_mut();
+                    if let Some(repaint_at) = app.next_repaint {
+                        if Instant::now() >= repaint_at && app.popup_state.visible {
+                            app.next_repaint = None;
+                            app.window.request_redraw();
+                        }
                     }
                 }
 
@@ -514,7 +534,7 @@ impl MenubarApp {
             .render(input, |ctx| render_popup(ctx, sessions));
 
         match result {
-            Ok(Some(action)) => {
+            Ok((Some(action), _repaint_after)) => {
                 if action == QUIT_ACTION {
                     return Some(action);
                 }
@@ -531,7 +551,13 @@ impl MenubarApp {
                 self.hide_popup();
                 None
             }
-            Ok(None) => None,
+            Ok((None, repaint_after)) => {
+                // Schedule a future repaint if egui requested one (for animations)
+                if repaint_after < Duration::from_secs(1) {
+                    self.next_repaint = Some(Instant::now() + repaint_after);
+                }
+                None
+            }
             Err(e) => {
                 eprintln!("Render error: {}", e);
                 None

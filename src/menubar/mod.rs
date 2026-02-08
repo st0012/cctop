@@ -16,3 +16,6 @@ pub mod popup_state;
 
 #[cfg(target_os = "macos")]
 pub mod renderer;
+
+#[cfg(target_os = "macos")]
+pub mod snapshot;

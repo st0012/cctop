@@ -16,6 +16,13 @@ cctop/
 │   ├── tui.rs         # Ratatui TUI implementation
 │   ├── focus.rs       # Terminal focus (VS Code, iTerm2, Kitty)
 │   ├── git.rs         # Git branch detection
+│   ├── menubar/
+│   │   ├── app.rs         # macOS menubar app event loop
+│   │   ├── popup.rs       # Popup rendering (egui)
+│   │   ├── popup_state.rs # Popup visibility state
+│   │   ├── renderer.rs    # wgpu + egui GPU renderer
+│   │   ├── snapshot.rs    # Headless popup snapshot renderer
+│   │   └── menu.rs        # Native menu building
 │   └── bin/
 │       └── cctop_hook.rs  # Hook binary called by Claude Code
 ├── plugins/cctop/     # Claude Code plugin
@@ -59,6 +66,34 @@ cargo test
 # Check a specific session file
 cat ~/.cctop/sessions/<session-id>.json | jq '.'
 ```
+
+## Visual Snapshot Testing
+
+The menubar popup can be rendered to a PNG without launching the app. This is essential for verifying visual changes to `popup.rs`.
+
+### When to use
+- **After ANY visual change to `popup.rs`** (colors, layout, spacing, rendering)
+- Before committing popup UI changes
+- When debugging visual issues reported by the user
+
+### How to generate snapshots
+```bash
+# Run the snapshot test to generate PNGs
+cargo test snapshot -- --nocapture
+
+# View the generated snapshots
+open /tmp/cctop_snapshot_typical.png
+open /tmp/cctop_snapshot_empty.png
+```
+
+### How it works
+- `src/menubar/snapshot.rs` creates a headless wgpu device (no window needed)
+- Renders using the exact same egui pipeline as the real app
+- Output is pixel-perfect to what the user sees
+- Uses 2x scale factor for Retina-quality output
+
+### Comparing against the design
+The target design mockup is in `/Users/st0012/Downloads/cctop-redesigns.jsx` (Design B). Compare the snapshot PNG against the Design B screenshot to verify visual correctness.
 
 ## Testing the Hooks
 
