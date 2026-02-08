@@ -1,7 +1,5 @@
 import AppKit
 
-/// A borderless floating panel that stays visible when the user interacts
-/// with other windows. Only dismissed explicitly (by clicking the status item).
 class FloatingPanel: NSPanel {
     override init(
         contentRect: NSRect,

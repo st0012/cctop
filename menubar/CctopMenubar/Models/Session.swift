@@ -78,13 +78,17 @@ struct Session: Codable, Identifiable {
         case .waitingPermission:
             return notificationMessage ?? "Permission needed"
         case .waitingInput, .needsAttention:
-            return lastPrompt.map { "\"\(String($0.prefix(36)))\"" }
+            return promptSnippet
         case .working:
             if let tool = lastTool {
                 return formatToolDisplay(tool: tool, detail: lastToolDetail)
             }
-            return lastPrompt.map { "\"\(String($0.prefix(36)))\"" }
+            return promptSnippet
         }
+    }
+
+    private var promptSnippet: String? {
+        lastPrompt.map { "\"\(String($0.prefix(36)))\"" }
     }
 
     var isAlive: Bool {
@@ -93,18 +97,19 @@ struct Session: Codable, Identifiable {
     }
 
     private func formatToolDisplay(tool: String, detail: String?) -> String {
-        switch (tool, detail) {
-        case ("Bash", let cmd?): return "Running: \(cmd.prefix(30))"
-        case ("Edit", let path?): return "Editing \(URL(fileURLWithPath: path).lastPathComponent)"
-        case ("Write", let path?): return "Writing \(URL(fileURLWithPath: path).lastPathComponent)"
-        case ("Read", let path?): return "Reading \(URL(fileURLWithPath: path).lastPathComponent)"
-        case ("Grep", let pat?): return "Searching: \(pat.prefix(30))"
-        case ("Glob", let pat?): return "Finding: \(pat.prefix(30))"
-        case ("WebFetch", let url?): return "Fetching: \(url.prefix(30))"
-        case ("WebSearch", let query?): return "Searching: \(query.prefix(30))"
-        case ("Task", let desc?): return "Task: \(desc.prefix(30))"
-        case (let name, let detail?): return "\(name): \(detail.prefix(30))"
-        case (let name, nil): return "\(name)..."
+        guard let detail else { return "\(tool)..." }
+        let fileName = URL(fileURLWithPath: detail).lastPathComponent
+        switch tool {
+        case "Bash": return "Running: \(detail.prefix(30))"
+        case "Edit": return "Editing \(fileName)"
+        case "Write": return "Writing \(fileName)"
+        case "Read": return "Reading \(fileName)"
+        case "Grep": return "Searching: \(detail.prefix(30))"
+        case "Glob": return "Finding: \(detail.prefix(30))"
+        case "WebFetch": return "Fetching: \(detail.prefix(30))"
+        case "WebSearch": return "Searching: \(detail.prefix(30))"
+        case "Task": return "Task: \(detail.prefix(30))"
+        default: return "\(tool): \(detail.prefix(30))"
         }
     }
 }

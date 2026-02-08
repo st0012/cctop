@@ -32,7 +32,6 @@ class SessionManager: ObservableObject {
                 return (url, session)
             }
         sessions = allDecoded.filter { $0.1.isAlive }.map(\.1)
-        // Clean up dead session files
         for (url, session) in allDecoded where !session.isAlive {
             try? FileManager.default.removeItem(at: url)
         }
