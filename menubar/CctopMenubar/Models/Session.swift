@@ -1,5 +1,23 @@
 import Foundation
 
+extension JSONDecoder {
+    static let sessionDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        let withFractional = ISO8601DateFormatter()
+        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let withoutFractional = ISO8601DateFormatter()
+        withoutFractional.formatOptions = [.withInternetDateTime]
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            if let date = withFractional.date(from: string) { return date }
+            if let date = withoutFractional.date(from: string) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date: \(string)")
+        }
+        return decoder
+    }()
+}
+
 struct TerminalInfo: Codable {
     let program: String
     let sessionId: String?
@@ -81,7 +99,12 @@ struct Session: Codable, Identifiable {
         case ("Write", let path?): return "Writing \(URL(fileURLWithPath: path).lastPathComponent)"
         case ("Read", let path?): return "Reading \(URL(fileURLWithPath: path).lastPathComponent)"
         case ("Grep", let pat?): return "Searching: \(pat.prefix(30))"
-        case (let name, _): return "\(name)..."
+        case ("Glob", let pat?): return "Finding: \(pat.prefix(30))"
+        case ("WebFetch", let url?): return "Fetching: \(url.prefix(30))"
+        case ("WebSearch", let query?): return "Searching: \(query.prefix(30))"
+        case ("Task", let desc?): return "Task: \(desc.prefix(30))"
+        case (let name, let detail?): return "\(name): \(detail.prefix(30))"
+        case (let name, nil): return "\(name)..."
         }
     }
 }
