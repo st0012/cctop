@@ -68,10 +68,15 @@ impl Renderer {
         let scale_factor = window.scale_factor();
 
         let surface_caps = surface.get_capabilities(&adapter);
+        // Use non-sRGB format: egui stores Color32 values as sRGB bytes and
+        // passes them directly to vertex buffers. With an sRGB surface format,
+        // the GPU applies an additional linear→sRGB conversion on write, causing
+        // double-gamma (everything renders darker than intended). A non-sRGB
+        // format writes the sRGB bytes as-is, producing correct visual output.
         let surface_format = surface_caps
             .formats
             .iter()
-            .find(|f| f.is_srgb())
+            .find(|f| !f.is_srgb())
             .copied()
             .unwrap_or(surface_caps.formats[0]);
 

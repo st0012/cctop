@@ -22,7 +22,9 @@ pub fn render_popup_to_png(sessions: &[Session], output_path: &Path) -> Result<(
     let physical_width = (logical_width * scale_factor) as u32;
     let physical_height = (logical_height * scale_factor) as u32;
 
-    let texture_format = wgpu::TextureFormat::Rgba8UnormSrgb;
+    // Use non-sRGB format to match the real renderer: egui passes sRGB vertex
+    // colors directly, so we skip the GPU's additional gamma conversion.
+    let texture_format = wgpu::TextureFormat::Rgba8Unorm;
 
     // 1. Create headless wgpu device (no surface needed)
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
@@ -233,7 +235,7 @@ pub fn render_popup_to_png(sessions: &[Session], output_path: &Path) -> Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::{Session, Status, TerminalInfo};
+    use crate::session::{Status, TerminalInfo};
     use chrono::Utc;
 
     fn make_test_session(id: &str, status: Status, project: &str, branch: &str) -> Session {
