@@ -9,41 +9,79 @@ cctop is a TUI (Terminal User Interface) for monitoring Claude Code sessions acr
 ```
 cctop/
 ├── src/
-│   ├── main.rs        # CLI entry point, --list flag
+│   ├── main.rs        # CLI entry point (TUI)
 │   ├── lib.rs         # Library exports
-│   ├── config.rs      # Config loading from ~/.cctop/config.toml
+│   ├── config.rs      # Config loading
 │   ├── session.rs     # Session struct and status handling
 │   ├── tui.rs         # Ratatui TUI implementation
-│   ├── focus.rs       # Terminal focus (VS Code, iTerm2, Kitty)
+│   ├── focus.rs       # Terminal focus
 │   ├── git.rs         # Git branch detection
-│   ├── menubar/
-│   │   ├── app.rs         # macOS menubar app event loop
-│   │   ├── popup.rs       # Popup rendering (egui)
-│   │   ├── popup_state.rs # Popup visibility state
-│   │   ├── renderer.rs    # wgpu + egui GPU renderer
-│   │   ├── snapshot.rs    # Headless popup snapshot renderer
-│   │   └── menu.rs        # Native menu building
+│   ├── watcher.rs     # File system watcher
 │   └── bin/
-│       └── cctop_hook.rs  # Hook binary called by Claude Code
+│       └── cctop_hook.rs  # Hook binary
+├── menubar/           # Swift/SwiftUI menubar app
+│   ├── CctopMenubar.xcodeproj/
+│   ├── CctopMenubar/
+│   │   ├── CctopApp.swift         # App entry point
+│   │   ├── AppDelegate.swift      # NSStatusItem + FloatingPanel toggle
+│   │   ├── FloatingPanel.swift    # NSPanel subclass (stays open)
+│   │   ├── Models/                # Session, SessionStatus (Codable)
+│   │   ├── Views/                 # PopupView, SessionCardView, QuitButton, etc.
+│   │   └── Services/              # SessionManager, FocusTerminal
+│   └── CctopMenubarTests/
 ├── plugins/cctop/     # Claude Code plugin
 │   ├── .claude-plugin/plugin.json
 │   ├── hooks/hooks.json
 │   └── skills/cctop-setup/SKILL.md
+├── scripts/
+│   └── bundle-macos.sh   # Build hybrid .app bundle
+├── packaging/
+│   └── homebrew-cask.rb  # Homebrew cask template
 └── .claude-plugin/
     └── marketplace.json  # For local plugin installation
 ```
 
+### Swift Menubar App
+
+The macOS menubar app is built with Swift/SwiftUI. It uses a custom `AppDelegate` with `NSStatusItem` and a `FloatingPanel` (NSPanel subclass) that stays open until the user clicks the menubar icon again.
+
+**Location:** `menubar/`
+
+**Build:**
+```bash
+# Build from command line
+xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+
+# Run the app
+open menubar/build/Build/Products/Debug/CctopMenubar.app
+
+# Run tests
+xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/
+```
+
+**Visual verification:** Open the Xcode project and use SwiftUI Previews (Canvas) for instant visual feedback. All views have `#Preview` blocks with mock data.
+
+**Data flow:** The Swift app reads `~/.cctop/sessions/*.json` files written by `cctop-hook` (Rust). The JSON file format is the interface contract — no FFI.
+
+**Key files:**
+- `menubar/CctopMenubar/AppDelegate.swift` — NSStatusItem + FloatingPanel management
+- `menubar/CctopMenubar/FloatingPanel.swift` — NSPanel subclass (persistent popup)
+- `menubar/CctopMenubar/Views/PopupView.swift` — Main popup layout
+- `menubar/CctopMenubar/Views/SessionCardView.swift` — Session card component
+- `menubar/CctopMenubar/Models/Session.swift` — Session data model (Codable)
+- `menubar/CctopMenubar/Services/SessionManager.swift` — File watching + session loading
+
 ## Key Components
 
 ### Binaries
-- `cctop` - TUI application
-- `cctop-hook` - Hook handler called by Claude Code on session events
-- `cctop-menubar` - macOS menubar app (egui/wgpu/tao)
+- `cctop` - TUI application (Rust, ratatui)
+- `cctop-hook` - Hook handler called by Claude Code (Rust)
+- `CctopMenubar.app` - macOS menubar app (Swift/SwiftUI, built via Xcode)
 
 ### Data Flow
 1. Claude Code fires hooks (SessionStart, UserPromptSubmit, Stop, etc.)
 2. `cctop-hook` receives JSON via stdin, writes session files to `~/.cctop/sessions/`
-3. `cctop` TUI reads session files and displays them
+3. Both the menubar app (SessionManager file watcher) and `cctop` TUI read these files and display live status
 
 ## Development Commands
 
@@ -67,33 +105,9 @@ cargo test
 cat ~/.cctop/sessions/<session-id>.json | jq '.'
 ```
 
-## Visual Snapshot Testing
-
-The menubar popup can be rendered to a PNG without launching the app. This is essential for verifying visual changes to `popup.rs`.
-
-### When to use
-- **After ANY visual change to `popup.rs`** (colors, layout, spacing, rendering)
-- Before committing popup UI changes
-- When debugging visual issues reported by the user
-
-### How to generate snapshots
-```bash
-# Run the snapshot test to generate PNGs
-cargo test snapshot -- --nocapture
-
-# View the generated snapshots
-open /tmp/cctop_snapshot_typical.png
-open /tmp/cctop_snapshot_empty.png
-```
-
-### How it works
-- `src/menubar/snapshot.rs` creates a headless wgpu device (no window needed)
-- Renders using the exact same egui pipeline as the real app
-- Output is pixel-perfect to what the user sees
-- Uses 2x scale factor for Retina-quality output
-
-### Comparing against the design
-The target design mockup is in `/Users/st0012/Downloads/cctop-redesigns.jsx` (Design B). Compare the snapshot PNG against the Design B screenshot to verify visual correctness.
+### Visual Changes
+- Use Xcode Previews (Canvas) for instant visual feedback on any SwiftUI view
+- All views have `#Preview` blocks with mock data for different states
 
 ## Testing the Hooks
 
@@ -220,7 +234,7 @@ The `docs/demo.tape` file defines the recording:
 
 ## Agent Workflow Guidelines
 
-Learned from Phase 1-2 development. Changes in this codebase often flow sequentially (session.rs -> cctop_hook.rs -> tui.rs -> popup.rs -> menu.rs), which limits parallelization.
+Learned from development. Rust changes often flow sequentially (session.rs -> cctop_hook.rs -> tui.rs). The Swift menubar (`menubar/`) is mostly independent from the Rust TUI.
 
 ### When to use what
 
@@ -236,4 +250,4 @@ Learned from Phase 1-2 development. Changes in this codebase often flow sequenti
 - Aim for **5-6 tasks per teammate** to keep them productive
 - **Require plan approval** for implementation tasks
 - session.rs is the shared interface — have one teammate own it, others depend on it
-- Menubar (popup.rs, app.rs, menu.rs) is mostly independent from TUI (tui.rs) — good split for parallel work
+- Swift menubar (`menubar/`) is independent from the Rust TUI — good split for parallel work

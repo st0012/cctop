@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-macos:
     name: Build macOS (${{ matrix.target }})
-    runs-on: macos-latest
+    runs-on: macos-15
     strategy:
       matrix:
         include:
@@ -28,20 +28,18 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Build release binaries
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
-      - name: Run tests
+      - name: Run Rust tests
         if: matrix.target == 'aarch64-apple-darwin'
         run: cargo test --release
 
-      - name: Create .app bundle
-        run: ./scripts/bundle-macos.sh --skip-build --target ${{ matrix.target }}
+      - name: Build and bundle
+        run: ./scripts/bundle-macos.sh --target ${{ matrix.target }}
 
-      - name: Create zip
-        run: |
-          cd dist
-          zip -r cctop-macOS-${{ matrix.arch }}.zip cctop.app
+      - name: Rename zip for release
+        run: mv dist/cctop-macOS.zip dist/cctop-macOS-${{ matrix.arch }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -91,11 +89,61 @@ jobs:
             open /Applications/cctop.app
             ```
 
-            ### From source (any platform)
+            ### From source
+            Requires [Rust](https://rustup.rs/) and Xcode.
             ```bash
-            cargo install cctop
+            git clone https://github.com/st0012/cctop && cd cctop
+            cargo install --path .                    # TUI + hook
+            ./scripts/bundle-macos.sh                 # menubar app
+            cp -R dist/cctop.app /Applications/
             ```
 
             > **Note:** The .app bundle is not notarized. On first launch, you may need to
             > right-click the app and select "Open", or go to System Settings > Privacy &
             > Security and click "Open Anyway".
+
+  update-homebrew:
+    name: Update Homebrew Tap
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Compute SHA256 hashes
+        id: sha
+        run: |
+          ARM64_SHA=$(sha256sum artifacts/cctop-macOS-arm64/cctop-macOS-arm64.zip | awk '{print $1}')
+          X86_64_SHA=$(sha256sum artifacts/cctop-macOS-x86_64/cctop-macOS-x86_64.zip | awk '{print $1}')
+          echo "arm64=$ARM64_SHA" >> "$GITHUB_OUTPUT"
+          echo "x86_64=$X86_64_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp cask template
+        run: |
+          sed -i 's/version ".*"/version "${{ steps.version.outputs.version }}"/' packaging/homebrew-cask.rb
+          sed -i 's/REPLACE_WITH_ARM64_SHA256/${{ steps.sha.outputs.arm64 }}/' packaging/homebrew-cask.rb
+          sed -i 's/REPLACE_WITH_X86_64_SHA256/${{ steps.sha.outputs.x86_64 }}/' packaging/homebrew-cask.rb
+
+      - name: Clone tap repo and update cask
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/st0012/homebrew-cctop.git tap
+          mkdir -p tap/Casks
+          cp packaging/homebrew-cask.rb tap/Casks/cctop.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/cctop.rb
+          git commit -m "Update cctop to ${{ steps.version.outputs.version }}"
+          git push

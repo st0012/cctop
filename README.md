@@ -41,20 +41,33 @@ Restart any existing Claude Code sessions after installing the plugin.
 
 ### Build from source
 
-Requires [Rust](https://rustup.rs/).
+Requires [Rust](https://rustup.rs/) and Xcode (for the menubar app).
 
 ```bash
-cargo install cctop
+# Install the Rust binaries (TUI + hook)
+cargo install --path .
+
+# Build the menubar app
+xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Release -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+cp -R menubar/build/Build/Products/Release/CctopMenubar.app /Applications/
 ```
 
-This installs all three binaries (`cctop`, `cctop-hook`, `cctop-menubar`). Run `cctop-menubar` to start the menubar app, or `cctop` for the TUI.
+Run `cctop` for the TUI, or open `CctopMenubar.app` for the menubar app.
 
 ## How It Works
 
+```
+Claude Code  ──hook events──>  cctop-hook  ──JSON──>  ~/.cctop/sessions/
+                                                             │
+                                              ┌──────────────┤
+                                              ▼              ▼
+                                        Menubar app      TUI (cctop)
+```
+
 1. The cctop plugin registers hooks with Claude Code
 2. Hooks fire on session events (start, prompt, tool use, stop, notifications)
-3. `cctop-hook` writes session state to `~/.cctop/sessions/`
-4. The menubar app (and TUI) reads these files and displays live status
+3. `cctop-hook` writes session state as JSON to `~/.cctop/sessions/`
+4. The menubar app and TUI watch these files and display live status
 
 ## Configuration
 
