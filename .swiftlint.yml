@@ -1,0 +1,21 @@
+included:
+  - menubar/CctopMenubar
+
+excluded:
+  - menubar/build
+
+disabled_rules:
+  - trailing_comma
+  - large_tuple
+  - multiple_closures_with_trailing_closure
+
+line_length:
+  warning: 150
+  error: 200
+
+cyclomatic_complexity:
+  warning: 15
+
+identifier_name:
+  min_length:
+    warning: 2
