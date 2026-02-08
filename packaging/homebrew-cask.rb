@@ -22,9 +22,22 @@ cask "cctop" do
   desc "Monitor Claude Code sessions from the macOS menu bar"
   homepage "https://github.com/st0012/cctop"
 
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  depends_on macos: ">= :ventura"
+
   app "cctop.app"
   binary "#{appdir}/cctop.app/Contents/MacOS/cctop"
   binary "#{appdir}/cctop.app/Contents/MacOS/cctop-hook"
+
+  caveats <<~EOS
+    cctop is not notarized. On first launch, you may need to right-click
+    the app and select "Open", or go to System Settings > Privacy & Security
+    and click "Open Anyway".
+  EOS
 
   zap trash: [
     "~/.cctop",
