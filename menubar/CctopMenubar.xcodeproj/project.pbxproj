@@ -16,6 +16,9 @@
 		D10000050000000000000001 /* SessionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000060000000000000001 /* SessionCardView.swift */; };
 		D10000070000000000000001 /* PopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000080000000000000001 /* PopupView.swift */; };
 		E10000010000000000000001 /* FocusTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000001 /* FocusTerminal.swift */; };
+		D10000090000000000000001 /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000A000000000000001 /* QuitButton.swift */; };
+		G10000010000000000000001 /* FloatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000020000000000000001 /* FloatingPanel.swift */; };
+		G10000030000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000040000000000000001 /* AppDelegate.swift */; };
 		F10000010000000000000001 /* Session+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000020000000000000001 /* Session+Mock.swift */; };
 		T10000010000000000000001 /* SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000020000000000000001 /* SessionTests.swift */; };
 		T10000030000000000000001 /* SessionStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000040000000000000001 /* SessionStatusTests.swift */; };
@@ -41,7 +44,10 @@
 		D10000040000000000000001 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
 		D10000060000000000000001 /* SessionCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCardView.swift; sourceTree = "<group>"; };
 		D10000080000000000000001 /* PopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupView.swift; sourceTree = "<group>"; };
+		D1000000A000000000000001 /* QuitButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitButton.swift; sourceTree = "<group>"; };
 		E10000020000000000000001 /* FocusTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminal.swift; sourceTree = "<group>"; };
+		G10000020000000000000001 /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
+		G10000040000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		F10000020000000000000001 /* Session+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Session+Mock.swift"; sourceTree = "<group>"; };
 		T10000020000000000000001 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
 		T10000040000000000000001 /* SessionStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatusTests.swift; sourceTree = "<group>"; };
@@ -79,6 +85,8 @@
 			isa = PBXGroup;
 			children = (
 				A10000020000000000000001 /* CctopApp.swift */,
+				G10000040000000000000001 /* AppDelegate.swift */,
+				G10000020000000000000001 /* FloatingPanel.swift */,
 				A10000080000000000000001 /* Models */,
 				A10000090000000000000001 /* Views */,
 				A1000000A000000000000001 /* Services */,
@@ -112,6 +120,7 @@
 				D10000040000000000000001 /* HeaderView.swift */,
 				D10000060000000000000001 /* SessionCardView.swift */,
 				D10000080000000000000001 /* PopupView.swift */,
+				D1000000A000000000000001 /* QuitButton.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -212,8 +221,11 @@
 				D10000030000000000000001 /* HeaderView.swift in Sources */,
 				D10000050000000000000001 /* SessionCardView.swift in Sources */,
 				D10000070000000000000001 /* PopupView.swift in Sources */,
+				D10000090000000000000001 /* QuitButton.swift in Sources */,
 				E10000010000000000000001 /* FocusTerminal.swift in Sources */,
 				F10000010000000000000001 /* Session+Mock.swift in Sources */,
+				G10000010000000000000001 /* FloatingPanel.swift in Sources */,
+				G10000030000000000000001 /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

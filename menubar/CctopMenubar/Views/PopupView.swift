@@ -27,14 +27,11 @@ struct PopupView: View {
             }
             Divider()
             HStack {
-                Button("Quit") { NSApplication.shared.terminate(nil) }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                QuitButton()
                 Spacer()
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
         }
     }
 
