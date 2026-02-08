@@ -33,12 +33,41 @@ cctop/
     └── marketplace.json  # For local plugin installation
 ```
 
+### Swift Menubar App
+
+The macOS menubar app is built with Swift/SwiftUI (replacing the previous Rust/egui implementation).
+
+**Location:** `menubar/`
+
+**Build:**
+```bash
+# Build from command line
+xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+
+# Run the app
+open menubar/build/Build/Products/Debug/CctopMenubar.app
+
+# Run tests
+xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/
+```
+
+**Visual verification:** Open the Xcode project and use SwiftUI Previews (Canvas) for instant visual feedback. All views have `#Preview` blocks with mock data.
+
+**Data flow:** The Swift app reads `~/.cctop/sessions/*.json` files written by `cctop-hook` (Rust). The JSON file format is the interface contract — no FFI.
+
+**Key files:**
+- `menubar/CctopMenubar/CctopApp.swift` — MenuBarExtra entry point
+- `menubar/CctopMenubar/Views/PopupView.swift` — Main popup layout
+- `menubar/CctopMenubar/Views/SessionCardView.swift` — Session card component
+- `menubar/CctopMenubar/Models/Session.swift` — Session data model (Codable)
+- `menubar/CctopMenubar/Services/SessionManager.swift` — File watching + session loading
+
 ## Key Components
 
 ### Binaries
-- `cctop` - TUI application
-- `cctop-hook` - Hook handler called by Claude Code on session events
-- `cctop-menubar` - macOS menubar app (egui/wgpu/tao)
+- `cctop` - TUI application (Rust, ratatui)
+- `cctop-hook` - Hook handler called by Claude Code (Rust)
+- `CctopMenubar.app` - macOS menubar app (Swift/SwiftUI, built via Xcode)
 
 ### Data Flow
 1. Claude Code fires hooks (SessionStart, UserPromptSubmit, Stop, etc.)
