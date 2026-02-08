@@ -78,3 +78,16 @@ struct SessionCardView: View {
         }
     }
 }
+
+#Preview("Working") {
+    SessionCardView(session: .mock(status: .working, lastTool: "Bash", lastToolDetail: "cargo test"))
+        .frame(width: 300).padding()
+}
+#Preview("Permission") {
+    SessionCardView(session: .mock(status: .waitingPermission, notificationMessage: "Allow Bash: rm -rf"))
+        .frame(width: 300).padding()
+}
+#Preview("Idle") {
+    SessionCardView(session: .mock(status: .idle))
+        .frame(width: 300).padding()
+}
