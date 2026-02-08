@@ -35,6 +35,8 @@ pub const CARD_RADIUS: f32 = 10.0;
 pub const CARD_GAP: f32 = 4.0;
 /// Padding around the session card list area.
 pub const SESSION_LIST_PADDING: f32 = 8.0;
+/// Extra bottom padding in the session list (beyond SESSION_LIST_PADDING).
+pub const SESSION_LIST_BOTTOM_EXTRA: f32 = 4.0;
 
 /// Header layout constants.
 pub const HEADER_PADDING_TOP: f32 = 14.0;
@@ -51,7 +53,7 @@ pub const ARROW_HEIGHT: f32 = 12.0;
 pub const ARROW_WIDTH: f32 = 16.0;
 
 /// Maximum height for the scrollable session content area.
-const MAX_SCROLL_HEIGHT: f32 = 440.0;
+const MAX_SCROLL_HEIGHT: f32 = 520.0;
 
 // ── Color system ────────────────────────────────────────────────────────────
 
@@ -118,24 +120,25 @@ fn pulsing_alpha(ctx: &egui::Context) -> f32 {
 fn context_line(session: &Session) -> Option<String> {
     match session.status {
         Status::Idle => None,
-        Status::WaitingPermission => {
-            if let Some(ref msg) = session.notification_message {
-                Some(truncate_prompt(msg, 38))
-            } else {
-                Some("Permission needed".to_string())
-            }
-        }
+        Status::WaitingPermission => Some(
+            session
+                .notification_message
+                .as_ref()
+                .map_or("Permission needed".to_string(), |msg| {
+                    truncate_prompt(msg, 38)
+                }),
+        ),
         Status::WaitingInput | Status::NeedsAttention => session
             .last_prompt
             .as_ref()
             .map(|p| format!("\"{}\"", truncate_prompt(p, 36))),
         Status::Working => {
             if let Some(ref tool) = session.last_tool {
-                if let Some(ref detail) = session.last_tool_detail {
-                    Some(format_tool_display(tool, Some(detail), 38))
-                } else {
-                    Some(format_tool_display(tool, None, 38))
-                }
+                Some(format_tool_display(
+                    tool,
+                    session.last_tool_detail.as_deref(),
+                    38,
+                ))
             } else {
                 session
                     .last_prompt
@@ -146,12 +149,12 @@ fn context_line(session: &Session) -> Option<String> {
     }
 }
 
-/// Card height: 60px with prompt, 42px without.
+/// Card height: 54px with context line, 48px without.
 fn card_height(session: &Session) -> f32 {
     if context_line(session).is_some() {
-        60.0
+        54.0
     } else {
-        42.0
+        48.0
     }
 }
 
@@ -203,26 +206,12 @@ fn render_header(ui: &mut egui::Ui, sessions: &[Session]) {
         ui.cursor().min,
         Vec2::new(CONTENT_WIDTH, HEADER_HEIGHT_TOTAL),
     );
-    let response = ui.allocate_rect(header_rect, Sense::hover());
+    ui.allocate_rect(header_rect, Sense::hover());
     let painter = ui.painter();
-    let _ = response;
 
-    // Orange tint background (3% opacity)
-    // Use top-corner rounding to match the popup body's outer radius,
-    // preventing orange from bleeding into the transparent rounded corners.
-    painter.rect_filled(
-        Rect::from_min_size(
-            header_rect.min,
-            Vec2::new(CONTENT_WIDTH, HEADER_HEIGHT_TOTAL - 1.0),
-        ),
-        Rounding {
-            nw: OUTER_RADIUS,
-            ne: OUTER_RADIUS,
-            sw: 0.0,
-            se: 0.0,
-        },
-        Color32::from_rgba_unmultiplied(232, 116, 67, 8),
-    );
+    // Orange tint: skipped. Even alpha=3 produces a visibly strong tint
+    // under PreMultiplied compositing on macOS. The "C" badge provides
+    // enough orange accent for the header.
 
     // "C" badge: 20x20, radius 6, orange bg, white "C"
     let badge_x = header_rect.min.x + HEADER_PADDING_H;
@@ -268,11 +257,7 @@ fn render_header(ui: &mut egui::Ui, sessions: &[Session]) {
             continue;
         }
         let count_text = count.to_string();
-        let galley = painter.layout_no_wrap(
-            count_text,
-            egui::FontId::proportional(10.0),
-            colors::TEXT_MUTED,
-        );
+        let galley = painter.layout_no_wrap(count_text, egui::FontId::proportional(10.0), color);
         let dot_size = 5.0;
         let dot_gap = 4.0;
         let pad_h = 6.0;
@@ -348,7 +333,7 @@ fn render_branch_chip(painter: &egui::Painter, pos: Pos2, branch: &str) {
     );
 }
 
-/// Render a status chip (uppercase label in colored pill, bottom-right of card).
+/// Render a status chip (uppercase label in colored pill, below time text on right side).
 fn render_status_chip(painter: &egui::Painter, session: &Session, card_rect: Rect) {
     let (label, color) = match session.status {
         Status::WaitingPermission => ("PERMISSION", colors::STATUS_RED),
@@ -363,10 +348,11 @@ fn render_status_chip(painter: &egui::Painter, session: &Session, card_rect: Rec
     let chip_w = galley.size().x + pad_h * 2.0;
     let chip_h = galley.size().y + pad_v * 2.0;
 
+    // Position below the time text: time is at CARD_PADDING_V+1, ~12px tall, then 4px gap
     let chip_rect = Rect::from_min_size(
         Pos2::new(
             card_rect.max.x - CARD_PADDING_H - chip_w,
-            card_rect.max.y - CARD_PADDING_V - chip_h,
+            card_rect.min.y + CARD_PADDING_V + 18.0,
         ),
         Vec2::new(chip_w, chip_h),
     );
@@ -416,37 +402,21 @@ fn render_session_card(ui: &mut egui::Ui, session: &Session, pulse_alpha: Option
     let bg_color = lerp_color(colors::BG_ELEVATED, colors::BG_SUBTLE, hover_t);
     let border_color = lerp_color(colors::BORDER_SUBTLE, colors::BORDER, hover_t);
 
-    // 1. Card background
+    // Card background
     painter.rect_filled(card_rect, Rounding::same(CARD_RADIUS), bg_color);
-    // 2. Card border
+    // Card border
     painter.rect_stroke(
         card_rect,
         Rounding::same(CARD_RADIUS),
         Stroke::new(1.0, border_color),
     );
 
-    // 3. Status dot with glow for non-idle
+    // Status dot (centered in 15px container: size=9, container=size+6)
     let dot_center = Pos2::new(
-        card_rect.min.x + CARD_PADDING_H + 4.5,
-        card_rect.min.y + CARD_PADDING_V + 6.0,
+        card_rect.min.x + CARD_PADDING_H + 7.5, // center of 15px container
+        card_rect.min.y + CARD_PADDING_V + 8.0, // vertically centered with name text
     );
     let base_color = status_color(&session.status);
-
-    // Glow for non-idle statuses
-    if session.status != Status::Idle {
-        let [r, g, b, _] = base_color.to_array();
-        painter.circle_filled(
-            dot_center,
-            10.5,
-            Color32::from_rgba_unmultiplied(r, g, b, 5),
-        );
-        painter.circle_filled(dot_center, 8.5, Color32::from_rgba_unmultiplied(r, g, b, 7));
-        painter.circle_filled(
-            dot_center,
-            6.5,
-            Color32::from_rgba_unmultiplied(r, g, b, 15),
-        );
-    }
 
     // Apply pulsing alpha to attention dots
     let dot_color = if let Some(alpha) = pulse_alpha {
@@ -462,19 +432,23 @@ fn render_session_card(ui: &mut egui::Ui, session: &Session, pulse_alpha: Option
     };
     painter.circle_filled(dot_center, 4.5, dot_color);
 
-    // Text positions
-    let text_x = card_rect.min.x + CARD_PADDING_H + 9.0 + 8.0; // padding + dot area + gap
+    // Text positions: after 15px dot container + 8px gap
+    let text_x = card_rect.min.x + CARD_PADDING_H + 15.0 + 8.0;
 
-    // 5. Project name (13px)
-    painter.text(
-        Pos2::new(text_x, card_rect.min.y + CARD_PADDING_V),
-        egui::Align2::LEFT_TOP,
-        &session.project_name,
+    // Project name (13px) - measure width for inline branch chip
+    let name_galley = painter.layout_no_wrap(
+        session.project_name.clone(),
         egui::FontId::proportional(13.0),
         colors::TEXT,
     );
+    let name_width = name_galley.size().x;
+    painter.galley(
+        Pos2::new(text_x, card_rect.min.y + CARD_PADDING_V),
+        name_galley,
+        Color32::TRANSPARENT,
+    );
 
-    // 7. Time (right-aligned, 10px)
+    // Time (right-aligned, 10px)
     let time_text = format_relative_time(session.last_activity);
     painter.text(
         Pos2::new(
@@ -487,7 +461,7 @@ fn render_session_card(ui: &mut egui::Ui, session: &Session, pulse_alpha: Option
         colors::TEXT_DIM,
     );
 
-    // 6. Branch chip (below project name)
+    // Branch chip (inline with project name, 6px gap)
     let branch_text = if session.context_compacted {
         format!("{} [compacted]", session.branch)
     } else {
@@ -495,17 +469,20 @@ fn render_session_card(ui: &mut egui::Ui, session: &Session, pulse_alpha: Option
     };
     render_branch_chip(
         painter,
-        Pos2::new(text_x, card_rect.min.y + CARD_PADDING_V + 16.0),
+        Pos2::new(
+            text_x + name_width + 6.0,
+            card_rect.min.y + CARD_PADDING_V + 2.0,
+        ),
         &branch_text,
     );
 
-    // 8. Status chip (bottom-right)
+    // Status chip (bottom-right)
     render_status_chip(painter, session, card_rect);
 
-    // 9. Prompt text (if present, 11px)
+    // Prompt text (if present, 11px) - marginTop:3 from name row (~16px tall)
     if let Some(context) = context_line(session) {
         painter.text(
-            Pos2::new(text_x, card_rect.min.y + CARD_PADDING_V + 32.0),
+            Pos2::new(text_x, card_rect.min.y + CARD_PADDING_V + 19.0),
             egui::Align2::LEFT_TOP,
             &context,
             egui::FontId::proportional(11.0),
@@ -518,25 +495,45 @@ fn render_session_card(ui: &mut egui::Ui, session: &Session, pulse_alpha: Option
 
 // ── Footer ──────────────────────────────────────────────────────────────────
 
-/// Render the "Quit" row.
-/// Returns true if clicked.
+/// Render the footer with a small "Quit" button at the bottom-left.
+/// Right side is reserved for future settings. Returns true if clicked.
 fn render_quit_row(ui: &mut egui::Ui) -> bool {
     let row_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(CONTENT_WIDTH, QUIT_ROW_HEIGHT));
+    // Allocate row height for layout (non-interactive)
+    ui.allocate_rect(row_rect, Sense::hover());
 
-    let response = ui.allocate_rect(row_rect, Sense::click());
-    let is_hovered = response.hovered();
-
-    if is_hovered {
-        ui.painter()
-            .rect_filled(row_rect, Rounding::ZERO, colors::BG_HOVER);
-    }
-
-    ui.painter().text(
-        Pos2::new(row_rect.min.x + 16.0, row_rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        "Quit",
+    // Measure quit text to size the button
+    let galley = ui.painter().layout_no_wrap(
+        "Quit".to_string(),
         egui::FontId::proportional(11.0),
         colors::TEXT_DIM,
+    );
+    let pad_h = 8.0;
+    let pad_v = 4.0;
+    let btn_w = galley.size().x + pad_h * 2.0;
+    let btn_h = galley.size().y + pad_v * 2.0;
+
+    // Position at bottom-left of footer area
+    let btn_rect = Rect::from_min_size(
+        Pos2::new(
+            row_rect.min.x + HEADER_PADDING_H,
+            row_rect.center().y - btn_h / 2.0,
+        ),
+        Vec2::new(btn_w, btn_h),
+    );
+
+    // Interactive area for just the button
+    let response = ui.interact(btn_rect, egui::Id::new("quit_btn"), Sense::click());
+
+    if response.hovered() {
+        ui.painter()
+            .rect_filled(btn_rect, Rounding::same(4.0), colors::BG_HOVER);
+    }
+
+    ui.painter().galley(
+        Pos2::new(btn_rect.min.x + pad_h, btn_rect.min.y + pad_v),
+        galley,
+        Color32::TRANSPARENT,
     );
 
     response.clicked()
@@ -551,7 +548,7 @@ fn sessions_total_height(sessions: &[Session]) -> f32 {
     } else {
         let cards_h: f32 = sessions.iter().map(card_height).sum();
         let gaps = (sessions.len().saturating_sub(1)) as f32 * CARD_GAP;
-        cards_h + gaps + SESSION_LIST_PADDING * 2.0
+        cards_h + gaps + SESSION_LIST_PADDING * 2.0 + SESSION_LIST_BOTTOM_EXTRA
     }
 }
 
@@ -600,21 +597,11 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
             render_header(ui, sessions);
 
             // 2. Scrollable card area
-            let sessions_content_height = sessions_total_height(sessions);
-            let needs_scroll = sessions_content_height > MAX_SCROLL_HEIGHT;
-            let scroll_height = if needs_scroll {
-                MAX_SCROLL_HEIGHT
-            } else {
-                sessions_content_height
-            };
+            let scroll_height = sessions_total_height(sessions).min(MAX_SCROLL_HEIGHT);
 
             // Compute pulsing alpha once for all attention dots
             let has_attention = sessions.iter().any(|s| s.status.needs_attention());
-            let pulse_alpha = if has_attention {
-                Some(pulsing_alpha(ui.ctx()))
-            } else {
-                None
-            };
+            let pulse_alpha = has_attention.then(|| pulsing_alpha(ui.ctx()));
 
             ScrollArea::vertical()
                 .max_height(scroll_height)
@@ -645,7 +632,7 @@ pub fn render_popup(ctx: &egui::Context, sessions: &[Session]) -> Option<String>
                                 ui.add_space(CARD_GAP);
                             }
                         }
-                        ui.add_space(SESSION_LIST_PADDING);
+                        ui.add_space(SESSION_LIST_PADDING + SESSION_LIST_BOTTOM_EXTRA);
                     }
 
                     // Schedule periodic repaints for the pulsing animation
@@ -749,32 +736,32 @@ mod tests {
     #[test]
     fn test_card_height_idle_is_small() {
         let session = make_test_session("1", Status::Idle, "proj1", "main");
-        assert_eq!(card_height(&session), 42.0);
+        assert_eq!(card_height(&session), 48.0);
     }
 
     #[test]
     fn test_card_height_working_with_prompt_is_tall() {
         let session = make_test_session("1", Status::Working, "proj1", "main");
-        assert_eq!(card_height(&session), 60.0);
+        assert_eq!(card_height(&session), 54.0);
     }
 
     #[test]
     fn test_card_height_working_without_prompt_is_small() {
         let session = make_test_session_no_prompt("1", Status::Working, "proj1", "main");
-        assert_eq!(card_height(&session), 42.0);
+        assert_eq!(card_height(&session), 48.0);
     }
 
     #[test]
     fn test_card_height_waiting_input_with_prompt_is_tall() {
         let session = make_test_session("1", Status::WaitingInput, "proj1", "main");
-        assert_eq!(card_height(&session), 60.0);
+        assert_eq!(card_height(&session), 54.0);
     }
 
     #[test]
     fn test_card_height_waiting_permission_is_tall() {
         let session = make_test_session("1", Status::WaitingPermission, "proj1", "main");
         // WaitingPermission always shows context ("Permission needed")
-        assert_eq!(card_height(&session), 60.0);
+        assert_eq!(card_height(&session), 54.0);
     }
 
     #[test]
@@ -823,8 +810,9 @@ mod tests {
             make_test_session("2", Status::Working, "proj2", "feature"),
         ];
         let height = calculate_popup_height(&sessions);
-        // idle card (42) + working card with prompt (60) + 1 gap (4) + list padding (8*2)
-        let expected_cards = 42.0 + 60.0 + CARD_GAP + SESSION_LIST_PADDING * 2.0;
+        // idle card (48) + working card with prompt (54) + 1 gap (4) + list padding (8*2) + bottom extra (4)
+        let expected_cards =
+            48.0 + 54.0 + CARD_GAP + SESSION_LIST_PADDING * 2.0 + SESSION_LIST_BOTTOM_EXTRA;
         let expected = ARROW_HEIGHT
             + HEADER_HEIGHT_TOTAL
             + expected_cards
@@ -869,13 +857,18 @@ mod tests {
     #[test]
     fn test_variable_height_mixed_sessions() {
         let sessions = vec![
-            make_test_session("1", Status::Idle, "proj1", "main"), // 42px
-            make_test_session("2", Status::Working, "proj2", "feature"), // 60px
-            make_test_session_no_prompt("3", Status::Working, "proj3", "dev"), // 42px (no prompt)
+            make_test_session("1", Status::Idle, "proj1", "main"), // 48px
+            make_test_session("2", Status::Working, "proj2", "feature"), // 54px
+            make_test_session_no_prompt("3", Status::Working, "proj3", "dev"), // 48px (no prompt)
         ];
         let total = sessions_total_height(&sessions);
-        // 42 + 60 + 42 + 2 gaps (4 each) + list padding (8*2)
-        let expected = 42.0 + 60.0 + 42.0 + 2.0 * CARD_GAP + SESSION_LIST_PADDING * 2.0;
+        // 48 + 54 + 48 + 2 gaps (4 each) + list padding (8*2) + bottom extra (4)
+        let expected = 48.0
+            + 54.0
+            + 48.0
+            + 2.0 * CARD_GAP
+            + SESSION_LIST_PADDING * 2.0
+            + SESSION_LIST_BOTTOM_EXTRA;
         assert!(
             (total - expected).abs() < 1.0,
             "total={}, expected={}",
@@ -949,8 +942,12 @@ mod tests {
             make_test_session("4", Status::Idle, "proj4", "main"),
         ];
         let total = sessions_total_height(&sessions);
-        // 3 cards with context (60 each) + 1 idle card (42) + 3 gaps (4 each) + list padding (8*2)
-        let expected = 60.0 * 3.0 + 42.0 + 3.0 * CARD_GAP + SESSION_LIST_PADDING * 2.0;
+        // 3 cards with context (54 each) + 1 idle card (48) + 3 gaps (4 each) + list padding (8*2) + bottom extra (4)
+        let expected = 54.0 * 3.0
+            + 48.0
+            + 3.0 * CARD_GAP
+            + SESSION_LIST_PADDING * 2.0
+            + SESSION_LIST_BOTTOM_EXTRA;
         assert!(
             (total - expected).abs() < 1.0,
             "total={}, expected={}",
