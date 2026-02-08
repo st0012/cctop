@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-macos:
     name: Build macOS (${{ matrix.target }})
-    runs-on: macos-latest
+    runs-on: macos-15
     strategy:
       matrix:
         include:
@@ -28,20 +28,18 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Build release binaries
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
-      - name: Run tests
+      - name: Run Rust tests
         if: matrix.target == 'aarch64-apple-darwin'
         run: cargo test --release
 
-      - name: Create .app bundle
-        run: ./scripts/bundle-macos.sh --skip-build --target ${{ matrix.target }}
+      - name: Build and bundle
+        run: ./scripts/bundle-macos.sh --target ${{ matrix.target }}
 
-      - name: Create zip
-        run: |
-          cd dist
-          zip -r cctop-macOS-${{ matrix.arch }}.zip cctop.app
+      - name: Rename zip for release
+        run: mv dist/cctop-macOS.zip dist/cctop-macOS-${{ matrix.arch }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
