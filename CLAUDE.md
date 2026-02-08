@@ -9,26 +9,30 @@ cctop is a TUI (Terminal User Interface) for monitoring Claude Code sessions acr
 ```
 cctop/
 ├── src/
-│   ├── main.rs        # CLI entry point, --list flag
+│   ├── main.rs        # CLI entry point (TUI)
 │   ├── lib.rs         # Library exports
-│   ├── config.rs      # Config loading from ~/.cctop/config.toml
+│   ├── config.rs      # Config loading
 │   ├── session.rs     # Session struct and status handling
 │   ├── tui.rs         # Ratatui TUI implementation
-│   ├── focus.rs       # Terminal focus (VS Code, iTerm2, Kitty)
+│   ├── focus.rs       # Terminal focus
 │   ├── git.rs         # Git branch detection
-│   ├── menubar/
-│   │   ├── app.rs         # macOS menubar app event loop
-│   │   ├── popup.rs       # Popup rendering (egui)
-│   │   ├── popup_state.rs # Popup visibility state
-│   │   ├── renderer.rs    # wgpu + egui GPU renderer
-│   │   ├── snapshot.rs    # Headless popup snapshot renderer
-│   │   └── menu.rs        # Native menu building
+│   ├── watcher.rs     # File system watcher
 │   └── bin/
-│       └── cctop_hook.rs  # Hook binary called by Claude Code
+│       └── cctop_hook.rs  # Hook binary
+├── menubar/           # Swift/SwiftUI menubar app
+│   ├── CctopMenubar.xcodeproj/
+│   ├── CctopMenubar/
+│   │   ├── CctopApp.swift         # MenuBarExtra entry point
+│   │   ├── Models/                # Session, SessionStatus (Codable)
+│   │   ├── Views/                 # PopupView, SessionCardView, etc.
+│   │   └── Services/              # SessionManager, FocusTerminal
+│   └── CctopMenubarTests/
 ├── plugins/cctop/     # Claude Code plugin
 │   ├── .claude-plugin/plugin.json
 │   ├── hooks/hooks.json
 │   └── skills/cctop-setup/SKILL.md
+├── scripts/
+│   └── bundle-macos.sh   # Build hybrid .app bundle
 └── .claude-plugin/
     └── marketplace.json  # For local plugin installation
 ```
@@ -96,33 +100,9 @@ cargo test
 cat ~/.cctop/sessions/<session-id>.json | jq '.'
 ```
 
-## Visual Snapshot Testing
-
-The menubar popup can be rendered to a PNG without launching the app. This is essential for verifying visual changes to `popup.rs`.
-
-### When to use
-- **After ANY visual change to `popup.rs`** (colors, layout, spacing, rendering)
-- Before committing popup UI changes
-- When debugging visual issues reported by the user
-
-### How to generate snapshots
-```bash
-# Run the snapshot test to generate PNGs
-cargo test snapshot -- --nocapture
-
-# View the generated snapshots
-open /tmp/cctop_snapshot_typical.png
-open /tmp/cctop_snapshot_empty.png
-```
-
-### How it works
-- `src/menubar/snapshot.rs` creates a headless wgpu device (no window needed)
-- Renders using the exact same egui pipeline as the real app
-- Output is pixel-perfect to what the user sees
-- Uses 2x scale factor for Retina-quality output
-
-### Comparing against the design
-The target design mockup is in `/Users/st0012/Downloads/cctop-redesigns.jsx` (Design B). Compare the snapshot PNG against the Design B screenshot to verify visual correctness.
+### Visual Changes
+- Use Xcode Previews (Canvas) for instant visual feedback on any SwiftUI view
+- All views have `#Preview` blocks with mock data for different states
 
 ## Testing the Hooks
 
@@ -249,7 +229,7 @@ The `docs/demo.tape` file defines the recording:
 
 ## Agent Workflow Guidelines
 
-Learned from Phase 1-2 development. Changes in this codebase often flow sequentially (session.rs -> cctop_hook.rs -> tui.rs -> popup.rs -> menu.rs), which limits parallelization.
+Learned from development. Rust changes often flow sequentially (session.rs -> cctop_hook.rs -> tui.rs). The Swift menubar (`menubar/`) is mostly independent from the Rust TUI.
 
 ### When to use what
 
@@ -265,4 +245,4 @@ Learned from Phase 1-2 development. Changes in this codebase often flow sequenti
 - Aim for **5-6 tasks per teammate** to keep them productive
 - **Require plan approval** for implementation tasks
 - session.rs is the shared interface — have one teammate own it, others depend on it
-- Menubar (popup.rs, app.rs, menu.rs) is mostly independent from TUI (tui.rs) — good split for parallel work
+- Swift menubar (`menubar/`) is independent from the Rust TUI — good split for parallel work
