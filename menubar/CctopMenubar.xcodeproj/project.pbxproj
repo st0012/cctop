@@ -11,6 +11,10 @@
 		B10000010000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
 		B10000030000000000000001 /* SessionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000040000000000000001 /* SessionStatus.swift */; };
 		C10000010000000000000001 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000020000000000000001 /* SessionManager.swift */; };
+		D10000010000000000000001 /* StatusChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000020000000000000001 /* StatusChip.swift */; };
+		D10000030000000000000001 /* HeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000040000000000000001 /* HeaderView.swift */; };
+		D10000050000000000000001 /* SessionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000060000000000000001 /* SessionCardView.swift */; };
+		D10000070000000000000001 /* PopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000080000000000000001 /* PopupView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,6 +23,10 @@
 		B10000020000000000000001 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		B10000040000000000000001 /* SessionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatus.swift; sourceTree = "<group>"; };
 		C10000020000000000000001 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
+		D10000020000000000000001 /* StatusChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusChip.swift; sourceTree = "<group>"; };
+		D10000040000000000000001 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
+		D10000060000000000000001 /* SessionCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCardView.swift; sourceTree = "<group>"; };
+		D10000080000000000000001 /* PopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +79,10 @@
 		A10000090000000000000001 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				D10000020000000000000001 /* StatusChip.swift */,
+				D10000040000000000000001 /* HeaderView.swift */,
+				D10000060000000000000001 /* SessionCardView.swift */,
+				D10000080000000000000001 /* PopupView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -139,6 +151,10 @@
 				B10000010000000000000001 /* Session.swift in Sources */,
 				B10000030000000000000001 /* SessionStatus.swift in Sources */,
 				C10000010000000000000001 /* SessionManager.swift in Sources */,
+				D10000010000000000000001 /* StatusChip.swift in Sources */,
+				D10000030000000000000001 /* HeaderView.swift in Sources */,
+				D10000050000000000000001 /* SessionCardView.swift in Sources */,
+				D10000070000000000000001 /* PopupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
