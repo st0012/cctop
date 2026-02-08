@@ -18,6 +18,7 @@ struct PopupView: View {
                             ($0.status.sortOrder, $1.lastActivity) < ($1.status.sortOrder, $0.lastActivity)
                         }) { session in
                             SessionCardView(session: session)
+                                .onTapGesture { focusSession(session) }
                         }
                     }
                     .padding(8)
@@ -35,5 +36,10 @@ struct PopupView: View {
                 Spacer()
             }
         }
+    }
+
+    private func focusSession(_ session: Session) {
+        focusTerminal(session: session)
+        NSApp.deactivate()
     }
 }
