@@ -37,6 +37,21 @@ class SessionManager: ObservableObject {
         }
     }
 
+    func resetSession(_ session: Session) {
+        let url = sessionsDir.appendingPathComponent("\(session.sessionId).json")
+        guard let data = try? Data(contentsOf: url),
+              var mutable = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+        else { return }
+        mutable.status = .idle
+        mutable.lastTool = nil
+        mutable.lastToolDetail = nil
+        mutable.notificationMessage = nil
+        mutable.lastActivity = Date()
+        guard let encoded = try? JSONEncoder.sessionEncoder.encode(mutable) else { return }
+        try? encoded.write(to: url, options: .atomic)
+        loadSessions()
+    }
+
     private func startWatching() {
         try? FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
 

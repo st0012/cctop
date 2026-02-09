@@ -6,6 +6,7 @@ extension Notification.Name {
 
 struct PopupView: View {
     let sessions: [Session]
+    var resetSession: ((Session) -> Void)?
     @State private var showSettings = false
     @State private var gearHovered = false
 
@@ -21,7 +22,7 @@ struct PopupView: View {
                 ScrollView {
                     LazyVStack(spacing: 4) {
                         ForEach(sortedSessions) { session in
-                            SessionCardView(session: session)
+                            SessionCardView(session: session, onReset: resetSession)
                                 .onTapGesture { focusSession(session) }
                         }
                     }

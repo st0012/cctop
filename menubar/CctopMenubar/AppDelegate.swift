@@ -153,7 +153,7 @@ private struct PanelContentView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        PopupView(sessions: sessionManager.sessions)
+        PopupView(sessions: sessionManager.sessions, resetSession: sessionManager.resetSession)
             .frame(width: 320)
             .background {
                 if colorScheme == .light {
