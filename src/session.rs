@@ -429,8 +429,10 @@ impl Session {
     }
 
     /// Returns the session file path for the given sessions directory.
+    ///
+    /// The session ID is sanitized to prevent path traversal.
     pub fn file_path(&self, sessions_dir: &Path) -> std::path::PathBuf {
-        sessions_dir.join(format!("{}.json", self.session_id))
+        sessions_dir.join(format!("{}.json", sanitize_session_id(&self.session_id)))
     }
 }
 
@@ -498,6 +500,15 @@ pub fn format_relative_time(datetime: DateTime<Utc>) -> String {
     } else {
         format!("{}s ago", seconds)
     }
+}
+
+/// Sanitize a session ID to prevent path traversal.
+///
+/// Strips path separators and `..` components so the ID is safe to use
+/// as a filename inside the sessions directory. Returns the sanitized
+/// string, which may be empty if the input was entirely invalid.
+pub fn sanitize_session_id(raw: &str) -> String {
+    raw.replace(['/', '\\'], "").replace("..", "")
 }
 
 /// Extracts the project name from a path (last component).
@@ -957,7 +968,7 @@ mod tests {
 
     #[test]
     fn test_extract_project_name() {
-        assert_eq!(extract_project_name("/Users/st0012/projects/irb"), "irb");
+        assert_eq!(extract_project_name("/home/user/projects/irb"), "irb");
         assert_eq!(extract_project_name("/tmp/"), "tmp");
         assert_eq!(extract_project_name("/"), "unknown");
         assert_eq!(extract_project_name("simple"), "simple");
@@ -976,13 +987,13 @@ mod tests {
         };
         let session = Session::new(
             "abc123".to_string(),
-            "/Users/st0012/projects/irb".to_string(),
+            "/home/user/projects/irb".to_string(),
             "main".to_string(),
             terminal,
         );
 
         assert_eq!(session.session_id, "abc123");
-        assert_eq!(session.project_path, "/Users/st0012/projects/irb");
+        assert_eq!(session.project_path, "/home/user/projects/irb");
         assert_eq!(session.project_name, "irb");
         assert_eq!(session.branch, "main");
         assert_eq!(session.status, Status::Idle);
@@ -1437,6 +1448,48 @@ mod tests {
         for event in HookEvent::all() {
             let _ = Transition::for_event(&Status::NeedsAttention, event);
         }
+    }
+
+    #[test]
+    fn test_sanitize_session_id_normal() {
+        assert_eq!(sanitize_session_id("abc-123-def"), "abc-123-def");
+        assert_eq!(
+            sanitize_session_id("550e8400-e29b-41d4-a716-446655440000"),
+            "550e8400-e29b-41d4-a716-446655440000"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_session_id_path_traversal() {
+        assert_eq!(sanitize_session_id("../../.bashrc"), ".bashrc");
+        assert_eq!(sanitize_session_id("../etc/passwd"), "etcpasswd");
+        assert_eq!(sanitize_session_id("foo/bar"), "foobar");
+        assert_eq!(sanitize_session_id("foo\\bar"), "foobar");
+        assert_eq!(sanitize_session_id(".."), "");
+        assert_eq!(sanitize_session_id("/"), "");
+    }
+
+    #[test]
+    fn test_sanitize_session_id_preserves_safe_chars() {
+        assert_eq!(
+            sanitize_session_id("hello_world-123.test"),
+            "hello_world-123.test"
+        );
+    }
+
+    #[test]
+    fn test_file_path_uses_sanitized_id() {
+        let terminal = TerminalInfo::default();
+        let session = Session::new(
+            "../../etc/evil".to_string(),
+            "/tmp".to_string(),
+            "main".to_string(),
+            terminal,
+        );
+        let sessions_dir = Path::new("/home/user/.cctop/sessions");
+        let path = session.file_path(sessions_dir);
+        // Path should NOT escape the sessions directory
+        assert_eq!(path, Path::new("/home/user/.cctop/sessions/etcevil.json"));
     }
 
     #[test]
