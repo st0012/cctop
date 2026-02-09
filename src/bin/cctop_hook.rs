@@ -249,7 +249,6 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
     let old_status = session.status.as_str().to_string();
 
     // Use the centralized transition table for status changes.
-    // The Stop guard (preserving waiting states) lives inside Transition::for_event.
     let status_preserved = Transition::for_event(&session.status, &event).is_none();
     if let Some(new_status) = Transition::for_event(&session.status, &event) {
         session.status = new_status;
@@ -336,14 +335,10 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
         }
 
         HookEvent::Stop => {
-            // Always clear transient tool fields
+            // Clear all transient fields when the turn ends
             session.last_tool = None;
             session.last_tool_detail = None;
-            // Only clear notification_message if we actually transitioned to idle.
-            // When status was preserved (waiting_input/waiting_permission), keep the message.
-            if !status_preserved {
-                session.notification_message = None;
-            }
+            session.notification_message = None;
         }
 
         HookEvent::PostToolUse | HookEvent::SessionEnd | HookEvent::Unknown => {}
@@ -746,14 +741,14 @@ mod tests {
     }
 
     #[test]
-    fn test_stop_preserves_waiting_input() {
+    fn test_stop_clears_waiting_input() {
         use tempfile::tempdir;
         let _lock = ENV_MUTEX.lock().unwrap();
 
         let temp_dir = tempdir().unwrap();
         let sessions_dir = temp_dir.path();
 
-        // Set up a session in waiting_input state (as if Notification(idle_prompt) already fired)
+        // Set up a session in waiting_input state
         write_session_with_status(
             sessions_dir,
             "preserve-test",
@@ -761,24 +756,19 @@ mod tests {
             Some("Your turn".to_string()),
         );
 
-        // Fire Stop — should NOT overwrite waiting_input with idle
+        // Fire Stop — should transition to idle
         run_hook_in_dir(sessions_dir, "preserve-test", "Stop", None);
 
         let session = Session::from_file(&sessions_dir.join("preserve-test.json")).unwrap();
         assert_eq!(
             session.status,
-            Status::WaitingInput,
-            "Stop should preserve waiting_input status"
-        );
-        assert_eq!(
-            session.notification_message,
-            Some("Your turn".to_string()),
-            "Stop should preserve notification_message when status is preserved"
+            Status::Idle,
+            "Stop should transition waiting_input to idle"
         );
     }
 
     #[test]
-    fn test_stop_preserves_waiting_permission() {
+    fn test_stop_clears_waiting_permission() {
         use tempfile::tempdir;
         let _lock = ENV_MUTEX.lock().unwrap();
 
@@ -793,19 +783,14 @@ mod tests {
             Some("Allow Bash?".to_string()),
         );
 
-        // Fire Stop — should NOT overwrite waiting_permission with idle
+        // Fire Stop — should transition to idle
         run_hook_in_dir(sessions_dir, "perm-test", "Stop", None);
 
         let session = Session::from_file(&sessions_dir.join("perm-test.json")).unwrap();
         assert_eq!(
             session.status,
-            Status::WaitingPermission,
-            "Stop should preserve waiting_permission status"
-        );
-        assert_eq!(
-            session.notification_message,
-            Some("Allow Bash?".to_string()),
-            "Stop should preserve notification_message when status is preserved"
+            Status::Idle,
+            "Stop should transition waiting_permission to idle"
         );
     }
 
@@ -853,14 +838,14 @@ mod tests {
         let session = Session::from_file(&sessions_dir.join("sequence-test.json")).unwrap();
         assert_eq!(session.status, Status::WaitingInput);
 
-        // Stop fires after -> should preserve waiting_input
+        // Stop fires after -> should transition to idle
         run_hook_in_dir(sessions_dir, "sequence-test", "Stop", None);
 
         let session = Session::from_file(&sessions_dir.join("sequence-test.json")).unwrap();
         assert_eq!(
             session.status,
-            Status::WaitingInput,
-            "Full sequence: Notification then Stop should end in waiting_input"
+            Status::Idle,
+            "Full sequence: Notification then Stop should end in idle"
         );
     }
 
