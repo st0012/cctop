@@ -6,3 +6,5 @@ menubar/CctopMenubar.xcodeproj/project.xcworkspace/xcuserdata/
 *.log
 .DS_Store
 .env*
+
+doc/plans
