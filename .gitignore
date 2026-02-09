@@ -1,6 +1,8 @@
 /target
 /dist
-Cargo.lock
 menubar/build/
 menubar/CctopMenubar.xcodeproj/xcuserdata/
 menubar/CctopMenubar.xcodeproj/project.xcworkspace/xcuserdata/
+*.log
+.DS_Store
+.env*
