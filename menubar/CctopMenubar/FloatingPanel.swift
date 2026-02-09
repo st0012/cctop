@@ -22,4 +22,7 @@ class FloatingPanel: NSPanel {
         isMovableByWindowBackground = false
         animationBehavior = .utilityWindow
     }
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 }

@@ -15,12 +15,15 @@
 		D10000030000000000000001 /* HeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000040000000000000001 /* HeaderView.swift */; };
 		D10000050000000000000001 /* SessionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000060000000000000001 /* SessionCardView.swift */; };
 		D10000070000000000000001 /* PopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000080000000000000001 /* PopupView.swift */; };
-		E10000010000000000000001 /* FocusTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000001 /* FocusTerminal.swift */; };
 		D10000090000000000000001 /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000A000000000000001 /* QuitButton.swift */; };
+		E10000010000000000000001 /* FocusTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000001 /* FocusTerminal.swift */; };
+		F10000010000000000000001 /* Session+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000020000000000000001 /* Session+Mock.swift */; };
 		G10000010000000000000001 /* FloatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000020000000000000001 /* FloatingPanel.swift */; };
 		G10000030000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000040000000000000001 /* AppDelegate.swift */; };
-		F10000010000000000000001 /* Session+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000020000000000000001 /* Session+Mock.swift */; };
+		H10000010000000000000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000020000000000000001 /* AppSettings.swift */; };
+		J10000010000000000000001 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = J10000020000000000000001 /* SettingsSection.swift */; };
 		T10000010000000000000001 /* SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000020000000000000001 /* SessionTests.swift */; };
+		T10000070000000000000002 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000080000000000000002 /* AppSettingsTests.swift */; };
 		T10000030000000000000001 /* SessionStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000040000000000000001 /* SessionStatusTests.swift */; };
 		T10000050000000000000002 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000060000000000000002 /* SnapshotTests.swift */; };
 /* End PBXBuildFile section */
@@ -41,16 +44,19 @@
 		B10000020000000000000001 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		B10000040000000000000001 /* SessionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatus.swift; sourceTree = "<group>"; };
 		C10000020000000000000001 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
+		D1000000A000000000000001 /* QuitButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitButton.swift; sourceTree = "<group>"; };
 		D10000020000000000000001 /* StatusChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusChip.swift; sourceTree = "<group>"; };
 		D10000040000000000000001 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
 		D10000060000000000000001 /* SessionCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCardView.swift; sourceTree = "<group>"; };
 		D10000080000000000000001 /* PopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupView.swift; sourceTree = "<group>"; };
-		D1000000A000000000000001 /* QuitButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitButton.swift; sourceTree = "<group>"; };
 		E10000020000000000000001 /* FocusTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminal.swift; sourceTree = "<group>"; };
+		F10000020000000000000001 /* Session+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Session+Mock.swift"; sourceTree = "<group>"; };
 		G10000020000000000000001 /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
 		G10000040000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		F10000020000000000000001 /* Session+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Session+Mock.swift"; sourceTree = "<group>"; };
+		H10000020000000000000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		J10000020000000000000001 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		T10000020000000000000001 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
+		T10000080000000000000002 /* AppSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsTests.swift; sourceTree = "<group>"; };
 		T10000040000000000000001 /* SessionStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatusTests.swift; sourceTree = "<group>"; };
 		T10000060000000000000001 /* CctopMenubarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CctopMenubarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		T10000060000000000000002 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotTests.swift; sourceTree = "<group>"; };
@@ -74,6 +80,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A1000000A000000000000001 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				C10000020000000000000001 /* SessionManager.swift */,
+				E10000020000000000000001 /* FocusTerminal.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		A10000050000000000000001 = {
 			isa = PBXGroup;
 			children = (
@@ -111,6 +126,7 @@
 				B10000020000000000000001 /* Session.swift */,
 				B10000040000000000000001 /* SessionStatus.swift */,
 				F10000020000000000000001 /* Session+Mock.swift */,
+				H10000020000000000000001 /* AppSettings.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -123,17 +139,9 @@
 				D10000060000000000000001 /* SessionCardView.swift */,
 				D10000080000000000000001 /* PopupView.swift */,
 				D1000000A000000000000001 /* QuitButton.swift */,
+				J10000020000000000000001 /* SettingsSection.swift */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		A1000000A000000000000001 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				C10000020000000000000001 /* SessionManager.swift */,
-				E10000020000000000000001 /* FocusTerminal.swift */,
-			);
-			path = Services;
 			sourceTree = "<group>";
 		};
 		T10000080000000000000001 /* CctopMenubarTests */ = {
@@ -142,6 +150,7 @@
 				T10000020000000000000001 /* SessionTests.swift */,
 				T10000040000000000000001 /* SessionStatusTests.swift */,
 				T10000060000000000000002 /* SnapshotTests.swift */,
+				T10000080000000000000002 /* AppSettingsTests.swift */,
 			);
 			path = CctopMenubarTests;
 			sourceTree = "<group>";
@@ -161,6 +170,9 @@
 			dependencies = (
 			);
 			name = CctopMenubar;
+			packageProductDependencies = (
+				9C7FB52D2F3A0CEA0090B18A /* KeyboardShortcuts */,
+			);
 			productName = CctopMenubar;
 			productReference = A10000030000000000000001 /* CctopMenubar.app */;
 			productType = "com.apple.product-type.application";
@@ -201,6 +213,9 @@
 				Base,
 			);
 			mainGroup = A10000050000000000000001;
+			packageReferences = (
+				9C7FB52C2F3A0CEA0090B18A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+			);
 			productRefGroup = A10000070000000000000001 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -229,6 +244,8 @@
 				F10000010000000000000001 /* Session+Mock.swift in Sources */,
 				G10000010000000000000001 /* FloatingPanel.swift in Sources */,
 				G10000030000000000000001 /* AppDelegate.swift in Sources */,
+				H10000010000000000000001 /* AppSettings.swift in Sources */,
+				J10000010000000000000001 /* SettingsSection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -239,6 +256,7 @@
 				T10000010000000000000001 /* SessionTests.swift in Sources */,
 				T10000030000000000000001 /* SessionStatusTests.swift in Sources */,
 				T10000050000000000000002 /* SnapshotTests.swift in Sources */,
+				T10000070000000000000002 /* AppSettingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -387,20 +405,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1000000F000000000000001 /* Build configuration list for PBXProject "CctopMenubar" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A10000100000000000000001 /* Debug */,
-				A10000110000000000000001 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		A1000000C000000000000001 /* Build configuration list for PBXNativeTarget "CctopMenubar" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A10000120000000000000001 /* Debug */,
 				A10000130000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000000F000000000000001 /* Build configuration list for PBXProject "CctopMenubar" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000100000000000000001 /* Debug */,
+				A10000110000000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -416,6 +434,24 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		9C7FB52C2F3A0CEA0090B18A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9C7FB52D2F3A0CEA0090B18A /* KeyboardShortcuts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9C7FB52C2F3A0CEA0090B18A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A1000000E000000000000001 /* Project object */;
 }
