@@ -49,12 +49,21 @@ fn focus_editor(session: &Session, config: &Config) -> Result<(), Box<dyn std::e
     Ok(())
 }
 
+/// Escape a string for safe interpolation into AppleScript.
+///
+/// Replaces backslashes and double quotes with their escaped forms
+/// to prevent AppleScript injection.
+fn escape_applescript(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 /// Focus an iTerm2 session by its unique session ID.
 ///
 /// If a session ID is provided, iterates through all windows, tabs, and sessions
 /// to find and select the matching session. Otherwise, simply activates iTerm2.
 fn focus_iterm(session_id: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
     let script = if let Some(id) = session_id {
+        let safe_id = escape_applescript(id);
         format!(
             r#"
             tell application "iTerm"
@@ -62,7 +71,7 @@ fn focus_iterm(session_id: Option<&str>) -> Result<(), Box<dyn std::error::Error
                 repeat with aWindow in windows
                     repeat with aTab in tabs of aWindow
                         repeat with aSession in sessions of aTab
-                            if id of aSession is "{id}" then
+                            if id of aSession is "{safe_id}" then
                                 select aSession
                                 return
                             end if
@@ -130,6 +139,8 @@ fn focus_generic(project_path: &str, config: &Config) -> Result<(), Box<dyn std:
 
 #[cfg(test)]
 mod tests {
+    use super::escape_applescript;
+
     // Note: Most focus functions require macOS and actual applications to test.
     // These tests verify the module compiles and basic logic is correct.
 
@@ -154,5 +165,23 @@ mod tests {
             format!("title:{project_name}")
         };
         assert_eq!(match_arg, "title:my-project");
+    }
+
+    #[test]
+    fn test_escape_applescript_normal() {
+        assert_eq!(escape_applescript("w0t0p0:12345"), "w0t0p0:12345");
+    }
+
+    #[test]
+    fn test_escape_applescript_quotes() {
+        assert_eq!(
+            escape_applescript(r#"" & do shell script "evil" & ""#),
+            r#"\" & do shell script \"evil\" & \""#
+        );
+    }
+
+    #[test]
+    fn test_escape_applescript_backslashes() {
+        assert_eq!(escape_applescript(r#"foo\bar"#), r#"foo\\bar"#);
     }
 }
