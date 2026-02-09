@@ -1,18 +1,35 @@
 #!/bin/sh
 # run-hook.sh - Locate and run cctop-hook binary
 # Shipped with the cctop Claude Code plugin.
-# Checks common install locations and forwards the hook event.
+# Buffers stdin, logs a SHIM entry to the per-session log, then dispatches to cctop-hook.
 
 EVENT="$1"
+LOGS_DIR="$HOME/.cctop/logs"
+mkdir -p "$LOGS_DIR"
+
+# Buffer stdin so we can log before dispatching
+INPUT=$(cat)
+
+# Extract session ID and label for logging
+CWD=$(echo "$INPUT" | sed -n 's/.*"cwd" *: *"\([^"]*\)".*/\1/p' | head -1)
+SID=$(echo "$INPUT" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -1)
+PROJECT=$(basename "$CWD")
+LABEL="${PROJECT:-unknown}:$(echo "$SID" | cut -c1-8)"
+LOG="$LOGS_DIR/${SID}.log"
+TS=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+echo "$TS SHIM $EVENT $LABEL dispatching" >> "$LOG" 2>/dev/null
 
 if [ -x "$HOME/.cargo/bin/cctop-hook" ]; then
-    exec "$HOME/.cargo/bin/cctop-hook" "$EVENT"
+    echo "$INPUT" | "$HOME/.cargo/bin/cctop-hook" "$EVENT"
 elif [ -x "$HOME/.local/bin/cctop-hook" ]; then
-    exec "$HOME/.local/bin/cctop-hook" "$EVENT"
+    echo "$INPUT" | "$HOME/.local/bin/cctop-hook" "$EVENT"
 elif [ -x "/opt/homebrew/bin/cctop-hook" ]; then
-    exec /opt/homebrew/bin/cctop-hook "$EVENT"
+    echo "$INPUT" | /opt/homebrew/bin/cctop-hook "$EVENT"
 elif [ -x "/usr/local/bin/cctop-hook" ]; then
-    exec /usr/local/bin/cctop-hook "$EVENT"
+    echo "$INPUT" | /usr/local/bin/cctop-hook "$EVENT"
 elif command -v cctop-hook >/dev/null 2>&1; then
-    exec cctop-hook "$EVENT"
+    echo "$INPUT" | cctop-hook "$EVENT"
+else
+    echo "$TS ERROR run-hook.sh: cctop-hook not found ($LABEL event=$EVENT)" >> "$LOG" 2>/dev/null
 fi

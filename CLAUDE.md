@@ -185,7 +185,69 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 
 Note: SessionEnd hook is no longer used. Dead sessions are detected via PID checking.
 
-## Debugging Tips
+## Hook Delivery Debugging
+
+cctop has a 4-component hook delivery chain. When sessions stop updating,
+use per-session logs in `~/.cctop/logs/` to identify which component failed.
+
+### The Chain
+
+```
+Claude Code fires hook -> run-hook.sh (SHIM) -> cctop-hook (HOOK) -> session file -> menubar/TUI
+```
+
+### Log Files
+
+- `~/.cctop/logs/{session_id}.log` — Per-session log with SHIM + HOOK entries
+- `~/.cctop/logs/_errors.log` — Pre-parse errors (before session ID is known)
+
+Log files are automatically cleaned up when their session is cleaned up (PID no longer alive).
+
+### Log Format
+
+Each line:
+
+```
+{ISO 8601 timestamp} {SHIM|HOOK} {event} {project}:{session_prefix} {details}
+```
+
+Examples:
+```
+2026-02-09T15:12:25Z     SHIM SessionStart cctop:3328c1b0 dispatching
+2026-02-09T15:12:25.610Z HOOK SessionStart cctop:3328c1b0 idle -> idle
+2026-02-09T15:12:26.100Z HOOK PreToolUse   cctop:517ca7b2 working -> working
+```
+
+### Diagnosing Failures
+
+| Symptom in session log | Cause | Fix |
+|------------------------|-------|-----|
+| No log file for a session | Claude Code not firing hooks | Check `claude plugin list`, restart session |
+| SHIM entries but no HOOK entries | cctop-hook binary not starting | Run `cargo install --path .`, check paths |
+| HOOK entries but session file stale | File write failure | Check disk space, permissions on ~/.cctop/sessions/ |
+| HOOK entries present and session file fresh | Menubar/TUI file watcher issue | Restart the menubar app or TUI |
+| Entries stop but session is still running | That Claude Code session stopped firing hooks | Check if session PID is still alive |
+
+### Quick Commands
+
+```bash
+# Watch a specific session's events in real time
+tail -f ~/.cctop/logs/<session-id>.log
+
+# Show only state-changing transitions (skip working -> working noise)
+grep 'HOOK' ~/.cctop/logs/<session-id>.log | grep -v 'working -> working'
+
+# Show all logs across sessions
+cat ~/.cctop/logs/*.log | sort | tail -40
+
+# Show only SHIM entries (verify hooks are being dispatched)
+grep 'SHIM' ~/.cctop/logs/<session-id>.log
+
+# Check pre-parse errors
+cat ~/.cctop/logs/_errors.log
+```
+
+## General Debugging Tips
 
 ```bash
 # Check what Claude Code sends to hooks
@@ -203,6 +265,8 @@ cat ~/.cctop/sessions/*.json | jq '.project_name + " | " + .status'
 
 ## Files to Check When Debugging
 
+- `~/.cctop/logs/{session_id}.log` - Per-session hook delivery logs (SHIM/HOOK entries)
+- `~/.cctop/logs/_errors.log` - Pre-parse errors (before session ID is known)
 - `~/.cctop/sessions/*.json` - Session state files
 - `~/.claude/debug/<session-id>.txt` - Claude Code debug logs
 - `~/.claude/plugins/cache/cctop/` - Installed plugin cache
