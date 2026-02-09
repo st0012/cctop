@@ -1,5 +1,19 @@
 import Foundation
 
+extension JSONEncoder {
+    static let sessionEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            try container.encode(formatter.string(from: date))
+        }
+        return encoder
+    }()
+}
+
 extension JSONDecoder {
     static let sessionDecoder: JSONDecoder = {
         let decoder = JSONDecoder()

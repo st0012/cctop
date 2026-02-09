@@ -2,8 +2,14 @@ import SwiftUI
 
 struct SessionCardView: View {
     let session: Session
+    var onReset: ((Session) -> Void)?
     @State private var isHovered = false
+    @State private var resetHovered = false
     @State private var pulsing = false
+
+    private var showResetButton: Bool {
+        isHovered && session.status != .idle && onReset != nil
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -36,9 +42,27 @@ struct SessionCardView: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(session.relativeTime)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+                if showResetButton {
+                    Button {
+                        onReset?(session)
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 10))
+                            .foregroundStyle(resetHovered ? Color.primary : Color.secondary)
+                            .frame(width: 20, height: 20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.primary.opacity(resetHovered ? 0.1 : 0))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { resetHovered = $0 }
+                    .help("Reset status to idle")
+                } else {
+                    Text(session.relativeTime)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
                 Text(session.status.label)
                     .font(.system(size: 9))
                     .foregroundStyle(session.status.color)

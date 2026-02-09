@@ -93,14 +93,9 @@ impl App {
     /// Sort sessions by status priority, then by last_activity.
     fn sort_sessions(&mut self) {
         self.sessions.sort_by(|a, b| {
-            let priority = |s: &Status| match s {
-                Status::WaitingPermission => 0,
-                Status::WaitingInput | Status::NeedsAttention => 1,
-                Status::Working | Status::Compacting => 2,
-                Status::Idle => 3,
-            };
-            priority(&a.status)
-                .cmp(&priority(&b.status))
+            a.status
+                .sort_priority()
+                .cmp(&b.status.sort_priority())
                 .then_with(|| b.last_activity.cmp(&a.last_activity))
         });
     }
@@ -211,6 +206,9 @@ impl App {
             KeyCode::Char('r') => {
                 self.load_sessions_with_liveness(false);
             }
+            KeyCode::Char('R') => {
+                self.reset_selected();
+            }
             KeyCode::Up | KeyCode::Char('k') => {
                 self.handle_up();
             }
@@ -266,6 +264,19 @@ impl App {
     pub fn focus_selected(&self) {
         if let Some(session) = self.sessions.get(self.selected_index) {
             let _ = focus_terminal(session, &self.config);
+        }
+    }
+
+    /// Reset the selected session's status to idle.
+    fn reset_selected(&mut self) {
+        if let Some(session) = self.sessions.get(self.selected_index) {
+            let sessions_dir = Config::sessions_dir();
+            let path = session.file_path(&sessions_dir);
+            if let Ok(mut fresh) = Session::from_file(&path) {
+                fresh.reset();
+                let _ = fresh.write_to_file(&path);
+            }
+            self.load_sessions_with_liveness(false);
         }
     }
 
@@ -581,10 +592,10 @@ impl App {
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
         let footer_text = match self.view_mode {
             ViewMode::List => {
-                "  \u{2191}/\u{2193}: nav   \u{2192}: details   enter: jump   r: refresh   q: quit"
+                "  \u{2191}/\u{2193}: nav   \u{2192}: details   enter: jump   r: refresh   R: reset   q: quit"
             }
             ViewMode::Detail => {
-                "  \u{2191}/\u{2193}: scroll   \u{2190}: back   enter: jump   q: quit"
+                "  \u{2191}/\u{2193}: scroll   \u{2190}: back   enter: jump   R: reset   q: quit"
             }
         };
         let footer = Paragraph::new(footer_text).style(Style::default().fg(Color::DarkGray));

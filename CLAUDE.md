@@ -157,6 +157,7 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 - For old sessions without PID, falls back to checking if a claude process is running in that directory
 - Use `cctop --list` to see current sessions and trigger cleanup
 - Manual cleanup: `rm ~/.cctop/sessions/<session-id>.json`
+- In-app reset: press `R` in TUI or right-click a session in the menubar to reset status to idle
 
 ### Jump to session not working
 - Uses `code --goto <path>` to focus VS Code window

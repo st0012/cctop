@@ -63,6 +63,16 @@ impl Status {
         }
     }
 
+    /// Returns a sort priority for display ordering (lower = more urgent).
+    pub fn sort_priority(&self) -> u8 {
+        match self {
+            Status::WaitingPermission => 0,
+            Status::WaitingInput | Status::NeedsAttention => 1,
+            Status::Working | Status::Compacting => 2,
+            Status::Idle => 3,
+        }
+    }
+
     /// Returns true if this status represents a state needing user attention.
     pub fn needs_attention(&self) -> bool {
         matches!(
@@ -325,6 +335,19 @@ impl Session {
             last_tool_detail: None,
             notification_message: None,
         }
+    }
+
+    /// Resets transient session state to idle.
+    ///
+    /// Clears status, tool info, and notification message while preserving
+    /// identity fields (session_id, project, branch, pid, terminal).
+    /// Used as a safety hatch when a session gets stuck in an incorrect state.
+    pub fn reset(&mut self) {
+        self.status = Status::Idle;
+        self.last_tool = None;
+        self.last_tool_detail = None;
+        self.notification_message = None;
+        self.last_activity = Utc::now();
     }
 
     /// Parse a Session from a JSON string.
@@ -992,6 +1015,44 @@ mod tests {
         assert_eq!(session.branch, "main");
         assert_eq!(session.status, Status::Idle);
         assert!(session.last_prompt.is_none());
+    }
+
+    #[test]
+    fn test_session_reset() {
+        let terminal = TerminalInfo {
+            program: "iTerm.app".to_string(),
+            session_id: Some("w0t0p0:123".to_string()),
+            tty: Some("/dev/ttys003".to_string()),
+        };
+        let mut session = Session::new(
+            "abc123".to_string(),
+            "/home/user/projects/irb".to_string(),
+            "main".to_string(),
+            terminal,
+        );
+        // Simulate a stuck state
+        session.status = Status::WaitingPermission;
+        session.last_tool = Some("Bash".to_string());
+        session.last_tool_detail = Some("rm -rf /".to_string());
+        session.notification_message = Some("Allow Bash?".to_string());
+        session.last_prompt = Some("delete everything".to_string());
+        let old_activity = session.last_activity;
+
+        session.reset();
+
+        // Transient fields cleared
+        assert_eq!(session.status, Status::Idle);
+        assert!(session.last_tool.is_none());
+        assert!(session.last_tool_detail.is_none());
+        assert!(session.notification_message.is_none());
+        assert!(session.last_activity >= old_activity);
+        // Identity preserved
+        assert_eq!(session.session_id, "abc123");
+        assert_eq!(session.project_path, "/home/user/projects/irb");
+        assert_eq!(session.project_name, "irb");
+        assert_eq!(session.branch, "main");
+        assert_eq!(session.last_prompt, Some("delete everything".to_string()));
+        assert!(session.terminal.session_id.is_some());
     }
 
     #[test]

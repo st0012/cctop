@@ -114,6 +114,7 @@ cctop --list       # List sessions as text (no TUI)
 | Enter | Jump to selected session |
 | Right/Left | Detail view / back |
 | r | Refresh |
+| R | Reset selected session to idle |
 | q, Esc, Ctrl+C | Quit |
 
 ## License
