@@ -8,7 +8,7 @@
 //! Hook names: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, Notification, PermissionRequest, PreCompact, SessionEnd
 
 use std::env;
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Write as IoWrite};
 use std::path::Path;
 use std::process;
@@ -141,6 +141,7 @@ fn cleanup_sessions_with_pid(sessions_dir: &Path, pid: u32, current_session_id: 
                 // Remove if same PID but different session_id
                 if session.pid == Some(pid) && session.session_id != current_session_id {
                     let _ = fs::remove_file(&path);
+                    cleanup_session_log(&session.session_id);
                 }
             }
         }
@@ -165,23 +166,44 @@ fn cleanup_sessions_for_project(sessions_dir: &Path, project_path: &str, current
                 if session.project_path == project_path && session.session_id != current_session_id
                 {
                     let _ = fs::remove_file(&path);
+                    cleanup_session_log(&session.session_id);
                 }
             }
         }
     }
 }
 
-/// Appends a line to the hook log at `~/.cctop/hook.log`.
-///
-/// Each line records: timestamp, hook event, abbreviated session ID,
-/// and the status transition (old -> new). Failures are silently ignored
-/// so logging never blocks hook processing.
-fn append_hook_log(event: &str, session_id: &str, old_status: &str, new_status: &str, note: &str) {
-    let log_path = match dirs::home_dir() {
-        Some(home) => home.join(".cctop").join("hook.log"),
-        None => return,
-    };
+// --- Per-session logging to ~/.cctop/logs/{session_id}.log ---
+
+fn logs_dir() -> Option<std::path::PathBuf> {
+    dirs::home_dir().map(|h| h.join(".cctop").join("logs"))
+}
+
+fn session_log_path(session_id: &str) -> Option<std::path::PathBuf> {
+    logs_dir().map(|d| d.join(format!("{}.log", session_id)))
+}
+
+fn session_label(cwd: &str, session_id: &str) -> String {
+    let project = Path::new(cwd)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
     let abbrev = &session_id[..session_id.len().min(8)];
+    format!("{}:{}", project, abbrev)
+}
+
+fn append_hook_log(
+    session_id: &str,
+    event: &str,
+    label: &str,
+    old_status: &str,
+    new_status: &str,
+    note: &str,
+) {
+    let Some(log_path) = session_log_path(session_id) else {
+        return;
+    };
+    let _ = fs::create_dir_all(log_path.parent().unwrap());
     if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
         let extra = if note.is_empty() {
             String::new()
@@ -190,14 +212,36 @@ fn append_hook_log(event: &str, session_id: &str, old_status: &str, new_status: 
         };
         let _ = writeln!(
             f,
-            "{} {} session={} {} -> {}{}",
-            Utc::now().format("%H:%M:%S%.3f"),
+            "{} HOOK {} {} {} -> {}{}",
+            Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"),
             event,
-            abbrev,
+            label,
             old_status,
             new_status,
             extra,
         );
+    }
+}
+
+/// Log errors that occur before we know the session ID (parse failures, missing args).
+fn log_error(msg: &str) {
+    let Some(dir) = logs_dir() else { return };
+    let _ = fs::create_dir_all(&dir);
+    let log_path = dir.join("_errors.log");
+    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
+        let _ = writeln!(
+            f,
+            "{} ERROR {}",
+            Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ"),
+            msg
+        );
+    }
+}
+
+/// Remove log file for a session (called alongside session file cleanup).
+fn cleanup_session_log(session_id: &str) {
+    if let Some(log_path) = session_log_path(session_id) {
+        let _ = fs::remove_file(log_path);
     }
 }
 
@@ -213,6 +257,7 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
 
     let sessions_dir = Config::sessions_dir();
     let safe_id = sanitize_session_id(&input.session_id);
+    let label = session_label(&input.cwd, &safe_id);
     let session_path = sessions_dir.join(format!("{}.json", safe_id));
 
     // Get branch name
@@ -347,8 +392,9 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
     // Log the status transition
     let note = if status_preserved { "preserved" } else { "" };
     append_hook_log(
-        hook_name,
         &safe_id,
+        hook_name,
+        &label,
         &old_status,
         session.status.as_str(),
         note,
@@ -371,7 +417,7 @@ fn main() {
     }
 
     if args.len() < 2 {
-        eprintln!("cctop-hook: missing hook name argument");
+        log_error("missing hook name argument");
         process::exit(0); // Exit 0 to not block Claude Code
     }
     let hook_name = &args[1];
@@ -379,7 +425,7 @@ fn main() {
     // Read JSON from stdin
     let mut stdin_buf = String::new();
     if let Err(e) = io::stdin().read_to_string(&mut stdin_buf) {
-        eprintln!("cctop-hook: failed to read stdin: {}", e);
+        log_error(&format!("{}: failed to read stdin: {}", hook_name, e));
         process::exit(0);
     }
 
@@ -387,14 +433,14 @@ fn main() {
     let input: HookInput = match serde_json::from_str(&stdin_buf) {
         Ok(i) => i,
         Err(e) => {
-            eprintln!("cctop-hook: failed to parse JSON: {}", e);
+            log_error(&format!("{}: failed to parse JSON: {}", hook_name, e));
             process::exit(0);
         }
     };
 
     // Handle the hook
     if let Err(e) = handle_hook(hook_name, input) {
-        eprintln!("cctop-hook: error handling hook: {}", e);
+        log_error(&format!("{}: {}", hook_name, e));
         process::exit(0);
     }
 }
