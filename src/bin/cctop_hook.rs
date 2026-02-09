@@ -21,7 +21,7 @@ use cctop::config::Config;
 use cctop::git::get_current_branch;
 #[cfg(test)]
 use cctop::session::Status;
-use cctop::session::{HookEvent, Session, TerminalInfo, Transition};
+use cctop::session::{sanitize_session_id, HookEvent, Session, TerminalInfo, Transition};
 
 /// Input JSON schema from Claude Code hooks.
 ///
@@ -212,7 +212,8 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
     }
 
     let sessions_dir = Config::sessions_dir();
-    let session_path = sessions_dir.join(format!("{}.json", input.session_id));
+    let safe_id = sanitize_session_id(&input.session_id);
+    let session_path = sessions_dir.join(format!("{}.json", safe_id));
 
     // Get branch name
     let cwd_path = Path::new(&input.cwd);
@@ -228,7 +229,7 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
             Err(_) => {
                 // If file is corrupted, create new session
                 Session::new(
-                    input.session_id.clone(),
+                    safe_id.clone(),
                     input.cwd.clone(),
                     branch.clone(),
                     terminal.clone(),
@@ -237,7 +238,7 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
         }
     } else {
         Session::new(
-            input.session_id.clone(),
+            safe_id.clone(),
             input.cwd.clone(),
             branch.clone(),
             terminal.clone(),
@@ -271,9 +272,9 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
             session.pid = pid;
 
             // Clean up old sessions for the same project or PID
-            cleanup_sessions_for_project(&sessions_dir, &input.cwd, &input.session_id);
+            cleanup_sessions_for_project(&sessions_dir, &input.cwd, &safe_id);
             if let Some(current_pid) = pid {
-                cleanup_sessions_with_pid(&sessions_dir, current_pid, &input.session_id);
+                cleanup_sessions_with_pid(&sessions_dir, current_pid, &safe_id);
             }
         }
 
@@ -352,7 +353,7 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
     let note = if status_preserved { "preserved" } else { "" };
     append_hook_log(
         hook_name,
-        &input.session_id,
+        &safe_id,
         &old_status,
         session.status.as_str(),
         note,
