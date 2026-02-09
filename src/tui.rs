@@ -634,28 +634,42 @@ fn is_session_alive(session: &Session) -> bool {
 }
 
 /// Fallback liveness check for sessions without PID.
-/// Uses `ps` and `lsof` to check if any claude process has the session's project_path as cwd.
+///
+/// Gets PIDs of claude-related processes via `pgrep`, then checks each
+/// process's cwd via `lsof` to see if it matches `project_path`.
+/// All arguments are passed as arrays to avoid shell injection.
 fn is_session_alive_by_path(project_path: &str) -> bool {
     use std::process::Command;
 
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(format!(
-            "ps aux | grep -E 'claude|Claude' | grep -v grep | awk '{{print $2}}' | while read pid; do lsof -p $pid 2>/dev/null | grep cwd | grep -q '{}' && echo found; done",
-            project_path
-        ))
-        .output();
+    // Get PIDs of processes matching "claude" (case-insensitive)
+    let pgrep_output = match Command::new("pgrep").arg("-if").arg("claude").output() {
+        Ok(out) if out.status.success() => out,
+        _ => return true, // Assume alive if we can't check
+    };
 
-    match output {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            stdout.contains("found")
-        }
-        Err(_) => {
-            // If the check fails, assume session is alive to avoid false deletions
-            true
+    let pids = String::from_utf8_lossy(&pgrep_output.stdout);
+    for pid in pids.split_whitespace() {
+        // Check this PID's cwd via lsof — no shell, no interpolation
+        if let Ok(lsof_out) = Command::new("lsof").args(["-p", pid, "-Fn"]).output() {
+            let lsof_str = String::from_utf8_lossy(&lsof_out.stdout);
+            // lsof -Fn outputs "n<path>" lines; cwd entries follow "fcwd" lines
+            let mut in_cwd = false;
+            for line in lsof_str.lines() {
+                if line == "fcwd" {
+                    in_cwd = true;
+                } else if in_cwd && line.starts_with('n') {
+                    if &line[1..] == project_path {
+                        return true;
+                    }
+                    in_cwd = false;
+                } else if line.starts_with('f') {
+                    in_cwd = false;
+                }
+            }
         }
     }
+
+    false
 }
 
 /// Load all sessions from ~/.cctop/sessions/
