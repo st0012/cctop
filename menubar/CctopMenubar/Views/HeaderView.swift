@@ -8,7 +8,7 @@ struct HeaderView: View {
         for session in sessions {
             switch session.status {
             case .idle: idle += 1
-            case .working: working += 1
+            case .working, .compacting: working += 1
             case .waitingPermission, .waitingInput, .needsAttention: attention += 1
             }
         }

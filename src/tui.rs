@@ -96,7 +96,7 @@ impl App {
             let priority = |s: &Status| match s {
                 Status::WaitingPermission => 0,
                 Status::WaitingInput | Status::NeedsAttention => 1,
-                Status::Working => 2,
+                Status::Working | Status::Compacting => 2,
                 Status::Idle => 3,
             };
             priority(&a.status)
@@ -445,12 +445,7 @@ impl App {
         let indicator = session.status.indicator();
         let time = format_relative_time(session.last_activity);
 
-        // Show [compacted] indicator after branch if context was compacted
-        let branch_display = if session.context_compacted {
-            format!("{} [compacted]", session.branch)
-        } else {
-            session.branch.clone()
-        };
+        let branch_display = session.branch.clone();
 
         // Format: indicator project_name branch time
         let main_line = format!(
@@ -504,6 +499,7 @@ impl App {
                     String::new()
                 }
             }
+            Status::Compacting => "Compacting context...".to_string(),
         }
     }
 
@@ -532,12 +528,7 @@ impl App {
 
         let prompt_text = session.last_prompt.as_deref().unwrap_or("(no prompt)");
 
-        // Build status line with compacted indicator
-        let status_line = if session.context_compacted {
-            format!("{}  [context compacted]", session.status.as_str())
-        } else {
-            session.status.as_str().to_string()
-        };
+        let status_line = session.status.as_str().to_string();
 
         // Build tool info section if available
         let tool_section = if let Some(ref tool) = session.last_tool {
@@ -764,7 +755,6 @@ mod tests {
             last_tool: None,
             last_tool_detail: None,
             notification_message: None,
-            context_compacted: false,
         }
     }
 

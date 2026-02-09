@@ -17,6 +17,8 @@ pub enum Status {
     Idle,
     /// Session is actively processing (running tools, generating response)
     Working,
+    /// Session is compacting its context window
+    Compacting,
     /// Session is blocked on a permission approval (most urgent)
     WaitingPermission,
     /// Session finished, waiting for new prompt from user
@@ -27,11 +29,23 @@ pub enum Status {
 }
 
 impl Status {
+    /// Returns all status variants (excluding NeedsAttention, which is a fallback).
+    pub fn all() -> &'static [Status] {
+        &[
+            Status::Idle,
+            Status::Working,
+            Status::Compacting,
+            Status::WaitingPermission,
+            Status::WaitingInput,
+        ]
+    }
+
     /// Returns the visual indicator character for this status.
     pub fn indicator(&self) -> &'static str {
         match self {
-            Status::Idle => "\u{00B7}",    // middle dot
-            Status::Working => "\u{25C9}", // fisheye
+            Status::Idle => "\u{00B7}",       // middle dot
+            Status::Working => "\u{25C9}",    // fisheye
+            Status::Compacting => "\u{21BB}", // clockwise open circle arrow
             Status::WaitingPermission | Status::NeedsAttention => "\u{2192}", // arrow
             Status::WaitingInput => "\u{2192}", // arrow
         }
@@ -42,6 +56,7 @@ impl Status {
         match self {
             Status::Idle => "idle",
             Status::Working => "working",
+            Status::Compacting => "compacting",
             Status::WaitingPermission => "waiting_permission",
             Status::WaitingInput => "waiting_input",
             Status::NeedsAttention => "needs_attention",
@@ -74,6 +89,7 @@ impl Status {
             "Stop" => Status::Idle,
             "Notification" => Status::WaitingInput,
             "PermissionRequest" => Status::WaitingPermission,
+            "PreCompact" => Status::Compacting,
             _ => Status::Idle,
         }
     }
@@ -82,6 +98,165 @@ impl Status {
     pub fn from_hook_event(event: &str) -> Status {
         Self::from_hook(event)
     }
+}
+
+/// Typed hook events from Claude Code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HookEvent {
+    SessionStart,
+    UserPromptSubmit,
+    PreToolUse,
+    PostToolUse,
+    Stop,
+    NotificationIdle,
+    NotificationPermission,
+    NotificationOther,
+    PermissionRequest,
+    PreCompact,
+    SessionEnd,
+    Unknown,
+}
+
+impl HookEvent {
+    /// Parse a hook event from the hook name and optional notification type.
+    pub fn parse(hook_name: &str, notification_type: Option<&str>) -> Self {
+        match hook_name {
+            "SessionStart" => HookEvent::SessionStart,
+            "UserPromptSubmit" => HookEvent::UserPromptSubmit,
+            "PreToolUse" => HookEvent::PreToolUse,
+            "PostToolUse" => HookEvent::PostToolUse,
+            "Stop" => HookEvent::Stop,
+            "Notification" => match notification_type {
+                Some("idle_prompt") => HookEvent::NotificationIdle,
+                Some("permission_prompt") => HookEvent::NotificationPermission,
+                _ => HookEvent::NotificationOther,
+            },
+            "PermissionRequest" => HookEvent::PermissionRequest,
+            "PreCompact" => HookEvent::PreCompact,
+            "SessionEnd" => HookEvent::SessionEnd,
+            _ => HookEvent::Unknown,
+        }
+    }
+
+    /// All meaningful hook event variants (excludes Unknown).
+    pub fn all() -> &'static [HookEvent] {
+        &[
+            HookEvent::SessionStart,
+            HookEvent::UserPromptSubmit,
+            HookEvent::PreToolUse,
+            HookEvent::PostToolUse,
+            HookEvent::Stop,
+            HookEvent::NotificationIdle,
+            HookEvent::NotificationPermission,
+            HookEvent::NotificationOther,
+            HookEvent::PermissionRequest,
+            HookEvent::PreCompact,
+            HookEvent::SessionEnd,
+        ]
+    }
+
+    /// Human-readable label for diagram edges.
+    pub fn label(&self) -> &'static str {
+        match self {
+            HookEvent::SessionStart => "SessionStart",
+            HookEvent::UserPromptSubmit => "UserPromptSubmit",
+            HookEvent::PreToolUse => "PreToolUse",
+            HookEvent::PostToolUse => "PostToolUse",
+            HookEvent::Stop => "Stop",
+            HookEvent::NotificationIdle => "Notification(idle)",
+            HookEvent::NotificationPermission => "Notification(permission)",
+            HookEvent::NotificationOther => "Notification(other)",
+            HookEvent::PermissionRequest => "PermissionRequest",
+            HookEvent::PreCompact => "PreCompact",
+            HookEvent::SessionEnd => "SessionEnd",
+            HookEvent::Unknown => "Unknown",
+        }
+    }
+}
+
+/// Centralized state transition logic for session status.
+pub struct Transition;
+
+impl Transition {
+    /// Determine the next status for a given current status and hook event.
+    ///
+    /// Returns `Some(new_status)` for a status change, or `None` to preserve
+    /// the current status. The Stop guard lives here: Stop does not overwrite
+    /// statuses that need user attention.
+    pub fn for_event(current: &Status, event: &HookEvent) -> Option<Status> {
+        match event {
+            HookEvent::SessionStart => Some(Status::Idle),
+            HookEvent::UserPromptSubmit => Some(Status::Working),
+            HookEvent::PreToolUse => Some(Status::Working),
+            HookEvent::PostToolUse => Some(Status::Working),
+            HookEvent::Stop => {
+                if current.needs_attention() {
+                    None // preserve waiting states
+                } else {
+                    Some(Status::Idle)
+                }
+            }
+            HookEvent::NotificationIdle => Some(Status::WaitingInput),
+            HookEvent::NotificationPermission => Some(Status::WaitingPermission),
+            HookEvent::NotificationOther => None,
+            HookEvent::PermissionRequest => Some(Status::WaitingPermission),
+            HookEvent::PreCompact => Some(Status::Compacting),
+            HookEvent::SessionEnd => None,
+            HookEvent::Unknown => None,
+        }
+    }
+}
+
+/// Generate a Graphviz DOT diagram of the state machine.
+pub fn generate_dot_diagram() -> String {
+    use std::collections::BTreeMap;
+
+    let mut lines = Vec::new();
+    lines.push("digraph session_states {".to_string());
+    lines.push("    rankdir=LR;".to_string());
+    lines.push("    node [shape=box, style=rounded];".to_string());
+    lines.push(String::new());
+
+    // Collect edges: (from, to) -> Vec<label>
+    let mut edges: BTreeMap<(String, String), Vec<&'static str>> = BTreeMap::new();
+    // Collect preserved (dashed) edges: (from) -> Vec<label>
+    let mut preserved: BTreeMap<String, Vec<&'static str>> = BTreeMap::new();
+
+    for status in Status::all() {
+        for event in HookEvent::all() {
+            let from = status.as_str().to_string();
+            match Transition::for_event(status, event) {
+                Some(new_status) => {
+                    let to = new_status.as_str().to_string();
+                    edges.entry((from, to)).or_default().push(event.label());
+                }
+                None => {
+                    preserved.entry(from).or_default().push(event.label());
+                }
+            }
+        }
+    }
+
+    // Emit solid edges
+    for ((from, to), labels) in &edges {
+        let label = labels.join("\\n");
+        lines.push(format!(
+            "    \"{}\" -> \"{}\" [label=\"{}\"];",
+            from, to, label
+        ));
+    }
+
+    // Emit dashed self-edges for preserved transitions
+    for (from, labels) in &preserved {
+        let label = labels.join("\\n");
+        lines.push(format!(
+            "    \"{}\" -> \"{}\" [label=\"{}\" style=dashed];",
+            from, from, label
+        ));
+    }
+
+    lines.push("}".to_string());
+    lines.join("\n")
 }
 
 /// Terminal information for window focusing.
@@ -128,9 +303,6 @@ pub struct Session {
     /// Message from PermissionRequest or Notification
     #[serde(default)]
     pub notification_message: Option<String>,
-    /// Whether context has been compacted (set by PreCompact)
-    #[serde(default)]
-    pub context_compacted: bool,
 }
 
 impl Session {
@@ -158,7 +330,6 @@ impl Session {
             last_tool: None,
             last_tool_detail: None,
             notification_message: None,
-            context_compacted: false,
         }
     }
 
@@ -405,7 +576,7 @@ impl<'a> GroupedSessions<'a> {
                 Status::WaitingInput | Status::NeedsAttention => {
                     grouped.waiting_input.push(session)
                 }
-                Status::Working => grouped.working.push(session),
+                Status::Working | Status::Compacting => grouped.working.push(session),
                 Status::Idle => grouped.idle.push(session),
             }
         }
@@ -504,7 +675,6 @@ mod tests {
             last_tool: None,
             last_tool_detail: None,
             notification_message: None,
-            context_compacted: false,
         }
     }
 
@@ -566,6 +736,7 @@ mod tests {
     fn test_status_indicator() {
         assert_eq!(Status::Idle.indicator(), "\u{00B7}");
         assert_eq!(Status::Working.indicator(), "\u{25C9}");
+        assert_eq!(Status::Compacting.indicator(), "\u{21BB}");
         assert_eq!(Status::WaitingPermission.indicator(), "\u{2192}");
         assert_eq!(Status::WaitingInput.indicator(), "\u{2192}");
         assert_eq!(Status::NeedsAttention.indicator(), "\u{2192}");
@@ -575,6 +746,7 @@ mod tests {
     fn test_status_as_str() {
         assert_eq!(Status::Idle.as_str(), "idle");
         assert_eq!(Status::Working.as_str(), "working");
+        assert_eq!(Status::Compacting.as_str(), "compacting");
         assert_eq!(Status::WaitingPermission.as_str(), "waiting_permission");
         assert_eq!(Status::WaitingInput.as_str(), "waiting_input");
         assert_eq!(Status::NeedsAttention.as_str(), "needs_attention");
@@ -584,6 +756,7 @@ mod tests {
     fn test_status_needs_attention() {
         assert!(!Status::Idle.needs_attention());
         assert!(!Status::Working.needs_attention());
+        assert!(!Status::Compacting.needs_attention());
         assert!(Status::WaitingPermission.needs_attention());
         assert!(Status::WaitingInput.needs_attention());
         assert!(Status::NeedsAttention.needs_attention());
@@ -601,6 +774,7 @@ mod tests {
             Status::from_hook("PermissionRequest"),
             Status::WaitingPermission
         );
+        assert_eq!(Status::from_hook("PreCompact"), Status::Compacting);
         assert_eq!(Status::from_hook("Unknown"), Status::Idle);
     }
 
@@ -1024,7 +1198,6 @@ mod tests {
         assert_eq!(session.last_tool, None);
         assert_eq!(session.last_tool_detail, None);
         assert_eq!(session.notification_message, None);
-        assert!(!session.context_compacted);
     }
 
     #[test]
@@ -1033,7 +1206,6 @@ mod tests {
         session.last_tool = Some("Bash".to_string());
         session.last_tool_detail = Some("npm test".to_string());
         session.notification_message = Some("Permission needed".to_string());
-        session.context_compacted = true;
 
         let json = serde_json::to_string(&session).unwrap();
         let parsed = Session::from_json(&json).unwrap();
@@ -1044,7 +1216,6 @@ mod tests {
             parsed.notification_message,
             Some("Permission needed".to_string())
         );
-        assert!(parsed.context_compacted);
     }
 
     #[test]
@@ -1119,5 +1290,173 @@ mod tests {
 
         let sessions = Session::load_all(&sessions_dir).unwrap();
         assert_eq!(sessions.len(), 5);
+    }
+
+    #[test]
+    fn test_hook_event_parse() {
+        assert_eq!(
+            HookEvent::parse("SessionStart", None),
+            HookEvent::SessionStart
+        );
+        assert_eq!(
+            HookEvent::parse("UserPromptSubmit", None),
+            HookEvent::UserPromptSubmit
+        );
+        assert_eq!(HookEvent::parse("PreToolUse", None), HookEvent::PreToolUse);
+        assert_eq!(
+            HookEvent::parse("PostToolUse", None),
+            HookEvent::PostToolUse
+        );
+        assert_eq!(HookEvent::parse("Stop", None), HookEvent::Stop);
+        assert_eq!(
+            HookEvent::parse("Notification", Some("idle_prompt")),
+            HookEvent::NotificationIdle
+        );
+        assert_eq!(
+            HookEvent::parse("Notification", Some("permission_prompt")),
+            HookEvent::NotificationPermission
+        );
+        assert_eq!(
+            HookEvent::parse("Notification", Some("something_else")),
+            HookEvent::NotificationOther
+        );
+        assert_eq!(
+            HookEvent::parse("Notification", None),
+            HookEvent::NotificationOther
+        );
+        assert_eq!(
+            HookEvent::parse("PermissionRequest", None),
+            HookEvent::PermissionRequest
+        );
+        assert_eq!(HookEvent::parse("PreCompact", None), HookEvent::PreCompact);
+        assert_eq!(HookEvent::parse("SessionEnd", None), HookEvent::SessionEnd);
+        assert_eq!(HookEvent::parse("SomethingNew", None), HookEvent::Unknown);
+    }
+
+    #[test]
+    fn test_transition_for_event_basic() {
+        // SessionStart -> Idle from any state
+        assert_eq!(
+            Transition::for_event(&Status::Working, &HookEvent::SessionStart),
+            Some(Status::Idle)
+        );
+        // UserPromptSubmit -> Working
+        assert_eq!(
+            Transition::for_event(&Status::Idle, &HookEvent::UserPromptSubmit),
+            Some(Status::Working)
+        );
+        // PreToolUse -> Working
+        assert_eq!(
+            Transition::for_event(&Status::Working, &HookEvent::PreToolUse),
+            Some(Status::Working)
+        );
+        // PostToolUse -> Working
+        assert_eq!(
+            Transition::for_event(&Status::Working, &HookEvent::PostToolUse),
+            Some(Status::Working)
+        );
+        // Stop from Working -> Idle
+        assert_eq!(
+            Transition::for_event(&Status::Working, &HookEvent::Stop),
+            Some(Status::Idle)
+        );
+        // NotificationIdle -> WaitingInput
+        assert_eq!(
+            Transition::for_event(&Status::Working, &HookEvent::NotificationIdle),
+            Some(Status::WaitingInput)
+        );
+        // PermissionRequest -> WaitingPermission
+        assert_eq!(
+            Transition::for_event(&Status::Working, &HookEvent::PermissionRequest),
+            Some(Status::WaitingPermission)
+        );
+    }
+
+    #[test]
+    fn test_transition_stop_preserves_waiting() {
+        // Stop should NOT overwrite waiting_permission
+        assert_eq!(
+            Transition::for_event(&Status::WaitingPermission, &HookEvent::Stop),
+            None
+        );
+        // Stop should NOT overwrite waiting_input
+        assert_eq!(
+            Transition::for_event(&Status::WaitingInput, &HookEvent::Stop),
+            None
+        );
+        // Stop should NOT overwrite needs_attention
+        assert_eq!(
+            Transition::for_event(&Status::NeedsAttention, &HookEvent::Stop),
+            None
+        );
+        // Stop SHOULD transition from Idle
+        assert_eq!(
+            Transition::for_event(&Status::Idle, &HookEvent::Stop),
+            Some(Status::Idle)
+        );
+        // Stop SHOULD transition from Compacting
+        assert_eq!(
+            Transition::for_event(&Status::Compacting, &HookEvent::Stop),
+            Some(Status::Idle)
+        );
+    }
+
+    #[test]
+    fn test_transition_pre_compact() {
+        assert_eq!(
+            Transition::for_event(&Status::Working, &HookEvent::PreCompact),
+            Some(Status::Compacting)
+        );
+        assert_eq!(
+            Transition::for_event(&Status::Idle, &HookEvent::PreCompact),
+            Some(Status::Compacting)
+        );
+    }
+
+    #[test]
+    fn test_generate_dot_diagram() {
+        let dot = generate_dot_diagram();
+        assert!(dot.contains("digraph session_states"));
+        assert!(dot.contains("idle"));
+        assert!(dot.contains("working"));
+        assert!(dot.contains("compacting"));
+        assert!(dot.contains("waiting_permission"));
+        assert!(dot.contains("waiting_input"));
+        assert!(dot.contains("->"));
+    }
+
+    #[test]
+    fn test_all_transitions_exhaustive() {
+        // Ensure every Status x HookEvent combination is handled (doesn't panic)
+        for status in Status::all() {
+            for event in HookEvent::all() {
+                let _ = Transition::for_event(status, event);
+            }
+        }
+        // Also test NeedsAttention (not in all())
+        for event in HookEvent::all() {
+            let _ = Transition::for_event(&Status::NeedsAttention, event);
+        }
+    }
+
+    #[test]
+    fn test_old_json_with_context_compacted_still_decodes() {
+        // Old session files with context_compacted should still deserialize
+        // (serde ignores unknown fields by default)
+        let json = r#"{
+            "session_id": "test",
+            "project_path": "/tmp/test",
+            "project_name": "test",
+            "branch": "main",
+            "status": "working",
+            "last_prompt": null,
+            "last_activity": "2026-01-25T22:48:00Z",
+            "started_at": "2026-01-25T22:30:00Z",
+            "terminal": {"program": "vscode", "session_id": null, "tty": null},
+            "context_compacted": true
+        }"#;
+        let session = Session::from_json(json).unwrap();
+        assert_eq!(session.session_id, "test");
+        assert_eq!(session.status, Status::Working);
     }
 }

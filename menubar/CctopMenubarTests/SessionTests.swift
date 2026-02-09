@@ -17,8 +17,7 @@ final class SessionTests: XCTestCase {
             "pid": 12345,
             "last_tool": "Bash",
             "last_tool_detail": "npm test",
-            "notification_message": null,
-            "context_compacted": false
+            "notification_message": null
         }
         """
         let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
@@ -65,5 +64,29 @@ final class SessionTests: XCTestCase {
     func testContextLinePermissionDefault() {
         let session = Session.mock(status: .waitingPermission)
         XCTAssertEqual(session.contextLine, "Permission needed")
+    }
+
+    func testContextLineCompacting() {
+        let session = Session.mock(status: .compacting)
+        XCTAssertEqual(session.contextLine, "Compacting context...")
+    }
+
+    func testOldJsonWithContextCompactedStillDecodes() throws {
+        let json = """
+        {
+            "session_id": "old-session",
+            "project_path": "/tmp",
+            "project_name": "test",
+            "branch": "main",
+            "status": "working",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "Code"},
+            "context_compacted": true
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertEqual(session.sessionId, "old-session")
+        XCTAssertEqual(session.status, .working)
     }
 }

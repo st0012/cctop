@@ -155,7 +155,6 @@ mod tests {
             last_tool: None,
             last_tool_detail: None,
             notification_message: None,
-            context_compacted: false,
         }
     }
 

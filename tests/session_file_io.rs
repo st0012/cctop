@@ -27,7 +27,6 @@ fn create_test_session(session_id: &str, project: &str) -> Session {
         last_tool: None,
         last_tool_detail: None,
         notification_message: None,
-        context_compacted: false,
     }
 }
 
@@ -241,7 +240,6 @@ fn test_session_serialization_roundtrip_all_fields() {
         last_tool: None,
         last_tool_detail: None,
         notification_message: None,
-        context_compacted: false,
     };
 
     let json = serde_json::to_string_pretty(&original).unwrap();
