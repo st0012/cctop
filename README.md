@@ -1,8 +1,19 @@
 # cctop
 
+[![CI](https://github.com/st0012/cctop/actions/workflows/ci.yml/badge.svg)](https://github.com/st0012/cctop/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A macOS menubar app for monitoring Claude Code sessions across workspaces.
 
 See all your Claude Code sessions at a glance — which are working, which need your attention, and which are idle. Click any session to jump straight to it.
+
+<p align="center">
+  <img src="docs/menubar.png" alt="cctop menubar popup" width="320">
+</p>
+
+## Why cctop?
+
+When you run multiple Claude Code sessions across different projects, it's hard to know which ones need your attention. You end up cycling through terminal tabs checking on each one. cctop sits in your menubar and shows you the status of every session at a glance — so you only switch when something actually needs you.
 
 ## Features
 
@@ -14,7 +25,14 @@ See all your Claude Code sessions at a glance — which are working, which need 
 
 ## Installation
 
-### Download the app
+### Homebrew
+
+```bash
+brew tap st0012/cctop
+brew install --cask cctop
+```
+
+### Download manually
 
 1. Download `cctop-macOS-arm64.zip` (Apple Silicon) or `cctop-macOS-x86_64.zip` (Intel) from the [latest release](https://github.com/st0012/cctop/releases/latest)
 2. Unzip and move `cctop.app` to `/Applications/`
@@ -82,6 +100,8 @@ cli_command = "code"        # or "cursor", "code-insiders"
 ## TUI
 
 The `cctop` command launches a terminal-based UI as an alternative to the menubar app.
+
+![cctop TUI demo](docs/demo.gif)
 
 ```bash
 cctop              # Launch TUI
