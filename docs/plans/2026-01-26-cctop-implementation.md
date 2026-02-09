@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_extract_project_name() {
-        assert_eq!(extract_project_name("/Users/st0012/projects/irb"), "irb");
+        assert_eq!(extract_project_name("/home/user/projects/irb"), "irb");
         assert_eq!(extract_project_name("/tmp/"), "tmp");
         assert_eq!(extract_project_name("/"), "unknown");
     }
@@ -245,7 +245,7 @@ mod tests {
     fn test_session_json_roundtrip() {
         let session = Session {
             session_id: "abc123".into(),
-            project_path: "/Users/st0012/projects/irb".into(),
+            project_path: "/home/user/projects/irb".into(),
             project_name: "irb".into(),
             branch: "main".into(),
             status: Status::Working,
@@ -1555,13 +1555,13 @@ Expected: TUI launches, shows "No active sessions", quit with 'q'
 
 ```bash
 # Simulate SessionStart
-echo '{"session_id":"integration-test","cwd":"/Users/st0012/projects/irb"}' | ./target/release/cctop-hook SessionStart
+echo '{"session_id":"integration-test","cwd":"/home/user/projects/irb"}' | ./target/release/cctop-hook SessionStart
 
 # Verify file created
 cat ~/.cctop/sessions/integration-test.json
 
 # Simulate UserPromptSubmit
-echo '{"session_id":"integration-test","cwd":"/Users/st0012/projects/irb","prompt":"Fix the bug in completion"}' | ./target/release/cctop-hook UserPromptSubmit
+echo '{"session_id":"integration-test","cwd":"/home/user/projects/irb","prompt":"Fix the bug in completion"}' | ./target/release/cctop-hook UserPromptSubmit
 
 # Verify prompt saved
 cat ~/.cctop/sessions/integration-test.json
@@ -1573,7 +1573,7 @@ sleep 2
 kill $TUI_PID 2>/dev/null || true
 
 # Cleanup
-echo '{"session_id":"integration-test","cwd":"/Users/st0012/projects/irb"}' | ./target/release/cctop-hook SessionEnd
+echo '{"session_id":"integration-test","cwd":"/home/user/projects/irb"}' | ./target/release/cctop-hook SessionEnd
 
 # Verify file removed
 ls ~/.cctop/sessions/integration-test.json 2>/dev/null && echo "ERROR: file still exists" || echo "OK: file cleaned up"

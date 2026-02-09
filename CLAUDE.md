@@ -130,7 +130,7 @@ rm ~/.cctop/sessions/test123.json
 
 ```bash
 # Add the local marketplace
-claude plugin marketplace add /Users/st0012/projects/cctop
+claude plugin marketplace add /path/to/cctop
 
 # Install the plugin
 claude plugin install cctop
@@ -230,6 +230,19 @@ The `docs/demo.tape` file defines the recording:
 - `Type "<text>"` - Type text
 - `Enter/Down/Up` - Key presses
 - `Sleep <duration>` - Wait between actions
+
+### Menubar Screenshot
+The menubar screenshot (`docs/menubar.png`) is generated from a snapshot test that renders `PopupView` with mock data:
+
+```bash
+# Regenerate the menubar screenshot
+xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
+  -only-testing:CctopMenubarTests/SnapshotTests/testGenerateMenubarScreenshot \
+  -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+cp /tmp/menubar.png docs/menubar.png
+```
+
+The mock sessions are defined in `Session+Mock.swift`. Edit `mockSessions` to change what appears in the screenshot.
 
 ### Tips
 - Run with active Claude Code sessions for realistic content
