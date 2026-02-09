@@ -293,7 +293,7 @@ fn test_hook_binary_project_name_extraction() {
     let session_id = "test-project-name";
 
     let json = format!(
-        r#"{{"session_id":"{}","cwd":"/Users/st0012/projects/my-awesome-project","hook_event_name":"SessionStart"}}"#,
+        r#"{{"session_id":"{}","cwd":"/home/user/projects/my-awesome-project","hook_event_name":"SessionStart"}}"#,
         session_id
     );
     env.run_hook("SessionStart", &json);
@@ -302,7 +302,7 @@ fn test_hook_binary_project_name_extraction() {
     assert_eq!(session.project_name, "my-awesome-project");
     assert_eq!(
         session.project_path,
-        "/Users/st0012/projects/my-awesome-project"
+        "/home/user/projects/my-awesome-project"
     );
 }
 
