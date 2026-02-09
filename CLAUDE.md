@@ -177,7 +177,7 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 | UserPromptSubmit | working |
 | PreToolUse | working (sets last_tool/last_tool_detail) |
 | PostToolUse | working |
-| Stop | idle (preserves waiting states via Stop guard) |
+| Stop | idle |
 | Notification (idle_prompt) | waiting_input |
 | Notification (permission_prompt) | waiting_permission |
 | PermissionRequest | waiting_permission |

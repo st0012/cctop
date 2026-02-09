@@ -181,21 +181,14 @@ impl Transition {
     /// Determine the next status for a given current status and hook event.
     ///
     /// Returns `Some(new_status)` for a status change, or `None` to preserve
-    /// the current status. The Stop guard lives here: Stop does not overwrite
-    /// statuses that need user attention.
-    pub fn for_event(current: &Status, event: &HookEvent) -> Option<Status> {
+    /// the current status.
+    pub fn for_event(_current: &Status, event: &HookEvent) -> Option<Status> {
         match event {
             HookEvent::SessionStart => Some(Status::Idle),
             HookEvent::UserPromptSubmit => Some(Status::Working),
             HookEvent::PreToolUse => Some(Status::Working),
             HookEvent::PostToolUse => Some(Status::Working),
-            HookEvent::Stop => {
-                if current.needs_attention() {
-                    None // preserve waiting states
-                } else {
-                    Some(Status::Idle)
-                }
-            }
+            HookEvent::Stop => Some(Status::Idle),
             HookEvent::NotificationIdle => Some(Status::WaitingInput),
             HookEvent::NotificationPermission => Some(Status::WaitingPermission),
             HookEvent::NotificationOther => None,
@@ -1385,32 +1378,16 @@ mod tests {
     }
 
     #[test]
-    fn test_transition_stop_preserves_waiting() {
-        // Stop should NOT overwrite waiting_permission
-        assert_eq!(
-            Transition::for_event(&Status::WaitingPermission, &HookEvent::Stop),
-            None
-        );
-        // Stop should NOT overwrite waiting_input
-        assert_eq!(
-            Transition::for_event(&Status::WaitingInput, &HookEvent::Stop),
-            None
-        );
-        // Stop should NOT overwrite needs_attention
-        assert_eq!(
-            Transition::for_event(&Status::NeedsAttention, &HookEvent::Stop),
-            None
-        );
-        // Stop SHOULD transition from Idle
-        assert_eq!(
-            Transition::for_event(&Status::Idle, &HookEvent::Stop),
-            Some(Status::Idle)
-        );
-        // Stop SHOULD transition from Compacting
-        assert_eq!(
-            Transition::for_event(&Status::Compacting, &HookEvent::Stop),
-            Some(Status::Idle)
-        );
+    fn test_transition_stop_always_idles() {
+        // Stop always transitions to Idle, regardless of current state
+        for status in Status::all() {
+            assert_eq!(
+                Transition::for_event(status, &HookEvent::Stop),
+                Some(Status::Idle),
+                "Stop should transition {:?} to Idle",
+                status
+            );
+        }
     }
 
     #[test]
