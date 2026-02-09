@@ -211,11 +211,12 @@ impl Transition {
 pub fn generate_dot_diagram() -> String {
     use std::collections::BTreeMap;
 
-    let mut lines = Vec::new();
-    lines.push("digraph session_states {".to_string());
-    lines.push("    rankdir=LR;".to_string());
-    lines.push("    node [shape=box, style=rounded];".to_string());
-    lines.push(String::new());
+    let mut lines = vec![
+        "digraph session_states {".to_string(),
+        "    rankdir=LR;".to_string(),
+        "    node [shape=box, style=rounded];".to_string(),
+        String::new(),
+    ];
 
     // Collect edges: (from, to) -> Vec<label>
     let mut edges: BTreeMap<(String, String), Vec<&'static str>> = BTreeMap::new();
