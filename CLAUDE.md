@@ -103,6 +103,10 @@ cargo test
 
 # Check a specific session file
 cat ~/.cctop/sessions/<session-id>.json | jq '.'
+
+# Generate state machine diagram (requires graphviz: brew install graphviz)
+scripts/generate-state-diagram.sh              # opens /tmp/cctop-states.svg
+scripts/generate-state-diagram.sh docs/out.svg # custom output path
 ```
 
 ### Visual Changes
@@ -165,7 +169,7 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 
 ## Session Status Logic
 
-4-status model with `NeedsAttention` as `#[serde(other)]` fallback for forward compatibility.
+6-status model with `NeedsAttention` as `#[serde(other)]` fallback for forward compatibility. Transitions are centralized in `Transition::for_event()` (`src/session.rs`) with typed `HookEvent` enum. Run `scripts/generate-state-diagram.sh` to visualize the state machine (or `cctop --dot` for raw DOT output).
 
 | Hook Event | Status |
 |------------|--------|
@@ -173,11 +177,11 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 | UserPromptSubmit | working |
 | PreToolUse | working (sets last_tool/last_tool_detail) |
 | PostToolUse | working |
-| Stop | idle |
+| Stop | idle (preserves waiting states via Stop guard) |
 | Notification (idle_prompt) | waiting_input |
 | Notification (permission_prompt) | waiting_permission |
 | PermissionRequest | waiting_permission |
-| PreCompact | (preserves status, sets context_compacted) |
+| PreCompact | compacting |
 
 Note: SessionEnd hook is no longer used. Dead sessions are detected via PID checking.
 

@@ -19,7 +19,9 @@ use serde_json::Value;
 
 use cctop::config::Config;
 use cctop::git::get_current_branch;
-use cctop::session::{Session, Status, TerminalInfo};
+#[cfg(test)]
+use cctop::session::Status;
+use cctop::session::{HookEvent, Session, TerminalInfo, Transition};
 
 /// Input JSON schema from Claude Code hooks.
 ///
@@ -80,19 +82,6 @@ fn capture_terminal_info() -> TerminalInfo {
         program,
         session_id,
         tty,
-    }
-}
-
-/// Determines the new status based on hook event and notification type.
-fn determine_status(event: &str, notification_type: Option<&str>) -> Status {
-    match event {
-        "Notification" => match notification_type {
-            Some("idle_prompt") => Status::WaitingInput,
-            Some("permission_prompt") => Status::WaitingPermission,
-            _ => Status::Working,
-        },
-        "PermissionRequest" => Status::WaitingPermission,
-        _ => Status::from_hook_event(event),
     }
 }
 
@@ -214,8 +203,11 @@ fn append_hook_log(event: &str, session_id: &str, old_status: &str, new_status: 
 
 /// Handles a hook event by updating or creating the session file.
 fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::error::Error>> {
+    // Parse typed event
+    let event = HookEvent::parse(hook_name, input.notification_type.as_deref());
+
     // SessionEnd is a no-op (PID-based liveness detection handles cleanup)
-    if hook_name == "SessionEnd" {
+    if event == HookEvent::SessionEnd {
         return Ok(());
     }
 
@@ -228,9 +220,6 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
 
     // Capture terminal info
     let terminal = capture_terminal_info();
-
-    // Determine new status
-    let new_status = determine_status(hook_name, input.notification_type.as_deref());
 
     // Load existing session or create new one
     let mut session = if session_path.exists() {
@@ -258,12 +247,10 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
     // Track the old status for logging
     let old_status = session.status.as_str().to_string();
 
-    // Update status: don't let Stop overwrite waiting states.
-    // When Claude finishes responding, Notification(idle_prompt) fires first setting
-    // waiting_input, then Stop fires. Without this guard, Stop would overwrite
-    // waiting_input with idle, causing the user to never see the "needs attention" state.
-    let status_preserved = hook_name == "Stop" && session.status.needs_attention();
-    if !status_preserved {
+    // Use the centralized transition table for status changes.
+    // The Stop guard (preserving waiting states) lives inside Transition::for_event.
+    let status_preserved = Transition::for_event(&session.status, &event).is_none();
+    if let Some(new_status) = Transition::for_event(&session.status, &event) {
         session.status = new_status;
     }
 
@@ -271,14 +258,13 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
     session.branch = branch;
     session.terminal = terminal;
 
-    // Apply state transition clearing logic per hook event
-    match hook_name {
-        "SessionStart" => {
+    // Apply side effects per hook event
+    match event {
+        HookEvent::SessionStart => {
             // Clear transient fields on session start
             session.last_tool = None;
             session.last_tool_detail = None;
             session.notification_message = None;
-            session.context_compacted = false;
 
             // Capture the parent PID (the Claude Code process)
             let pid = get_parent_pid();
@@ -291,7 +277,7 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
             }
         }
 
-        "UserPromptSubmit" => {
+        HookEvent::UserPromptSubmit => {
             // Clear tool/notification state, set prompt
             session.last_tool = None;
             session.last_tool_detail = None;
@@ -302,7 +288,7 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
             }
         }
 
-        "PreToolUse" => {
+        HookEvent::PreToolUse => {
             // Set last_tool and extract detail from tool_input
             if let Some(ref tool_name) = input.tool_name {
                 session.last_tool = Some(tool_name.clone());
@@ -313,7 +299,7 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
             }
         }
 
-        "PermissionRequest" => {
+        HookEvent::PermissionRequest => {
             // Build notification message from title or tool details
             let msg = input.title.or_else(|| {
                 input.tool_name.as_ref().map(|t| {
@@ -332,7 +318,9 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
             session.last_tool_detail = None;
         }
 
-        "Notification" => {
+        HookEvent::NotificationIdle
+        | HookEvent::NotificationPermission
+        | HookEvent::NotificationOther => {
             // Clear stale tool info when transitioning out of Working
             session.last_tool = None;
             session.last_tool_detail = None;
@@ -342,12 +330,11 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
             }
         }
 
-        "PreCompact" => {
-            // Mark that context has been compacted
-            session.context_compacted = true;
+        HookEvent::PreCompact => {
+            // Status transition handled by Transition::for_event above
         }
 
-        "Stop" => {
+        HookEvent::Stop => {
             // Always clear transient tool fields
             session.last_tool = None;
             session.last_tool_detail = None;
@@ -358,7 +345,7 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
             }
         }
 
-        _ => {}
+        HookEvent::PostToolUse | HookEvent::SessionEnd | HookEvent::Unknown => {}
     }
 
     // Log the status transition
@@ -477,63 +464,6 @@ mod tests {
         let input: HookInput = serde_json::from_str(json).unwrap();
         assert_eq!(input.hook_event_name, "Notification");
         assert_eq!(input.notification_type, Some("idle_prompt".to_string()));
-    }
-
-    #[test]
-    fn test_determine_status_session_start() {
-        assert_eq!(determine_status("SessionStart", None), Status::Idle);
-    }
-
-    #[test]
-    fn test_determine_status_user_prompt_submit() {
-        assert_eq!(determine_status("UserPromptSubmit", None), Status::Working);
-    }
-
-    #[test]
-    fn test_determine_status_pre_tool_use() {
-        assert_eq!(determine_status("PreToolUse", None), Status::Working);
-    }
-
-    #[test]
-    fn test_determine_status_post_tool_use() {
-        assert_eq!(determine_status("PostToolUse", None), Status::Working);
-    }
-
-    #[test]
-    fn test_determine_status_stop() {
-        assert_eq!(determine_status("Stop", None), Status::Idle);
-    }
-
-    #[test]
-    fn test_determine_status_notification_idle_prompt() {
-        assert_eq!(
-            determine_status("Notification", Some("idle_prompt")),
-            Status::WaitingInput
-        );
-    }
-
-    #[test]
-    fn test_determine_status_notification_other() {
-        assert_eq!(
-            determine_status("Notification", Some("other")),
-            Status::Working
-        );
-    }
-
-    #[test]
-    fn test_determine_status_permission_request() {
-        assert_eq!(
-            determine_status("PermissionRequest", None),
-            Status::WaitingPermission
-        );
-    }
-
-    #[test]
-    fn test_determine_status_notification_permission_prompt() {
-        assert_eq!(
-            determine_status("Notification", Some("permission_prompt")),
-            Status::WaitingPermission
-        );
     }
 
     #[test]
@@ -961,6 +891,28 @@ mod tests {
         assert_eq!(
             session.notification_message, None,
             "UserPromptSubmit should clear notification_message"
+        );
+    }
+
+    #[test]
+    fn test_precompact_sets_compacting() {
+        use tempfile::tempdir;
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        // Start with a working session
+        write_session_with_status(sessions_dir, "compact-test", Status::Working, None);
+
+        // Fire PreCompact -> should set compacting
+        run_hook_in_dir(sessions_dir, "compact-test", "PreCompact", None);
+
+        let session = Session::from_file(&sessions_dir.join("compact-test.json")).unwrap();
+        assert_eq!(
+            session.status,
+            Status::Compacting,
+            "PreCompact should transition to compacting"
         );
     }
 }

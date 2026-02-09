@@ -44,7 +44,6 @@ struct Session: Codable, Identifiable {
     var lastTool: String?
     var lastToolDetail: String?
     var notificationMessage: String?
-    var contextCompacted: Bool?
 
     var id: String { sessionId }
 
@@ -60,7 +59,6 @@ struct Session: Codable, Identifiable {
         case lastTool = "last_tool"
         case lastToolDetail = "last_tool_detail"
         case notificationMessage = "notification_message"
-        case contextCompacted = "context_compacted"
     }
 
     var relativeTime: String {
@@ -75,6 +73,7 @@ struct Session: Codable, Identifiable {
     var contextLine: String? {
         switch status {
         case .idle: return nil
+        case .compacting: return "Compacting context..."
         case .waitingPermission:
             return notificationMessage ?? "Permission needed"
         case .waitingInput, .needsAttention:

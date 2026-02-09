@@ -9,8 +9,7 @@ extension Session {
         lastPrompt: String? = nil,
         lastTool: String? = nil,
         lastToolDetail: String? = nil,
-        notificationMessage: String? = nil,
-        contextCompacted: Bool = false
+        notificationMessage: String? = nil
     ) -> Session {
         Session(
             sessionId: id,
@@ -25,8 +24,7 @@ extension Session {
             pid: nil,
             lastTool: lastTool,
             lastToolDetail: lastToolDetail,
-            notificationMessage: notificationMessage,
-            contextCompacted: contextCompacted
+            notificationMessage: notificationMessage
         )
     }
 

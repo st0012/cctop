@@ -6,6 +6,7 @@
 //!
 //! Options:
 //!   -l, --list       List sessions as text and exit (no TUI)
+//!   --dot            Print state machine as Graphviz DOT diagram and exit
 //!   --cleanup-stale  Run stale session cleanup and exit
 //!   --print-config   Print the loaded configuration and exit
 //!
@@ -20,7 +21,9 @@
 //! - q or Esc: Quit
 
 use cctop::config::Config;
-use cctop::session::{cleanup_stale_sessions, format_relative_time, Session, Status};
+use cctop::session::{
+    cleanup_stale_sessions, format_relative_time, generate_dot_diagram, Session, Status,
+};
 use cctop::tui::{init_terminal, restore_terminal, App};
 use chrono::Duration;
 use std::env;
@@ -70,9 +73,13 @@ fn main() {
                 println!("Cleaned up {} stale session(s)", cleaned);
                 std::process::exit(0);
             }
+            "--dot" => {
+                println!("{}", generate_dot_diagram());
+                std::process::exit(0);
+            }
             _ => {
                 eprintln!("Unknown argument: {}", arg);
-                eprintln!("Usage: cctop [-l | --list | --cleanup-stale | --print-config | -V | --version]");
+                eprintln!("Usage: cctop [-l | --list | --dot | --cleanup-stale | --print-config | -V | --version]");
                 std::process::exit(1);
             }
         }
@@ -130,7 +137,7 @@ fn list_sessions() {
         let priority = |s: &Status| match s {
             Status::WaitingPermission => 0,
             Status::WaitingInput | Status::NeedsAttention => 1,
-            Status::Working => 2,
+            Status::Working | Status::Compacting => 2,
             Status::Idle => 3,
         };
         priority(&a.status)
@@ -145,6 +152,7 @@ fn list_sessions() {
             Status::WaitingPermission => "WAITING_PERMISSION",
             Status::WaitingInput | Status::NeedsAttention => "WAITING_INPUT",
             Status::Working => "WORKING",
+            Status::Compacting => "COMPACTING",
             Status::Idle => "IDLE",
         };
 

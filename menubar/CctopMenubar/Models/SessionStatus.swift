@@ -3,13 +3,14 @@ import SwiftUI
 enum SessionStatus: String, Codable {
     case idle
     case working
+    case compacting
     case waitingPermission = "waiting_permission"
     case waitingInput = "waiting_input"
     case needsAttention = "needs_attention"
 
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
-        self = SessionStatus(rawValue: raw) ?? .needsAttention
+        self = SessionStatus(rawValue: raw) ?? (raw.contains("waiting") ? .needsAttention : .working)
     }
 
     var needsAttention: Bool {
@@ -24,6 +25,7 @@ enum SessionStatus: String, Codable {
         case .waitingPermission: return .red
         case .waitingInput, .needsAttention: return .orange
         case .working: return .green
+        case .compacting: return .purple
         case .idle: return .gray
         }
     }
@@ -33,6 +35,7 @@ enum SessionStatus: String, Codable {
         case .waitingPermission: return "PERMISSION"
         case .waitingInput, .needsAttention: return "WAITING"
         case .working: return "WORKING"
+        case .compacting: return "COMPACTING"
         case .idle: return "IDLE"
         }
     }
@@ -42,7 +45,8 @@ enum SessionStatus: String, Codable {
         case .waitingPermission: return 0
         case .waitingInput, .needsAttention: return 1
         case .working: return 2
-        case .idle: return 3
+        case .compacting: return 3
+        case .idle: return 4
         }
     }
 }
