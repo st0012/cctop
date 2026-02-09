@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Claude Code session monitor",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "plugins": [
     {
       "name": "cctop",
       "source": "./plugins/cctop",
       "description": "Monitor and navigate Claude Code sessions across workspaces",
-      "version": "0.1.0"
+      "version": "0.2.0"
     }
   ]
 }
