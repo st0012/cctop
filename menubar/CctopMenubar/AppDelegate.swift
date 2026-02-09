@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import KeyboardShortcuts
 import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -7,6 +8,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: FloatingPanel!
     private var sessionManager: SessionManager!
     private var cancellable: AnyCancellable?
+    @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installHookBinaryIfNeeded()
@@ -31,6 +33,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
         panel.contentView = hostingView
 
+        applyAppearance()
+
+        KeyboardShortcuts.onKeyUp(for: .togglePanel) { [weak self] in
+            self?.togglePanel()
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyAppearance()
+        }
+
+        NotificationCenter.default.addObserver(forName: .settingsToggled, object: nil, queue: .main) { [weak self] _ in
+            self?.positionPanel(animate: true)
+        }
+
         cancellable = sessionManager.$sessions
             .receive(on: RunLoop.main)
             .sink { [weak self] sessions in
@@ -45,6 +65,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             positionPanel()
             panel.makeKeyAndOrderFront(nil)
+            // Re-position after SwiftUI layout settles (fittingSize may
+            // include hidden views on the first pass)
+            DispatchQueue.main.async { [weak self] in
+                self?.positionPanel()
+            }
+        }
+    }
+
+    private func applyAppearance() {
+        let mode = AppearanceMode(rawValue: appearanceMode) ?? .system
+        switch mode {
+        case .system:
+            panel?.appearance = nil
+        case .light:
+            panel?.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            panel?.appearance = NSAppearance(named: .darkAqua)
         }
     }
 
@@ -88,7 +125,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func positionPanel() {
+    private func positionPanel(animate: Bool = false) {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
         let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
 
@@ -97,20 +134,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let width = max(fittingSize.width, 320)
         let height = min(fittingSize.height, 600)
-        panel.setFrame(
-            NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4, width: width, height: height),
-            display: true
-        )
+        let newFrame = NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4, width: width, height: height)
+
+        if animate {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(newFrame, display: true)
+            }
+        } else {
+            panel.setFrame(newFrame, display: true)
+        }
     }
 }
 
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         PopupView(sessions: sessionManager.sessions)
             .frame(width: 320)
-            .background(.ultraThinMaterial)
+            .background {
+                if colorScheme == .light {
+                    Color(red: 0.98, green: 0.97, blue: 0.95)
+                } else {
+                    Rectangle().fill(.ultraThinMaterial)
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
