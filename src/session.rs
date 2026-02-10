@@ -393,9 +393,7 @@ impl Session {
 
             match Session::from_file(&path) {
                 Ok(session) => sessions.push(session),
-                Err(e) => {
-                    eprintln!("Warning: Failed to load session file {:?}: {}", path, e);
-                }
+                Err(_) => {} // Skip unparseable session files silently
             }
         }
 
@@ -464,10 +462,6 @@ pub fn cleanup_stale_sessions(sessions_dir: &Path, max_age: Duration) -> Result<
 
     for session in sessions {
         if now.signed_duration_since(session.last_activity) > max_age {
-            eprintln!(
-                "Removing stale session: {} (last activity: {})",
-                session.session_id, session.last_activity
-            );
             session.remove_from_dir(sessions_dir)?;
         }
     }
@@ -643,11 +637,16 @@ impl<'a> GroupedSessions<'a> {
 /// sending a signal. This is a direct syscall with no subprocess overhead,
 /// unlike shelling out to `kill -0`.
 ///
-/// Returns false if the process doesn't exist (ESRCH) or on any other error.
+/// Returns true if the process exists. EPERM means the process exists but we
+/// lack permission to signal it — it's still alive.
+/// Returns false if the process doesn't exist (ESRCH).
 pub fn is_pid_alive(pid: u32) -> bool {
     // SAFETY: kill with signal 0 performs no action on the target process;
     // it only checks whether the process exists and is signalable.
-    unsafe { libc::kill(pid as i32, 0) == 0 }
+    unsafe {
+        libc::kill(pid as i32, 0) == 0
+            || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    }
 }
 
 /// Load all sessions and filter out dead ones based on PID.

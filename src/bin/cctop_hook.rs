@@ -460,12 +460,26 @@ fn main() {
     }
     let hook_name = &args[1];
 
-    // Read JSON from stdin
-    let mut stdin_buf = String::new();
-    if let Err(e) = io::stdin().read_to_string(&mut stdin_buf) {
-        log_error(&format!("{}: failed to read stdin: {}", hook_name, e));
-        process::exit(0);
-    }
+    // Read JSON from stdin with timeout to prevent hanging if stdin never closes
+    let stdin_buf = {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut buf = String::new();
+            let result = io::stdin().read_to_string(&mut buf);
+            let _ = tx.send((buf, result));
+        });
+        match rx.recv_timeout(std::time::Duration::from_secs(5)) {
+            Ok((buf, Ok(_))) => buf,
+            Ok((_, Err(e))) => {
+                log_error(&format!("{}: failed to read stdin: {}", hook_name, e));
+                process::exit(0);
+            }
+            Err(_) => {
+                log_error(&format!("{}: stdin read timed out after 5s", hook_name));
+                process::exit(0);
+            }
+        }
+    };
 
     // Parse JSON input
     let input: HookInput = match serde_json::from_str(&stdin_buf) {
