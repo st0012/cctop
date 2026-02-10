@@ -3,6 +3,7 @@ import SwiftUI
 struct StatusChip: View {
     let count: Int
     let color: Color
+    var categoryLabel: String = ""
 
     var body: some View {
         if count > 0 {
@@ -15,6 +16,8 @@ struct StatusChip: View {
             .background(color.opacity(0.1))
             .clipShape(Capsule())
             .overlay(Capsule().stroke(color.opacity(0.25), lineWidth: 1))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(count) \(categoryLabel)")
         }
     }
 }

@@ -24,9 +24,9 @@ struct HeaderView: View {
                 .overlay(Text("C").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))
             Text("cctop").font(.system(size: 14, weight: .semibold))
             Spacer()
-            StatusChip(count: counts.attention, color: Color.amber)
-            StatusChip(count: counts.working, color: .green)
-            StatusChip(count: counts.idle, color: .gray)
+            StatusChip(count: counts.attention, color: Color.amber, categoryLabel: "need attention")
+            StatusChip(count: counts.working, color: .green, categoryLabel: "working")
+            StatusChip(count: counts.idle, color: .gray, categoryLabel: "idle")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

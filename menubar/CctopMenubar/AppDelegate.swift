@@ -66,6 +66,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             .sink { [weak self] sessions in
                 let count = sessions.filter { $0.status.needsAttention }.count
                 self?.statusItem.button?.title = count > 0 ? "\(count)" : ""
+                let a11yLabel = count > 0
+                    ? "cctop, \(count) session\(count == 1 ? "" : "s") need attention"
+                    : "cctop, \(sessions.count) session\(sessions.count == 1 ? "" : "s")"
+                self?.statusItem.button?.setAccessibilityLabel(a11yLabel)
                 if self?.panel.isVisible == true {
                     // Defer positioning so SwiftUI can finish its layout pass
                     // before we read fittingSize

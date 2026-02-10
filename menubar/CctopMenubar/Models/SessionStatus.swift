@@ -40,6 +40,17 @@ enum SessionStatus: String, Codable {
         }
     }
 
+    var accessibilityDescription: String {
+        switch self {
+        case .waitingPermission: return "waiting for permission"
+        case .waitingInput: return "waiting for input"
+        case .needsAttention: return "needs attention"
+        case .working: return "working"
+        case .compacting: return "compacting context"
+        case .idle: return "idle"
+        }
+    }
+
     var sortOrder: Int {
         switch self {
         case .waitingPermission: return 0
