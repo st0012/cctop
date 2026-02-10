@@ -714,7 +714,7 @@ fn load_all_sessions(skip_liveness_check: bool) -> Result<Vec<Session>> {
                         let _ = fs::remove_file(&path);
                     }
                 }
-                Err(e) => eprintln!("Failed to load {}: {}", path.display(), e),
+                Err(_) => {} // Silently skip unparseable session files
             }
         }
     }
