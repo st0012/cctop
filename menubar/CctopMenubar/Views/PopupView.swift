@@ -19,7 +19,7 @@ struct PopupView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 44)
             } else {
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 4) {
                         ForEach(sortedSessions) { session in
                             SessionCardView(session: session, onReset: resetSession)
