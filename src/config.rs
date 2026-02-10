@@ -91,14 +91,20 @@ impl Config {
     ///
     /// Creates the directory if it doesn't exist.
     /// Respects `CCTOP_SESSIONS_DIR` env var override for test isolation.
+    ///
+    /// Prints an error and exits if the home directory cannot be determined
+    /// (e.g., `$HOME` is unset). This avoids panicking with a raw stack trace.
     pub fn sessions_dir() -> PathBuf {
         let sessions_dir = if let Ok(dir) = std::env::var("CCTOP_SESSIONS_DIR") {
             PathBuf::from(dir)
         } else {
-            dirs::home_dir()
-                .expect("Could not determine home directory")
-                .join(".cctop")
-                .join("sessions")
+            match dirs::home_dir() {
+                Some(home) => home.join(".cctop").join("sessions"),
+                None => {
+                    eprintln!("Error: Could not determine home directory. Is $HOME set?");
+                    std::process::exit(1);
+                }
+            }
         };
 
         if !sessions_dir.exists() {
