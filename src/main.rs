@@ -50,6 +50,10 @@ struct Cli {
     /// Print the loaded configuration and exit
     #[arg(long)]
     print_config: bool,
+
+    /// Check hook delivery chain health and exit
+    #[arg(long)]
+    check: bool,
 }
 
 fn main() {
@@ -59,6 +63,11 @@ fn main() {
     let demo_mode = std::env::var("CCTOP_DEMO")
         .map(|v| v == "1")
         .unwrap_or(false);
+
+    if cli.check {
+        run_health_check();
+        return;
+    }
 
     if cli.print_config {
         let config = Config::load();
@@ -230,5 +239,154 @@ fn reset_session(id_prefix: &str) {
             }
             std::process::exit(1);
         }
+    }
+}
+
+/// Run health checks on the hook delivery chain.
+fn run_health_check() {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::PathBuf;
+
+    let home = dirs::home_dir().unwrap_or_default();
+    let mut all_ok = true;
+
+    // 1. Check cctop-hook binary (same search order as run-hook.sh)
+    let hook_paths = [
+        home.join(".cargo/bin/cctop-hook"),
+        home.join(".local/bin/cctop-hook"),
+        PathBuf::from("/Applications/cctop.app/Contents/MacOS/cctop-hook"),
+        home.join("Applications/cctop.app/Contents/MacOS/cctop-hook"),
+        PathBuf::from("/opt/homebrew/bin/cctop-hook"),
+        PathBuf::from("/usr/local/bin/cctop-hook"),
+    ];
+    let found_hook = hook_paths.iter().find(|p| p.is_file());
+    match found_hook {
+        Some(path) => {
+            let executable = fs::metadata(path)
+                .map(|m| m.permissions().mode() & 0o111 != 0)
+                .unwrap_or(false);
+            if executable {
+                println!("cctop-hook binary    OK  ({})", path.display());
+            } else {
+                println!(
+                    "cctop-hook binary    FAIL  (found {} but not executable)",
+                    path.display()
+                );
+                all_ok = false;
+            }
+        }
+        None => {
+            // Fall back to PATH check
+            let in_path = std::process::Command::new("which")
+                .arg("cctop-hook")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+            if in_path {
+                println!("cctop-hook binary    OK  (found in PATH)");
+            } else {
+                println!("cctop-hook binary    FAIL  (not found in any expected location)");
+                println!("                     hint: install the app to /Applications/ or run: cargo install cctop");
+                all_ok = false;
+            }
+        }
+    }
+
+    // 2. Check plugin marketplace (stored in known_marketplaces.json)
+    let known_marketplaces = home.join(".claude/plugins/known_marketplaces.json");
+    let marketplace_found = fs::read_to_string(&known_marketplaces)
+        .map(|c| c.contains("\"cctop\""))
+        .unwrap_or(false);
+    if marketplace_found {
+        println!("Plugin marketplace    OK");
+    } else {
+        println!("Plugin marketplace    FAIL  (cctop marketplace not found)");
+        println!("                     hint: run: claude plugin marketplace add st0012/cctop");
+        all_ok = false;
+    }
+
+    // 3. Check plugin installed (ground truth: installed_plugins.json)
+    let installed_plugins = home.join(".claude/plugins/installed_plugins.json");
+    let plugin_installed = fs::read_to_string(&installed_plugins)
+        .map(|c| c.contains("\"cctop@cctop\""))
+        .unwrap_or(false);
+    if plugin_installed {
+        println!("Plugin installed      OK");
+    } else {
+        println!("Plugin installed      FAIL  (cctop not found in installed plugins)");
+        println!("                     hint: run: claude plugin install cctop");
+        all_ok = false;
+    }
+
+    // 4. Check sessions directory
+    let sessions_dir = Config::sessions_dir();
+    if sessions_dir.is_dir() {
+        let test_file = sessions_dir.join(".write-test");
+        if fs::write(&test_file, "").is_ok() {
+            let _ = fs::remove_file(&test_file);
+            println!("Sessions directory    OK  ({})", sessions_dir.display());
+        } else {
+            println!(
+                "Sessions directory    FAIL  ({} exists but not writable)",
+                sessions_dir.display()
+            );
+            all_ok = false;
+        }
+    } else {
+        println!(
+            "Sessions directory    FAIL  ({} does not exist)",
+            sessions_dir.display()
+        );
+        all_ok = false;
+    }
+
+    // 5. Check recent hook activity
+    let logs_dir = home.join(".cctop/logs");
+    let recent_activity = if logs_dir.is_dir() {
+        fs::read_dir(&logs_dir)
+            .ok()
+            .and_then(|entries| {
+                entries
+                    .flatten()
+                    .filter(|e| {
+                        let name = e.file_name();
+                        let name = name.to_string_lossy();
+                        name.ends_with(".log") && !name.starts_with('_')
+                    })
+                    .filter_map(|e| e.metadata().ok().and_then(|m| m.modified().ok()))
+                    .max()
+            })
+            .and_then(|latest| latest.elapsed().ok())
+    } else {
+        None
+    };
+    match recent_activity {
+        Some(elapsed) if elapsed.as_secs() < 300 => {
+            let secs = elapsed.as_secs();
+            println!("Recent hook activity OK  ({}s ago)", secs);
+        }
+        Some(elapsed) => {
+            let mins = elapsed.as_secs() / 60;
+            println!("Recent hook activity WARN  (last activity {}m ago)", mins);
+            println!(
+                "                     hint: start a Claude Code session to generate hook events"
+            );
+        }
+        None => {
+            println!("Recent hook activity WARN  (no hook logs found)");
+            println!(
+                "                     hint: start a Claude Code session to generate hook events"
+            );
+        }
+    }
+
+    // Summary
+    println!();
+    if all_ok {
+        println!("All checks passed.");
+    } else {
+        println!("Some checks failed. Fix the issues above and re-run: cctop --check");
+        std::process::exit(1);
     }
 }
