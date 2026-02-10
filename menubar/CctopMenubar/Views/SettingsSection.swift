@@ -38,6 +38,7 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
 
 struct SettingsSection: View {
     @AppStorage("appearanceMode") private var appearanceMode = "system"
+    @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
@@ -89,6 +90,24 @@ struct SettingsSection: View {
                     }
                 } catch {
                     launchAtLogin = SMAppService.mainApp.status == .enabled
+                }
+            }
+
+            Divider().padding(.horizontal, 14)
+
+            Toggle(isOn: $notificationsEnabled) {
+                Text("Notifications")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 12)
+            .onChange(of: notificationsEnabled) { newValue in
+                if newValue {
+                    SessionManager.requestNotificationPermission()
                 }
             }
         }
