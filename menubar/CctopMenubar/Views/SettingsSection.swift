@@ -19,17 +19,18 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
                         .font(.system(size: 12, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 5)
-                        .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                        .foregroundStyle(isSelected ? Color.segmentActiveText : Color.segmentText)
                         .background(
                             RoundedRectangle(cornerRadius: 5)
-                                .fill(isSelected ? Color.orange : Color.clear)
+                                .fill(isSelected ? Color.amber : Color.clear)
                         )
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(2)
-        .background(Color.primary.opacity(0.06))
+        .background(Color.segmentBackground)
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
@@ -65,11 +66,11 @@ struct SettingsSection: View {
             .padding(.top, 10)
             .padding(.bottom, 12)
         }
-        .background(Color.primary.opacity(0.03))
+        .background(Color.settingsBackground)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                .stroke(Color.settingsBorder, lineWidth: 1)
         )
         .padding(.horizontal, 8)
     }

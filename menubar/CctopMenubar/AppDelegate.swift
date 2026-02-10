@@ -157,9 +157,9 @@ private struct PanelContentView: View {
             .frame(width: 320)
             .background {
                 if colorScheme == .light {
-                    Color(red: 0.98, green: 0.97, blue: 0.95)
+                    Color(red: 250 / 255, green: 248 / 255, blue: 245 / 255) // #faf8f5
                 } else {
-                    Rectangle().fill(.ultraThinMaterial)
+                    Color(red: 28 / 255, green: 25 / 255, blue: 22 / 255) // #1c1916
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 10))
