@@ -1,26 +1,6 @@
 //! cctop - Claude Code Session Monitor
 //!
 //! A TUI for monitoring Claude Code sessions across workspaces.
-//!
-//! Usage: cctop [OPTIONS]
-//!
-//! Options:
-//!   -l, --list             List sessions as text and exit (no TUI)
-//!   --reset <session-id>   Reset a session's status to idle
-//!   --dot                  Print state machine as Graphviz DOT diagram and exit
-//!   --cleanup-stale        Run stale session cleanup and exit
-//!   --print-config         Print the loaded configuration and exit
-//!
-//! Environment variables:
-//!   CCTOP_DEMO=1     Skip session liveness checks (for demos with mock data)
-//!   -V, --version    Print version and exit
-//!
-//! Keyboard shortcuts:
-//! - Up/Down or k/j: Navigate sessions
-//! - Enter: Jump to the selected session's terminal
-//! - r: Refresh session list
-//! - R: Reset selected session to idle
-//! - q or Esc: Quit
 
 use cctop::config::Config;
 use cctop::session::{
@@ -29,76 +9,103 @@ use cctop::session::{
 };
 use cctop::tui::{init_terminal, restore_terminal, App};
 use chrono::Duration;
-use std::env;
+use clap::Parser;
+
+/// TUI for monitoring Claude Code sessions across workspaces.
+#[derive(Parser)]
+#[command(
+    name = "cctop",
+    version,
+    about,
+    long_about = "\
+TUI for monitoring Claude Code sessions across workspaces.\n\n\
+Run without arguments to launch the interactive TUI.\n\n\
+Keyboard shortcuts (TUI mode):\n  \
+Up/Down or k/j    Navigate sessions\n  \
+Right/Left or l/h Detail/back view\n  \
+Enter             Jump to session's terminal\n  \
+r                 Refresh session list\n  \
+R                 Reset selected session to idle\n  \
+q or Esc          Quit\n\n\
+Environment variables:\n  \
+CCTOP_DEMO=1      Skip session liveness checks (for demos)"
+)]
+struct Cli {
+    /// List sessions as text and exit (no TUI)
+    #[arg(short, long)]
+    list: bool,
+
+    /// Reset a session's status to idle (by session ID prefix)
+    #[arg(long, value_name = "SESSION_ID")]
+    reset: Option<String>,
+
+    /// Print state machine as Graphviz DOT diagram and exit
+    #[arg(long)]
+    dot: bool,
+
+    /// Run stale session cleanup and exit
+    #[arg(long)]
+    cleanup_stale: bool,
+
+    /// Print the loaded configuration and exit
+    #[arg(long)]
+    print_config: bool,
+}
 
 fn main() {
-    // Parse command line arguments
-    let args: Vec<String> = env::args().collect();
+    let cli = Cli::parse();
 
     // Check for demo mode via environment variable
-    let demo_mode = env::var("CCTOP_DEMO").map(|v| v == "1").unwrap_or(false);
+    let demo_mode = std::env::var("CCTOP_DEMO")
+        .map(|v| v == "1")
+        .unwrap_or(false);
 
-    if let Some(arg) = args.get(1) {
-        match arg.as_str() {
-            "--version" | "-V" => {
-                println!("cctop {}", env!("CARGO_PKG_VERSION"));
-                std::process::exit(0);
-            }
-            "--print-config" => {
-                let config = Config::load();
-                println!("{:#?}", config);
-                std::process::exit(0);
-            }
-            "--list" | "-l" => {
-                list_sessions();
-                std::process::exit(0);
-            }
-            "--cleanup-stale" => {
-                let sessions_dir = Config::sessions_dir();
-
-                // Count sessions before cleanup
-                let before_count = Session::load_all(&sessions_dir)
-                    .map(|s| s.len())
-                    .unwrap_or(0);
-
-                // Run cleanup (24 hour max age)
-                if let Err(e) = cleanup_stale_sessions(&sessions_dir, Duration::hours(24)) {
-                    eprintln!("Error during cleanup: {}", e);
-                    std::process::exit(1);
-                }
-
-                // Count sessions after cleanup
-                let after_count = Session::load_all(&sessions_dir)
-                    .map(|s| s.len())
-                    .unwrap_or(0);
-
-                let cleaned = before_count.saturating_sub(after_count);
-                println!("Cleaned up {} stale session(s)", cleaned);
-                std::process::exit(0);
-            }
-            "--dot" => {
-                println!("{}", generate_dot_diagram());
-                std::process::exit(0);
-            }
-            "--reset" => {
-                let id_prefix = match args.get(2) {
-                    Some(id) => id,
-                    None => {
-                        eprintln!("Usage: cctop --reset <session-id-prefix>");
-                        eprintln!("Use `cctop --list` to see session IDs.");
-                        std::process::exit(1);
-                    }
-                };
-                reset_session(id_prefix);
-                std::process::exit(0);
-            }
-            _ => {
-                eprintln!("Unknown argument: {}", arg);
-                eprintln!("Usage: cctop [-l | --list | --reset <id> | --dot | --cleanup-stale | --print-config | -V | --version]");
-                std::process::exit(1);
-            }
-        }
+    if cli.print_config {
+        let config = Config::load();
+        println!("{:#?}", config);
+        return;
     }
+
+    if cli.list {
+        list_sessions();
+        return;
+    }
+
+    if cli.cleanup_stale {
+        let sessions_dir = Config::sessions_dir();
+
+        // Count sessions before cleanup
+        let before_count = Session::load_all(&sessions_dir)
+            .map(|s| s.len())
+            .unwrap_or(0);
+
+        // Run cleanup (24 hour max age)
+        if let Err(e) = cleanup_stale_sessions(&sessions_dir, Duration::hours(24)) {
+            eprintln!("Error during cleanup: {}", e);
+            std::process::exit(1);
+        }
+
+        // Count sessions after cleanup
+        let after_count = Session::load_all(&sessions_dir)
+            .map(|s| s.len())
+            .unwrap_or(0);
+
+        let cleaned = before_count.saturating_sub(after_count);
+        println!("Cleaned up {} stale session(s)", cleaned);
+        return;
+    }
+
+    if cli.dot {
+        println!("{}", generate_dot_diagram());
+        return;
+    }
+
+    if let Some(id_prefix) = cli.reset {
+        reset_session(&id_prefix);
+        return;
+    }
+
+    // Default: launch the TUI
 
     // Load configuration
     let config = Config::load();

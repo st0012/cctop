@@ -436,6 +436,24 @@ fn main() {
         process::exit(0);
     }
 
+    // Handle --help flag
+    if args.len() >= 2 && (args[1] == "--help" || args[1] == "-h") {
+        println!("cctop-hook {}", env!("CARGO_PKG_VERSION"));
+        println!("Claude Code hook handler for cctop session tracking.\n");
+        println!("This binary is called by Claude Code hooks via the cctop plugin.");
+        println!("It reads hook event JSON from stdin and updates session files");
+        println!("in ~/.cctop/sessions/.\n");
+        println!("USAGE:");
+        println!("    cctop-hook <HOOK_NAME>\n");
+        println!("HOOK NAMES:");
+        println!("    SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,");
+        println!("    Stop, Notification, PermissionRequest, PreCompact, SessionEnd\n");
+        println!("OPTIONS:");
+        println!("    -h, --help       Print this help message");
+        println!("    -V, --version    Print version");
+        process::exit(0);
+    }
+
     if args.len() < 2 {
         log_error("missing hook name argument");
         process::exit(0); // Exit 0 to not block Claude Code
