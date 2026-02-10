@@ -20,10 +20,14 @@ Type "cctop"
 Enter
 Sleep 2s
 
-# Show the initial view with all 5 sessions across 3 categories
-# NEEDS ATTENTION: api-server
-# WORKING: frontend-app, data-pipeline
-# IDLE: docs-site, infra-terraform
+# Show the initial view with all 5 sessions across 4 categories:
+# WAITING FOR PERMISSION: api-server (Allow Bash: npm test)
+# WAITING FOR INPUT: frontend-app (asking a question)
+# WORKING: data-pipeline (Running: cargo test), docs-site (Editing auth.ts)
+# IDLE: infra-terraform
+
+# Pause to let the viewer see the full layout
+Sleep 2s
 
 # Navigate down through sessions
 Down
@@ -36,7 +40,9 @@ Down
 Sleep 600ms
 
 # Now at infra-terraform (last session)
-# Navigate back up
+# Navigate back up to the top
+Up
+Sleep 600ms
 Up
 Sleep 600ms
 Up
@@ -44,10 +50,13 @@ Sleep 600ms
 Up
 Sleep 600ms
 
-# Back at frontend-app
-# Refresh
-Type "r"
-Sleep 800ms
+# Back at api-server - show detail view
+Right
+Sleep 2s
+
+# Return to list
+Left
+Sleep 1s
 
 # Quit
 Type "q"

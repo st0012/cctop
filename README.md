@@ -1,19 +1,16 @@
 # cctop
 
 [![CI](https://github.com/st0012/cctop/actions/workflows/ci.yml/badge.svg)](https://github.com/st0012/cctop/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/st0012/cctop)](https://github.com/st0012/cctop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A macOS menubar app for monitoring Claude Code sessions across workspaces.
+**Know which Claude Code sessions need you — without switching tabs.**
 
-See all your Claude Code sessions at a glance — which are working, which need your attention, and which are idle. Click any session to jump straight to it.
+If you run multiple Claude Code sessions across different projects, you know the pain: constantly cycling through terminal tabs to check which ones are waiting for input, which need permission, and which are still working. cctop sits in your macOS menubar and shows you the status of every session at a glance — so you only switch when something actually needs you.
 
 <p align="center">
-  <img src="docs/menubar.png" alt="cctop menubar popup" width="320">
+  <img src="docs/menubar.png" alt="cctop menubar popup" width="420">
 </p>
-
-## Why cctop?
-
-When you run multiple Claude Code sessions across different projects, it's hard to know which ones need your attention. You end up cycling through terminal tabs checking on each one. cctop sits in your menubar and shows you the status of every session at a glance — so you only switch when something actually needs you.
 
 ## Features
 
@@ -52,10 +49,11 @@ open /Applications/cctop.app
 The plugin registers hooks so Claude Code reports session activity to cctop.
 
 ```bash
-claude plugin add st0012/cctop
+claude plugin marketplace add st0012/cctop
+claude plugin install cctop
 ```
 
-Restart any existing Claude Code sessions after installing the plugin.
+Restart any running Claude Code sessions to activate hooks (type `/exit` then reopen).
 
 ### Build from source
 
@@ -116,6 +114,37 @@ cctop --list       # List sessions as text (no TUI)
 | r | Refresh |
 | R | Reset selected session to idle |
 | q, Esc, Ctrl+C | Quit |
+
+## Uninstall
+
+```bash
+# Remove the menubar app
+rm -rf /Applications/cctop.app
+
+# Remove the Claude Code plugin
+claude plugin remove cctop
+claude plugin marketplace remove cctop
+
+# Remove session data and config
+rm -rf ~/.cctop
+```
+
+If installed via Homebrew: `brew uninstall --cask cctop`
+
+## Privacy
+
+All data stays local. cctop stores session metadata (status, project name, timestamps) in `~/.cctop/sessions/`. Nothing is sent to any server.
+
+## FAQ
+
+**Does cctop slow down Claude Code?**
+No. The hook runs as a separate process that writes a small JSON file and exits immediately. There is no measurable impact on Claude Code performance.
+
+**Does it work with Cursor / VS Code / other editors?**
+Yes. cctop monitors Claude Code sessions regardless of which editor you use. The "jump to session" feature supports VS Code and Cursor out of the box — configure others in `~/.cctop/config.toml`.
+
+**Does it work on Linux?**
+The TUI (`cctop`) works on Linux. The menubar app is macOS-only.
 
 ## License
 
