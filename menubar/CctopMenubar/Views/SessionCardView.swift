@@ -17,6 +17,7 @@ struct SessionCardView: View {
                 .fill(session.status.color)
                 .frame(width: 9, height: 9)
                 .opacity(session.status.needsAttention && !pulsing ? 0.6 : 1.0)
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -57,6 +58,7 @@ struct SessionCardView: View {
                     }
                     .buttonStyle(.plain)
                     .onHover { resetHovered = $0 }
+                    .accessibilityLabel("Reset \(session.projectName) to idle")
                     .help("Reset status to idle")
                 } else {
                     Text(session.relativeTime)
@@ -80,8 +82,18 @@ struct SessionCardView: View {
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(isHovered ? 0.1 : 0.06), lineWidth: 1))
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(cardAccessibilityLabel)
         .onAppear { updatePulsing(for: session.status) }
         .onChange(of: session.status) { updatePulsing(for: $0) }
+    }
+
+    private var cardAccessibilityLabel: String {
+        var parts = [session.projectName, "on branch", session.branch, session.status.accessibilityDescription]
+        if let context = session.contextLine {
+            parts.append(context)
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func updatePulsing(for status: SessionStatus) {
