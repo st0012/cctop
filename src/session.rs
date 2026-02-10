@@ -639,17 +639,15 @@ impl<'a> GroupedSessions<'a> {
 
 /// Check if a process with the given PID is still alive.
 ///
-/// Uses `kill -0` which checks if the process exists without sending a signal.
-/// Returns false if the process doesn't exist or we don't have permission to signal it.
+/// Uses `kill(pid, 0)` via libc, which checks if the process exists without
+/// sending a signal. This is a direct syscall with no subprocess overhead,
+/// unlike shelling out to `kill -0`.
+///
+/// Returns false if the process doesn't exist (ESRCH) or on any other error.
 pub fn is_pid_alive(pid: u32) -> bool {
-    use std::process::Command;
-
-    // kill -0 checks if process exists without sending a signal
-    Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+    // SAFETY: kill with signal 0 performs no action on the target process;
+    // it only checks whether the process exists and is signalable.
+    unsafe { libc::kill(pid as i32, 0) == 0 }
 }
 
 /// Load all sessions and filter out dead ones based on PID.
