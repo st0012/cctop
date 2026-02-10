@@ -23,7 +23,7 @@ enum SessionStatus: String, Codable {
     var color: Color {
         switch self {
         case .waitingPermission: return .red
-        case .waitingInput, .needsAttention: return .orange
+        case .waitingInput, .needsAttention: return Color.amber
         case .working: return .green
         case .compacting: return .purple
         case .idle: return .gray

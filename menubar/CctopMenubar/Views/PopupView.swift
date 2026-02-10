@@ -47,7 +47,7 @@ struct PopupView: View {
                 } label: {
                     Image(systemName: "gearshape")
                         .font(.system(size: 14))
-                        .foregroundStyle(showSettings ? Color.orange : Color.secondary)
+                        .foregroundStyle(showSettings ? Color.amber : Color.secondary)
                         .frame(width: 28, height: 28)
                         .background(
                             RoundedRectangle(cornerRadius: 4)

@@ -19,12 +19,12 @@ struct HeaderView: View {
         let counts = statusCounts
         HStack {
             RoundedRectangle(cornerRadius: 6)
-                .fill(.orange)
+                .fill(Color.amber)
                 .frame(width: 20, height: 20)
                 .overlay(Text("C").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))
             Text("cctop").font(.system(size: 14, weight: .semibold))
             Spacer()
-            StatusChip(count: counts.attention, color: .orange)
+            StatusChip(count: counts.attention, color: Color.amber)
             StatusChip(count: counts.working, color: .green)
             StatusChip(count: counts.idle, color: .gray)
         }
