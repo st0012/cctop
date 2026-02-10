@@ -1,7 +1,11 @@
 import AppKit
 
 func focusTerminal(session: Session) {
-    let program = session.terminal.program.lowercased()
+    guard let terminal = session.terminal else {
+        NSWorkspace.shared.open(URL(fileURLWithPath: session.projectPath))
+        return
+    }
+    let program = terminal.program.lowercased()
 
     if program.contains("code") || program.contains("cursor") {
         let cli = program.contains("cursor") ? "cursor" : "code"
