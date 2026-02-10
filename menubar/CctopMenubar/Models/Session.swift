@@ -53,7 +53,7 @@ struct Session: Codable, Identifiable {
     var lastPrompt: String?
     var lastActivity: Date
     var startedAt: Date
-    var terminal: TerminalInfo
+    var terminal: TerminalInfo?
     var pid: UInt32?
     var lastTool: String?
     var lastToolDetail: String?
