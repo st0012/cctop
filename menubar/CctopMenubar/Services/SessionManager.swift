@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 import os.log
 
 private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
@@ -28,6 +29,8 @@ class SessionManager: ObservableObject {
             return
         }
 
+        let oldStatuses = Dictionary(uniqueKeysWithValues: sessions.map { ($0.sessionId, $0.status) })
+
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
         let allDecoded = jsonFiles
             .compactMap { url -> (URL, Session)? in
@@ -51,6 +54,15 @@ class SessionManager: ObservableObject {
         if sessions.count != oldCount {
             logger.info("loadSessions: session count changed \(oldCount) -> \(self.sessions.count)")
         }
+
+        if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
+            for session in sessions {
+                let oldStatus = oldStatuses[session.sessionId]
+                if session.status.needsAttention && oldStatus != nil && !(oldStatus!.needsAttention) {
+                    sendNotification(for: session)
+                }
+            }
+        }
         for (url, session) in dead {
             logger.error("loadSessions: removing dead session \(session.sessionId, privacy: .public) project=\(session.projectName, privacy: .public) pid=\(session.pid.map(String.init) ?? "nil", privacy: .public)")
             try? FileManager.default.removeItem(at: url)
@@ -70,6 +82,41 @@ class SessionManager: ObservableObject {
         guard let encoded = try? JSONEncoder.sessionEncoder.encode(mutable) else { return }
         try? encoded.write(to: url, options: .atomic)
         loadSessions()
+    }
+
+    static func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error {
+                logger.error("Notification permission error: \(error, privacy: .public)")
+            }
+            logger.info("Notification permission granted: \(granted, privacy: .public)")
+        }
+    }
+
+    private func sendNotification(for session: Session) {
+        let content = UNMutableNotificationContent()
+        content.title = session.projectName
+        switch session.status {
+        case .waitingPermission:
+            content.body = session.notificationMessage ?? "Permission needed"
+        case .waitingInput:
+            content.body = session.lastPrompt.map { "Waiting: \(String($0.prefix(80)))" } ?? "Waiting for input"
+        default:
+            content.body = "Needs attention"
+        }
+        content.sound = .default
+        content.userInfo = ["sessionId": session.sessionId]
+
+        let request = UNNotificationRequest(
+            identifier: "session-\(session.sessionId)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                logger.error("Failed to send notification: \(error, privacy: .public)")
+            }
+        }
     }
 
     private func startWatching() {

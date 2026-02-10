@@ -2,8 +2,9 @@ import AppKit
 import Combine
 import KeyboardShortcuts
 import SwiftUI
+import UserNotifications
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private var panel: FloatingPanel!
     private var sessionManager: SessionManager!
@@ -11,7 +12,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
         installHookBinaryIfNeeded()
+
+        UNUserNotificationCenter.current().delegate = self
+        if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
+            SessionManager.requestNotificationPermission()
+        }
+
         sessionManager = SessionManager()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -92,6 +100,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case .dark:
             panel?.appearance = NSAppearance(named: .darkAqua)
         }
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let sessionId = response.notification.request.content.userInfo["sessionId"] as? String
+        DispatchQueue.main.async { [weak self] in
+            if let session = self?.sessionManager.sessions.first(where: { $0.sessionId == sessionId }) {
+                focusTerminal(session: session)
+            }
+        }
+        completionHandler()
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 
     /// Symlinks cctop-hook from the app bundle into ~/.local/bin/ so Claude Code hooks can find it.
