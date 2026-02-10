@@ -21,7 +21,9 @@ use cctop::config::Config;
 use cctop::git::get_current_branch;
 #[cfg(test)]
 use cctop::session::Status;
-use cctop::session::{sanitize_session_id, HookEvent, Session, TerminalInfo, Transition};
+use cctop::session::{
+    is_pid_alive, sanitize_session_id, HookEvent, Session, TerminalInfo, Transition,
+};
 
 /// Input JSON schema from Claude Code hooks.
 ///
@@ -148,10 +150,14 @@ fn cleanup_sessions_with_pid(sessions_dir: &Path, pid: u32, current_session_id: 
     }
 }
 
-/// Clean up older session files for the same project path.
+/// Maximum age for sessions without a PID before they are cleaned up.
+const NO_PID_MAX_AGE: chrono::Duration = chrono::Duration::hours(24);
+
+/// Clean up dead session files for the same project path.
 ///
-/// When a new session starts for a project that already has sessions,
-/// remove the older ones to avoid duplicates in the UI.
+/// Only removes sessions whose PID is dead (process no longer running).
+/// Sessions with no PID are cleaned up only if their last activity is older
+/// than 24 hours. Sessions with a live PID are always preserved.
 fn cleanup_sessions_for_project(sessions_dir: &Path, project_path: &str, current_session_id: &str) {
     use std::fs;
 
@@ -159,12 +165,26 @@ fn cleanup_sessions_for_project(sessions_dir: &Path, project_path: &str, current
         return;
     };
 
+    let now = Utc::now();
+
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().map(|e| e == "json").unwrap_or(false) {
             if let Ok(session) = Session::from_file(&path) {
-                if session.project_path == project_path && session.session_id != current_session_id
+                if session.project_path != project_path || session.session_id == current_session_id
                 {
+                    continue;
+                }
+
+                let should_remove = match session.pid {
+                    Some(pid) => !is_pid_alive(pid),
+                    None => {
+                        // No PID: only clean up if older than threshold
+                        now.signed_duration_since(session.last_activity) > NO_PID_MAX_AGE
+                    }
+                };
+
+                if should_remove {
                     let _ = fs::remove_file(&path);
                     cleanup_session_log(&session.session_id);
                 }
@@ -681,23 +701,24 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let sessions_dir = temp_dir.path();
 
-        // Old session for same project (different PID, no PID, etc.)
+        // Old session for same project with dead PID (should be removed)
         let mut old_session = Session::new(
             "old-session".to_string(),
             "/nonexistent/test/project".to_string(),
             "main".to_string(),
             TerminalInfo::default(),
         );
-        old_session.pid = Some(11111);
+        old_session.pid = Some(999999); // dead PID
         old_session.write_to_dir(sessions_dir).unwrap();
 
-        // Another old session with no PID
-        let no_pid_session = Session::new(
+        // Another old session with no PID and old timestamp (should be removed)
+        let mut no_pid_session = Session::new(
             "no-pid-session".to_string(),
             "/nonexistent/test/project".to_string(),
             "main".to_string(),
             TerminalInfo::default(),
         );
+        no_pid_session.last_activity = Utc::now() - chrono::Duration::hours(25);
         no_pid_session.write_to_dir(sessions_dir).unwrap();
 
         // Session for a different project (should not be removed)
@@ -726,8 +747,9 @@ mod tests {
 
         cleanup_sessions_for_project(sessions_dir, "/nonexistent/test/project", "new-session");
 
-        // Old sessions for the same project should be removed
+        // Dead PID session should be removed
         assert!(!sessions_dir.join("old-session.json").exists());
+        // Old no-PID session should be removed
         assert!(!sessions_dir.join("no-pid-session.json").exists());
         // New session should remain
         assert!(sessions_dir.join("new-session.json").exists());
@@ -945,6 +967,173 @@ mod tests {
             session.status,
             Status::Compacting,
             "PreCompact should transition to compacting"
+        );
+    }
+
+    #[test]
+    fn test_cleanup_preserves_live_sessions_same_project() {
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        let current_pid = std::process::id();
+
+        // Two sessions for the same project, both with our (live) PID
+        let mut session1 = Session::new(
+            "live-session-1".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        session1.pid = Some(current_pid);
+        session1.write_to_dir(sessions_dir).unwrap();
+
+        let mut session2 = Session::new(
+            "live-session-2".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        session2.pid = Some(current_pid);
+        session2.write_to_dir(sessions_dir).unwrap();
+
+        // Cleanup from the perspective of session2
+        cleanup_sessions_for_project(sessions_dir, "/nonexistent/test/project", "live-session-2");
+
+        // Both should still exist because the PID is alive
+        assert!(
+            sessions_dir.join("live-session-1.json").exists(),
+            "Live session should NOT be deleted"
+        );
+        assert!(
+            sessions_dir.join("live-session-2.json").exists(),
+            "Current session should NOT be deleted"
+        );
+    }
+
+    #[test]
+    fn test_cleanup_removes_dead_sessions_same_project() {
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        let current_pid = std::process::id();
+
+        // Dead session for same project (PID 999999 almost certainly doesn't exist)
+        let mut dead_session = Session::new(
+            "dead-session".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        dead_session.pid = Some(999999);
+        dead_session.write_to_dir(sessions_dir).unwrap();
+
+        // Current (live) session
+        let mut live_session = Session::new(
+            "current-session".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        live_session.pid = Some(current_pid);
+        live_session.write_to_dir(sessions_dir).unwrap();
+
+        cleanup_sessions_for_project(sessions_dir, "/nonexistent/test/project", "current-session");
+
+        // Dead session should be removed
+        assert!(
+            !sessions_dir.join("dead-session.json").exists(),
+            "Dead session should be removed"
+        );
+        // Current session should remain
+        assert!(
+            sessions_dir.join("current-session.json").exists(),
+            "Current session should be preserved"
+        );
+    }
+
+    #[test]
+    fn test_cleanup_removes_old_no_pid_sessions() {
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        // Session with no PID and old timestamp (>24h ago)
+        let mut old_no_pid = Session::new(
+            "old-no-pid".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        old_no_pid.pid = None;
+        old_no_pid.last_activity = Utc::now() - chrono::Duration::hours(25);
+        old_no_pid.write_to_dir(sessions_dir).unwrap();
+
+        // Current session
+        let new_session = Session::new(
+            "new-session".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        new_session.write_to_dir(sessions_dir).unwrap();
+
+        cleanup_sessions_for_project(sessions_dir, "/nonexistent/test/project", "new-session");
+
+        // Old no-PID session should be removed
+        assert!(
+            !sessions_dir.join("old-no-pid.json").exists(),
+            "Old no-PID session (>24h) should be removed"
+        );
+        // New session should remain
+        assert!(
+            sessions_dir.join("new-session.json").exists(),
+            "Current session should be preserved"
+        );
+    }
+
+    #[test]
+    fn test_cleanup_preserves_recent_no_pid_sessions() {
+        use tempfile::tempdir;
+
+        let temp_dir = tempdir().unwrap();
+        let sessions_dir = temp_dir.path();
+
+        // Session with no PID but recent timestamp (just created)
+        let mut recent_no_pid = Session::new(
+            "recent-no-pid".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        recent_no_pid.pid = None;
+        // last_activity defaults to now, which is recent
+        recent_no_pid.write_to_dir(sessions_dir).unwrap();
+
+        // Current session
+        let new_session = Session::new(
+            "new-session".to_string(),
+            "/nonexistent/test/project".to_string(),
+            "main".to_string(),
+            TerminalInfo::default(),
+        );
+        new_session.write_to_dir(sessions_dir).unwrap();
+
+        cleanup_sessions_for_project(sessions_dir, "/nonexistent/test/project", "new-session");
+
+        // Recent no-PID session should be preserved
+        assert!(
+            sessions_dir.join("recent-no-pid.json").exists(),
+            "Recent no-PID session should be preserved (might be just-started)"
+        );
+        // New session should remain
+        assert!(
+            sessions_dir.join("new-session.json").exists(),
+            "Current session should be preserved"
         );
     }
 }
