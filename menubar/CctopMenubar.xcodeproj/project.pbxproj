@@ -27,6 +27,7 @@
 		T10000070000000000000002 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000080000000000000002 /* AppSettingsTests.swift */; };
 		T10000030000000000000001 /* SessionStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000040000000000000001 /* SessionStatusTests.swift */; };
 		T10000050000000000000002 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000060000000000000002 /* SnapshotTests.swift */; };
+		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +63,7 @@
 		T10000040000000000000001 /* SessionStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatusTests.swift; sourceTree = "<group>"; };
 		T10000060000000000000001 /* CctopMenubarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CctopMenubarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		T10000060000000000000002 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotTests.swift; sourceTree = "<group>"; };
+		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -153,6 +155,7 @@
 				T10000020000000000000001 /* SessionTests.swift */,
 				T10000040000000000000001 /* SessionStatusTests.swift */,
 				T10000060000000000000002 /* SnapshotTests.swift */,
+				Q10000020000000000000001 /* QASnapshotTests.swift */,
 				T10000080000000000000002 /* AppSettingsTests.swift */,
 			);
 			path = CctopMenubarTests;
@@ -260,6 +263,7 @@
 				T10000010000000000000001 /* SessionTests.swift in Sources */,
 				T10000030000000000000001 /* SessionStatusTests.swift in Sources */,
 				T10000050000000000000002 /* SnapshotTests.swift in Sources */,
+				Q10000010000000000000001 /* QASnapshotTests.swift in Sources */,
 				T10000070000000000000002 /* AppSettingsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
