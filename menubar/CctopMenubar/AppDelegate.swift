@@ -56,6 +56,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] sessions in
                 let count = sessions.filter { $0.status.needsAttention }.count
                 self?.statusItem.button?.title = count > 0 ? "CC (\(count))" : "CC"
+                if self?.panel.isVisible == true {
+                    // Defer positioning so SwiftUI can finish its layout pass
+                    // before we read fittingSize
+                    DispatchQueue.main.async { [weak self] in
+                        self?.positionPanel(animate: true)
+                    }
+                }
             }
     }
 

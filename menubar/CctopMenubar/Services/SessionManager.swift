@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
 
 @MainActor
 class SessionManager: ObservableObject {
@@ -6,6 +9,7 @@ class SessionManager: ObservableObject {
 
     private let sessionsDir: URL
     private var source: DispatchSourceFileSystemObject?
+    private var debounceTask: DispatchWorkItem?
 
     init() {
         self.sessionsDir = FileManager.default.homeDirectoryForCurrentUser
@@ -19,20 +23,36 @@ class SessionManager: ObservableObject {
             at: sessionsDir,
             includingPropertiesForKeys: nil
         ) else {
+            logger.warning("loadSessions: could not read directory")
             sessions = []
             return
         }
 
-        let allDecoded = files
-            .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
+        let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
+        let allDecoded = jsonFiles
             .compactMap { url -> (URL, Session)? in
-                guard let data = try? Data(contentsOf: url),
-                      let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data)
-                else { return nil }
-                return (url, session)
+                guard let data = try? Data(contentsOf: url) else {
+                    logger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
+                    return nil
+                }
+                do {
+                    let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+                    return (url, session)
+                } catch {
+                    logger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
+                    return nil
+                }
             }
-        sessions = allDecoded.filter { $0.1.isAlive }.map(\.1)
-        for (url, session) in allDecoded where !session.isAlive {
+        let alive = allDecoded.filter { $0.1.isAlive }
+        let dead = allDecoded.filter { !$0.1.isAlive }
+        logger.info("loadSessions: \(jsonFiles.count, privacy: .public) files, \(allDecoded.count, privacy: .public) decoded, \(alive.count, privacy: .public) alive, \(dead.count, privacy: .public) dead")
+        let oldCount = sessions.count
+        sessions = alive.map(\.1)
+        if sessions.count != oldCount {
+            logger.info("loadSessions: session count changed \(oldCount) -> \(self.sessions.count)")
+        }
+        for (url, session) in dead {
+            logger.error("loadSessions: removing dead session \(session.sessionId, privacy: .public) project=\(session.projectName, privacy: .public) pid=\(session.pid.map(String.init) ?? "nil", privacy: .public)")
             try? FileManager.default.removeItem(at: url)
         }
     }
@@ -64,9 +84,14 @@ class SessionManager: ObservableObject {
             queue: .main
         )
         source.setEventHandler { [weak self] in
-            Task { @MainActor in
-                self?.loadSessions()
+            self?.debounceTask?.cancel()
+            let task = DispatchWorkItem { [weak self] in
+                Task { @MainActor in
+                    self?.loadSessions()
+                }
             }
+            self?.debounceTask = task
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: task)
         }
         source.setCancelHandler { close(fd) }
         source.resume()
