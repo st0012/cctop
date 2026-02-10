@@ -65,10 +65,10 @@ cargo install --path .
 
 # Build the menubar app
 xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Release -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
-cp -R menubar/build/Build/Products/Release/CctopMenubar.app /Applications/
+cp -R menubar/build/Build/Products/Release/CctopMenubar.app /Applications/cctop.app
 ```
 
-Run `cctop` for the TUI, or open `CctopMenubar.app` for the menubar app.
+Run `cctop` for the TUI, or open `cctop.app` from `/Applications/`.
 
 ## How It Works
 
@@ -104,6 +104,7 @@ The `cctop` command launches a terminal-based UI as an alternative to the menuba
 ```bash
 cctop              # Launch TUI
 cctop --list       # List sessions as text (no TUI)
+cctop --check      # Check hook delivery chain health
 ```
 
 | Key | Action |
