@@ -15,9 +15,7 @@ struct PopupView: View {
             HeaderView(sessions: sessions)
             Divider()
             if sessions.isEmpty {
-                Text("No active sessions")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                EmptyStateView()
             } else {
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 4) {

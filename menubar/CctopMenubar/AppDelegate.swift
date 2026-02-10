@@ -16,7 +16,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.title = "CC"
+            let image = NSImage(systemSymbolName: "rectangle.stack", accessibilityDescription: "cctop")
+            image?.isTemplate = true
+            button.image = image
             button.action = #selector(togglePanel)
             button.target = self
         }
@@ -55,7 +57,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] sessions in
                 let count = sessions.filter { $0.status.needsAttention }.count
-                self?.statusItem.button?.title = count > 0 ? "CC (\(count))" : "CC"
+                self?.statusItem.button?.title = count > 0 ? "\(count)" : ""
                 if self?.panel.isVisible == true {
                     // Defer positioning so SwiftUI can finish its layout pass
                     // before we read fittingSize
