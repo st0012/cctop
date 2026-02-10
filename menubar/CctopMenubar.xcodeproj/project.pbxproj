@@ -23,6 +23,7 @@
 		H10000010000000000000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000020000000000000001 /* AppSettings.swift */; };
 		J10000010000000000000001 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = J10000020000000000000001 /* SettingsSection.swift */; };
 		K10000010000000000000001 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000020000000000000001 /* Color+Theme.swift */; };
+		L10000010000000000000001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L10000020000000000000001 /* EmptyStateView.swift */; };
 		T10000010000000000000001 /* SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000020000000000000001 /* SessionTests.swift */; };
 		T10000070000000000000002 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000080000000000000002 /* AppSettingsTests.swift */; };
 		T10000030000000000000001 /* SessionStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000040000000000000001 /* SessionStatusTests.swift */; };
@@ -58,6 +59,7 @@
 		H10000020000000000000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		J10000020000000000000001 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		K10000020000000000000001 /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
+		L10000020000000000000001 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		T10000020000000000000001 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
 		T10000080000000000000002 /* AppSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsTests.swift; sourceTree = "<group>"; };
 		T10000040000000000000001 /* SessionStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatusTests.swift; sourceTree = "<group>"; };
@@ -145,6 +147,7 @@
 				D10000080000000000000001 /* PopupView.swift */,
 				D1000000A000000000000001 /* QuitButton.swift */,
 				J10000020000000000000001 /* SettingsSection.swift */,
+				L10000020000000000000001 /* EmptyStateView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -253,6 +256,7 @@
 				H10000010000000000000001 /* AppSettings.swift in Sources */,
 				J10000010000000000000001 /* SettingsSection.swift in Sources */,
 				K10000010000000000000001 /* Color+Theme.swift in Sources */,
+				L10000010000000000000001 /* EmptyStateView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

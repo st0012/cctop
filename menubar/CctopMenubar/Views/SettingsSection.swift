@@ -1,3 +1,4 @@
+import ServiceManagement
 import SwiftUI
 import KeyboardShortcuts
 
@@ -37,6 +38,7 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
 
 struct SettingsSection: View {
     @AppStorage("appearanceMode") private var appearanceMode = "system"
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,7 +66,31 @@ struct SettingsSection: View {
             }
             .padding(.horizontal, 14)
             .padding(.top, 10)
+            .padding(.bottom, 10)
+
+            Divider().padding(.horizontal, 14)
+
+            Toggle(isOn: $launchAtLogin) {
+                Text("Launch at Login")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
             .padding(.bottom, 12)
+            .onChange(of: launchAtLogin) { newValue in
+                do {
+                    if newValue {
+                        try SMAppService.mainApp.register()
+                    } else {
+                        try SMAppService.mainApp.unregister()
+                    }
+                } catch {
+                    launchAtLogin = SMAppService.mainApp.status == .enabled
+                }
+            }
         }
         .background(Color.settingsBackground)
         .clipShape(RoundedRectangle(cornerRadius: 8))
