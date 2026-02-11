@@ -7,6 +7,7 @@ extension Notification.Name {
 struct PopupView: View {
     let sessions: [Session]
     var resetSession: ((Session) -> Void)?
+    var updateAvailable: String?
     @State private var showSettings = false
     @State private var gearHovered = false
 
@@ -28,7 +29,7 @@ struct PopupView: View {
                 }
                 .frame(maxHeight: 520)
             }
-            SettingsSection()
+            SettingsSection(updateAvailable: updateAvailable)
                 .padding(.bottom, showSettings ? 8 : 0)
                 .frame(maxHeight: showSettings ? nil : 0, alignment: .top)
                 .clipped()
@@ -51,6 +52,14 @@ struct PopupView: View {
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(Color.primary.opacity(gearHovered ? 0.1 : 0))
                         )
+                        .overlay(alignment: .topTrailing) {
+                            if updateAvailable != nil && !showSettings {
+                                Circle()
+                                    .fill(Color.amber)
+                                    .frame(width: 7, height: 7)
+                                    .offset(x: 2, y: -2)
+                            }
+                        }
                 }
                 .buttonStyle(.plain)
                 .onHover { gearHovered = $0 }
