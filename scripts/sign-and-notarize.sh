@@ -46,14 +46,55 @@ if [ ! -f "$ENTITLEMENTS" ]; then
     exit 1
 fi
 
+# Discover all signable items in the bundle, innermost first.
+# Order: dylibs -> bundles/frameworks -> executables -> app bundle
+discover_signable_items() {
+    local app="$1"
+    local items=()
+
+    # 1. Shared libraries (dylibs)
+    while IFS= read -r -d '' item; do
+        items+=("$item")
+    done < <(find "$app/Contents" -type f -name '*.dylib' -print0 2>/dev/null)
+
+    # 2. Nested bundles and frameworks (sign the directory)
+    while IFS= read -r -d '' item; do
+        items+=("$item")
+    done < <(find "$app/Contents" -type d \( -name '*.bundle' -o -name '*.framework' \) -print0 2>/dev/null)
+
+    # 3. Mach-O executables in MacOS/ (excluding dylibs already handled and the main executable)
+    local main_exec
+    main_exec="$app/Contents/MacOS/$(defaults read "$app/Contents/Info.plist" CFBundleExecutable 2>/dev/null || basename "$app" .app)"
+    while IFS= read -r -d '' item; do
+        # Skip the main executable -- it gets signed when we sign the bundle
+        [ "$item" = "$main_exec" ] && continue
+        # Skip dylibs -- already signed in step 1
+        [[ "$item" == *.dylib ]] && continue
+        items+=("$item")
+    done < <(find "$app/Contents/MacOS" -type f -perm +111 -print0 2>/dev/null)
+
+    # 4. Main executable
+    if [ -f "$main_exec" ]; then
+        items+=("$main_exec")
+    fi
+
+    # 5. The app bundle itself
+    items+=("$app")
+
+    printf '%s\n' "${items[@]}"
+}
+
+SIGNABLE_ITEMS=$(discover_signable_items "$APP_PATH")
+
 if [ "$DRY_RUN" = true ]; then
     echo "==> DRY RUN: would sign and notarize $APP_PATH"
     echo ""
     echo "Signing order:"
-    echo "  1. $APP_PATH/Contents/MacOS/cctop-hook"
-    echo "  2. $APP_PATH/Contents/MacOS/cctop"
-    echo "  3. $APP_PATH/Contents/MacOS/CctopMenubar"
-    echo "  4. $APP_PATH (bundle)"
+    i=1
+    while IFS= read -r item; do
+        echo "  $i. $item"
+        ((i++))
+    done <<< "$SIGNABLE_ITEMS"
     echo ""
     echo "Entitlements: $ENTITLEMENTS"
     echo ""
@@ -87,22 +128,11 @@ CODESIGN_ARGS=(
     --entitlements "$ENTITLEMENTS"
 )
 
-echo "==> Signing individual binaries..."
-
-# Sign helper binaries first (innermost to outermost)
-echo "  Signing cctop-hook..."
-codesign "${CODESIGN_ARGS[@]}" "$APP_PATH/Contents/MacOS/cctop-hook"
-
-echo "  Signing cctop..."
-codesign "${CODESIGN_ARGS[@]}" "$APP_PATH/Contents/MacOS/cctop"
-
-# Sign the main executable
-echo "  Signing CctopMenubar..."
-codesign "${CODESIGN_ARGS[@]}" "$APP_PATH/Contents/MacOS/CctopMenubar"
-
-# Sign the overall bundle
-echo "  Signing app bundle..."
-codesign "${CODESIGN_ARGS[@]}" "$APP_PATH"
+echo "==> Signing all code in bundle..."
+while IFS= read -r item; do
+    echo "  Signing $(basename "$item")..."
+    codesign "${CODESIGN_ARGS[@]}" "$item"
+done <<< "$SIGNABLE_ITEMS"
 
 echo "==> Verifying signature..."
 codesign --verify --verbose=2 "$APP_PATH"

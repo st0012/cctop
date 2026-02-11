@@ -39,7 +39,8 @@ jobs:
         run: ./scripts/bundle-macos.sh --target ${{ matrix.target }}
 
       - name: Sign and notarize
-        if: env.APPLE_IDENTITY != ''
+        id: sign
+        if: secrets.APPLE_IDENTITY != ''
         env:
           APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -64,13 +65,23 @@ jobs:
           rm -f dist/cctop-macOS.zip
           cd dist && ditto -c -k --sequesterRsrc --keepParent cctop.app cctop-macOS.zip
 
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Clean up signing keychain
+        if: always() && steps.sign.outcome != 'skipped'
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          security delete-keychain $KEYCHAIN_PATH 2>/dev/null || true
+          rm -f $RUNNER_TEMP/certificate.p12
+
       - name: Rename zip for release
         run: mv dist/cctop-macOS.zip dist/cctop-macOS-${{ matrix.arch }}.zip
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Create DMG
-        run: |
-          hdiutil create -volname "cctop" -srcfolder dist/cctop.app \
-            -ov -format UDZO dist/cctop-macOS-${{ matrix.arch }}.dmg
+        run: ./scripts/create-dmg.sh --arch ${{ matrix.arch }}
 
       - name: Upload zip artifact
         uses: actions/upload-artifact@v4
@@ -96,6 +107,56 @@ jobs:
         with:
           path: artifacts
 
+      - name: Build release body
+        id: body
+        env:
+          IS_SIGNED: ${{ secrets.APPLE_IDENTITY != '' }}
+        run: |
+          BODY="## Installation
+
+          ### macOS (Apple Silicon)
+          \`\`\`bash
+          # Download and extract
+          curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-arm64.zip -o cctop.zip
+          unzip cctop.zip
+          mv cctop.app /Applications/
+
+          # Launch
+          open /Applications/cctop.app
+          \`\`\`
+
+          ### macOS (Intel)
+          \`\`\`bash
+          curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-x86_64.zip -o cctop.zip
+          unzip cctop.zip
+          mv cctop.app /Applications/
+          open /Applications/cctop.app
+          \`\`\`
+
+          ### From source
+          Requires [Rust](https://rustup.rs/) and Xcode.
+          \`\`\`bash
+          git clone https://github.com/st0012/cctop && cd cctop
+          cargo install --path .                    # TUI + hook
+          ./scripts/bundle-macos.sh                 # menubar app
+          cp -R dist/cctop.app /Applications/
+          \`\`\`"
+
+          if [ "$IS_SIGNED" = "true" ]; then
+            BODY="$BODY
+
+          > This release is signed and notarized by Apple."
+          else
+            BODY="$BODY
+
+          > **Note:** This release is not notarized. On first launch, you may need to
+          > right-click the app and select \"Open\", or go to System Settings > Privacy &
+          > Security and click \"Open Anyway\"."
+          fi
+
+          # Write to file to avoid quoting issues
+          echo "$BODY" > "$RUNNER_TEMP/release-body.md"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -106,40 +167,7 @@ jobs:
             artifacts/cctop-macOS-x86_64/cctop-macOS-x86_64.zip
             artifacts/cctop-macOS-arm64-dmg/cctop-macOS-arm64.dmg
             artifacts/cctop-macOS-x86_64-dmg/cctop-macOS-x86_64.dmg
-          body: |
-            ## Installation
-
-            ### macOS (Apple Silicon)
-            ```bash
-            # Download and extract
-            curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-arm64.zip -o cctop.zip
-            unzip cctop.zip
-            mv cctop.app /Applications/
-
-            # Launch
-            open /Applications/cctop.app
-            ```
-
-            ### macOS (Intel)
-            ```bash
-            curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-x86_64.zip -o cctop.zip
-            unzip cctop.zip
-            mv cctop.app /Applications/
-            open /Applications/cctop.app
-            ```
-
-            ### From source
-            Requires [Rust](https://rustup.rs/) and Xcode.
-            ```bash
-            git clone https://github.com/st0012/cctop && cd cctop
-            cargo install --path .                    # TUI + hook
-            ./scripts/bundle-macos.sh                 # menubar app
-            cp -R dist/cctop.app /Applications/
-            ```
-
-            > **Note:** The .app bundle is not notarized. On first launch, you may need to
-            > right-click the app and select "Open", or go to System Settings > Privacy &
-            > Security and click "Open Anyway".
+          body_path: ${{ runner.temp }}/release-body.md
 
   update-homebrew:
     name: Update Homebrew Tap
