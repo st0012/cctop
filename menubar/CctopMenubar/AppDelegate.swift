@@ -8,6 +8,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var statusItem: NSStatusItem!
     private var panel: FloatingPanel!
     private var sessionManager: SessionManager!
+    private var updateChecker: UpdateChecker!
     private var cancellable: AnyCancellable?
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
@@ -16,11 +17,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         installHookBinaryIfNeeded()
 
         UNUserNotificationCenter.current().delegate = self
-        if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
-            SessionManager.requestNotificationPermission()
-        }
 
         sessionManager = SessionManager()
+        updateChecker = UpdateChecker()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -31,7 +30,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             button.target = self
         }
 
-        let contentView = PanelContentView(sessionManager: sessionManager)
+        let contentView = PanelContentView(sessionManager: sessionManager, updateChecker: updateChecker)
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -193,10 +192,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
+    @ObservedObject var updateChecker: UpdateChecker
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        PopupView(sessions: sessionManager.sessions, resetSession: sessionManager.resetSession)
+        PopupView(sessions: sessionManager.sessions, resetSession: sessionManager.resetSession, updateAvailable: updateChecker.updateAvailable)
             .frame(width: 320)
             .background {
                 if colorScheme == .light {

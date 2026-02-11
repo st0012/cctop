@@ -37,12 +37,34 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
 }
 
 struct SettingsSection: View {
+    var updateAvailable: String?
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         VStack(spacing: 0) {
+            if let version = updateAvailable {
+                Button {
+                    NSWorkspace.shared.open(UpdateChecker.releasesPageURL)
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .foregroundStyle(Color.amber)
+                        Text("Update available: v\(version)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: "arrow.up.forward")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                Divider().padding(.horizontal, 14)
+            }
             VStack(alignment: .leading, spacing: 8) {
                 Text("Appearance")
                     .font(.system(size: 11, weight: .semibold))
