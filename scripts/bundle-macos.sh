@@ -73,8 +73,28 @@ cp "$RUST_BIN/cctop-hook" "$APP/Contents/MacOS/cctop-hook"
 strip "$APP/Contents/MacOS/cctop"
 strip "$APP/Contents/MacOS/cctop-hook"
 
-# Ad-hoc re-sign
-codesign --force --deep --sign - "$APP"
+# Ad-hoc re-sign (per-binary, innermost first — no --deep)
+echo "==> Signing app bundle..."
+
+# Sign nested bundles/frameworks first
+while IFS= read -r -d '' nested; do
+    echo "  Signing $(basename "$nested")..."
+    codesign --force --sign - "$nested"
+done < <(find "$APP/Contents" -depth \( -name "*.bundle" -o -name "*.framework" -o -name "*.dylib" \) -print0)
+
+# Sign injected Rust binaries
+echo "  Signing cctop-hook..."
+codesign --force --sign - "$APP/Contents/MacOS/cctop-hook"
+echo "  Signing cctop..."
+codesign --force --sign - "$APP/Contents/MacOS/cctop"
+
+# Sign main executable
+echo "  Signing CctopMenubar..."
+codesign --force --sign - "$APP/Contents/MacOS/CctopMenubar"
+
+# Sign the overall bundle
+echo "  Signing app bundle..."
+codesign --force --sign - "$APP"
 
 echo "==> Packaging..."
 cd "$BUILD_DIR"
