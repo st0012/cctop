@@ -391,9 +391,8 @@ impl Session {
                 continue;
             }
 
-            match Session::from_file(&path) {
-                Ok(session) => sessions.push(session),
-                Err(_) => {} // Skip unparseable session files silently
+            if let Ok(session) = Session::from_file(&path) {
+                sessions.push(session);
             }
         }
 

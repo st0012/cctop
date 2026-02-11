@@ -97,10 +97,7 @@ impl SessionWatcher {
 
         if has_changes {
             // Reload all sessions, filtering out dead ones by PID
-            match load_live_sessions(&self.sessions_dir) {
-                Ok(sessions) => Some(sessions),
-                Err(_) => None,
-            }
+            load_live_sessions(&self.sessions_dir).ok()
         } else {
             None
         }
