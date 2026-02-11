@@ -54,7 +54,8 @@ class SessionManager: ObservableObject {
             }
         let alive = allDecoded.filter { $0.1.isAlive }
         let dead = allDecoded.filter { !$0.1.isAlive }
-        logger.info("loadSessions: \(jsonFiles.count, privacy: .public) files, \(allDecoded.count, privacy: .public) decoded, \(alive.count, privacy: .public) alive, \(dead.count, privacy: .public) dead")
+        let msg = "\(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead"
+        logger.info("loadSessions: \(msg, privacy: .public)")
         let oldCount = sessions.count
         sessions = alive.map(\.1)
         if sessions.count != oldCount {
@@ -70,7 +71,9 @@ class SessionManager: ObservableObject {
             }
         }
         for (url, session) in dead {
-            logger.error("loadSessions: removing dead session \(session.sessionId, privacy: .public) project=\(session.projectName, privacy: .public) pid=\(session.pid.map(String.init) ?? "nil", privacy: .public)")
+            let sid = session.sessionId
+            let pid = session.pid.map(String.init) ?? "nil"
+            logger.error("removing dead session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
             try? FileManager.default.removeItem(at: url)
         }
     }

@@ -21,14 +21,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         sessionManager = SessionManager()
         updateChecker = UpdateChecker()
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "rectangle.stack", accessibilityDescription: "cctop")
-            image?.isTemplate = true
-            button.image = image
-            button.action = #selector(togglePanel)
-            button.target = self
-        }
+        setupStatusItem()
 
         let contentView = PanelContentView(sessionManager: sessionManager, updateChecker: updateChecker)
         let hostingView = NSHostingView(rootView: contentView)
@@ -77,6 +70,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     }
                 }
             }
+    }
+
+    private func setupStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = statusItem.button {
+            let image = NSImage(systemSymbolName: "rectangle.stack", accessibilityDescription: "cctop")
+            image?.isTemplate = true
+            button.image = image
+            button.action = #selector(togglePanel)
+            button.target = self
+        }
     }
 
     @objc private func togglePanel() {
