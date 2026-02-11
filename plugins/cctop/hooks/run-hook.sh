@@ -24,6 +24,10 @@ if [ -x "$HOME/.cargo/bin/cctop-hook" ]; then
     echo "$INPUT" | "$HOME/.cargo/bin/cctop-hook" "$EVENT"
 elif [ -x "$HOME/.local/bin/cctop-hook" ]; then
     echo "$INPUT" | "$HOME/.local/bin/cctop-hook" "$EVENT"
+elif [ -x "/Applications/cctop.app/Contents/MacOS/cctop-hook" ]; then
+    echo "$INPUT" | /Applications/cctop.app/Contents/MacOS/cctop-hook "$EVENT"
+elif [ -x "$HOME/Applications/cctop.app/Contents/MacOS/cctop-hook" ]; then
+    echo "$INPUT" | "$HOME/Applications/cctop.app/Contents/MacOS/cctop-hook" "$EVENT"
 elif [ -x "/opt/homebrew/bin/cctop-hook" ]; then
     echo "$INPUT" | /opt/homebrew/bin/cctop-hook "$EVENT"
 elif [ -x "/usr/local/bin/cctop-hook" ]; then

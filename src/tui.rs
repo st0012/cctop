@@ -704,17 +704,14 @@ fn load_all_sessions(skip_liveness_check: bool) -> Result<Vec<Session>> {
         let path = entry.path();
 
         if path.extension().map(|e| e == "json").unwrap_or(false) {
-            match Session::from_file(&path) {
-                Ok(session) => {
-                    // In demo mode, skip liveness check
-                    if skip_liveness_check || is_session_alive(&session) {
-                        sessions.push(session);
-                    } else {
-                        // Session has ended, remove the stale file
-                        let _ = fs::remove_file(&path);
-                    }
+            if let Ok(session) = Session::from_file(&path) {
+                // In demo mode, skip liveness check
+                if skip_liveness_check || is_session_alive(&session) {
+                    sessions.push(session);
+                } else {
+                    // Session has ended, remove the stale file
+                    let _ = fs::remove_file(&path);
                 }
-                Err(e) => eprintln!("Failed to load {}: {}", path.display(), e),
             }
         }
     }

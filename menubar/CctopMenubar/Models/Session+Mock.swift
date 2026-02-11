@@ -54,7 +54,8 @@ extension Session {
     static let qaEightSessions: [Session] = mockSessions + [
         .mock(id: "5", project: "billing", branch: "feature/invoices", status: .working, lastTool: "Bash", lastToolDetail: "cargo test"),
         .mock(id: "6", project: "infra", branch: "main", status: .idle),
-        .mock(id: "7", project: "mobile-app", branch: "release/2.0", status: .waitingPermission, notificationMessage: "Allow Write: /config/prod.json"),
+        .mock(id: "7", project: "mobile-app", branch: "release/2.0",
+              status: .waitingPermission, notificationMessage: "Allow Write: /config/prod.json"),
         .mock(id: "8", project: "analytics", branch: "fix/dashboard", status: .working, lastTool: "Grep", lastToolDetail: "*.ts"),
     ]
 
@@ -75,8 +76,14 @@ extension Session {
 
     /// Long project and branch names to test truncation.
     static let qaLongNames: [Session] = [
-        .mock(id: "1", project: "my-very-long-project-name-here", branch: "feature/JIRA-12345-implement-oauth2-refresh-token-rotation", status: .working, lastTool: "Edit", lastToolDetail: "/src/authentication/middleware/refresh-token-handler.ts"),
-        .mock(id: "2", project: "another-extremely-long-name", branch: "fix/bug-that-has-a-really-long-description", status: .waitingInput, lastPrompt: "This is a very long prompt message that should be truncated at some point because it exceeds the available space"),
+        .mock(id: "1", project: "my-very-long-project-name-here",
+              branch: "feature/JIRA-12345-implement-oauth2-refresh-token-rotation",
+              status: .working, lastTool: "Edit",
+              lastToolDetail: "/src/authentication/middleware/refresh-token-handler.ts"),
+        .mock(id: "2", project: "another-extremely-long-name",
+              branch: "fix/bug-that-has-a-really-long-description",
+              status: .waitingInput,
+              lastPrompt: "This is a very long prompt that should be truncated"),
         .mock(id: "3", project: "short", branch: "m", status: .idle),
     ]
 

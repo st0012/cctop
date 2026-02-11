@@ -310,6 +310,11 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
         )
     };
 
+    // Backfill PID if missing (handles sessions created by older hook binary)
+    if session.pid.is_none() {
+        session.pid = get_parent_pid();
+    }
+
     // Track the old status for logging
     let old_status = session.status.as_str().to_string();
 
@@ -436,18 +441,50 @@ fn main() {
         process::exit(0);
     }
 
+    // Handle --help flag
+    if args.len() >= 2 && (args[1] == "--help" || args[1] == "-h") {
+        println!("cctop-hook {}", env!("CARGO_PKG_VERSION"));
+        println!("Claude Code hook handler for cctop session tracking.\n");
+        println!("This binary is called by Claude Code hooks via the cctop plugin.");
+        println!("It reads hook event JSON from stdin and updates session files");
+        println!("in ~/.cctop/sessions/.\n");
+        println!("USAGE:");
+        println!("    cctop-hook <HOOK_NAME>\n");
+        println!("HOOK NAMES:");
+        println!("    SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,");
+        println!("    Stop, Notification, PermissionRequest, PreCompact, SessionEnd\n");
+        println!("OPTIONS:");
+        println!("    -h, --help       Print this help message");
+        println!("    -V, --version    Print version");
+        process::exit(0);
+    }
+
     if args.len() < 2 {
         log_error("missing hook name argument");
         process::exit(0); // Exit 0 to not block Claude Code
     }
     let hook_name = &args[1];
 
-    // Read JSON from stdin
-    let mut stdin_buf = String::new();
-    if let Err(e) = io::stdin().read_to_string(&mut stdin_buf) {
-        log_error(&format!("{}: failed to read stdin: {}", hook_name, e));
-        process::exit(0);
-    }
+    // Read JSON from stdin with timeout to prevent hanging if stdin never closes
+    let stdin_buf = {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut buf = String::new();
+            let result = io::stdin().read_to_string(&mut buf);
+            let _ = tx.send((buf, result));
+        });
+        match rx.recv_timeout(std::time::Duration::from_secs(5)) {
+            Ok((buf, Ok(_))) => buf,
+            Ok((_, Err(e))) => {
+                log_error(&format!("{}: failed to read stdin: {}", hook_name, e));
+                process::exit(0);
+            }
+            Err(_) => {
+                log_error(&format!("{}: stdin read timed out after 5s", hook_name));
+                process::exit(0);
+            }
+        }
+    };
 
     // Parse JSON input
     let input: HookInput = match serde_json::from_str(&stdin_buf) {

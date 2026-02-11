@@ -81,9 +81,8 @@ impl SessionWatcher {
                         has_changes = true;
                     }
                 }
-                Ok(Err(e)) => {
-                    // Log watcher errors but continue
-                    eprintln!("File watcher error: {}", e);
+                Ok(Err(_)) => {
+                    // Watcher errors are transient; silently continue to avoid corrupting TUI display
                 }
                 Err(TryRecvError::Empty) => {
                     // No more events in the channel
@@ -91,7 +90,6 @@ impl SessionWatcher {
                 }
                 Err(TryRecvError::Disconnected) => {
                     // Channel disconnected, watcher may have been dropped
-                    eprintln!("File watcher channel disconnected");
                     break;
                 }
             }
@@ -99,13 +97,7 @@ impl SessionWatcher {
 
         if has_changes {
             // Reload all sessions, filtering out dead ones by PID
-            match load_live_sessions(&self.sessions_dir) {
-                Ok(sessions) => Some(sessions),
-                Err(e) => {
-                    eprintln!("Failed to reload sessions: {}", e);
-                    None
-                }
-            }
+            load_live_sessions(&self.sessions_dir).ok()
         } else {
             None
         }

@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 import os.log
 
 private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
@@ -10,12 +11,18 @@ class SessionManager: ObservableObject {
     private let sessionsDir: URL
     private var source: DispatchSourceFileSystemObject?
     private var debounceTask: DispatchWorkItem?
+    private var livenessTimer: Timer?
 
     init() {
         self.sessionsDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".cctop/sessions")
         loadSessions()
         startWatching()
+        livenessTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.loadSessions()
+            }
+        }
     }
 
     func loadSessions() {
@@ -27,6 +34,8 @@ class SessionManager: ObservableObject {
             sessions = []
             return
         }
+
+        let oldStatuses = Dictionary(uniqueKeysWithValues: sessions.map { ($0.sessionId, $0.status) })
 
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
         let allDecoded = jsonFiles
@@ -45,14 +54,26 @@ class SessionManager: ObservableObject {
             }
         let alive = allDecoded.filter { $0.1.isAlive }
         let dead = allDecoded.filter { !$0.1.isAlive }
-        logger.info("loadSessions: \(jsonFiles.count, privacy: .public) files, \(allDecoded.count, privacy: .public) decoded, \(alive.count, privacy: .public) alive, \(dead.count, privacy: .public) dead")
+        let msg = "\(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead"
+        logger.info("loadSessions: \(msg, privacy: .public)")
         let oldCount = sessions.count
         sessions = alive.map(\.1)
         if sessions.count != oldCount {
             logger.info("loadSessions: session count changed \(oldCount) -> \(self.sessions.count)")
         }
+
+        if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
+            for session in sessions {
+                let oldStatus = oldStatuses[session.sessionId]
+                if session.status.needsAttention && oldStatus != nil && !(oldStatus!.needsAttention) {
+                    sendNotification(for: session)
+                }
+            }
+        }
         for (url, session) in dead {
-            logger.error("loadSessions: removing dead session \(session.sessionId, privacy: .public) project=\(session.projectName, privacy: .public) pid=\(session.pid.map(String.init) ?? "nil", privacy: .public)")
+            let sid = session.sessionId
+            let pid = session.pid.map(String.init) ?? "nil"
+            logger.error("removing dead session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
             try? FileManager.default.removeItem(at: url)
         }
     }
@@ -70,6 +91,62 @@ class SessionManager: ObservableObject {
         guard let encoded = try? JSONEncoder.sessionEncoder.encode(mutable) else { return }
         try? encoded.write(to: url, options: .atomic)
         loadSessions()
+    }
+
+    static func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error {
+                logger.error("Notification permission error: \(error, privacy: .public)")
+            }
+            logger.info("Notification permission granted: \(granted, privacy: .public)")
+        }
+    }
+
+    private func sendNotification(for session: Session) {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                    if let error {
+                        logger.error("Notification permission error: \(error, privacy: .public)")
+                    }
+                    if granted {
+                        self.postNotification(for: session)
+                    }
+                }
+            case .authorized, .provisional, .ephemeral:
+                self.postNotification(for: session)
+            default:
+                break
+            }
+        }
+    }
+
+    private func postNotification(for session: Session) {
+        let content = UNMutableNotificationContent()
+        content.title = session.projectName
+        switch session.status {
+        case .waitingPermission:
+            content.body = session.notificationMessage ?? "Permission needed"
+        case .waitingInput:
+            content.body = session.lastPrompt.map { "Waiting: \(String($0.prefix(80)))" } ?? "Waiting for input"
+        default:
+            content.body = "Needs attention"
+        }
+        content.sound = .default
+        content.userInfo = ["sessionId": session.sessionId]
+
+        let request = UNNotificationRequest(
+            identifier: "session-\(session.sessionId)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                logger.error("Failed to send notification: \(error, privacy: .public)")
+            }
+        }
     }
 
     private func startWatching() {
@@ -100,5 +177,6 @@ class SessionManager: ObservableObject {
 
     deinit {
         source?.cancel()
+        livenessTimer?.invalidate()
     }
 }

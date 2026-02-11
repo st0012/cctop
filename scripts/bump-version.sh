@@ -41,6 +41,16 @@ echo "  Updated plugins/cctop/.claude-plugin/plugin.json"
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/g" "$REPO_ROOT/.claude-plugin/marketplace.json"
 echo "  Updated .claude-plugin/marketplace.json"
 
+# 5. Xcode project - MARKETING_VERSION (all build configs: App Debug/Release + Tests Debug/Release)
+PBXPROJ="$REPO_ROOT/menubar/CctopMenubar.xcodeproj/project.pbxproj"
+sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $NEW_VERSION;/" "$PBXPROJ"
+echo "  Updated pbxproj MARKETING_VERSION"
+
+# 6. Xcode project - CURRENT_PROJECT_VERSION (derived: major*10000 + minor*100 + patch)
+BUILD_NUM=$(echo "$NEW_VERSION" | awk -F. '{print $1*10000 + $2*100 + $3}')
+sed -i '' "s/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $BUILD_NUM;/" "$PBXPROJ"
+echo "  Updated pbxproj CURRENT_PROJECT_VERSION to $BUILD_NUM"
+
 # Regenerate Cargo.lock
 (cd "$REPO_ROOT" && cargo check --quiet 2>/dev/null) || true
 echo "  Regenerated Cargo.lock"
@@ -48,3 +58,4 @@ echo "  Regenerated Cargo.lock"
 echo ""
 echo "Done! Version bumped to $NEW_VERSION in all files."
 echo "Verify with: grep -r '\"$NEW_VERSION\"' Cargo.toml packaging/ plugins/ .claude-plugin/"
+echo "Xcode:  grep 'MARKETING_VERSION\|CURRENT_PROJECT_VERSION' $PBXPROJ"
