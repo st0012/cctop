@@ -100,6 +100,27 @@ class SessionManager: ObservableObject {
     }
 
     private func sendNotification(for session: Session) {
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                    if let error {
+                        logger.error("Notification permission error: \(error, privacy: .public)")
+                    }
+                    if granted {
+                        self.postNotification(for: session)
+                    }
+                }
+            case .authorized, .provisional, .ephemeral:
+                self.postNotification(for: session)
+            default:
+                break
+            }
+        }
+    }
+
+    private func postNotification(for session: Session) {
         let content = UNMutableNotificationContent()
         content.title = session.projectName
         switch session.status {
