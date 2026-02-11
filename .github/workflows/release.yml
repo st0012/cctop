@@ -38,14 +38,51 @@ jobs:
       - name: Build and bundle
         run: ./scripts/bundle-macos.sh --target ${{ matrix.target }}
 
+      - name: Sign and notarize
+        if: env.APPLE_IDENTITY != ''
+        env:
+          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          # Import certificate from secrets
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          echo -n "${{ secrets.APPLE_CERTIFICATE_P12 }}" | base64 --decode -o $CERTIFICATE_PATH
+          security create-keychain -p "" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "" $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "" $KEYCHAIN_PATH
+          security list-keychains -d user -s $KEYCHAIN_PATH login.keychain-db
+
+          # Sign and notarize
+          ./scripts/sign-and-notarize.sh dist/cctop.app
+
+          # Re-create the zip with signed app
+          rm -f dist/cctop-macOS.zip
+          cd dist && ditto -c -k --sequesterRsrc --keepParent cctop.app cctop-macOS.zip
+
       - name: Rename zip for release
         run: mv dist/cctop-macOS.zip dist/cctop-macOS-${{ matrix.arch }}.zip
 
-      - name: Upload artifact
+      - name: Create DMG
+        run: |
+          hdiutil create -volname "cctop" -srcfolder dist/cctop.app \
+            -ov -format UDZO dist/cctop-macOS-${{ matrix.arch }}.dmg
+
+      - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: cctop-macOS-${{ matrix.arch }}
           path: dist/cctop-macOS-${{ matrix.arch }}.zip
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cctop-macOS-${{ matrix.arch }}-dmg
+          path: dist/cctop-macOS-${{ matrix.arch }}.dmg
 
   release:
     name: Create Release
@@ -67,6 +104,8 @@ jobs:
           files: |
             artifacts/cctop-macOS-arm64/cctop-macOS-arm64.zip
             artifacts/cctop-macOS-x86_64/cctop-macOS-x86_64.zip
+            artifacts/cctop-macOS-arm64-dmg/cctop-macOS-arm64.dmg
+            artifacts/cctop-macOS-x86_64-dmg/cctop-macOS-x86_64.dmg
           body: |
             ## Installation
 
