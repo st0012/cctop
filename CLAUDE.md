@@ -104,10 +104,15 @@ cargo test
 # Check a specific session file
 cat ~/.cctop/sessions/<session-id>.json | jq '.'
 
+# Bump version (updates all files: Cargo.toml, pbxproj, plugin JSON, cask, etc.)
+scripts/bump-version.sh 0.3.0
+
 # Generate state machine diagram (requires graphviz: brew install graphviz)
 scripts/generate-state-diagram.sh              # opens /tmp/cctop-states.svg
 scripts/generate-state-diagram.sh docs/out.svg # custom output path
 ```
+
+**IMPORTANT:** Always use `scripts/bump-version.sh <version>` to bump versions. Never edit version numbers manually — the script updates all files including `CURRENT_PROJECT_VERSION` in the Xcode project.
 
 ### Visual Changes
 - Use Xcode Previews (Canvas) for instant visual feedback on any SwiftUI view
