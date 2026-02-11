@@ -7,6 +7,7 @@ extension Notification.Name {
 struct PopupView: View {
     let sessions: [Session]
     var resetSession: ((Session) -> Void)?
+    var updateAvailable: String?
     @State private var showSettings = false
     @State private var gearHovered = false
 
@@ -15,9 +16,7 @@ struct PopupView: View {
             HeaderView(sessions: sessions)
             Divider()
             if sessions.isEmpty {
-                Text("No active sessions")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                EmptyStateView()
             } else {
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 4) {
@@ -30,7 +29,7 @@ struct PopupView: View {
                 }
                 .frame(maxHeight: 520)
             }
-            SettingsSection()
+            SettingsSection(updateAvailable: updateAvailable)
                 .padding(.bottom, showSettings ? 8 : 0)
                 .frame(maxHeight: showSettings ? nil : 0, alignment: .top)
                 .clipped()
@@ -38,6 +37,9 @@ struct PopupView: View {
             Divider()
             HStack {
                 QuitButton()
+                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.quaternary)
                 Spacer()
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() }
@@ -53,6 +55,14 @@ struct PopupView: View {
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(Color.primary.opacity(gearHovered ? 0.1 : 0))
                         )
+                        .overlay(alignment: .topTrailing) {
+                            if updateAvailable != nil && !showSettings {
+                                Circle()
+                                    .fill(Color.amber)
+                                    .frame(width: 7, height: 7)
+                                    .offset(x: 2, y: -2)
+                            }
+                        }
                 }
                 .buttonStyle(.plain)
                 .onHover { gearHovered = $0 }

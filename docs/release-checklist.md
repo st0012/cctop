@@ -1,4 +1,4 @@
-# Release Checklist for cctop v0.2.0
+# Release Checklist for cctop v0.3.0
 
 ## One-Time Setup (before first release)
 
@@ -51,8 +51,8 @@ git push origin master
 ### 2. Tag and push
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 ### 3. Wait for CI
@@ -68,7 +68,7 @@ Monitor at: https://github.com/st0012/cctop/actions
 
 ```bash
 # Check the GitHub Release page
-gh release view v0.2.0
+gh release view v0.3.0
 
 # Test Homebrew install (after CI completes)
 brew tap st0012/cctop
@@ -88,11 +88,11 @@ cctop --list
 
 ```bash
 # Delete the tag and release to re-do
-gh release delete v0.2.0 --yes
-git tag -d v0.2.0
-git push origin :refs/tags/v0.2.0
+gh release delete v0.3.0 --yes
+git tag -d v0.3.0
+git push origin :refs/tags/v0.3.0
 
 # Fix the issue, then re-tag
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```

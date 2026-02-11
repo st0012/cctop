@@ -2,26 +2,28 @@ import AppKit
 import Combine
 import KeyboardShortcuts
 import SwiftUI
+import UserNotifications
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private var panel: FloatingPanel!
     private var sessionManager: SessionManager!
+    private var updateChecker: UpdateChecker!
     private var cancellable: AnyCancellable?
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
         installHookBinaryIfNeeded()
+
+        UNUserNotificationCenter.current().delegate = self
+
         sessionManager = SessionManager()
+        updateChecker = UpdateChecker()
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.title = "CC"
-            button.action = #selector(togglePanel)
-            button.target = self
-        }
+        setupStatusItem()
 
-        let contentView = PanelContentView(sessionManager: sessionManager)
+        let contentView = PanelContentView(sessionManager: sessionManager, updateChecker: updateChecker)
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -55,7 +57,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] sessions in
                 let count = sessions.filter { $0.status.needsAttention }.count
-                self?.statusItem.button?.title = count > 0 ? "CC (\(count))" : "CC"
+                self?.statusItem.button?.title = count > 0 ? "\(count)" : ""
+                let a11yLabel = count > 0
+                    ? "cctop, \(count) session\(count == 1 ? "" : "s") need attention"
+                    : "cctop, \(sessions.count) session\(sessions.count == 1 ? "" : "s")"
+                self?.statusItem.button?.setAccessibilityLabel(a11yLabel)
                 if self?.panel.isVisible == true {
                     // Defer positioning so SwiftUI can finish its layout pass
                     // before we read fittingSize
@@ -64,6 +70,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                 }
             }
+    }
+
+    private func setupStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = statusItem.button {
+            let image = NSImage(systemSymbolName: "rectangle.stack", accessibilityDescription: "cctop")
+            image?.isTemplate = true
+            button.image = image
+            button.action = #selector(togglePanel)
+            button.target = self
+        }
     }
 
     @objc private func togglePanel() {
@@ -90,6 +107,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case .dark:
             panel?.appearance = NSAppearance(named: .darkAqua)
         }
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let sessionId = response.notification.request.content.userInfo["sessionId"] as? String
+        DispatchQueue.main.async { [weak self] in
+            if let session = self?.sessionManager.sessions.first(where: { $0.sessionId == sessionId }) {
+                focusTerminal(session: session)
+            }
+        }
+        completionHandler()
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 
     /// Symlinks cctop-hook from the app bundle into ~/.local/bin/ so Claude Code hooks can find it.
@@ -157,10 +196,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
+    @ObservedObject var updateChecker: UpdateChecker
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        PopupView(sessions: sessionManager.sessions, resetSession: sessionManager.resetSession)
+        PopupView(sessions: sessionManager.sessions, resetSession: sessionManager.resetSession, updateAvailable: updateChecker.updateAvailable)
             .frame(width: 320)
             .background {
                 if colorScheme == .light {
