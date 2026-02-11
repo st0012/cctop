@@ -11,12 +11,18 @@ class SessionManager: ObservableObject {
     private let sessionsDir: URL
     private var source: DispatchSourceFileSystemObject?
     private var debounceTask: DispatchWorkItem?
+    private var livenessTimer: Timer?
 
     init() {
         self.sessionsDir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".cctop/sessions")
         loadSessions()
         startWatching()
+        livenessTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.loadSessions()
+            }
+        }
     }
 
     func loadSessions() {
@@ -147,5 +153,6 @@ class SessionManager: ObservableObject {
 
     deinit {
         source?.cancel()
+        livenessTimer?.invalidate()
     }
 }

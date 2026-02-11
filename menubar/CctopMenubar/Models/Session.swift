@@ -105,8 +105,13 @@ struct Session: Codable, Identifiable {
     }
 
     var isAlive: Bool {
-        guard let pid else { return true }
-        return kill(Int32(pid), 0) == 0
+        if let pid {
+            if kill(Int32(pid), 0) == 0 { return true }
+            return errno == EPERM
+        }
+        // No PID stored — fall back to activity age.
+        // Sessions inactive for over 4 hours are presumed dead.
+        return -lastActivity.timeIntervalSinceNow < 4 * 3600
     }
 
     private func formatToolDisplay(tool: String, detail: String?) -> String {

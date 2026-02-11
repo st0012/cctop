@@ -667,9 +667,14 @@ pub fn load_live_sessions(sessions_dir: &Path) -> Result<Vec<Session>> {
                 let _ = session.remove_from_dir(sessions_dir);
             }
         } else {
-            // No PID stored (old session format) - keep it for now
-            // These will be cleaned up by timestamp-based cleanup
-            live_sessions.push(session);
+            // No PID stored (old session format)
+            // Keep if recently active, otherwise treat as dead
+            let age = Utc::now().signed_duration_since(session.last_activity);
+            if age > Duration::hours(4) {
+                let _ = session.remove_from_dir(sessions_dir);
+            } else {
+                live_sessions.push(session);
+            }
         }
     }
 
