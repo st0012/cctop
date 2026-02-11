@@ -37,6 +37,9 @@ struct PopupView: View {
             Divider()
             HStack {
                 QuitButton()
+                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.quaternary)
                 Spacer()
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() }
