@@ -310,6 +310,11 @@ fn handle_hook(hook_name: &str, input: HookInput) -> Result<(), Box<dyn std::err
         )
     };
 
+    // Backfill PID if missing (handles sessions created by older hook binary)
+    if session.pid.is_none() {
+        session.pid = get_parent_pid();
+    }
+
     // Track the old status for logging
     let old_status = session.status.as_str().to_string();
 
