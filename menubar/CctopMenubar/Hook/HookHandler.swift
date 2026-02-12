@@ -11,23 +11,21 @@ enum HookHandler {
 
         let sessionsDir = Config.sessionsDir()
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
+        let pid = getParentPID()
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
-        let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(safeId).json")
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(pid).json")
 
         let branch = getCurrentBranch(cwd: input.cwd)
         let terminal = captureTerminalInfo()
+        let startTime = getProcessStartTime(Int32(pid))
 
-        var session: Session
-        if FileManager.default.fileExists(atPath: sessionPath),
-           let existing = try? Session.fromFile(path: sessionPath) {
-            session = existing
-        } else {
-            session = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
-        }
+        let freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
+        var session = loadOrCreateSession(
+            path: sessionPath, event: event, startTime: startTime, fresh: freshSession
+        )
 
-        if session.pid == nil {
-            session.pid = getParentPID()
-        }
+        session.pid = pid
+        session.pidStartTime = startTime
 
         let oldStatus = session.status.rawValue
         let newStatus = Transition.forEvent(session.status, event: event)
@@ -70,10 +68,7 @@ enum HookHandler {
         switch event {
         case .sessionStart:
             clearToolState(&session)
-            let pid = getParentPID()
-            session.pid = pid
-            cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentSessionId: safeId)
-            cleanupSessionsWithPID(sessionsDir: sessionsDir, pid: pid, currentSessionId: safeId)
+            cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: session.pid)
 
         case .userPromptSubmit:
             clearToolState(&session)
@@ -112,6 +107,29 @@ enum HookHandler {
         }
     }
 
+    // MARK: - Session Loading
+
+    private static func loadOrCreateSession(
+        path: String, event: HookEvent, startTime: TimeInterval?, fresh: Session
+    ) -> Session {
+        guard FileManager.default.fileExists(atPath: path),
+              let existing = try? Session.fromFile(path: path) else {
+            return fresh
+        }
+        // PID reuse: different process start time means a new process reused this PID
+        if event == .sessionStart,
+           let storedStart = existing.pidStartTime,
+           let currentStart = startTime,
+           storedStart != currentStart {
+            return fresh
+        }
+        // Same process but CC assigned a new session_id (e.g. resume) — carry over state
+        guard existing.sessionId == fresh.sessionId else {
+            return existing.withSessionId(fresh.sessionId, branch: fresh.branch, terminal: fresh.terminal)
+        }
+        return existing
+    }
+
     // MARK: - Helpers
 
     /// Walk up the process tree past shell intermediaries to find the Claude Code process.
@@ -128,6 +146,12 @@ enum HookHandler {
             pid = parentPid
         }
         return UInt32(pid)
+    }
+
+    static func getProcessStartTime(_ pid: pid_t) -> TimeInterval? {
+        guard let info = procInfo(pid) else { return nil }
+        let tv = info.kp_proc.p_starttime
+        return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
     }
 
     private static func procInfo(_ pid: pid_t) -> kinfo_proc? {
@@ -226,21 +250,21 @@ enum HookHandler {
 
     // MARK: - Cleanup
 
-    static func cleanupSessionsWithPID(sessionsDir: String, pid: UInt32, currentSessionId: String) {
+    static func cleanupSessionsForProject(sessionsDir: String, projectPath: String, currentPid: UInt32?) {
         forEachSession(in: sessionsDir) { path, session in
-            if session.pid == pid && session.sessionId != currentSessionId {
-                removeSession(at: path, sessionId: session.sessionId)
-            }
-        }
-    }
-
-    static func cleanupSessionsForProject(sessionsDir: String, projectPath: String, currentSessionId: String) {
-        forEachSession(in: sessionsDir) { path, session in
-            guard session.projectPath == projectPath, session.sessionId != currentSessionId else { return }
+            guard session.projectPath == projectPath, session.pid != currentPid else { return }
 
             let isStale: Bool
             if let pid = session.pid {
-                isStale = !isPIDAlive(pid)
+                if !isPIDAlive(pid) {
+                    isStale = true
+                } else if let storedStart = session.pidStartTime,
+                          let currentStart = getProcessStartTime(Int32(pid)),
+                          storedStart != currentStart {
+                    isStale = true  // PID reused by a different process
+                } else {
+                    isStale = false
+                }
             } else {
                 isStale = -session.lastActivity.timeIntervalSinceNow > noPIDMaxAge
             }

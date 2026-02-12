@@ -34,7 +34,7 @@ class SessionManager: ObservableObject {
             return
         }
 
-        let oldStatuses = Dictionary(uniqueKeysWithValues: sessions.map { ($0.sessionId, $0.status) })
+        let oldStatuses = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0.status) })
 
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
         let allDecoded = jsonFiles
@@ -63,7 +63,7 @@ class SessionManager: ObservableObject {
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
             for session in sessions {
                 guard session.status.needsAttention,
-                      let oldStatus = oldStatuses[session.sessionId],
+                      let oldStatus = oldStatuses[session.id],
                       !oldStatus.needsAttention else { continue }
                 sendNotification(for: session)
             }
@@ -77,7 +77,8 @@ class SessionManager: ObservableObject {
     }
 
     func resetSession(_ session: Session) {
-        let url = sessionsDir.appendingPathComponent("\(session.sessionId).json")
+        guard let pid = session.pid else { return }
+        let url = sessionsDir.appendingPathComponent("\(pid).json")
         guard let data = try? Data(contentsOf: url),
               var mutable = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data)
         else { return }
@@ -133,10 +134,10 @@ class SessionManager: ObservableObject {
             content.body = "Needs attention"
         }
         content.sound = .default
-        content.userInfo = ["sessionId": session.sessionId]
+        content.userInfo = ["sessionPID": session.pid.map(String.init) ?? ""]
 
         let request = UNNotificationRequest(
-            identifier: "session-\(session.sessionId)",
+            identifier: "session-\(session.id)",
             content: content,
             trigger: nil
         )

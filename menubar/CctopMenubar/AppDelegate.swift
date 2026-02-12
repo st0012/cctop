@@ -112,9 +112,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let sessionId = response.notification.request.content.userInfo["sessionId"] as? String
+        let pidStr = response.notification.request.content.userInfo["sessionPID"] as? String
         DispatchQueue.main.async { [weak self] in
-            if let session = self?.sessionManager.sessions.first(where: { $0.sessionId == sessionId }) {
+            if let session = self?.sessionManager.sessions.first(where: { $0.id == pidStr }) {
                 focusTerminal(session: session)
             }
         }

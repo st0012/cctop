@@ -8,6 +8,8 @@ extension Session {
         sessionName: String? = nil,
         status: SessionStatus = .idle,
         lastPrompt: String? = nil,
+        pid: UInt32? = nil,
+        pidStartTime: TimeInterval? = nil,
         lastTool: String? = nil,
         lastToolDetail: String? = nil,
         notificationMessage: String? = nil
@@ -22,7 +24,8 @@ extension Session {
             lastActivity: Date(),
             startedAt: Date(),
             terminal: TerminalInfo(program: "Code", sessionId: nil, tty: nil),
-            pid: nil,
+            pid: pid,
+            pidStartTime: pidStartTime,
             lastTool: lastTool,
             lastToolDetail: lastToolDetail,
             notificationMessage: notificationMessage
