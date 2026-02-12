@@ -28,6 +28,14 @@
 		N10000010000000000000001 /* SessionStatus+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000020000000000000001 /* SessionStatus+UI.swift */; };
 		N10000030000000000000001 /* HookEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000040000000000000001 /* HookEvent.swift */; };
 		N10000050000000000000001 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000060000000000000001 /* Config.swift */; };
+		P10000010000000000000001 /* HookMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000020000000000000001 /* HookMain.swift */; };
+		P10000030000000000000001 /* HookInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000040000000000000001 /* HookInput.swift */; };
+		P10000050000000000000001 /* HookHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000060000000000000001 /* HookHandler.swift */; };
+		P10000070000000000000001 /* HookLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000080000000000000001 /* HookLogger.swift */; };
+		P10000090000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
+		P1000000A000000000000001 /* SessionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000040000000000000001 /* SessionStatus.swift */; };
+		P1000000B000000000000001 /* HookEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000040000000000000001 /* HookEvent.swift */; };
+		P1000000C000000000000001 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000060000000000000001 /* Config.swift */; };
 		T10000010000000000000001 /* SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000020000000000000001 /* SessionTests.swift */; };
 		T10000070000000000000002 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000080000000000000002 /* AppSettingsTests.swift */; };
 		T10000030000000000000001 /* SessionStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000040000000000000001 /* SessionStatusTests.swift */; };
@@ -75,6 +83,11 @@
 		N10000020000000000000001 /* SessionStatus+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionStatus+UI.swift"; sourceTree = "<group>"; };
 		N10000040000000000000001 /* HookEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEvent.swift; sourceTree = "<group>"; };
 		N10000060000000000000001 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		P10000020000000000000001 /* HookMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookMain.swift; sourceTree = "<group>"; };
+		P10000040000000000000001 /* HookInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookInput.swift; sourceTree = "<group>"; };
+		P10000060000000000000001 /* HookHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandler.swift; sourceTree = "<group>"; };
+		P10000080000000000000001 /* HookLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookLogger.swift; sourceTree = "<group>"; };
+		P1000000D000000000000001 /* cctop-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "cctop-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +99,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		T10000070000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		P1000000E000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -114,6 +134,17 @@
 			);
 			sourceTree = "<group>";
 		};
+		P1000000F000000000000001 /* Hook */ = {
+			isa = PBXGroup;
+			children = (
+				P10000020000000000000001 /* HookMain.swift */,
+				P10000040000000000000001 /* HookInput.swift */,
+				P10000060000000000000001 /* HookHandler.swift */,
+				P10000080000000000000001 /* HookLogger.swift */,
+			);
+			path = Hook;
+			sourceTree = "<group>";
+		};
 		A10000060000000000000001 /* CctopMenubar */ = {
 			isa = PBXGroup;
 			children = (
@@ -124,6 +155,7 @@
 				A10000080000000000000001 /* Models */,
 				A10000090000000000000001 /* Views */,
 				A1000000A000000000000001 /* Services */,
+				P1000000F000000000000001 /* Hook */,
 			);
 			path = CctopMenubar;
 			sourceTree = "<group>";
@@ -133,6 +165,7 @@
 			children = (
 				A10000030000000000000001 /* CctopMenubar.app */,
 				T10000060000000000000001 /* CctopMenubarTests.xctest */,
+				P1000000D000000000000001 /* cctop-hook */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -217,6 +250,22 @@
 			productReference = T10000060000000000000001 /* CctopMenubarTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		P10000100000000000000001 /* cctop-hook */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = P10000110000000000000001 /* Build configuration list for PBXNativeTarget "cctop-hook" */;
+			buildPhases = (
+				P10000120000000000000001 /* Sources */,
+				P1000000E000000000000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "cctop-hook";
+			productName = "cctop-hook";
+			productReference = P1000000D000000000000001 /* cctop-hook */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -245,6 +294,7 @@
 			targets = (
 				A1000000B000000000000001 /* CctopMenubar */,
 				T10000090000000000000001 /* CctopMenubarTests */,
+				P10000100000000000000001 /* cctop-hook */,
 			);
 		};
 /* End PBXProject section */
@@ -287,6 +337,21 @@
 				T10000050000000000000002 /* SnapshotTests.swift in Sources */,
 				Q10000010000000000000001 /* QASnapshotTests.swift in Sources */,
 				T10000070000000000000002 /* AppSettingsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		P10000120000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				P10000010000000000000001 /* HookMain.swift in Sources */,
+				P10000030000000000000001 /* HookInput.swift in Sources */,
+				P10000050000000000000001 /* HookHandler.swift in Sources */,
+				P10000070000000000000001 /* HookLogger.swift in Sources */,
+				P10000090000000000000001 /* Session.swift in Sources */,
+				P1000000A000000000000001 /* SessionStatus.swift in Sources */,
+				P1000000B000000000000001 /* HookEvent.swift in Sources */,
+				P1000000C000000000000001 /* Config.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -436,6 +501,30 @@
 			};
 			name = Release;
 		};
+		P10000130000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 300;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 0.3.0;
+				PRODUCT_NAME = "cctop-hook";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		P10000140000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 300;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 0.3.0;
+				PRODUCT_NAME = "cctop-hook";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -462,6 +551,15 @@
 			buildConfigurations = (
 				T1000000D000000000000001 /* Debug */,
 				T1000000E000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		P10000110000000000000001 /* Build configuration list for PBXNativeTarget "cctop-hook" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				P10000130000000000000001 /* Debug */,
+				P10000140000000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
