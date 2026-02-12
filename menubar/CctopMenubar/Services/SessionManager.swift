@@ -123,7 +123,7 @@ class SessionManager: ObservableObject {
 
     private func postNotification(for session: Session) {
         let content = UNMutableNotificationContent()
-        content.title = session.projectName
+        content.title = session.displayName
         switch session.status {
         case .waitingPermission:
             content.body = session.notificationMessage ?? "Permission needed"

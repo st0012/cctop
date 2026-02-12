@@ -64,8 +64,13 @@ struct Session: Codable, Identifiable {
     var lastTool: String?
     var lastToolDetail: String?
     var notificationMessage: String?
+    var sessionName: String?
 
     var id: String { sessionId }
+
+    var displayName: String {
+        sessionName ?? projectName
+    }
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
@@ -79,6 +84,7 @@ struct Session: Codable, Identifiable {
         case lastTool = "last_tool"
         case lastToolDetail = "last_tool_detail"
         case notificationMessage = "notification_message"
+        case sessionName = "session_name"
     }
 
     // MARK: - Constructors
@@ -97,7 +103,8 @@ struct Session: Codable, Identifiable {
         pid: UInt32?,
         lastTool: String?,
         lastToolDetail: String?,
-        notificationMessage: String?
+        notificationMessage: String?,
+        sessionName: String? = nil
     ) {
         self.sessionId = sessionId
         self.projectPath = projectPath
@@ -112,6 +119,7 @@ struct Session: Codable, Identifiable {
         self.lastTool = lastTool
         self.lastToolDetail = lastToolDetail
         self.notificationMessage = notificationMessage
+        self.sessionName = sessionName
     }
 
     /// Convenience init for creating new sessions (used by cctop-hook).
@@ -129,6 +137,7 @@ struct Session: Codable, Identifiable {
         self.lastTool = nil
         self.lastToolDetail = nil
         self.notificationMessage = nil
+        self.sessionName = nil
     }
 
     // MARK: - File I/O

@@ -39,6 +39,9 @@ enum HookHandler {
         session.lastActivity = Date()
         session.branch = branch
         session.terminal = terminal
+        if event == .sessionStart || event == .userPromptSubmit {
+            session.sessionName = SessionNameLookup.lookupSessionName(transcriptPath: input.transcriptPath, sessionId: input.sessionId)
+        }
 
         applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
 

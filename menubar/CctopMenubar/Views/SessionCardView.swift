@@ -21,7 +21,7 @@ struct SessionCardView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(session.projectName)
+                    Text(session.displayName)
                         .font(.system(size: 13))
                         .foregroundStyle(.primary)
                     Text(session.branch)
@@ -31,6 +31,11 @@ struct SessionCardView: View {
                         .padding(.vertical, 1)
                         .background(Color.primary.opacity(0.06))
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                if session.sessionName != nil {
+                    Text(session.projectName)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
                 }
                 if let context = session.contextLine {
                     Text(context)
@@ -58,7 +63,7 @@ struct SessionCardView: View {
                     }
                     .buttonStyle(.plain)
                     .onHover { resetHovered = $0 }
-                    .accessibilityLabel("Reset \(session.projectName) to idle")
+                    .accessibilityLabel("Reset \(session.displayName) to idle")
                     .help("Reset status to idle")
                 } else {
                     Text(session.relativeTime)
@@ -89,7 +94,7 @@ struct SessionCardView: View {
     }
 
     private var cardAccessibilityLabel: String {
-        var parts = [session.projectName, "on branch", session.branch, session.status.accessibilityDescription]
+        var parts = [session.displayName, "on branch", session.branch, session.status.accessibilityDescription]
         if let context = session.contextLine {
             parts.append(context)
         }
@@ -121,5 +126,9 @@ struct SessionCardView: View {
 }
 #Preview("Compacting") {
     SessionCardView(session: .mock(status: .compacting))
+        .frame(width: 300).padding()
+}
+#Preview("Named Session") {
+    SessionCardView(session: .mock(sessionName: "refactor auth flow", status: .working, lastTool: "Edit", lastToolDetail: "/src/auth.ts"))
         .frame(width: 300).padding()
 }
