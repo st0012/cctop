@@ -32,6 +32,7 @@
 		P10000030000000000000001 /* HookInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000040000000000000001 /* HookInput.swift */; };
 		P10000050000000000000001 /* HookHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000060000000000000001 /* HookHandler.swift */; };
 		P10000070000000000000001 /* HookLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000080000000000000001 /* HookLogger.swift */; };
+		SN0000010000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
 		P10000090000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
 		P1000000A000000000000001 /* SessionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000040000000000000001 /* SessionStatus.swift */; };
 		P1000000B000000000000001 /* HookEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000040000000000000001 /* HookEvent.swift */; };
@@ -89,6 +90,7 @@
 		P10000040000000000000001 /* HookInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookInput.swift; sourceTree = "<group>"; };
 		P10000060000000000000001 /* HookHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandler.swift; sourceTree = "<group>"; };
 		P10000080000000000000001 /* HookLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookLogger.swift; sourceTree = "<group>"; };
+		SN0000020000000000000001 /* SessionNameLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookup.swift; sourceTree = "<group>"; };
 		P1000000D000000000000001 /* cctop-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "cctop-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -143,6 +145,7 @@
 				P10000040000000000000001 /* HookInput.swift */,
 				P10000060000000000000001 /* HookHandler.swift */,
 				P10000080000000000000001 /* HookLogger.swift */,
+				SN0000020000000000000001 /* SessionNameLookup.swift */,
 			);
 			path = Hook;
 			sourceTree = "<group>";
@@ -352,6 +355,7 @@
 				P10000030000000000000001 /* HookInput.swift in Sources */,
 				P10000050000000000000001 /* HookHandler.swift in Sources */,
 				P10000070000000000000001 /* HookLogger.swift in Sources */,
+				SN0000010000000000000001 /* SessionNameLookup.swift in Sources */,
 				P10000090000000000000001 /* Session.swift in Sources */,
 				P1000000A000000000000001 /* SessionStatus.swift in Sources */,
 				P1000000B000000000000001 /* HookEvent.swift in Sources */,
