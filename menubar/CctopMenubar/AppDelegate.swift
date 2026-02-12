@@ -50,7 +50,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
 
         NotificationCenter.default.addObserver(forName: .settingsToggled, object: nil, queue: .main) { [weak self] _ in
-            self?.positionPanel(animate: true)
+            self?.resizePanel(animate: true)
         }
 
         cancellable = sessionManager.$sessions
@@ -63,10 +63,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     : "cctop, \(sessions.count) session\(sessions.count == 1 ? "" : "s")"
                 self?.statusItem.button?.setAccessibilityLabel(a11yLabel)
                 if self?.panel.isVisible == true {
-                    // Defer positioning so SwiftUI can finish its layout pass
-                    // before we read fittingSize
                     DispatchQueue.main.async { [weak self] in
-                        self?.positionPanel(animate: true)
+                        self?.resizePanel(animate: true)
                     }
                 }
             }
@@ -171,6 +169,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let width = max(fittingSize.width, 320)
         let height = min(fittingSize.height, 600)
         let newFrame = NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4, width: width, height: height)
+
+        if animate {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.2
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(newFrame, display: true)
+            }
+        } else {
+            panel.setFrame(newFrame, display: true)
+        }
+    }
+
+    /// Resize the panel in place (keeps current x position, grows/shrinks from the top edge).
+    private func resizePanel(animate: Bool = false) {
+        panel.contentView?.layout()
+        guard let fittingSize = panel.contentView?.fittingSize else { return }
+
+        let oldFrame = panel.frame
+        let width = max(fittingSize.width, 320)
+        let height = min(fittingSize.height, 600)
+        // Keep the top edge pinned, adjust origin.y for new height
+        let newFrame = NSRect(x: oldFrame.midX - width / 2, y: oldFrame.maxY - height, width: width, height: height)
 
         if animate {
             NSAnimationContext.runAnimationGroup { context in
