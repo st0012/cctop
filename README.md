@@ -22,12 +22,14 @@ If you run multiple Claude Code sessions across different projects, you know the
 
 ## Installation
 
-### Homebrew
+### Homebrew (recommended)
 
 ```bash
 brew tap st0012/cctop
 brew install --cask cctop
 ```
+
+Homebrew handles quarantine removal automatically — no extra steps needed.
 
 ### Download manually
 
