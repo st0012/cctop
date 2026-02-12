@@ -126,8 +126,42 @@ enum HookHandler {
 
     // MARK: - Helpers
 
+    /// Walk up the process tree past shell intermediaries to find the Claude Code process.
+    /// When invoked through run-hook.sh, getppid() returns the short-lived /bin/sh PID.
+    /// We skip shell processes (sh, bash, zsh) to find the actual Claude Code process.
     static func getParentPID() -> UInt32 {
-        UInt32(getppid())
+        let shells: Set<String> = ["sh", "bash", "zsh", "fish", "dash"]
+        var pid = getppid()
+        for _ in 0..<4 {
+            let name = processName(pid)
+            if !shells.contains(name) { break }
+            let parentPid = parentPIDOf(pid)
+            if parentPid <= 1 { break }
+            pid = parentPid
+        }
+        return UInt32(pid)
+    }
+
+    /// Get the parent PID of a given process using sysctl.
+    private static func parentPIDOf(_ pid: pid_t) -> pid_t {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.size
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return 0 }
+        return info.kp_eproc.e_ppid
+    }
+
+    /// Get the process name for a given PID using sysctl.
+    private static func processName(_ pid: pid_t) -> String {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.size
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return "" }
+        return withUnsafePointer(to: info.kp_proc.p_comm) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN)) { cStr in
+                String(cString: cStr)
+            }
+        }
     }
 
     static func captureTerminalInfo() -> TerminalInfo {
