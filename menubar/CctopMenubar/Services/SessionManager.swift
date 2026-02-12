@@ -74,6 +74,20 @@ class SessionManager: ObservableObject {
             logger.error("removing dead session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
             try? FileManager.default.removeItem(at: url)
         }
+
+        cleanupOldFormatFiles(jsonFiles)
+    }
+
+    /// Remove old-format UUID-keyed session files (pre-PID migration).
+    /// PID-keyed filenames are purely numeric; UUID filenames contain letters/hyphens.
+    private func cleanupOldFormatFiles(_ jsonFiles: [URL]) {
+        for url in jsonFiles {
+            let stem = url.deletingPathExtension().lastPathComponent
+            if stem.rangeOfCharacter(from: CharacterSet.decimalDigits.inverted) != nil {
+                logger.info("removing old-format session file: \(stem, privacy: .public)")
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
     func resetSession(_ session: Session) {

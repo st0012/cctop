@@ -2,7 +2,7 @@ import Foundation
 
 enum HookHandler {
     private static let maxToolDetailLen = 120
-    private static let noPIDMaxAge: TimeInterval = 24 * 3600
+    private static let noPIDMaxAge: TimeInterval = 300
 
     static func handleHook(hookName: String, input: HookInput) throws {
         let event = HookEvent.parse(hookName: hookName, notificationType: input.notificationType)

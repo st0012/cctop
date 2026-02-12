@@ -217,23 +217,21 @@ struct Session: Codable, Identifiable {
     }
 
     var isAlive: Bool {
-        if let pid {
-            let processRunning: Bool
-            if kill(Int32(pid), 0) == 0 {
-                processRunning = true
-            } else {
-                processRunning = errno == EPERM
-            }
-            guard processRunning else { return false }
-            // Check PID reuse: if we recorded a start time, verify it still matches
-            if let stored = pidStartTime,
-               let current = Self.processStartTime(pid: pid),
-               abs(stored - current) > 1.0 {
-                return false
-            }
-            return true
+        guard let pid else { return false }
+        let processRunning: Bool
+        if kill(Int32(pid), 0) == 0 {
+            processRunning = true
+        } else {
+            processRunning = errno == EPERM
         }
-        return -lastActivity.timeIntervalSinceNow < 4 * 3600
+        guard processRunning else { return false }
+        // Check PID reuse: if we recorded a start time, verify it still matches
+        if let stored = pidStartTime,
+           let current = Self.processStartTime(pid: pid),
+           abs(stored - current) > 1.0 {
+            return false
+        }
+        return true
     }
 
     var relativeTime: String {
