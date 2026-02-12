@@ -53,8 +53,7 @@ class SessionManager: ObservableObject {
             }
         let alive = allDecoded.filter { $0.1.isAlive }
         let dead = allDecoded.filter { !$0.1.isAlive }
-        let msg = "\(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead"
-        logger.info("loadSessions: \(msg, privacy: .public)")
+        logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead")
         let oldCount = sessions.count
         sessions = alive.map(\.1)
         if sessions.count != oldCount {
@@ -63,10 +62,10 @@ class SessionManager: ObservableObject {
 
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
             for session in sessions {
-                let oldStatus = oldStatuses[session.sessionId]
-                if session.status.needsAttention && oldStatus != nil && !(oldStatus!.needsAttention) {
-                    sendNotification(for: session)
-                }
+                guard session.status.needsAttention,
+                      let oldStatus = oldStatuses[session.sessionId],
+                      !oldStatus.needsAttention else { continue }
+                sendNotification(for: session)
             }
         }
         for (url, session) in dead {

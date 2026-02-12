@@ -1,6 +1,5 @@
 import Foundation
 
-/// Input JSON schema from Claude Code hooks.
 struct HookInput: Codable {
     let sessionId: String
     let cwd: String
@@ -28,8 +27,6 @@ struct HookInput: Codable {
         case message, title, trigger
     }
 
-    /// Custom decoder to handle tool_input which may contain non-string values.
-    /// We extract only the string values we care about.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
@@ -44,8 +41,6 @@ struct HookInput: Codable {
         title = try container.decodeIfPresent(String.self, forKey: .title)
         trigger = try container.decodeIfPresent(String.self, forKey: .trigger)
 
-        // tool_input is a JSON object with mixed value types.
-        // We only need string values, so extract those and ignore the rest.
         if container.contains(.toolInput) {
             let rawDict = try? container.decode([String: ToolInputValue].self, forKey: .toolInput)
             toolInput = rawDict?.compactMapValues { $0.stringValue }
@@ -55,7 +50,6 @@ struct HookInput: Codable {
     }
 }
 
-/// Helper to decode mixed JSON values from tool_input, extracting strings only.
 private enum ToolInputValue: Decodable {
     case string(String)
     case other

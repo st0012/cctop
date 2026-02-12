@@ -36,22 +36,15 @@ enum HookEvent: Equatable {
 }
 
 enum Transition {
-    /// Determine the next status for a given hook event.
-    /// Returns nil to mean "preserve current status" (different from transitioning to same state).
+    /// Returns nil to mean "preserve current status".
     static func forEvent(_ current: SessionStatus, event: HookEvent) -> SessionStatus? {
         switch event {
-        case .sessionStart: return .idle
-        case .userPromptSubmit: return .working
-        case .preToolUse: return .working
-        case .postToolUse: return .working
-        case .stop: return .idle
+        case .sessionStart, .stop: return .idle
+        case .userPromptSubmit, .preToolUse, .postToolUse: return .working
         case .notificationIdle: return .waitingInput
-        case .notificationPermission: return .waitingPermission
-        case .notificationOther: return nil
-        case .permissionRequest: return .waitingPermission
+        case .notificationPermission, .permissionRequest: return .waitingPermission
         case .preCompact: return .compacting
-        case .sessionEnd: return nil
-        case .unknown: return nil
+        case .notificationOther, .sessionEnd, .unknown: return nil
         }
     }
 }

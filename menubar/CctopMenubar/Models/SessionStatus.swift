@@ -30,5 +30,4 @@ enum SessionStatus: String, Codable {
         }
     }
 
-    var asStr: String { rawValue }
 }

@@ -1,17 +1,12 @@
 import Foundation
 
 enum HookHandler {
-    /// Maximum length for extracted tool detail strings.
     private static let maxToolDetailLen = 120
-
-    /// Maximum age for sessions without a PID before they are cleaned up.
     private static let noPIDMaxAge: TimeInterval = 24 * 3600
 
-    /// Handle a hook event by updating or creating the session file.
     static func handleHook(hookName: String, input: HookInput) throws {
         let event = HookEvent.parse(hookName: hookName, notificationType: input.notificationType)
 
-        // SessionEnd is a no-op (PID-based liveness detection handles cleanup)
         if event == .sessionEnd { return }
 
         let sessionsDir = Config.sessionsDir()
@@ -22,7 +17,6 @@ enum HookHandler {
         let branch = getCurrentBranch(cwd: input.cwd)
         let terminal = captureTerminalInfo()
 
-        // Load existing session or create new one
         var session: Session
         if FileManager.default.fileExists(atPath: sessionPath),
            let existing = try? Session.fromFile(path: sessionPath) {
@@ -31,15 +25,13 @@ enum HookHandler {
             session = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
         }
 
-        // Backfill PID if missing
         if session.pid == nil {
             session.pid = getParentPID()
         }
 
-        let oldStatus = session.status.asStr
-
-        // Use centralized transition table
+        let oldStatus = session.status.rawValue
         let newStatus = Transition.forEvent(session.status, event: event)
+
         if let newStatus {
             session.status = newStatus
         }
@@ -50,9 +42,8 @@ enum HookHandler {
 
         applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
 
-        let transition = newStatus == nil
-            ? "\(oldStatus) -> \(session.status.asStr) (preserved)"
-            : "\(oldStatus) -> \(session.status.asStr)"
+        let suffix = newStatus == nil ? " (preserved)" : ""
+        let transition = "\(oldStatus) -> \(session.status.rawValue)\(suffix)"
         HookLogger.appendHookLog(
             sessionId: safeId,
             event: hookName,
@@ -63,27 +54,26 @@ enum HookHandler {
         try session.writeToFile(path: sessionPath)
     }
 
-    /// Apply per-event side effects (tool tracking, cleanup, notifications).
+    private static func clearToolState(_ session: inout Session) {
+        session.lastTool = nil
+        session.lastToolDetail = nil
+        session.notificationMessage = nil
+    }
+
     private static func applySideEffects(
         event: HookEvent, session: inout Session, input: HookInput,
         sessionsDir: String, safeId: String
     ) {
         switch event {
         case .sessionStart:
-            session.lastTool = nil
-            session.lastToolDetail = nil
-            session.notificationMessage = nil
-
+            clearToolState(&session)
             let pid = getParentPID()
             session.pid = pid
-
             cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentSessionId: safeId)
             cleanupSessionsWithPID(sessionsDir: sessionsDir, pid: pid, currentSessionId: safeId)
 
         case .userPromptSubmit:
-            session.lastTool = nil
-            session.lastToolDetail = nil
-            session.notificationMessage = nil
+            clearToolState(&session)
             if let prompt = input.prompt {
                 session.lastPrompt = prompt
             }
@@ -112,14 +102,9 @@ enum HookHandler {
             }
 
         case .stop:
-            session.lastTool = nil
-            session.lastToolDetail = nil
-            session.notificationMessage = nil
+            clearToolState(&session)
 
-        case .preCompact:
-            break
-
-        case .postToolUse, .sessionEnd, .unknown:
+        case .preCompact, .postToolUse, .sessionEnd, .unknown:
             break
         }
     }
@@ -142,7 +127,6 @@ enum HookHandler {
         return UInt32(pid)
     }
 
-    /// Get the parent PID of a given process using sysctl.
     private static func parentPIDOf(_ pid: pid_t) -> pid_t {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.size
@@ -151,7 +135,6 @@ enum HookHandler {
         return info.kp_eproc.e_ppid
     }
 
-    /// Get the process name for a given PID using sysctl.
     private static func processName(_ pid: pid_t) -> String {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.size
@@ -219,48 +202,46 @@ enum HookHandler {
     // MARK: - Cleanup
 
     static func cleanupSessionsWithPID(sessionsDir: String, pid: UInt32, currentSessionId: String) {
-        let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(atPath: sessionsDir) else { return }
-
-        for entry in entries {
-            guard entry.hasSuffix(".json") else { continue }
-            let path = (sessionsDir as NSString).appendingPathComponent(entry)
-            guard let session = try? Session.fromFile(path: path) else { continue }
+        forEachSession(in: sessionsDir) { path, session in
             if session.pid == pid && session.sessionId != currentSessionId {
-                try? fm.removeItem(atPath: path)
-                HookLogger.cleanupSessionLog(sessionId: session.sessionId)
+                removeSession(at: path, sessionId: session.sessionId)
             }
         }
     }
 
     static func cleanupSessionsForProject(sessionsDir: String, projectPath: String, currentSessionId: String) {
-        let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(atPath: sessionsDir) else { return }
+        forEachSession(in: sessionsDir) { path, session in
+            guard session.projectPath == projectPath, session.sessionId != currentSessionId else { return }
 
-        for entry in entries {
-            guard entry.hasSuffix(".json") else { continue }
-            let path = (sessionsDir as NSString).appendingPathComponent(entry)
-            guard let session = try? Session.fromFile(path: path) else { continue }
-            if session.projectPath != projectPath || session.sessionId == currentSessionId {
-                continue
-            }
-
-            let shouldRemove: Bool
+            let isStale: Bool
             if let pid = session.pid {
-                shouldRemove = !isPIDAlive(pid)
+                isStale = !isPIDAlive(pid)
             } else {
-                shouldRemove = -session.lastActivity.timeIntervalSinceNow > noPIDMaxAge
+                isStale = -session.lastActivity.timeIntervalSinceNow > noPIDMaxAge
             }
 
-            if shouldRemove {
-                try? fm.removeItem(atPath: path)
-                HookLogger.cleanupSessionLog(sessionId: session.sessionId)
+            if isStale {
+                removeSession(at: path, sessionId: session.sessionId)
             }
         }
     }
 
+    private static func forEachSession(in dir: String, body: (String, Session) -> Void) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: dir) else { return }
+        for entry in entries where entry.hasSuffix(".json") {
+            let path = (dir as NSString).appendingPathComponent(entry)
+            guard let session = try? Session.fromFile(path: path) else { continue }
+            body(path, session)
+        }
+    }
+
+    private static func removeSession(at path: String, sessionId: String) {
+        try? FileManager.default.removeItem(atPath: path)
+        HookLogger.cleanupSessionLog(sessionId: sessionId)
+    }
+
     private static func isPIDAlive(_ pid: UInt32) -> Bool {
-        if kill(Int32(pid), 0) == 0 { return true }
-        return errno == EPERM
+        kill(Int32(pid), 0) == 0 || errno == EPERM
     }
 }
