@@ -20,8 +20,9 @@ cctop/
 │   │   └── Hook/                  # cctop-hook CLI target only
 │   │       ├── HookMain.swift     # CLI entry point (stdin, args, dispatch)
 │   │       ├── HookInput.swift    # Codable struct for Claude Code hook JSON
-│   │       ├── HookHandler.swift  # Core logic (transitions, cleanup, PID)
-│   │       └── HookLogger.swift   # Per-session logging
+│   │       ├── HookHandler.swift       # Core logic (transitions, cleanup, PID)
+│   │       ├── SessionNameLookup.swift # Session name from transcript/index
+│   │       └── HookLogger.swift        # Per-session logging
 │   └── CctopMenubarTests/
 ├── plugins/cctop/     # Claude Code plugin
 │   ├── .claude-plugin/plugin.json
@@ -68,6 +69,7 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 - `menubar/CctopMenubar/Services/SessionManager.swift` — File watching + session loading
 - `menubar/CctopMenubar/Hook/HookMain.swift` — CLI entry point (cctop-hook target only)
 - `menubar/CctopMenubar/Hook/HookHandler.swift` — Core hook logic (cctop-hook target only)
+- `menubar/CctopMenubar/Hook/SessionNameLookup.swift` — Session name lookup from transcript/index (cctop-hook target only)
 
 ## Key Components
 
@@ -115,6 +117,12 @@ scripts/bundle-macos.sh
 ```
 
 **IMPORTANT:** Always use `scripts/bump-version.sh <version>` to bump versions. Never edit version numbers manually — the script updates all files including `CURRENT_PROJECT_VERSION` in the Xcode project.
+
+### Linting
+
+The project uses [SwiftLint](https://github.com/realm/SwiftLint) in strict mode. Run `make lint` before committing. Common issues:
+- **Line length**: Max 150 characters. Break long lines (especially in `Session+Mock.swift` mock arrays).
+- A Claude Code hook in `.claude/settings.json` auto-runs swiftlint on every file edit, but always verify with `make lint` before committing.
 
 ### Visual Changes
 - Use Xcode Previews (Canvas) for instant visual feedback on any SwiftUI view
