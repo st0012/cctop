@@ -22,14 +22,18 @@ If you run multiple Claude Code sessions across different projects, you know the
 
 ## Installation
 
-### Homebrew (recommended)
+<!--
+### Homebrew
+
+Homebrew cask install is not available yet — macOS Gatekeeper blocks unnotarized
+apps during cask install with no workaround. Will be enabled once Apple notarization
+is in place. See: https://github.com/Homebrew/brew/issues/20755
 
 ```bash
 brew tap st0012/cctop
 brew install --cask cctop
 ```
-
-Homebrew handles quarantine removal automatically — no extra steps needed.
+-->
 
 ### Download manually
 
