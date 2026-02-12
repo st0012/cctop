@@ -6,25 +6,6 @@ on:
   pull_request:
 
 jobs:
-  rust-lint:
-    name: Rust Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - run: cargo fmt --check
-      - run: cargo clippy -- -D warnings
-
-  rust-test:
-    name: Rust Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test
-
   swift-lint:
     name: Swift Lint
     runs-on: macos-15
@@ -42,7 +23,24 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app
-      - name: Build
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: menubar/build/
+          key: deriveddata-${{ runner.os }}-${{ hashFiles('menubar/CctopMenubar.xcodeproj/**') }}
+          restore-keys: |
+            deriveddata-${{ runner.os }}-
+      - name: Build menubar app
         run: xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+      - name: Build cctop-hook CLI
+        run: xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme cctop-hook -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+      - name: Smoke test cctop-hook
+        run: |
+          SMOKE_DIR=$(mktemp -d)
+          echo '{"session_id":"ci-test","cwd":"/tmp/proj","hook_event_name":"SessionStart"}' \
+            | CCTOP_SESSIONS_DIR="$SMOKE_DIR" menubar/build/Build/Products/Debug/cctop-hook SessionStart
+          test -f "$SMOKE_DIR/ci-test.json"
+          grep -q '"idle"' "$SMOKE_DIR/ci-test.json"
+          rm -rf "$SMOKE_DIR"
       - name: Test
         run: xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/

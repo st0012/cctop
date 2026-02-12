@@ -131,36 +131,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound])
     }
 
-    /// Symlinks cctop-hook from the app bundle into ~/.local/bin/ so Claude Code hooks can find it.
-    /// Skips if cctop-hook is already reachable (e.g. via Homebrew or cargo install).
+    /// Symlinks cctop-hook from the app bundle into ~/.cctop/bin/ so Claude Code hooks can find it.
+    /// run-hook.sh checks app bundle paths first, then falls back to ~/.cctop/bin/.
     private func installHookBinaryIfNeeded() {
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
 
-        // Check if cctop-hook is already installed somewhere run-hook.sh checks
-        let existingPaths = [
-            home.appendingPathComponent(".cargo/bin/cctop-hook"),
-            home.appendingPathComponent(".local/bin/cctop-hook"),
-            URL(fileURLWithPath: "/opt/homebrew/bin/cctop-hook"),
-            URL(fileURLWithPath: "/usr/local/bin/cctop-hook")
-        ]
+        // Check if cctop-hook already exists at ~/.cctop/bin/ (the fallback path run-hook.sh checks)
+        let cctopBin = home.appendingPathComponent(".cctop/bin")
+        let symlinkPath = cctopBin.appendingPathComponent("cctop-hook")
 
-        for path in existingPaths {
-            // If a real file (not broken symlink) exists, nothing to do
-            var isDir: ObjCBool = false
-            if fm.fileExists(atPath: path.path, isDirectory: &isDir), !isDir.boolValue {
-                return
-            }
+        var isDir: ObjCBool = false
+        if fm.fileExists(atPath: symlinkPath.path, isDirectory: &isDir), !isDir.boolValue {
+            return
         }
 
-        // cctop-hook not found — symlink from the app bundle to ~/.local/bin/
+        // cctop-hook not found — symlink from the app bundle to ~/.cctop/bin/
         guard let bundledHook = Bundle.main.url(forAuxiliaryExecutable: "cctop-hook") else { return }
 
-        let localBin = home.appendingPathComponent(".local/bin")
-        let symlinkPath = localBin.appendingPathComponent("cctop-hook")
-
         do {
-            try fm.createDirectory(at: localBin, withIntermediateDirectories: true)
+            try fm.createDirectory(at: cctopBin, withIntermediateDirectories: true)
             // Remove stale symlink if it exists (e.g. app was reinstalled to different path)
             if (try? fm.attributesOfItem(atPath: symlinkPath.path)) != nil {
                 try fm.removeItem(at: symlinkPath)

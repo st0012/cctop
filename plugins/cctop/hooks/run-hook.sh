@@ -20,20 +20,12 @@ TS=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
 echo "$TS SHIM $EVENT $LABEL dispatching" >> "$LOG" 2>/dev/null
 
-if [ -x "$HOME/.cargo/bin/cctop-hook" ]; then
-    echo "$INPUT" | "$HOME/.cargo/bin/cctop-hook" "$EVENT"
-elif [ -x "$HOME/.local/bin/cctop-hook" ]; then
-    echo "$INPUT" | "$HOME/.local/bin/cctop-hook" "$EVENT"
-elif [ -x "/Applications/cctop.app/Contents/MacOS/cctop-hook" ]; then
+if [ -x "/Applications/cctop.app/Contents/MacOS/cctop-hook" ]; then
     echo "$INPUT" | /Applications/cctop.app/Contents/MacOS/cctop-hook "$EVENT"
 elif [ -x "$HOME/Applications/cctop.app/Contents/MacOS/cctop-hook" ]; then
     echo "$INPUT" | "$HOME/Applications/cctop.app/Contents/MacOS/cctop-hook" "$EVENT"
-elif [ -x "/opt/homebrew/bin/cctop-hook" ]; then
-    echo "$INPUT" | /opt/homebrew/bin/cctop-hook "$EVENT"
-elif [ -x "/usr/local/bin/cctop-hook" ]; then
-    echo "$INPUT" | /usr/local/bin/cctop-hook "$EVENT"
-elif command -v cctop-hook >/dev/null 2>&1; then
-    echo "$INPUT" | cctop-hook "$EVENT"
+elif [ -x "$HOME/.cctop/bin/cctop-hook" ]; then
+    echo "$INPUT" | "$HOME/.cctop/bin/cctop-hook" "$EVENT"
 else
     echo "$TS ERROR run-hook.sh: cctop-hook not found ($LABEL event=$EVENT)" >> "$LOG" 2>/dev/null
 fi
