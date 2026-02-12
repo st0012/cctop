@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cargo fmt --quiet 2>/dev/null; cargo clippy --quiet -- -D warnings 2>&1 | head -30"
+            "command": "swiftlint lint --quiet --strict 2>&1 | head -30"
           }
         ]
       }

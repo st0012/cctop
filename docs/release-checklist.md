@@ -44,7 +44,7 @@ git add . && git commit -m "Initial tap setup" && git push
 
 ```bash
 git checkout master
-git merge migrate-to-swift
+git merge <branch-name>
 git push origin master
 ```
 
@@ -77,11 +77,8 @@ brew install --cask cctop
 # Verify the app launches
 open /Applications/cctop.app
 
-# Verify the hook is symlinked
-ls -la ~/.local/bin/cctop-hook
-
-# Verify the TUI works
-cctop --list
+# Verify the hook binary is in the app bundle
+ls -la /Applications/cctop.app/Contents/MacOS/cctop-hook
 ```
 
 ### 5. If anything goes wrong
