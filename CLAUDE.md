@@ -2,39 +2,33 @@
 
 ## Project Overview
 
-cctop is a TUI (Terminal User Interface) for monitoring Claude Code sessions across workspaces. It tracks session status (idle, working, needs attention) via Claude Code hooks and allows jumping to sessions.
+cctop is a macOS menubar app for monitoring Claude Code sessions across workspaces. It tracks session status (idle, working, needs attention) via Claude Code hooks and allows jumping to sessions.
 
 ## Architecture
 
 ```
 cctop/
-├── src/
-│   ├── main.rs        # CLI entry point (TUI)
-│   ├── lib.rs         # Library exports
-│   ├── config.rs      # Config loading
-│   ├── session.rs     # Session struct and status handling
-│   ├── tui.rs         # Ratatui TUI implementation
-│   ├── focus.rs       # Terminal focus
-│   ├── git.rs         # Git branch detection
-│   ├── watcher.rs     # File system watcher
-│   └── bin/
-│       └── cctop_hook.rs  # Hook binary
-├── menubar/           # Swift/SwiftUI menubar app
+├── menubar/           # Swift/SwiftUI app (menubar + hook CLI)
 │   ├── CctopMenubar.xcodeproj/
 │   ├── CctopMenubar/
 │   │   ├── CctopApp.swift         # App entry point
 │   │   ├── AppDelegate.swift      # NSStatusItem + FloatingPanel toggle
 │   │   ├── FloatingPanel.swift    # NSPanel subclass (stays open)
-│   │   ├── Models/                # Session, SessionStatus (Codable)
+│   │   ├── Models/                # Session, SessionStatus, HookEvent, Config (shared)
 │   │   ├── Views/                 # PopupView, SessionCardView, QuitButton, etc.
-│   │   └── Services/              # SessionManager, FocusTerminal
+│   │   ├── Services/              # SessionManager, FocusTerminal
+│   │   └── Hook/                  # cctop-hook CLI target only
+│   │       ├── HookMain.swift     # CLI entry point (stdin, args, dispatch)
+│   │       ├── HookInput.swift    # Codable struct for Claude Code hook JSON
+│   │       ├── HookHandler.swift  # Core logic (transitions, cleanup, PID)
+│   │       └── HookLogger.swift   # Per-session logging
 │   └── CctopMenubarTests/
 ├── plugins/cctop/     # Claude Code plugin
 │   ├── .claude-plugin/plugin.json
 │   ├── hooks/hooks.json
 │   └── skills/cctop-setup/SKILL.md
 ├── scripts/
-│   └── bundle-macos.sh   # Build hybrid .app bundle
+│   └── bundle-macos.sh   # Build and bundle .app
 ├── packaging/
 │   └── homebrew-cask.rb  # Homebrew cask template
 └── .claude-plugin/
@@ -61,55 +55,54 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 
 **Visual verification:** Open the Xcode project and use SwiftUI Previews (Canvas) for instant visual feedback. All views have `#Preview` blocks with mock data.
 
-**Data flow:** The Swift app reads `~/.cctop/sessions/*.json` files written by `cctop-hook` (Rust). The JSON file format is the interface contract — no FFI.
+**Data flow:** The menubar app reads `~/.cctop/sessions/*.json` files written by `cctop-hook` (Swift CLI). Both are built from the same Xcode project with shared model code.
 
 **Key files:**
 - `menubar/CctopMenubar/AppDelegate.swift` — NSStatusItem + FloatingPanel management
 - `menubar/CctopMenubar/FloatingPanel.swift` — NSPanel subclass (persistent popup)
 - `menubar/CctopMenubar/Views/PopupView.swift` — Main popup layout
 - `menubar/CctopMenubar/Views/SessionCardView.swift` — Session card component
-- `menubar/CctopMenubar/Models/Session.swift` — Session data model (Codable)
+- `menubar/CctopMenubar/Models/Session.swift` — Session data model (Codable, shared)
+- `menubar/CctopMenubar/Models/HookEvent.swift` — Hook event enum + transition logic (shared)
+- `menubar/CctopMenubar/Models/Config.swift` — JSON config, sessions dir (shared)
 - `menubar/CctopMenubar/Services/SessionManager.swift` — File watching + session loading
+- `menubar/CctopMenubar/Hook/HookMain.swift` — CLI entry point (cctop-hook target only)
+- `menubar/CctopMenubar/Hook/HookHandler.swift` — Core hook logic (cctop-hook target only)
 
 ## Key Components
 
 ### Binaries
-- `cctop` - TUI application (Rust, ratatui)
-- `cctop-hook` - Hook handler called by Claude Code (Rust)
 - `CctopMenubar.app` - macOS menubar app (Swift/SwiftUI, built via Xcode)
+- `cctop-hook` - Hook handler called by Claude Code (Swift CLI, Xcode target in same project)
 
 ### Data Flow
 1. Claude Code fires hooks (SessionStart, UserPromptSubmit, Stop, etc.)
 2. `cctop-hook` receives JSON via stdin, writes session files to `~/.cctop/sessions/`
-3. Both the menubar app (SessionManager file watcher) and `cctop` TUI read these files and display live status
+3. The menubar app (SessionManager file watcher) reads these files and displays live status
 
 ## Development Commands
 
 ```bash
-# Build
-cargo build --release
+# Build menubar app
+xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
 
-# Install binaries to ~/.cargo/bin
-cargo install --path .
+# Build cctop-hook CLI
+xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme cctop-hook -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
 
-# Run TUI
-cctop
-
-# List sessions without TUI (useful for debugging)
-cctop --list
+# Run the app
+open menubar/build/Build/Products/Debug/CctopMenubar.app
 
 # Run tests
-cargo test
+xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/
 
 # Check a specific session file
 cat ~/.cctop/sessions/<session-id>.json | jq '.'
 
-# Bump version (updates all files: Cargo.toml, pbxproj, plugin JSON, cask, etc.)
+# Bump version (updates pbxproj, plugin JSON, cask, etc.)
 scripts/bump-version.sh 0.3.0
 
-# Generate state machine diagram (requires graphviz: brew install graphviz)
-scripts/generate-state-diagram.sh              # opens /tmp/cctop-states.svg
-scripts/generate-state-diagram.sh docs/out.svg # custom output path
+# Build release .app bundle
+scripts/bundle-macos.sh
 ```
 
 **IMPORTANT:** Always use `scripts/bump-version.sh <version>` to bump versions. Never edit version numbers manually — the script updates all files including `CURRENT_PROJECT_VERSION` in the Xcode project.
@@ -122,7 +115,10 @@ scripts/generate-state-diagram.sh docs/out.svg # custom output path
 
 ```bash
 # Manually trigger a hook to create/update a session
-echo '{"session_id":"test123","cwd":"/tmp","hook_event_name":"SessionStart"}' | ~/.cargo/bin/cctop-hook SessionStart
+echo '{"session_id":"test123","cwd":"/tmp","hook_event_name":"SessionStart"}' | /Applications/cctop.app/Contents/MacOS/cctop-hook SessionStart
+
+# Or use the debug build
+echo '{"session_id":"test123","cwd":"/tmp","hook_event_name":"SessionStart"}' | menubar/build/Build/Products/Debug/cctop-hook SessionStart
 
 # Check if session was created
 cat ~/.cctop/sessions/test123.json
@@ -154,28 +150,29 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 - Check debug logs: `grep cctop ~/.claude/debug/<session-id>.txt`
 
 ### "command not found" errors
-- Hooks use `$HOME/.cargo/bin/cctop-hook` - ensure it's installed via `cargo install --path .`
-- Check hooks.json uses the full path, not bare `cctop-hook`
+- Hooks search for `cctop-hook` in `/Applications/cctop.app/Contents/MacOS/` and `~/Applications/cctop.app/Contents/MacOS/`
+- Ensure the app is installed in one of those locations
 
 ### Stale sessions showing
 - Sessions store the PID of the Claude process and are validated by checking if that PID is still running
-- For old sessions without PID, falls back to checking if a claude process is running in that directory
-- Use `cctop --list` to see current sessions and trigger cleanup
 - Manual cleanup: `rm ~/.cctop/sessions/<session-id>.json`
-- In-app reset: press `R` in TUI or right-click a session in the menubar to reset status to idle
+- In-app reset: right-click a session in the menubar to reset status to idle
 
 ### Jump to session not working
 - Uses `code --goto <path>` to focus VS Code window
-- For other editors, configure in `~/.cctop/config.toml`:
-  ```toml
-  [editor]
-  process_name = "Cursor"
-  cli_command = "cursor"
+- For other editors, configure in `~/.cctop/config.json`:
+  ```json
+  {
+    "editor": {
+      "process_name": "Cursor",
+      "cli_command": "cursor"
+    }
+  }
   ```
 
 ## Session Status Logic
 
-6-status model with `NeedsAttention` as `#[serde(other)]` fallback for forward compatibility. Transitions are centralized in `Transition::for_event()` (`src/session.rs`) with typed `HookEvent` enum. Run `scripts/generate-state-diagram.sh` to visualize the state machine (or `cctop --dot` for raw DOT output).
+6-status model with forward-compatible decoding (unknown statuses map to `.needsAttention`). Transitions are centralized in `HookEvent.swift` with typed `HookEvent` enum and `Transition` struct.
 
 | Hook Event | Status |
 |------------|--------|
@@ -199,7 +196,7 @@ use per-session logs in `~/.cctop/logs/` to identify which component failed.
 ### The Chain
 
 ```
-Claude Code fires hook -> run-hook.sh (SHIM) -> cctop-hook (HOOK) -> session file -> menubar/TUI
+Claude Code fires hook -> run-hook.sh (SHIM) -> cctop-hook (HOOK) -> session file -> menubar app
 ```
 
 ### Log Files
@@ -229,9 +226,9 @@ Examples:
 | Symptom in session log | Cause | Fix |
 |------------------------|-------|-----|
 | No log file for a session | Claude Code not firing hooks | Check `claude plugin list`, restart session |
-| SHIM entries but no HOOK entries | cctop-hook binary not starting | Run `cargo install --path .`, check paths |
+| SHIM entries but no HOOK entries | cctop-hook binary not starting | Ensure cctop.app is in /Applications/, check paths |
 | HOOK entries but session file stale | File write failure | Check disk space, permissions on ~/.cctop/sessions/ |
-| HOOK entries present and session file fresh | Menubar/TUI file watcher issue | Restart the menubar app or TUI |
+| HOOK entries present and session file fresh | Menubar file watcher issue | Restart the menubar app |
 | Entries stop but session is still running | That Claude Code session stopped firing hooks | Check if session PID is still alive |
 
 ### Quick Commands
@@ -278,30 +275,8 @@ cat ~/.cctop/sessions/*.json | jq '.project_name + " | " + .status'
 - `~/.claude/plugins/cache/cctop/` - Installed plugin cache
 - `~/.claude/settings.json` - Check if plugin is enabled
 
-## Demo Recording
+## Menubar Screenshot
 
-Uses [VHS](https://github.com/charmbracelet/vhs) for scriptable terminal recordings.
-
-### Setup
-```bash
-brew install vhs
-```
-
-### Recording
-```bash
-# Generate demo GIF from tape file
-vhs docs/demo.tape
-```
-
-### Tape File Format
-The `docs/demo.tape` file defines the recording:
-- `Output <path>` - Output file (GIF, MP4, WebM)
-- `Set FontSize/Width/Height/Theme` - Terminal appearance
-- `Type "<text>"` - Type text
-- `Enter/Down/Up` - Key presses
-- `Sleep <duration>` - Wait between actions
-
-### Menubar Screenshot
 The menubar screenshot (`docs/menubar.png`) is generated from a snapshot test that renders `PopupView` with mock data:
 
 ```bash
@@ -314,14 +289,9 @@ cp /tmp/menubar.png docs/menubar.png
 
 The mock sessions are defined in `Session+Mock.swift`. Edit `mockSessions` to change what appears in the screenshot.
 
-### Tips
-- Run with active Claude Code sessions for realistic content
-- Or create mock session files in `~/.cctop/sessions/` before recording
-- Re-run `vhs docs/demo.tape` to regenerate after changes
-
 ## Agent Workflow Guidelines
 
-Learned from development. Rust changes often flow sequentially (session.rs -> cctop_hook.rs -> tui.rs). The Swift menubar (`menubar/`) is mostly independent from the Rust TUI.
+Learned from development. The codebase is now pure Swift with two Xcode targets sharing model code. Changes to shared models (Models/) affect both the menubar app and cctop-hook CLI.
 
 ### When to use what
 
@@ -333,8 +303,8 @@ Learned from development. Rust changes often flow sequentially (session.rs -> cc
 
 ### Team best practices for this project
 - Use **delegate mode** (Shift+Tab) to keep the lead in coordination-only role
-- Design tasks around **file ownership**, not domain expertise (e.g., "own tui.rs" not "be a UX expert")
+- Design tasks around **file ownership**, not domain expertise
 - Aim for **5-6 tasks per teammate** to keep them productive
 - **Require plan approval** for implementation tasks
-- session.rs is the shared interface — have one teammate own it, others depend on it
-- Swift menubar (`menubar/`) is independent from the Rust TUI — good split for parallel work
+- Models/ files are the shared interface — changes here affect both targets
+- Hook/ files are cctop-hook only, Views/Services are menubar only — good split for parallel work

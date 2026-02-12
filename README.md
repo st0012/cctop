@@ -18,7 +18,7 @@ If you run multiple Claude Code sessions across different projects, you know the
 - Real-time session status: idle, working, waiting for input, waiting for permission
 - Shows current tool or prompt context for each session
 - Click to jump directly to the session's terminal
-- Includes a TUI (`cctop`) for terminal-based monitoring
+- Native macOS menubar app — lightweight and always running
 
 ## Installation
 
@@ -57,64 +57,40 @@ Restart any running Claude Code sessions to activate hooks (type `/exit` then re
 
 ### Build from source
 
-Requires [Rust](https://rustup.rs/) and Xcode (for the menubar app).
+Requires Xcode 16+.
 
 ```bash
-# Install the Rust binaries (TUI + hook)
-cargo install --path .
-
-# Build the menubar app
-xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Release -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
-cp -R menubar/build/Build/Products/Release/CctopMenubar.app /Applications/cctop.app
+./scripts/bundle-macos.sh
+cp -R dist/cctop.app /Applications/
+open /Applications/cctop.app
 ```
-
-Run `cctop` for the TUI, or open `cctop.app` from `/Applications/`.
 
 ## How It Works
 
 ```
 Claude Code  ──hook events──>  cctop-hook  ──JSON──>  ~/.cctop/sessions/
                                                              │
-                                              ┌──────────────┤
-                                              ▼              ▼
-                                        Menubar app      TUI (cctop)
+                                                             ▼
+                                                       Menubar app
 ```
 
 1. The cctop plugin registers hooks with Claude Code
 2. Hooks fire on session events (start, prompt, tool use, stop, notifications)
 3. `cctop-hook` writes session state as JSON to `~/.cctop/sessions/`
-4. The menubar app and TUI watch these files and display live status
+4. The menubar app watches these files and displays live status
 
 ## Configuration
 
-Create `~/.cctop/config.toml` to customize the editor used for "jump to session":
+Create `~/.cctop/config.json` to customize the editor used for "jump to session":
 
-```toml
-[editor]
-process_name = "Code"      # or "Cursor", "Code - Insiders"
-cli_command = "code"        # or "cursor", "code-insiders"
+```json
+{
+  "editor": {
+    "process_name": "Code",
+    "cli_command": "code"
+  }
+}
 ```
-
-## TUI
-
-The `cctop` command launches a terminal-based UI as an alternative to the menubar app.
-
-![cctop TUI demo](docs/demo.gif)
-
-```bash
-cctop              # Launch TUI
-cctop --list       # List sessions as text (no TUI)
-cctop --check      # Check hook delivery chain health
-```
-
-| Key | Action |
-|-----|--------|
-| Up/Down or k/j | Navigate sessions |
-| Enter | Jump to selected session |
-| Right/Left | Detail view / back |
-| r | Refresh |
-| R | Reset selected session to idle |
-| q, Esc, Ctrl+C | Quit |
 
 ## Uninstall
 
@@ -142,10 +118,7 @@ All data stays local. cctop stores session metadata (status, project name, times
 No. The hook runs as a separate process that writes a small JSON file and exits immediately. There is no measurable impact on Claude Code performance.
 
 **Does it work with Cursor / VS Code / other editors?**
-Yes. cctop monitors Claude Code sessions regardless of which editor you use. The "jump to session" feature supports VS Code and Cursor out of the box — configure others in `~/.cctop/config.toml`.
-
-**Does it work on Linux?**
-The TUI (`cctop`) works on Linux. The menubar app is macOS-only.
+Yes. cctop monitors Claude Code sessions regardless of which editor you use. The "jump to session" feature supports VS Code and Cursor out of the box — configure others in `~/.cctop/config.json`.
 
 ## License
 
