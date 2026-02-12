@@ -33,7 +33,9 @@ extension Session {
 
     static let mockSessions: [Session] = [
         .mock(id: "1", project: "cctop", branch: "main", status: .waitingPermission, notificationMessage: "Allow Bash: npm test"),
-        .mock(id: "2", project: "my-app", branch: "feature/auth", sessionName: "refactor auth flow", status: .working, lastTool: "Edit", lastToolDetail: "/src/auth.ts"),
+        .mock(id: "2", project: "my-app", branch: "feature/auth",
+              sessionName: "refactor auth flow",
+              status: .working, lastTool: "Edit", lastToolDetail: "/src/auth.ts"),
         .mock(id: "3", project: "api-server", branch: "fix/timeout", status: .waitingInput, lastPrompt: "Should I also update the retry logic?"),
         .mock(id: "4", project: "docs", branch: "main", status: .idle),
     ]
