@@ -17,7 +17,7 @@ If you run multiple Claude Code sessions across different projects, you know the
 - Lives in your menubar — always one click away
 - Real-time session status: idle, working, waiting for input, waiting for permission
 - Shows current tool or prompt context for each session
-- Click to jump directly to the session's terminal
+- Click to jump to the session's VS Code or Cursor window
 - Native macOS menubar app — lightweight and always running
 
 ## Installation
@@ -92,19 +92,6 @@ Claude Code  ──hook events──>  cctop-hook  ──JSON──>  ~/.cctop/s
 3. `cctop-hook` writes session state as JSON to `~/.cctop/sessions/`
 4. The menubar app watches these files and displays live status
 
-## Configuration
-
-Create `~/.cctop/config.json` to customize the editor used for "jump to session":
-
-```json
-{
-  "editor": {
-    "process_name": "Code",
-    "cli_command": "code"
-  }
-}
-```
-
 ## Uninstall
 
 ```bash
@@ -131,7 +118,7 @@ All data stays local. cctop stores session metadata (status, project name, times
 No. The hook runs as a separate process that writes a small JSON file and exits immediately. There is no measurable impact on Claude Code performance.
 
 **Does it work with Cursor / VS Code / other editors?**
-Yes. cctop monitors Claude Code sessions regardless of which editor you use. The "jump to session" feature supports VS Code and Cursor out of the box — configure others in `~/.cctop/config.json`.
+Yes. cctop monitors Claude Code sessions regardless of which editor you use. Clicking a session card focuses the correct VS Code or Cursor project window. For other editors, it activates the app but may not target the specific window.
 
 ## License
 
