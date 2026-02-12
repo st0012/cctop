@@ -10,33 +10,22 @@ permissions:
 
 jobs:
   build-macos:
-    name: Build macOS (${{ matrix.target }})
+    name: Build macOS (${{ matrix.arch }})
     runs-on: macos-15
     strategy:
       matrix:
         include:
-          - target: aarch64-apple-darwin
-            arch: arm64
-          - target: x86_64-apple-darwin
-            arch: x86_64
+          - arch: arm64
+          - arch: x86_64
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
-
-      - name: Run Rust tests
-        if: matrix.target == 'aarch64-apple-darwin'
-        run: cargo test --release
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app
 
       - name: Build and bundle
-        run: ./scripts/bundle-macos.sh --target ${{ matrix.target }}
+        run: ./scripts/bundle-macos.sh --arch ${{ matrix.arch }}
 
       - name: Sign and notarize
         id: sign
@@ -134,11 +123,10 @@ jobs:
           \`\`\`
 
           ### From source
-          Requires [Rust](https://rustup.rs/) and Xcode.
+          Requires Xcode 16+.
           \`\`\`bash
           git clone https://github.com/st0012/cctop && cd cctop
-          cargo install --path .                    # TUI + hook
-          ./scripts/bundle-macos.sh                 # menubar app
+          ./scripts/bundle-macos.sh
           cp -R dist/cctop.app /Applications/
           \`\`\`"
 

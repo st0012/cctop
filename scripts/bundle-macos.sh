@@ -6,14 +6,17 @@ set -euo pipefail
 # Usage:
 #   ./scripts/bundle-macos.sh                  # Build and bundle (release)
 #   ./scripts/bundle-macos.sh --skip-build     # Bundle from existing release binaries
+#   ./scripts/bundle-macos.sh --arch arm64     # Build for specific architecture
 #
 # Output: dist/cctop.app, dist/cctop-macOS.zip
 
 SKIP_BUILD=false
+ARCH=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip-build) SKIP_BUILD=true; shift ;;
+        --arch) ARCH="$2"; shift 2 ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
@@ -21,6 +24,8 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BUILD_DIR="$REPO_ROOT/dist"
+
+XCODE_ARCHS="${ARCH:-$(uname -m)}"
 
 if [ "$SKIP_BUILD" = false ]; then
     echo "==> Building CctopMenubar app..."
@@ -30,6 +35,7 @@ if [ "$SKIP_BUILD" = false ]; then
         -configuration Release \
         -derivedDataPath "$REPO_ROOT/menubar/build/" \
         CODE_SIGN_IDENTITY="-" \
+        ARCHS="$XCODE_ARCHS" \
         ONLY_ACTIVE_ARCH=NO
 
     echo "==> Building cctop-hook CLI..."
@@ -39,6 +45,7 @@ if [ "$SKIP_BUILD" = false ]; then
         -configuration Release \
         -derivedDataPath "$REPO_ROOT/menubar/build/" \
         CODE_SIGN_IDENTITY="-" \
+        ARCHS="$XCODE_ARCHS" \
         ONLY_ACTIVE_ARCH=NO
 fi
 
