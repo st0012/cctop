@@ -83,17 +83,26 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 ## Development Commands
 
 ```bash
-# Build menubar app
-xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+# Build both targets (menubar app + cctop-hook CLI)
+make build
 
-# Build cctop-hook CLI
-xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme cctop-hook -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+# Run all tests
+make test
 
-# Run the app
-open menubar/build/Build/Products/Debug/CctopMenubar.app
+# Lint with swiftlint --strict
+make lint
 
-# Run tests
-xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/
+# Build + lint + test (default)
+make all
+
+# Build and open the menubar app
+make run
+
+# Install cctop-hook to ~/.cctop/bin/ (Release build)
+make install
+
+# Clean build artifacts
+make clean
 
 # Check a specific session file
 cat ~/.cctop/sessions/<session-id>.json | jq '.'
