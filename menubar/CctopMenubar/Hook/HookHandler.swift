@@ -39,8 +39,8 @@ enum HookHandler {
         let oldStatus = session.status.asStr
 
         // Use centralized transition table
-        let statusPreserved = Transition.forEvent(session.status, event: event) == nil
-        if let newStatus = Transition.forEvent(session.status, event: event) {
+        let newStatus = Transition.forEvent(session.status, event: event)
+        if let newStatus {
             session.status = newStatus
         }
 
@@ -48,7 +48,26 @@ enum HookHandler {
         session.branch = branch
         session.terminal = terminal
 
-        // Apply side effects per hook event
+        applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
+
+        let transition = newStatus == nil
+            ? "\(oldStatus) -> \(session.status.asStr) (preserved)"
+            : "\(oldStatus) -> \(session.status.asStr)"
+        HookLogger.appendHookLog(
+            sessionId: safeId,
+            event: hookName,
+            label: label,
+            transition: transition
+        )
+
+        try session.writeToFile(path: sessionPath)
+    }
+
+    /// Apply per-event side effects (tool tracking, cleanup, notifications).
+    private static func applySideEffects(
+        event: HookEvent, session: inout Session, input: HookInput,
+        sessionsDir: String, safeId: String
+    ) {
         switch event {
         case .sessionStart:
             session.lastTool = nil
@@ -103,18 +122,6 @@ enum HookHandler {
         case .postToolUse, .sessionEnd, .unknown:
             break
         }
-
-        let note = statusPreserved ? "preserved" : ""
-        HookLogger.appendHookLog(
-            sessionId: safeId,
-            event: hookName,
-            label: label,
-            oldStatus: oldStatus,
-            newStatus: session.status.asStr,
-            note: note
-        )
-
-        try session.writeToFile(path: sessionPath)
     }
 
     // MARK: - Helpers

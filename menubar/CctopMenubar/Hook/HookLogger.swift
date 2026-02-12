@@ -2,9 +2,9 @@ import Foundation
 
 enum HookLogger {
     private static let dateFormatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
+        let fmt = ISO8601DateFormatter()
+        fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fmt
     }()
 
     private static func logsDir() -> String? {
@@ -27,17 +27,14 @@ enum HookLogger {
         sessionId: String,
         event: String,
         label: String,
-        oldStatus: String,
-        newStatus: String,
-        note: String
+        transition: String
     ) {
         guard let logPath = sessionLogPath(sessionId: sessionId) else { return }
         let dir = (logPath as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
-        let extra = note.isEmpty ? "" : " (\(note))"
         let timestamp = dateFormatter.string(from: Date())
-        let line = "\(timestamp) HOOK \(event) \(label) \(oldStatus) -> \(newStatus)\(extra)\n"
+        let line = "\(timestamp) HOOK \(event) \(label) \(transition)\n"
 
         if let handle = FileHandle(forWritingAtPath: logPath) {
             handle.seekToEndOfFile()
