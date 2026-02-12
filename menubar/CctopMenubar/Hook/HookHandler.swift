@@ -149,6 +149,12 @@ enum HookHandler {
         return UInt32(pid)
     }
 
+    static func getProcessStartTime(_ pid: pid_t) -> TimeInterval? {
+        guard let info = procInfo(pid) else { return nil }
+        let tv = info.kp_proc.p_starttime
+        return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
+    }
+
     private static func procInfo(_ pid: pid_t) -> kinfo_proc? {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.size

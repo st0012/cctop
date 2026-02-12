@@ -180,6 +180,14 @@ struct Session: Codable, Identifiable {
             .replacingOccurrences(of: "..", with: "")
     }
 
+    static func sessionFileName(pid: UInt32) -> String {
+        "\(pid).json"
+    }
+
+    static func sessionPath(sessionsDir: String, pid: UInt32) -> String {
+        (sessionsDir as NSString).appendingPathComponent(sessionFileName(pid: pid))
+    }
+
     /// Returns a copy with a new session_id (and optionally updated branch/terminal).
     /// Used when the same OS process gets a new CC session_id on resume.
     func withSessionId(_ newId: String, branch: String? = nil, terminal: TerminalInfo? = nil) -> Session {
