@@ -49,8 +49,8 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "" $KEYCHAIN_PATH
           security list-keychains -d user -s $KEYCHAIN_PATH login.keychain-db
 
-          # Sign and notarize
-          ./scripts/sign-and-notarize.sh dist/cctop.app
+          # TODO: Remove --sign-only once Apple's notary service is stable again
+          ./scripts/sign-and-notarize.sh --sign-only dist/cctop.app
 
           # Re-create the zip with signed app
           rm -f dist/cctop-macOS.zip

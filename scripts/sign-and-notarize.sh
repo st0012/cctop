@@ -6,6 +6,7 @@ set -euo pipefail
 # Usage:
 #   ./scripts/sign-and-notarize.sh dist/cctop.app
 #   ./scripts/sign-and-notarize.sh --dry-run dist/cctop.app
+#   ./scripts/sign-and-notarize.sh --sign-only dist/cctop.app
 #
 # Required environment variables (unless --dry-run):
 #   APPLE_IDENTITY       - Signing identity (e.g. "Developer ID Application: Name (TEAMID)")
@@ -17,11 +18,13 @@ set -euo pipefail
 # then submits the app for notarization and staples the ticket.
 
 DRY_RUN=false
+SIGN_ONLY=false
 APP_PATH=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run) DRY_RUN=true; shift ;;
+        --sign-only) SIGN_ONLY=true; shift ;;
         *) APP_PATH="$1"; shift ;;
     esac
 done
@@ -137,6 +140,11 @@ done <<< "$SIGNABLE_ITEMS"
 echo "==> Verifying signature..."
 codesign --verify --verbose=2 "$APP_PATH"
 spctl --assess --type execute --verbose=2 "$APP_PATH" || echo "  (spctl check may fail without notarization)"
+
+if [ "$SIGN_ONLY" = true ]; then
+    echo "==> Done! $APP_PATH is signed (notarization skipped)."
+    exit 0
+fi
 
 echo "==> Creating zip for notarization..."
 NOTARIZE_ZIP="$(dirname "$APP_PATH")/cctop-notarize.zip"
