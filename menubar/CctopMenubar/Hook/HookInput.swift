@@ -56,7 +56,7 @@ struct HookInput: Codable {
 }
 
 /// Helper to decode mixed JSON values from tool_input, extracting strings only.
-private enum ToolInputValue: Codable {
+private enum ToolInputValue: Decodable {
     case string(String)
     case other
 
@@ -72,9 +72,5 @@ private enum ToolInputValue: Codable {
         } else {
             self = .other
         }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        // Not needed for our use case
     }
 }
