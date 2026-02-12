@@ -10,7 +10,7 @@ jobs:
     name: Swift Lint
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Install SwiftLint
         run: brew install swiftlint
       - name: SwiftLint
@@ -20,11 +20,11 @@ jobs:
     name: Swift Build & Test
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app
       - name: Cache DerivedData
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: menubar/build/
           key: deriveddata-${{ runner.os }}-${{ hashFiles('menubar/CctopMenubar.xcodeproj/**') }}

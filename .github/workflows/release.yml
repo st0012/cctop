@@ -19,7 +19,7 @@ jobs:
           - arch: x86_64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app
@@ -75,13 +75,13 @@ jobs:
         run: ./scripts/create-dmg.sh --arch ${{ matrix.arch }}
 
       - name: Upload zip artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cctop-macOS-${{ matrix.arch }}
           path: dist/cctop-macOS-${{ matrix.arch }}.zip
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cctop-macOS-${{ matrix.arch }}-dmg
           path: dist/cctop-macOS-${{ matrix.arch }}.dmg
@@ -91,10 +91,10 @@ jobs:
     needs: build-macos
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
 
@@ -145,7 +145,7 @@ jobs:
           echo "$BODY" > "$RUNNER_TEMP/release-body.md"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
         with:
           draft: false
           generate_release_notes: true
@@ -161,10 +161,10 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
 
