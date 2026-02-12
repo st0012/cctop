@@ -152,7 +152,31 @@ enum HookHandler {
         let sessionId = ProcessInfo.processInfo.environment["ITERM_SESSION_ID"]
             ?? ProcessInfo.processInfo.environment["KITTY_WINDOW_ID"]
         let tty = ProcessInfo.processInfo.environment["TTY"]
+            ?? findTTY()
         return TerminalInfo(program: program, sessionId: sessionId, tty: tty)
+    }
+
+    /// Walk up the process tree to find the first ancestor with a controlling terminal.
+    /// The hook subprocess itself has no tty (stdin is piped JSON), but ancestor
+    /// processes (claude, shell) do.
+    private static func findTTY() -> String? {
+        var pid = getppid()
+        for _ in 0..<6 {
+            if pid <= 1 { break }
+            if let tty = ttyOfPID(pid) { return tty }
+            pid = parentPIDOf(pid)
+        }
+        return nil
+    }
+
+    private static func ttyOfPID(_ pid: pid_t) -> String? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.size
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return nil }
+        let tdev = info.kp_eproc.e_tdev
+        guard tdev != UInt32.max, let name = devname(tdev, S_IFCHR) else { return nil }
+        return "/dev/" + String(cString: name)
     }
 
     static func extractToolDetail(toolName: String, toolInput: [String: String]?) -> String? {
