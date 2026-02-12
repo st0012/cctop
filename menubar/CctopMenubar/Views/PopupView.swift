@@ -29,11 +29,11 @@ struct PopupView: View {
                 }
                 .frame(maxHeight: 520)
             }
-            SettingsSection(updateAvailable: updateAvailable)
-                .padding(.bottom, showSettings ? 8 : 0)
-                .frame(maxHeight: showSettings ? nil : 0, alignment: .top)
-                .clipped()
-                .opacity(showSettings ? 1 : 0)
+            if showSettings {
+                Divider()
+                SettingsSection(updateAvailable: updateAvailable)
+                    .padding(.vertical, 8)
+            }
             Divider()
             HStack {
                 QuitButton()
