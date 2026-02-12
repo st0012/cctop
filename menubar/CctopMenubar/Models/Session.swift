@@ -42,6 +42,12 @@ struct TerminalInfo: Codable {
         case sessionId = "session_id"
         case tty
     }
+
+    init(program: String = "", sessionId: String? = nil, tty: String? = nil) {
+        self.program = program
+        self.sessionId = sessionId
+        self.tty = tty
+    }
 }
 
 struct Session: Codable, Identifiable {
@@ -75,6 +81,132 @@ struct Session: Codable, Identifiable {
         case notificationMessage = "notification_message"
     }
 
+    // MARK: - Constructors
+
+    /// Full memberwise init (used by mocks and tests).
+    init(
+        sessionId: String,
+        projectPath: String,
+        projectName: String,
+        branch: String,
+        status: SessionStatus,
+        lastPrompt: String?,
+        lastActivity: Date,
+        startedAt: Date,
+        terminal: TerminalInfo?,
+        pid: UInt32?,
+        lastTool: String?,
+        lastToolDetail: String?,
+        notificationMessage: String?
+    ) {
+        self.sessionId = sessionId
+        self.projectPath = projectPath
+        self.projectName = projectName
+        self.branch = branch
+        self.status = status
+        self.lastPrompt = lastPrompt
+        self.lastActivity = lastActivity
+        self.startedAt = startedAt
+        self.terminal = terminal
+        self.pid = pid
+        self.lastTool = lastTool
+        self.lastToolDetail = lastToolDetail
+        self.notificationMessage = notificationMessage
+    }
+
+    /// Convenience init for creating new sessions (used by cctop-hook).
+    init(sessionId: String, projectPath: String, branch: String, terminal: TerminalInfo) {
+        self.sessionId = sessionId
+        self.projectPath = projectPath
+        self.projectName = Self.extractProjectName(projectPath)
+        self.branch = branch
+        self.status = .idle
+        self.lastPrompt = nil
+        self.lastActivity = Date()
+        self.startedAt = Date()
+        self.terminal = terminal
+        self.pid = nil
+        self.lastTool = nil
+        self.lastToolDetail = nil
+        self.notificationMessage = nil
+    }
+
+    // MARK: - File I/O
+
+    static func fromFile(path: String) throws -> Session {
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        return try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+    }
+
+    static func loadAll(sessionsDir: String) -> [Session] {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: sessionsDir),
+              let entries = try? fm.contentsOfDirectory(atPath: sessionsDir) else {
+            return []
+        }
+
+        var sessions: [Session] = []
+        for entry in entries {
+            guard entry.hasSuffix(".json"), !entry.hasSuffix(".tmp") else { continue }
+            let path = (sessionsDir as NSString).appendingPathComponent(entry)
+            if let session = try? fromFile(path: path) {
+                sessions.append(session)
+            }
+        }
+        return sessions
+    }
+
+    func writeToFile(path: String) throws {
+        let fm = FileManager.default
+        let dir = (path as NSString).deletingLastPathComponent
+        try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+
+        let data = try JSONEncoder.sessionEncoder.encode(self)
+        let tempPath = path + ".tmp"
+        try data.write(to: URL(fileURLWithPath: tempPath))
+        try fm.moveItem(atPath: tempPath, toPath: path)
+    }
+
+    func writeToDir(sessionsDir: String) throws {
+        let path = filePath(sessionsDir: sessionsDir)
+        try writeToFile(path: path)
+    }
+
+    func filePath(sessionsDir: String) -> String {
+        let safeId = Self.sanitizeSessionId(raw: sessionId)
+        return (sessionsDir as NSString).appendingPathComponent("\(safeId).json")
+    }
+
+    // MARK: - Mutation
+
+    mutating func reset() {
+        status = .idle
+        lastTool = nil
+        lastToolDetail = nil
+        notificationMessage = nil
+        lastActivity = Date()
+    }
+
+    // MARK: - Utilities
+
+    static func sanitizeSessionId(raw: String) -> String {
+        raw.replacingOccurrences(of: "/", with: "")
+            .replacingOccurrences(of: "\\", with: "")
+            .replacingOccurrences(of: "..", with: "")
+    }
+
+    static func extractProjectName(_ path: String) -> String {
+        URL(fileURLWithPath: path).lastPathComponent
+    }
+
+    var isAlive: Bool {
+        if let pid {
+            if kill(Int32(pid), 0) == 0 { return true }
+            return errno == EPERM
+        }
+        return -lastActivity.timeIntervalSinceNow < 4 * 3600
+    }
+
     var relativeTime: String {
         let seconds = Int(-lastActivity.timeIntervalSinceNow)
         if seconds < 0 { return "just now" }
@@ -102,16 +234,6 @@ struct Session: Codable, Identifiable {
 
     private var promptSnippet: String? {
         lastPrompt.map { "\"\(String($0.prefix(36)))\"" }
-    }
-
-    var isAlive: Bool {
-        if let pid {
-            if kill(Int32(pid), 0) == 0 { return true }
-            return errno == EPERM
-        }
-        // No PID stored — fall back to activity age.
-        // Sessions inactive for over 4 hours are presumed dead.
-        return -lastActivity.timeIntervalSinceNow < 4 * 3600
     }
 
     private func formatToolDisplay(tool: String, detail: String?) -> String {
