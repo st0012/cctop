@@ -138,24 +138,6 @@ struct Session: Codable, Identifiable {
         return try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
     }
 
-    static func loadAll(sessionsDir: String) -> [Session] {
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: sessionsDir),
-              let entries = try? fm.contentsOfDirectory(atPath: sessionsDir) else {
-            return []
-        }
-
-        var sessions: [Session] = []
-        for entry in entries {
-            guard entry.hasSuffix(".json"), !entry.hasSuffix(".tmp") else { continue }
-            let path = (sessionsDir as NSString).appendingPathComponent(entry)
-            if let session = try? fromFile(path: path) {
-                sessions.append(session)
-            }
-        }
-        return sessions
-    }
-
     func writeToFile(path: String) throws {
         let fm = FileManager.default
         let dir = (path as NSString).deletingLastPathComponent
@@ -174,26 +156,6 @@ struct Session: Codable, Identifiable {
             try? fm.removeItem(at: destURL)
             try fm.moveItem(at: tempURL, to: destURL)
         }
-    }
-
-    func writeToDir(sessionsDir: String) throws {
-        let path = filePath(sessionsDir: sessionsDir)
-        try writeToFile(path: path)
-    }
-
-    func filePath(sessionsDir: String) -> String {
-        let safeId = Self.sanitizeSessionId(raw: sessionId)
-        return (sessionsDir as NSString).appendingPathComponent("\(safeId).json")
-    }
-
-    // MARK: - Mutation
-
-    mutating func reset() {
-        status = .idle
-        lastTool = nil
-        lastToolDetail = nil
-        notificationMessage = nil
-        lastActivity = Date()
     }
 
     // MARK: - Utilities
