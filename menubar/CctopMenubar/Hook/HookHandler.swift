@@ -127,20 +127,21 @@ enum HookHandler {
         return UInt32(pid)
     }
 
-    private static func parentPIDOf(_ pid: pid_t) -> pid_t {
+    private static func procInfo(_ pid: pid_t) -> kinfo_proc? {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.size
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
-        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return 0 }
-        return info.kp_eproc.e_ppid
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return nil }
+        return info
+    }
+
+    private static func parentPIDOf(_ pid: pid_t) -> pid_t {
+        procInfo(pid)?.kp_eproc.e_ppid ?? 0
     }
 
     private static func processName(_ pid: pid_t) -> String {
-        var info = kinfo_proc()
-        var size = MemoryLayout<kinfo_proc>.size
-        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
-        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return "" }
-        return withUnsafePointer(to: info.kp_proc.p_comm) { ptr in
+        guard var info = procInfo(pid) else { return "" }
+        return withUnsafePointer(to: &info.kp_proc.p_comm) { ptr in
             ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN)) { cStr in
                 String(cString: cStr)
             }
@@ -170,10 +171,7 @@ enum HookHandler {
     }
 
     private static func ttyOfPID(_ pid: pid_t) -> String? {
-        var info = kinfo_proc()
-        var size = MemoryLayout<kinfo_proc>.size
-        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
-        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0 else { return nil }
+        guard let info = procInfo(pid) else { return nil }
         let tdev = info.kp_eproc.e_tdev
         guard tdev != UInt32.max, let name = devname(tdev, S_IFCHR) else { return nil }
         return "/dev/" + String(cString: name)

@@ -162,44 +162,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private func positionPanel(animate: Bool = false) {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
         let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        guard let (width, height) = panelFittingSize() else { return }
 
-        panel.contentView?.layout()
-        guard let fittingSize = panel.contentView?.fittingSize else { return }
-
-        let width = max(fittingSize.width, 320)
-        let height = min(fittingSize.height, 600)
         let newFrame = NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4, width: width, height: height)
-
-        if animate {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.2
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                panel.animator().setFrame(newFrame, display: true)
-            }
-        } else {
-            panel.setFrame(newFrame, display: true)
-        }
+        setPanelFrame(newFrame, animate: animate)
     }
 
     /// Resize the panel in place (keeps current x position, grows/shrinks from the top edge).
     private func resizePanel(animate: Bool = false) {
-        panel.contentView?.layout()
-        guard let fittingSize = panel.contentView?.fittingSize else { return }
+        guard let (width, height) = panelFittingSize() else { return }
 
         let oldFrame = panel.frame
-        let width = max(fittingSize.width, 320)
-        let height = min(fittingSize.height, 600)
-        // Keep the top edge pinned, adjust origin.y for new height
         let newFrame = NSRect(x: oldFrame.midX - width / 2, y: oldFrame.maxY - height, width: width, height: height)
+        setPanelFrame(newFrame, animate: animate)
+    }
 
+    private func panelFittingSize() -> (width: CGFloat, height: CGFloat)? {
+        panel.contentView?.layout()
+        guard let fittingSize = panel.contentView?.fittingSize else { return nil }
+        return (max(fittingSize.width, 320), min(fittingSize.height, 600))
+    }
+
+    private func setPanelFrame(_ frame: NSRect, animate: Bool) {
         if animate {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.2
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                panel.animator().setFrame(newFrame, display: true)
+                panel.animator().setFrame(frame, display: true)
             }
         } else {
-            panel.setFrame(newFrame, display: true)
+            panel.setFrame(frame, display: true)
         }
     }
 }
