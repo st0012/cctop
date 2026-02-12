@@ -23,6 +23,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: menubar/build/
+          key: deriveddata-${{ runner.os }}-${{ hashFiles('menubar/CctopMenubar.xcodeproj/**') }}
+          restore-keys: |
+            deriveddata-${{ runner.os }}-
       - name: Build menubar app
         run: xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
       - name: Build cctop-hook CLI
