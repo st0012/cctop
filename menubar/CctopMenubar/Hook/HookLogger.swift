@@ -30,34 +30,27 @@ enum HookLogger {
         transition: String
     ) {
         guard let logPath = sessionLogPath(sessionId: sessionId) else { return }
-        let dir = (logPath as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-
         let timestamp = dateFormatter.string(from: Date())
-        let line = "\(timestamp) HOOK \(event) \(label) \(transition)\n"
-
-        if let handle = FileHandle(forWritingAtPath: logPath) {
-            handle.seekToEndOfFile()
-            handle.write(Data(line.utf8))
-            handle.closeFile()
-        } else {
-            FileManager.default.createFile(atPath: logPath, contents: Data(line.utf8))
-        }
+        appendLine("\(timestamp) HOOK \(event) \(label) \(transition)\n", to: logPath)
     }
 
     static func logError(_ msg: String) {
         guard let dir = logsDir() else { return }
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let logPath = (dir as NSString).appendingPathComponent("_errors.log")
         let timestamp = dateFormatter.string(from: Date())
-        let line = "\(timestamp) ERROR \(msg)\n"
+        appendLine("\(timestamp) ERROR \(msg)\n", to: logPath)
+    }
 
-        if let handle = FileHandle(forWritingAtPath: logPath) {
+    private static func appendLine(_ line: String, to path: String) {
+        let dir = (path as NSString).deletingLastPathComponent
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+
+        if let handle = FileHandle(forWritingAtPath: path) {
             handle.seekToEndOfFile()
             handle.write(Data(line.utf8))
             handle.closeFile()
         } else {
-            FileManager.default.createFile(atPath: logPath, contents: Data(line.utf8))
+            FileManager.default.createFile(atPath: path, contents: Data(line.utf8))
         }
     }
 

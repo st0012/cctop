@@ -13,19 +13,20 @@ struct HookMain {
     static func main() {
         let args = CommandLine.arguments
 
-        if args.count >= 2 && (args[1] == "--version" || args[1] == "-V") {
+        guard args.count >= 2 else {
+            HookLogger.logError("missing hook name argument")
+            exit(0)
+        }
+
+        switch args[1] {
+        case "--version", "-V":
             print("cctop-hook \(version)")
             exit(0)
-        }
-
-        if args.count >= 2 && (args[1] == "--help" || args[1] == "-h") {
+        case "--help", "-h":
             printHelp()
             exit(0)
-        }
-
-        if args.count < 2 {
-            HookLogger.logError("missing hook name argument")
-            exit(0) // Exit 0 to not block Claude Code
+        default:
+            break
         }
 
         let hookName = args[1]
@@ -48,30 +49,30 @@ struct HookMain {
         }
     }
 
-    /// Read all of stdin with a 5-second timeout. Returns nil on failure (already logged).
     private static func readStdin(hookName: String) -> String? {
         let semaphore = DispatchSemaphore(value: 0)
-        var readResult: (String, Error?) = ("", nil)
+        var result: Result<String, Error> = .success("")
 
         DispatchQueue.global().async {
             do {
                 let data = try FileHandle.standardInput.readToEnd() ?? Data()
-                readResult = (String(data: data, encoding: .utf8) ?? "", nil)
+                result = .success(String(data: data, encoding: .utf8) ?? "")
             } catch {
-                readResult = ("", error)
+                result = .failure(error)
             }
             semaphore.signal()
         }
 
-        switch semaphore.wait(timeout: .now() + 5) {
-        case .success:
-            if let error = readResult.1 {
-                HookLogger.logError("\(hookName): failed to read stdin: \(error)")
-                return nil
-            }
-            return readResult.0
-        case .timedOut:
+        guard semaphore.wait(timeout: .now() + 5) == .success else {
             HookLogger.logError("\(hookName): stdin read timed out after 5s")
+            return nil
+        }
+
+        switch result {
+        case .success(let text):
+            return text
+        case .failure(let error):
+            HookLogger.logError("\(hookName): failed to read stdin: \(error)")
             return nil
         }
     }
