@@ -163,8 +163,17 @@ struct Session: Codable, Identifiable {
 
         let data = try JSONEncoder.sessionEncoder.encode(self)
         let tempPath = path + ".tmp"
-        try data.write(to: URL(fileURLWithPath: tempPath))
-        try fm.moveItem(atPath: tempPath, toPath: path)
+        let tempURL = URL(fileURLWithPath: tempPath)
+        let destURL = URL(fileURLWithPath: path)
+        try data.write(to: tempURL)
+
+        // Atomic replace: rename(2) overwrites existing files on POSIX.
+        // Foundation's moveItem does NOT, so use replaceItemAt or POSIX rename.
+        if rename(tempPath, path) != 0 {
+            // Fallback: remove + move
+            try? fm.removeItem(at: destURL)
+            try fm.moveItem(at: tempURL, to: destURL)
+        }
     }
 
     func writeToDir(sessionsDir: String) throws {
