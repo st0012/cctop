@@ -12,42 +12,21 @@ struct SessionCardView: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(session.status.color)
-                .frame(width: 9, height: 9)
-                .opacity(session.status.needsAttention && !pulsing ? 0.6 : 1.0)
-                .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 3) {
+            // Row 1: status dot + project name + time/reset + status badge
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(session.status.color)
+                    .frame(width: 9, height: 9)
+                    .opacity(session.status.needsAttention && !pulsing ? 0.6 : 1.0)
+                    .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(session.displayName)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.primary)
-                    Text(session.branch)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Color.primary.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                }
-                if session.sessionName != nil {
-                    Text(session.projectName)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-                if let context = session.contextLine {
-                    Text(context)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
+                Text(session.projectName)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.primary)
 
-            Spacer()
+                Spacer()
 
-            VStack(alignment: .trailing, spacing: 4) {
                 if showResetButton {
                     Button {
                         onReset?(session)
@@ -63,13 +42,14 @@ struct SessionCardView: View {
                     }
                     .buttonStyle(.plain)
                     .onHover { resetHovered = $0 }
-                    .accessibilityLabel("Reset \(session.displayName) to idle")
+                    .accessibilityLabel("Reset \(session.projectName) to idle")
                     .help("Reset status to idle")
                 } else {
                     Text(session.relativeTime)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
+
                 Text(session.status.label)
                     .font(.system(size: 9))
                     .foregroundStyle(session.status.color)
@@ -78,6 +58,33 @@ struct SessionCardView: View {
                     .background(session.status.color.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 4))
                     .overlay(RoundedRectangle(cornerRadius: 4).stroke(session.status.color.opacity(0.25), lineWidth: 1))
+            }
+
+            // Row 2: branch pill + optional session name
+            HStack(spacing: 6) {
+                Text(session.branch)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(Color.primary.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                if let name = session.sessionName {
+                    Text(name)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.leading, 17)
+
+            // Row 3: context line (non-idle only)
+            if let context = session.contextLine {
+                Text(context)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.leading, 17)
             }
         }
         .padding(.horizontal, 12)
@@ -94,7 +101,7 @@ struct SessionCardView: View {
     }
 
     private var cardAccessibilityLabel: String {
-        var parts = [session.displayName, "on branch", session.branch, session.status.accessibilityDescription]
+        var parts = [session.projectName, "on branch", session.branch, session.status.accessibilityDescription]
         if let context = session.contextLine {
             parts.append(context)
         }
