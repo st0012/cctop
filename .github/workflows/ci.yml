@@ -27,5 +27,13 @@ jobs:
         run: xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
       - name: Build cctop-hook CLI
         run: xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme cctop-hook -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+      - name: Smoke test cctop-hook
+        run: |
+          SMOKE_DIR=$(mktemp -d)
+          echo '{"session_id":"ci-test","cwd":"/tmp/proj","hook_event_name":"SessionStart"}' \
+            | CCTOP_SESSIONS_DIR="$SMOKE_DIR" menubar/build/Build/Products/Debug/cctop-hook SessionStart
+          test -f "$SMOKE_DIR/ci-test.json"
+          grep -q '"idle"' "$SMOKE_DIR/ci-test.json"
+          rm -rf "$SMOKE_DIR"
       - name: Test
         run: xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/
