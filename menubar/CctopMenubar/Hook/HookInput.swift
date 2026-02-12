@@ -61,14 +61,14 @@ private enum ToolInputValue: Codable {
     case other
 
     var stringValue: String? {
-        if case .string(let s) = self { return s }
+        if case .string(let value) = self { return value }
         return nil
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let s = try? container.decode(String.self) {
-            self = .string(s)
+        if let value = try? container.decode(String.self) {
+            self = .string(value)
         } else {
             self = .other
         }
