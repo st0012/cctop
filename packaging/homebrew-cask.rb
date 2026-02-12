@@ -30,7 +30,6 @@ cask "cctop" do
   depends_on macos: ">= :ventura"
 
   app "cctop.app"
-  binary "#{appdir}/cctop.app/Contents/MacOS/cctop"
   binary "#{appdir}/cctop.app/Contents/MacOS/cctop-hook"
 
   caveats <<~EOS

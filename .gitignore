@@ -1,5 +1,5 @@
-/target
 /dist
+/target
 menubar/build/
 menubar/CctopMenubar.xcodeproj/xcuserdata/
 menubar/CctopMenubar.xcodeproj/project.xcworkspace/xcuserdata/
@@ -7,4 +7,4 @@ menubar/CctopMenubar.xcodeproj/project.xcworkspace/xcuserdata/
 .DS_Store
 .env*
 
-doc/plans
+docs/plans
