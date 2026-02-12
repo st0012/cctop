@@ -61,12 +61,13 @@ struct Session: Codable, Identifiable {
     var startedAt: Date
     var terminal: TerminalInfo?
     var pid: UInt32?
+    var pidStartTime: TimeInterval?
     var lastTool: String?
     var lastToolDetail: String?
     var notificationMessage: String?
     var sessionName: String?
 
-    var id: String { sessionId }
+    var id: String { pid.map { String($0) } ?? sessionId }
 
     var displayName: String {
         sessionName ?? projectName
@@ -81,6 +82,7 @@ struct Session: Codable, Identifiable {
         case lastActivity = "last_activity"
         case startedAt = "started_at"
         case terminal, pid
+        case pidStartTime = "pid_start_time"
         case lastTool = "last_tool"
         case lastToolDetail = "last_tool_detail"
         case notificationMessage = "notification_message"
@@ -101,6 +103,7 @@ struct Session: Codable, Identifiable {
         startedAt: Date,
         terminal: TerminalInfo?,
         pid: UInt32?,
+        pidStartTime: TimeInterval? = nil,
         lastTool: String?,
         lastToolDetail: String?,
         notificationMessage: String?,
@@ -116,6 +119,7 @@ struct Session: Codable, Identifiable {
         self.startedAt = startedAt
         self.terminal = terminal
         self.pid = pid
+        self.pidStartTime = pidStartTime
         self.lastTool = lastTool
         self.lastToolDetail = lastToolDetail
         self.notificationMessage = notificationMessage
@@ -134,6 +138,7 @@ struct Session: Codable, Identifiable {
         self.startedAt = Date()
         self.terminal = terminal
         self.pid = nil
+        self.pidStartTime = nil
         self.lastTool = nil
         self.lastToolDetail = nil
         self.notificationMessage = nil
@@ -175,16 +180,58 @@ struct Session: Codable, Identifiable {
             .replacingOccurrences(of: "..", with: "")
     }
 
+    /// Returns a copy with a new session_id (and optionally updated branch/terminal).
+    /// Used when the same OS process gets a new CC session_id on resume.
+    func withSessionId(_ newId: String, branch: String? = nil, terminal: TerminalInfo? = nil) -> Session {
+        Session(
+            sessionId: newId,
+            projectPath: projectPath,
+            projectName: projectName,
+            branch: branch ?? self.branch,
+            status: status,
+            lastPrompt: lastPrompt,
+            lastActivity: lastActivity,
+            startedAt: startedAt,
+            terminal: terminal ?? self.terminal,
+            pid: pid,
+            pidStartTime: pidStartTime,
+            lastTool: lastTool,
+            lastToolDetail: lastToolDetail,
+            notificationMessage: notificationMessage,
+            sessionName: sessionName
+        )
+    }
+
     static func extractProjectName(_ path: String) -> String {
         URL(fileURLWithPath: path).lastPathComponent
     }
 
+    static func processStartTime(pid: UInt32) -> TimeInterval? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.size
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, Int32(pid)]
+        let result = sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0)
+        guard result == 0, size > 0 else { return nil }
+        let tv = info.kp_proc.p_starttime
+        return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
+    }
+
     var isAlive: Bool {
-        if let pid {
-            if kill(Int32(pid), 0) == 0 { return true }
-            return errno == EPERM
+        guard let pid else { return false }
+        let processRunning: Bool
+        if kill(Int32(pid), 0) == 0 {
+            processRunning = true
+        } else {
+            processRunning = errno == EPERM
         }
-        return -lastActivity.timeIntervalSinceNow < 4 * 3600
+        guard processRunning else { return false }
+        // Check PID reuse: if we recorded a start time, verify it still matches
+        if let stored = pidStartTime,
+           let current = Self.processStartTime(pid: pid),
+           abs(stored - current) > 1.0 {
+            return false
+        }
+        return true
     }
 
     var relativeTime: String {

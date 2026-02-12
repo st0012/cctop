@@ -34,7 +34,7 @@ class SessionManager: ObservableObject {
             return
         }
 
-        let oldStatuses = Dictionary(uniqueKeysWithValues: sessions.map { ($0.sessionId, $0.status) })
+        let oldStatuses = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0.status) })
 
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
         let allDecoded = jsonFiles
@@ -63,7 +63,7 @@ class SessionManager: ObservableObject {
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
             for session in sessions {
                 guard session.status.needsAttention,
-                      let oldStatus = oldStatuses[session.sessionId],
+                      let oldStatus = oldStatuses[session.id],
                       !oldStatus.needsAttention else { continue }
                 sendNotification(for: session)
             }
@@ -74,10 +74,26 @@ class SessionManager: ObservableObject {
             logger.error("removing dead session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
             try? FileManager.default.removeItem(at: url)
         }
+
+        cleanupOldFormatFiles(jsonFiles)
+    }
+
+    // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
+    /// Remove old-format UUID-keyed session files (pre-PID migration).
+    /// PID-keyed filenames are purely numeric; UUID filenames contain letters/hyphens.
+    private func cleanupOldFormatFiles(_ jsonFiles: [URL]) {
+        for url in jsonFiles {
+            let stem = url.deletingPathExtension().lastPathComponent
+            if stem.rangeOfCharacter(from: CharacterSet.decimalDigits.inverted) != nil {
+                logger.info("removing old-format session file: \(stem, privacy: .public)")
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
     func resetSession(_ session: Session) {
-        let url = sessionsDir.appendingPathComponent("\(session.sessionId).json")
+        guard let pid = session.pid else { return }
+        let url = sessionsDir.appendingPathComponent("\(pid).json")
         guard let data = try? Data(contentsOf: url),
               var mutable = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data)
         else { return }
@@ -133,10 +149,10 @@ class SessionManager: ObservableObject {
             content.body = "Needs attention"
         }
         content.sound = .default
-        content.userInfo = ["sessionId": session.sessionId]
+        content.userInfo = ["sessionPID": session.pid.map(String.init) ?? ""]
 
         let request = UNNotificationRequest(
-            identifier: "session-\(session.sessionId)",
+            identifier: "session-\(session.id)",
             content: content,
             trigger: nil
         )

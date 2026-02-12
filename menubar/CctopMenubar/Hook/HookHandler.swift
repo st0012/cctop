@@ -2,7 +2,8 @@ import Foundation
 
 enum HookHandler {
     private static let maxToolDetailLen = 120
-    private static let noPIDMaxAge: TimeInterval = 24 * 3600
+    // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
+    private static let noPIDMaxAge: TimeInterval = 300
 
     static func handleHook(hookName: String, input: HookInput) throws {
         let event = HookEvent.parse(hookName: hookName, notificationType: input.notificationType)
@@ -11,23 +12,21 @@ enum HookHandler {
 
         let sessionsDir = Config.sessionsDir()
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
+        let pid = getParentPID()
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
-        let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(safeId).json")
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(pid).json")
 
         let branch = getCurrentBranch(cwd: input.cwd)
         let terminal = captureTerminalInfo()
+        let startTime = Session.processStartTime(pid: pid)
 
-        var session: Session
-        if FileManager.default.fileExists(atPath: sessionPath),
-           let existing = try? Session.fromFile(path: sessionPath) {
-            session = existing
-        } else {
-            session = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
-        }
+        let freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
+        var session = loadOrCreateSession(
+            path: sessionPath, event: event, startTime: startTime, fresh: freshSession
+        )
 
-        if session.pid == nil {
-            session.pid = getParentPID()
-        }
+        session.pid = pid
+        session.pidStartTime = startTime
 
         let oldStatus = session.status.rawValue
         let newStatus = Transition.forEvent(session.status, event: event)
@@ -70,10 +69,7 @@ enum HookHandler {
         switch event {
         case .sessionStart:
             clearToolState(&session)
-            let pid = getParentPID()
-            session.pid = pid
-            cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentSessionId: safeId)
-            cleanupSessionsWithPID(sessionsDir: sessionsDir, pid: pid, currentSessionId: safeId)
+            cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: session.pid)
 
         case .userPromptSubmit:
             clearToolState(&session)
@@ -110,6 +106,29 @@ enum HookHandler {
         case .preCompact, .postToolUse, .sessionEnd, .unknown:
             break
         }
+    }
+
+    // MARK: - Session Loading
+
+    private static func loadOrCreateSession(
+        path: String, event: HookEvent, startTime: TimeInterval?, fresh: Session
+    ) -> Session {
+        guard FileManager.default.fileExists(atPath: path),
+              let existing = try? Session.fromFile(path: path) else {
+            return fresh
+        }
+        // PID reuse: different process start time means a new process reused this PID
+        if event == .sessionStart,
+           let storedStart = existing.pidStartTime,
+           let currentStart = startTime,
+           abs(storedStart - currentStart) > 1.0 {
+            return fresh
+        }
+        // Same process but CC assigned a new session_id (e.g. resume) — carry over state
+        guard existing.sessionId == fresh.sessionId else {
+            return existing.withSessionId(fresh.sessionId, branch: fresh.branch, terminal: fresh.terminal)
+        }
+        return existing
     }
 
     // MARK: - Helpers
@@ -226,22 +245,23 @@ enum HookHandler {
 
     // MARK: - Cleanup
 
-    static func cleanupSessionsWithPID(sessionsDir: String, pid: UInt32, currentSessionId: String) {
+    static func cleanupSessionsForProject(sessionsDir: String, projectPath: String, currentPid: UInt32?) {
         forEachSession(in: sessionsDir) { path, session in
-            if session.pid == pid && session.sessionId != currentSessionId {
-                removeSession(at: path, sessionId: session.sessionId)
-            }
-        }
-    }
-
-    static func cleanupSessionsForProject(sessionsDir: String, projectPath: String, currentSessionId: String) {
-        forEachSession(in: sessionsDir) { path, session in
-            guard session.projectPath == projectPath, session.sessionId != currentSessionId else { return }
+            guard session.projectPath == projectPath, session.pid != currentPid else { return }
 
             let isStale: Bool
             if let pid = session.pid {
-                isStale = !isPIDAlive(pid)
+                if !isPIDAlive(pid) {
+                    isStale = true
+                } else if let storedStart = session.pidStartTime,
+                          let currentStart = Session.processStartTime(pid: pid),
+                          abs(storedStart - currentStart) > 1.0 {
+                    isStale = true  // PID reused by a different process
+                } else {
+                    isStale = false
+                }
             } else {
+                // MIGRATION(v0.6.0): Remove no-PID branch after all users have migrated.
                 isStale = -session.lastActivity.timeIntervalSinceNow > noPIDMaxAge
             }
 

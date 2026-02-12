@@ -39,8 +39,10 @@ jobs:
           SMOKE_DIR=$(mktemp -d)
           echo '{"session_id":"ci-test","cwd":"/tmp/proj","hook_event_name":"SessionStart"}' \
             | CCTOP_SESSIONS_DIR="$SMOKE_DIR" menubar/build/Build/Products/Debug/cctop-hook SessionStart
-          test -f "$SMOKE_DIR/ci-test.json"
-          grep -q '"idle"' "$SMOKE_DIR/ci-test.json"
+          SESSION_FILE=$(ls "$SMOKE_DIR"/*.json | head -1)
+          test -f "$SESSION_FILE"
+          grep -q '"idle"' "$SESSION_FILE"
+          grep -q '"ci-test"' "$SESSION_FILE"
           rm -rf "$SMOKE_DIR"
       - name: Test
         run: xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/

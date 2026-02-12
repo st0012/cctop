@@ -112,9 +112,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let sessionId = response.notification.request.content.userInfo["sessionId"] as? String
+        let pidStr = response.notification.request.content.userInfo["sessionPID"] as? String
         DispatchQueue.main.async { [weak self] in
-            if let session = self?.sessionManager.sessions.first(where: { $0.sessionId == sessionId }) {
+            if let session = self?.sessionManager.sessions.first(where: { $0.id == pidStr }) {
                 focusTerminal(session: session)
             }
         }
@@ -130,32 +130,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     /// Symlinks cctop-hook from the app bundle into ~/.cctop/bin/ so Claude Code hooks can find it.
-    /// run-hook.sh checks app bundle paths first, then falls back to ~/.cctop/bin/.
+    /// run-hook.sh prefers ~/.cctop/bin/cctop-hook, then falls back to app bundle paths.
+    /// Re-creates the symlink on every launch so it stays current after upgrades.
     private func installHookBinaryIfNeeded() {
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
 
-        // Check if cctop-hook already exists at ~/.cctop/bin/ (the fallback path run-hook.sh checks)
+        guard let bundledHook = Bundle.main.url(forAuxiliaryExecutable: "cctop-hook") else { return }
+
         let cctopBin = home.appendingPathComponent(".cctop/bin")
         let symlinkPath = cctopBin.appendingPathComponent("cctop-hook")
 
-        var isDir: ObjCBool = false
-        if fm.fileExists(atPath: symlinkPath.path, isDirectory: &isDir), !isDir.boolValue {
+        // Skip if existing symlink already points to the current bundle
+        if let dest = try? fm.destinationOfSymbolicLink(atPath: symlinkPath.path),
+           URL(fileURLWithPath: dest) == bundledHook {
             return
         }
 
-        // cctop-hook not found — symlink from the app bundle to ~/.cctop/bin/
-        guard let bundledHook = Bundle.main.url(forAuxiliaryExecutable: "cctop-hook") else { return }
-
         do {
             try fm.createDirectory(at: cctopBin, withIntermediateDirectories: true)
-            // Remove stale symlink if it exists (e.g. app was reinstalled to different path)
+            // Remove stale/dangling symlink or file before creating new one
             if (try? fm.attributesOfItem(atPath: symlinkPath.path)) != nil {
                 try fm.removeItem(at: symlinkPath)
             }
             try fm.createSymbolicLink(at: symlinkPath, withDestinationURL: bundledHook)
         } catch {
-            // Non-fatal — hook can still be installed manually
+            // Non-fatal — hook can still be found via app bundle paths
         }
     }
 

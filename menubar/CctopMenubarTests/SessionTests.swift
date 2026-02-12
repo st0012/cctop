@@ -118,6 +118,64 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.displayName, "myapp")
     }
 
+    // MARK: - PID-keyed identity
+
+    func testIdUsesPIDWhenAvailable() {
+        let session = Session.mock(pid: 12345)
+        XCTAssertEqual(session.id, "12345")
+    }
+
+    func testIdFallsBackToSessionIdWhenNoPID() {
+        let session = Session.mock(id: "abc-123")
+        XCTAssertEqual(session.id, "abc-123")
+    }
+
+    func testDecodesPidStartTime() throws {
+        let json = """
+        {
+            "session_id": "pid-test",
+            "project_path": "/tmp",
+            "project_name": "test",
+            "branch": "main",
+            "status": "idle",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "Code"},
+            "pid": 9999,
+            "pid_start_time": 1707400000.123
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertEqual(session.pid, 9999)
+        XCTAssertEqual(session.pidStartTime!, 1707400000.123, accuracy: 0.001)
+    }
+
+    func testDecodesWithoutPidStartTime() throws {
+        let json = """
+        {
+            "session_id": "old-format",
+            "project_path": "/tmp",
+            "project_name": "test",
+            "branch": "main",
+            "status": "idle",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "Code"},
+            "pid": 5555
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertEqual(session.pid, 5555)
+        XCTAssertNil(session.pidStartTime)
+    }
+
+    func testProcessStartTimeReturnsValueForCurrentProcess() {
+        let pid = UInt32(getpid())
+        let startTime = Session.processStartTime(pid: pid)
+        XCTAssertNotNil(startTime, "Should get start time for current process")
+        XCTAssertGreaterThan(startTime ?? 0, 0)
+    }
+
     func testOldJsonWithContextCompactedStillDecodes() throws {
         let json = """
         {

@@ -107,7 +107,7 @@ make install
 make clean
 
 # Check a specific session file
-cat ~/.cctop/sessions/<session-id>.json | jq '.'
+cat ~/.cctop/sessions/<pid>.json | jq '.'
 
 # Bump version (updates pbxproj, plugin JSON, cask, etc.)
 scripts/bump-version.sh 0.3.0
@@ -172,7 +172,7 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 
 ### Stale sessions showing
 - Sessions store the PID of the Claude process and are validated by checking if that PID is still running
-- Manual cleanup: `rm ~/.cctop/sessions/<session-id>.json`
+- Manual cleanup: `rm ~/.cctop/sessions/<pid>.json`
 - In-app reset: right-click a session in the menubar to reset status to idle
 
 ### Jump to session not working
@@ -195,7 +195,7 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 | PermissionRequest | waiting_permission |
 | PreCompact | compacting |
 
-Note: SessionEnd hook is no longer used. Dead sessions are detected via PID checking.
+Note: Session files are keyed by PID (`{pid}.json`), not session_id. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse. SessionEnd hook is no longer used — dead sessions are detected via PID liveness + start time checking.
 
 ## Hook Delivery Debugging
 
