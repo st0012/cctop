@@ -107,12 +107,10 @@ jobs:
 
           ### macOS (Apple Silicon)
           \`\`\`bash
-          # Download and extract
           curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-arm64.zip -o cctop.zip
           unzip cctop.zip
           mv cctop.app /Applications/
-
-          # Launch
+          xattr -cr /Applications/cctop.app
           open /Applications/cctop.app
           \`\`\`
 
@@ -121,6 +119,7 @@ jobs:
           curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-x86_64.zip -o cctop.zip
           unzip cctop.zip
           mv cctop.app /Applications/
+          xattr -cr /Applications/cctop.app
           open /Applications/cctop.app
           \`\`\`
 
@@ -139,9 +138,7 @@ jobs:
           else
             BODY="$BODY
 
-          > **Note:** This release is not notarized. On first launch, you may need to
-          > right-click the app and select \"Open\", or go to System Settings > Privacy &
-          > Security and click \"Open Anyway\"."
+          > **Note:** This app is signed but not yet notarized by Apple. The \`xattr -cr\` command above removes the download quarantine flag so macOS will allow it to open. Only do this if you trust the source — you can verify the code by reviewing this repo or building from source."
           fi
 
           # Write to file to avoid quoting issues
