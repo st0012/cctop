@@ -59,9 +59,7 @@ enum HookHandler {
             session.pid = pid
 
             cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentSessionId: safeId)
-            if let currentPid = pid {
-                cleanupSessionsWithPID(sessionsDir: sessionsDir, pid: currentPid, currentSessionId: safeId)
-            }
+            cleanupSessionsWithPID(sessionsDir: sessionsDir, pid: pid, currentSessionId: safeId)
 
         case .userPromptSubmit:
             session.lastTool = nil
