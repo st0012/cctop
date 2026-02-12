@@ -113,6 +113,22 @@ extension Session {
         .mock(id: "3", project: "short", branch: "m", status: .idle),
     ]
 
+    /// Long session names to test wrapping (e.g. forked sessions using first message as name).
+    static let qaLongSessionNames: [Session] = [
+        .mock(id: "1", project: "cctop",
+              branch: "redesign",
+              sessionName: "Can you use test data to show me what happens if the session name is super long like over 50 characters",
+              status: .working, lastTool: "Edit",
+              lastToolDetail: "/Users/test/projects/cctop/Views/SessionCardView.swift"),
+        .mock(id: "2", project: "cctop",
+              branch: "main",
+              sessionName: "Help me refactor the authentication middleware to support OAuth2 refresh token rotation",
+              status: .idle),
+        .mock(id: "3", project: "blog",
+              branch: "main",
+              status: .idle),
+    ]
+
     /// Single session.
     static let qaSingle: [Session] = [
         .mock(id: "1", project: "solo-project", branch: "main", status: .working, lastTool: "Task", lastToolDetail: "Running tests"),

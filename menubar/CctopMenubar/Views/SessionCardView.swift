@@ -74,6 +74,7 @@ struct SessionCardView: View {
                     Text(name)
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                 }
             }
             .padding(.leading, 17)

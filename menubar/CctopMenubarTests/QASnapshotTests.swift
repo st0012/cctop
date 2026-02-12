@@ -61,6 +61,10 @@ final class QASnapshotTests: XCTestCase {
         try renderSnapshot(sessions: Session.qaLongNames, name: "09-long-names")
     }
 
+    func testLongSessionNames() throws {
+        try renderSnapshot(sessions: Session.qaLongSessionNames, name: "09b-long-session-names")
+    }
+
     // MARK: - Dark mode
 
     func testFiveSessionsDark() throws {
