@@ -29,7 +29,7 @@ jobs:
 
       - name: Sign and notarize
         id: sign
-        if: secrets.APPLE_IDENTITY != ''
+        if: ${{ secrets.APPLE_IDENTITY != '' }}
         env:
           APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
