@@ -2,6 +2,7 @@ import Foundation
 
 enum HookHandler {
     private static let maxToolDetailLen = 120
+    // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
     private static let noPIDMaxAge: TimeInterval = 300
 
     static func handleHook(hookName: String, input: HookInput) throws {
@@ -260,6 +261,7 @@ enum HookHandler {
                     isStale = false
                 }
             } else {
+                // MIGRATION(v0.6.0): Remove no-PID branch after all users have migrated.
                 isStale = -session.lastActivity.timeIntervalSinceNow > noPIDMaxAge
             }
 

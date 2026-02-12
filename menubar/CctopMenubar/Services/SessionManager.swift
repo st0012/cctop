@@ -78,6 +78,7 @@ class SessionManager: ObservableObject {
         cleanupOldFormatFiles(jsonFiles)
     }
 
+    // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
     /// Remove old-format UUID-keyed session files (pre-PID migration).
     /// PID-keyed filenames are purely numeric; UUID filenames contain letters/hyphens.
     private func cleanupOldFormatFiles(_ jsonFiles: [URL]) {
