@@ -17,7 +17,7 @@ enum HookHandler {
 
         let branch = getCurrentBranch(cwd: input.cwd)
         let terminal = captureTerminalInfo()
-        let startTime = getProcessStartTime(Int32(pid))
+        let startTime = Session.processStartTime(pid: pid)
 
         let freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
         var session = loadOrCreateSession(
@@ -120,7 +120,7 @@ enum HookHandler {
         if event == .sessionStart,
            let storedStart = existing.pidStartTime,
            let currentStart = startTime,
-           storedStart != currentStart {
+           abs(storedStart - currentStart) > 1.0 {
             return fresh
         }
         // Same process but CC assigned a new session_id (e.g. resume) — carry over state
@@ -146,12 +146,6 @@ enum HookHandler {
             pid = parentPid
         }
         return UInt32(pid)
-    }
-
-    static func getProcessStartTime(_ pid: pid_t) -> TimeInterval? {
-        guard let info = procInfo(pid) else { return nil }
-        let tv = info.kp_proc.p_starttime
-        return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
     }
 
     private static func procInfo(_ pid: pid_t) -> kinfo_proc? {
@@ -259,8 +253,8 @@ enum HookHandler {
                 if !isPIDAlive(pid) {
                     isStale = true
                 } else if let storedStart = session.pidStartTime,
-                          let currentStart = getProcessStartTime(Int32(pid)),
-                          storedStart != currentStart {
+                          let currentStart = Session.processStartTime(pid: pid),
+                          abs(storedStart - currentStart) > 1.0 {
                     isStale = true  // PID reused by a different process
                 } else {
                     isStale = false
