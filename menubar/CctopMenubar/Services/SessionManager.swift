@@ -14,8 +14,7 @@ class SessionManager: ObservableObject {
     private var livenessTimer: Timer?
 
     init() {
-        self.sessionsDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".cctop/sessions")
+        self.sessionsDir = URL(fileURLWithPath: Config.sessionsDir())
         loadSessions()
         startWatching()
         livenessTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
