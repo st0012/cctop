@@ -85,16 +85,24 @@ open /Applications/cctop.app
 ## How It Works
 
 ```
-Claude Code  ──hook events──>  cctop-hook  ──JSON──>  ~/.cctop/sessions/
-                                                             │
-                                                             ▼
-                                                       Menubar app
+┌─────────────┐    hook fires     ┌────────────┐    writes JSON    ┌───────────────────┐
+│ Claude Code │ ────────────────> │ cctop-hook │ ────────────────> │ ~/.cctop/sessions │
+│  (session)  │  SessionStart,    │   (CLI)    │   per-session     │   ├── abc.json    │
+│             │  Stop, PreTool,   │            │   state file      │   ├── def.json    │
+│             │  Notification,…   │            │                   │   └── ghi.json    │
+└─────────────┘                   └────────────┘                   └──────────┬────────┘
+                                                                              │ file watcher
+                                                                              ▼
+                                                                      ┌──────────────┐
+                                                                      │ Menubar app  │
+                                                                      │ (live status)│
+                                                                      └──────────────┘
 ```
 
 1. The cctop plugin registers hooks with Claude Code
-2. Hooks fire on session events (start, prompt, tool use, stop, notifications)
-3. `cctop-hook` writes session state as JSON to `~/.cctop/sessions/`
-4. The menubar app watches these files and displays live status
+2. When session events fire (start, prompt, tool use, stop, notifications), Claude Code invokes `cctop-hook`
+3. `cctop-hook` writes/updates a JSON state file per session in `~/.cctop/sessions/`
+4. The menubar app watches this directory and displays live status for all sessions
 
 ## Uninstall
 
