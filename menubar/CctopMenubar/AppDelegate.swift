@@ -202,18 +202,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
     @ObservedObject var updateChecker: UpdateChecker
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
         PopupView(sessions: sessionManager.sessions, resetSession: sessionManager.resetSession, updateAvailable: updateChecker.updateAvailable)
             .frame(width: 320)
-            .background {
-                if colorScheme == .light {
-                    Color(red: 250 / 255, green: 248 / 255, blue: 245 / 255) // #faf8f5
-                } else {
-                    Color(red: 28 / 255, green: 25 / 255, blue: 22 / 255) // #1c1916
-                }
-            }
+            .background(Color.panelBackground)
             .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

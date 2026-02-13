@@ -57,7 +57,7 @@ struct SettingsSection: View {
                         Spacer()
                         Image(systemName: "arrow.up.forward")
                             .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.textSecondary)
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
@@ -68,7 +68,7 @@ struct SettingsSection: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Appearance")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
                 AmberSegmentedPicker(
                     options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) },
                     selection: $appearanceMode
@@ -83,7 +83,7 @@ struct SettingsSection: View {
             HStack {
                 Text("Toggle Shortcut")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
                 Spacer()
                 KeyboardShortcuts.Recorder("", name: .togglePanel)
             }
@@ -96,7 +96,7 @@ struct SettingsSection: View {
             Toggle(isOn: $launchAtLogin) {
                 Text("Launch at Login")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
             }
             .toggleStyle(.switch)
             .controlSize(.mini)
@@ -120,7 +120,7 @@ struct SettingsSection: View {
             Toggle(isOn: $notificationsEnabled) {
                 Text("Notifications")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
             }
             .toggleStyle(.switch)
             .controlSize(.mini)

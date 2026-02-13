@@ -2,47 +2,87 @@ import AppKit
 import SwiftUI
 
 extension Color {
-    /// Warm amber accent — the primary brand color.
-    /// Dark: #e8952e, Light: #b56c0a
+    /// Terracotta accent — the primary brand color. Dark: #D97757, Light: #C0603E
     static let amber = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(red: 232 / 255, green: 149 / 255, blue: 46 / 255, alpha: 1)
-            : NSColor(red: 181 / 255, green: 108 / 255, blue: 10 / 255, alpha: 1)
+            ? NSColor(red: 217 / 255, green: 119 / 255, blue: 87 / 255, alpha: 1)
+            : NSColor(red: 192 / 255, green: 96 / 255, blue: 62 / 255, alpha: 1)
     })
 
-    /// Segmented control background.
-    /// Dark: #161310, Light: #e8e2d8
+    /// Segmented control background. Dark: #1a1410, Light: #e5dbd0
     static let segmentBackground = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(red: 22 / 255, green: 19 / 255, blue: 16 / 255, alpha: 1)
-            : NSColor(red: 232 / 255, green: 226 / 255, blue: 216 / 255, alpha: 1)
+            ? NSColor(red: 26 / 255, green: 20 / 255, blue: 16 / 255, alpha: 1)
+            : NSColor(red: 229 / 255, green: 219 / 255, blue: 208 / 255, alpha: 1)
     })
 
-    /// Segmented control inactive text.
-    /// Dark: #6e6358, Light: #6e6358
+    /// Segmented control inactive text. Dark: #7a6a58, Light: #8a7d70
     static let segmentText = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(red: 110 / 255, green: 99 / 255, blue: 88 / 255, alpha: 1)
-            : NSColor(red: 110 / 255, green: 99 / 255, blue: 88 / 255, alpha: 1)
+            ? NSColor(red: 122 / 255, green: 106 / 255, blue: 88 / 255, alpha: 1)
+            : NSColor(red: 138 / 255, green: 125 / 255, blue: 112 / 255, alpha: 1)
     })
 
-    /// Active segment / logo text — contrasts with amber background.
-    /// Both modes: #ffffff
-    static let segmentActiveText = Color.white
+    /// Active segment text. Dark: #1a1410, Light: #ffffff
+    static let segmentActiveText = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(red: 26 / 255, green: 20 / 255, blue: 16 / 255, alpha: 1)
+            : NSColor.white
+    })
 
-    /// Settings section background.
-    /// Dark: #1f1b17, Light: #f0ece5
+    /// Settings section background. Dark: #271e17, Light: #EDE3D8
     static let settingsBackground = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(red: 31 / 255, green: 27 / 255, blue: 23 / 255, alpha: 1)
-            : NSColor(red: 240 / 255, green: 236 / 255, blue: 229 / 255, alpha: 1)
+            ? NSColor(red: 39 / 255, green: 30 / 255, blue: 23 / 255, alpha: 1)
+            : NSColor(red: 237 / 255, green: 227 / 255, blue: 216 / 255, alpha: 1)
     })
 
-    /// Settings section border.
-    /// Dark: #383026, Light: #ddd7cc
+    /// Settings section border. Dark: #3d3028, Light: #ddd4c8
     static let settingsBorder = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(red: 56 / 255, green: 48 / 255, blue: 38 / 255, alpha: 1)
-            : NSColor(red: 221 / 255, green: 215 / 255, blue: 204 / 255, alpha: 1)
+            ? NSColor(red: 61 / 255, green: 48 / 255, blue: 40 / 255, alpha: 1)
+            : NSColor(red: 221 / 255, green: 212 / 255, blue: 200 / 255, alpha: 1)
+    })
+
+    /// Panel background. Dark: #221a14, Light: #F5EDE4
+    static let panelBackground = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(red: 34 / 255, green: 26 / 255, blue: 20 / 255, alpha: 1)
+            : NSColor(red: 245 / 255, green: 237 / 255, blue: 228 / 255, alpha: 1)
+    })
+
+    /// Card background. Dark: #2e231b, Light: #ffffff
+    static let cardBackground = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(red: 46 / 255, green: 35 / 255, blue: 27 / 255, alpha: 1)
+            : NSColor.white
+    })
+
+    /// Card border. Dark: #3d3028, Light: #ddd4c8
+    static let cardBorder = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(red: 61 / 255, green: 48 / 255, blue: 40 / 255, alpha: 1)
+            : NSColor(red: 221 / 255, green: 212 / 255, blue: 200 / 255, alpha: 1)
+    })
+
+    /// Working status green. Dark: #4ade80, Light: #2da55e
+    static let statusGreen = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(red: 74 / 255, green: 222 / 255, blue: 128 / 255, alpha: 1)
+            : NSColor(red: 45 / 255, green: 165 / 255, blue: 94 / 255, alpha: 1)
+    })
+
+    /// Secondary text — context lines, labels. Dark: #C4A882, Light: #4d4038
+    static let textSecondary = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(red: 196 / 255, green: 168 / 255, blue: 130 / 255, alpha: 1)
+            : NSColor(red: 77 / 255, green: 64 / 255, blue: 56 / 255, alpha: 1)
+    })
+
+    /// Muted text — timestamps, versions, branch names. Dark: #7a6a58, Light: #8a7d70
+    static let textMuted = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(red: 122 / 255, green: 106 / 255, blue: 88 / 255, alpha: 1)
+            : NSColor(red: 138 / 255, green: 125 / 255, blue: 112 / 255, alpha: 1)
     })
 }

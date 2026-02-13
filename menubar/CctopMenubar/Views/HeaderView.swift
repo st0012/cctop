@@ -25,7 +25,7 @@ struct HeaderView: View {
             Text("cctop").font(.system(size: 14, weight: .semibold))
             Spacer()
             StatusChip(count: counts.attention, color: Color.amber, categoryLabel: "need attention")
-            StatusChip(count: counts.working, color: .green, categoryLabel: "working")
+            StatusChip(count: counts.working, color: Color.statusGreen, categoryLabel: "working")
             StatusChip(count: counts.idle, color: .gray, categoryLabel: "idle")
         }
         .padding(.horizontal, 16)

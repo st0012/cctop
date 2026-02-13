@@ -47,7 +47,7 @@ struct SessionCardView: View {
                 } else {
                     Text(session.relativeTime)
                         .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.textMuted)
                 }
 
                 Text(session.status.label)
@@ -64,7 +64,7 @@ struct SessionCardView: View {
             HStack(spacing: 6) {
                 Text(session.branch)
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.textMuted)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
                     .background(Color.primary.opacity(0.06))
@@ -73,7 +73,7 @@ struct SessionCardView: View {
                 if let name = session.sessionName {
                     Text(name)
                         .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.textMuted)
                         .lineLimit(1)
                 }
             }
@@ -83,16 +83,16 @@ struct SessionCardView: View {
             if let context = session.contextLine {
                 Text(context)
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
                     .lineLimit(1)
                     .padding(.leading, 17)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.primary.opacity(isHovered ? 0.06 : 0.03))
+        .background(Color.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(isHovered ? 0.1 : 0.06), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.cardBorder, lineWidth: 1))
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .accessibilityElement(children: .contain)
