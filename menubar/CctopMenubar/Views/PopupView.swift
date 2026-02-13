@@ -39,7 +39,7 @@ struct PopupView: View {
                 QuitButton()
                 Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                     .font(.system(size: 10))
-                    .foregroundStyle(.quaternary)
+                    .foregroundStyle(Color.textMuted)
                 Spacer()
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() }

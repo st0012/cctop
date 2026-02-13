@@ -5,7 +5,7 @@ extension SessionStatus {
         switch self {
         case .waitingPermission: return .red
         case .waitingInput, .needsAttention: return Color.amber
-        case .working: return .green
+        case .working: return Color.statusGreen
         case .compacting: return .purple
         case .idle: return .gray
         }

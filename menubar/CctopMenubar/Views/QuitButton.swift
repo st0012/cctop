@@ -7,7 +7,7 @@ struct QuitButton: View {
         Button(action: { NSApplication.shared.terminate(nil) }) {
             Text("Quit")
                 .font(.system(size: 11))
-                .foregroundStyle(isHovered ? .primary : .tertiary)
+                .foregroundStyle(isHovered ? .primary : Color.textMuted)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(isHovered ? Color.primary.opacity(0.08) : .clear)

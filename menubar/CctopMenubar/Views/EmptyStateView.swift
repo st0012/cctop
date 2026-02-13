@@ -66,7 +66,7 @@ struct EmptyStateView: View {
         HStack(spacing: 6) {
             Text(command)
                 .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.textSecondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
 
@@ -82,7 +82,7 @@ struct EmptyStateView: View {
             } label: {
                 Image(systemName: copiedIndex == index ? "checkmark" : "doc.on.doc")
                     .font(.system(size: 10))
-                    .foregroundStyle(copiedIndex == index ? .green : .secondary)
+                    .foregroundStyle(copiedIndex == index ? .green : Color.textSecondary)
                     .frame(width: 20, height: 20)
             }
             .buttonStyle(.plain)
@@ -101,17 +101,17 @@ struct EmptyStateView: View {
                     .foregroundStyle(.green)
                 Text("Plugin installed")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.textSecondary)
             }
 
             Text("Start a Claude Code session \u{2014} it will appear here automatically.")
                 .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.textMuted)
                 .multilineTextAlignment(.center)
 
             Text("Existing sessions need a restart to pick up hooks.")
                 .font(.system(size: 11))
-                .foregroundStyle(.quaternary)
+                .foregroundStyle(Color.textMuted)
                 .multilineTextAlignment(.center)
                 .padding(.top, 2)
         }
@@ -127,7 +127,7 @@ struct EmptyStateView: View {
                 .clipShape(Circle())
             Text(text)
                 .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.textSecondary)
             Spacer()
         }
     }
