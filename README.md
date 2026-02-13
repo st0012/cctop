@@ -1,73 +1,108 @@
 # cctop
 
-[![CI](https://github.com/st0012/cctop/actions/workflows/ci.yml/badge.svg)](https://github.com/st0012/cctop/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/st0012/cctop)](https://github.com/st0012/cctop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Know which Claude Code sessions need you — without switching tabs.**
 
-If you run multiple Claude Code sessions across different projects, you know the pain: constantly cycling through terminal tabs to check which ones are waiting for input, which need permission, and which are still working. cctop sits in your macOS menubar and shows you the status of every session at a glance — so you only switch when something actually needs you.
+A macOS menubar app that shows the status of every Claude Code session at a glance — so you only switch when something actually needs you.
 
 <p align="center">
   <img src="docs/menubar-light.png" alt="cctop menubar popup (light mode)" width="340">
-  &nbsp;
+  &nbsp;&nbsp;
   <img src="docs/menubar-dark.png" alt="cctop menubar popup (dark mode)" width="340">
 </p>
 
+<p align="center"><em>Status badges show what's urgent — permission requests, waiting input, or still working.</em></p>
+
 ## Features
 
-- Lives in your menubar — always one click away
-- Real-time session status: idle, working, waiting for input, waiting for permission
-- Shows current tool or prompt context for each session
-- Click to jump to the session's VS Code or Cursor window
-- Native macOS menubar app — lightweight and always running
+- Lives in your menubar — one click or a keyboard shortcut away
+- Color-coded status badges: idle, working, waiting for input, waiting for permission, compacting
+- See what each session is doing: the current prompt, tool being used, or last activity
+- Click a session to jump to its VS Code or Cursor window
+- Native macOS app — lightweight, always running, no Electron
 
 ## Installation
 
-### Homebrew
+### Step 1: Install the app
+
+**Homebrew:**
 
 ```bash
 brew tap st0012/cctop
 brew install --cask cctop
 ```
 
-### Download manually
+Or [download the latest release](https://github.com/st0012/cctop/releases/latest) — the app is signed and notarized by Apple.
 
-1. Download `cctop-macOS-arm64.zip` (Apple Silicon) or `cctop-macOS-x86_64.zip` (Intel) from the [latest release](https://github.com/st0012/cctop/releases/latest)
-2. Unzip and move `cctop.app` to `/Applications/`
-3. Open the app: `open /Applications/cctop.app`
+### Step 2: Install the Claude Code plugin (required)
 
-Or from the command line:
-
-```bash
-curl -sL https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.zip -o cctop.zip
-unzip cctop.zip
-mv cctop.app /Applications/
-open /Applications/cctop.app
-```
-
-### Install the Claude Code plugin
-
-The plugin registers hooks so Claude Code reports session activity to cctop.
+The app needs this plugin to receive session events from Claude Code.
 
 ```bash
 claude plugin marketplace add st0012/cctop
 claude plugin install cctop
 ```
 
-Restart any running Claude Code sessions to activate hooks (type `/exit` then reopen).
+Restart any running Claude Code sessions to activate (`/exit` then reopen). New sessions are tracked automatically — no per-project config needed.
 
-### Build from source
+## Privacy
 
-Requires Xcode 16+.
+**No network access. No analytics. No telemetry. All data stays on your machine.**
+
+cctop stores only:
+
+- Session status (idle / working / waiting)
+- Project directory name
+- Last activity timestamp
+- Current tool or prompt context
+
+This data lives in `~/.cctop/sessions/` as plain JSON files. You can inspect it anytime:
 
 ```bash
-./scripts/bundle-macos.sh
-cp -R dist/cctop.app /Applications/
-open /Applications/cctop.app
+ls ~/.cctop/sessions/
+cat ~/.cctop/sessions/*.json | python3 -m json.tool
 ```
 
-## How It Works
+## FAQ
+
+**Does cctop slow down Claude Code?**
+No. The hook runs as a separate process that writes a small JSON file and exits immediately. There is no measurable impact on Claude Code performance.
+
+**Do I need to configure anything per project?**
+No. Once the plugin is installed, all Claude Code sessions are automatically tracked. No per-project setup required.
+
+**Does it work with VS Code and Cursor?**
+Yes. Clicking a session card focuses the correct project window.
+
+**Does it work with Warp, iTerm2, or other terminals?**
+It activates the app but cannot target a specific terminal tab. You'll need to find the right tab manually.
+
+**How does cctop name sessions?**
+By default, the project directory name (e.g. `/path/to/my-app` shows as "my-app"). If you rename a session with `/rename` in Claude Code, cctop picks that up too.
+
+**Why does the app need to be in /Applications/?**
+The plugin looks for `cctop-hook` inside `/Applications/cctop.app`. Installing elsewhere breaks the hook path.
+
+## Uninstall
+
+```bash
+# Remove the menubar app
+rm -rf /Applications/cctop.app
+
+# Remove the Claude Code plugin
+claude plugin remove cctop
+claude plugin marketplace remove cctop
+
+# Remove session data and config
+rm -rf ~/.cctop
+```
+
+If installed via Homebrew: `brew uninstall --cask cctop`
+
+<details>
+<summary>How it works</summary>
 
 ```
 ┌─────────────┐    hook fires     ┌────────────┐    writes JSON    ┌───────────────────┐
@@ -89,33 +124,22 @@ open /Applications/cctop.app
 3. `cctop-hook` writes/updates a JSON state file per session in `~/.cctop/sessions/`
 4. The menubar app watches this directory and displays live status for all sessions
 
-## Uninstall
+</details>
+
+<details>
+<summary>Build from source</summary>
+
+Requires Xcode 16+ and macOS 13+.
 
 ```bash
-# Remove the menubar app
-rm -rf /Applications/cctop.app
-
-# Remove the Claude Code plugin
-claude plugin remove cctop
-claude plugin marketplace remove cctop
-
-# Remove session data and config
-rm -rf ~/.cctop
+git clone https://github.com/st0012/cctop.git
+cd cctop
+./scripts/bundle-macos.sh
+cp -R dist/cctop.app /Applications/
+open /Applications/cctop.app
 ```
 
-If installed via Homebrew: `brew uninstall --cask cctop`
-
-## Privacy
-
-All data stays local. cctop stores session metadata (status, project name, timestamps) in `~/.cctop/sessions/`. Nothing is sent to any server.
-
-## FAQ
-
-**Does cctop slow down Claude Code?**
-No. The hook runs as a separate process that writes a small JSON file and exits immediately. There is no measurable impact on Claude Code performance.
-
-**Does it work with Cursor / VS Code / other editors?**
-Yes. cctop monitors Claude Code sessions regardless of which editor you use. Clicking a session card focuses the correct VS Code or Cursor project window. For other editors, it activates the app but may not target the specific window.
+</details>
 
 ## License
 
