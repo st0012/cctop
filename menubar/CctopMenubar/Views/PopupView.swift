@@ -27,7 +27,7 @@ struct PopupView: View {
                     }
                     .padding(8)
                 }
-                .frame(maxHeight: 520)
+                .frame(maxHeight: 290)
             }
             if showSettings {
                 Divider()

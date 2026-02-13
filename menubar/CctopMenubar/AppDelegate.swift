@@ -25,6 +25,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         let contentView = PanelContentView(sessionManager: sessionManager, updateChecker: updateChecker)
         let hostingView = NSHostingView(rootView: contentView)
+        hostingView.wantsLayer = true
+        hostingView.layer?.cornerRadius = 10
+        hostingView.layer?.masksToBounds = true
         hostingView.translatesAutoresizingMaskIntoConstraints = false
 
         panel = FloatingPanel(
