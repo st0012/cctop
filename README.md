@@ -8,9 +8,13 @@
 A macOS menubar app that shows the status of every Claude Code session at a glance — so you only switch when something actually needs you.
 
 <p align="center">
-  <img src="docs/menubar-light.png" alt="cctop menubar popup (light mode)" width="340">
-  &nbsp;&nbsp;
-  <img src="docs/menubar-dark.png" alt="cctop menubar popup (dark mode)" width="340">
+  <img src="docs/menubar-screenshot.png" alt="cctop menubar popup" width="380">
+</p>
+
+<p align="center"><em>Monitoring 4 Claude Code sessions across projects.</em></p>
+
+<p align="center">
+  <img src="docs/menubar-dark.png" alt="cctop status badges" width="340">
 </p>
 
 <p align="center"><em>Status badges show what's urgent — permission requests, waiting input, or still working.</em></p>
