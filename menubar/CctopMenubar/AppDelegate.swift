@@ -73,7 +73,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            let image = NSImage(systemSymbolName: "rectangle.stack", accessibilityDescription: "cctop")
+            let image = NSImage(named: "MenubarIcon")
             image?.isTemplate = true
             button.image = image
             button.action = #selector(togglePanel)
