@@ -49,8 +49,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -k "" $KEYCHAIN_PATH
           security list-keychains -d user -s $KEYCHAIN_PATH login.keychain-db
 
-          # TODO: Remove --sign-only once Apple's notary service is stable again
-          ./scripts/sign-and-notarize.sh --sign-only dist/cctop.app
+          ./scripts/sign-and-notarize.sh dist/cctop.app
 
           # Re-create the zip with signed app
           rm -f dist/cctop-macOS.zip
@@ -100,17 +99,20 @@ jobs:
 
       - name: Build release body
         id: body
-        env:
-          IS_SIGNED: ${{ vars.APPLE_SIGNING_ENABLED || 'false' }}
         run: |
           BODY="## Installation
+
+          ### Homebrew
+          \`\`\`bash
+          brew tap st0012/cctop
+          brew install --cask cctop
+          \`\`\`
 
           ### macOS (Apple Silicon)
           \`\`\`bash
           curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-arm64.zip -o cctop.zip
           unzip cctop.zip
           mv cctop.app /Applications/
-          xattr -cr /Applications/cctop.app
           open /Applications/cctop.app
           \`\`\`
 
@@ -119,7 +121,6 @@ jobs:
           curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-x86_64.zip -o cctop.zip
           unzip cctop.zip
           mv cctop.app /Applications/
-          xattr -cr /Applications/cctop.app
           open /Applications/cctop.app
           \`\`\`
 
@@ -129,17 +130,9 @@ jobs:
           git clone https://github.com/st0012/cctop && cd cctop
           ./scripts/bundle-macos.sh
           cp -R dist/cctop.app /Applications/
-          \`\`\`"
+          \`\`\`
 
-          if [ "$IS_SIGNED" = "true" ]; then
-            BODY="$BODY
-
-          > This release is signed and notarized by Apple."
-          else
-            BODY="$BODY
-
-          > **Note:** This app is signed but not yet notarized by Apple. The \`xattr -cr\` command above removes the download quarantine flag so macOS will allow it to open. Only do this if you trust the source — you can verify the code by reviewing this repo or building from source."
-          fi
+          > This release is signed and notarized with Apple Developer ID."
 
           # Write to file to avoid quoting issues
           echo "$BODY" > "$RUNNER_TEMP/release-body.md"

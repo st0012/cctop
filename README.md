@@ -24,34 +24,18 @@ If you run multiple Claude Code sessions across different projects, you know the
 
 ## Installation
 
-<!--
 ### Homebrew
-
-Homebrew cask install is not available yet — macOS Gatekeeper blocks unnotarized
-apps during cask install with no workaround. Will be enabled once Apple notarization
-is in place. See: https://github.com/Homebrew/brew/issues/20755
 
 ```bash
 brew tap st0012/cctop
 brew install --cask cctop
 ```
--->
 
 ### Download manually
 
-> [!WARNING]
-> cctop is signed with a Developer ID certificate but **not yet notarized** by Apple (their notary service is currently experiencing delays). macOS will block the app on first launch because it can't verify it was checked for malware by Apple.
->
-> To install, run this after unzipping:
-> ```bash
-> xattr -cr /Applications/cctop.app
-> ```
-> This removes the download quarantine flag. **Only do this if you trust the source** — you're telling macOS to skip its Gatekeeper check for this app. You can verify the code is safe by reviewing this repo or [building from source](#build-from-source).
-
 1. Download `cctop-macOS-arm64.zip` (Apple Silicon) or `cctop-macOS-x86_64.zip` (Intel) from the [latest release](https://github.com/st0012/cctop/releases/latest)
 2. Unzip and move `cctop.app` to `/Applications/`
-3. Remove the quarantine flag: `xattr -cr /Applications/cctop.app`
-4. Open the app: `open /Applications/cctop.app`
+3. Open the app: `open /Applications/cctop.app`
 
 Or from the command line:
 
@@ -59,7 +43,6 @@ Or from the command line:
 curl -sL https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.zip -o cctop.zip
 unzip cctop.zip
 mv cctop.app /Applications/
-xattr -cr /Applications/cctop.app
 open /Applications/cctop.app
 ```
 
