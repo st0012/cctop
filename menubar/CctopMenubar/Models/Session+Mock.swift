@@ -71,15 +71,12 @@ extension Session {
 
     /// 6 sessions: adds two more to baseline 4.
     /// Badges should show: 0 attention, 2 working, 4 idle
-    static let qaSixSessions: [Session] = mockSessions + [
-        .mock(id: "5", project: "billing", branch: "feature/invoices", status: .working, lastTool: "Bash", lastToolDetail: "cargo test"),
+    static let qaSixSessions: [Session] = qaFiveSessions + [
         .mock(id: "6", project: "infra", branch: "main", status: .idle),
     ]
 
     /// 8 sessions: tests scrolling behavior.
-    static let qaEightSessions: [Session] = mockSessions + [
-        .mock(id: "5", project: "billing", branch: "feature/invoices", status: .working, lastTool: "Bash", lastToolDetail: "cargo test"),
-        .mock(id: "6", project: "infra", branch: "main", status: .idle),
+    static let qaEightSessions: [Session] = qaSixSessions + [
         .mock(id: "7", project: "mobile-app", branch: "release/2.0",
               status: .waitingPermission, notificationMessage: "Allow Write: /config/prod.json"),
         .mock(id: "8", project: "analytics", branch: "fix/dashboard", status: .working, lastTool: "Grep", lastToolDetail: "*.ts"),
@@ -132,5 +129,17 @@ extension Session {
     /// Single session.
     static let qaSingle: [Session] = [
         .mock(id: "1", project: "solo-project", branch: "main", status: .working, lastTool: "Task", lastToolDetail: "Running tests"),
+    ]
+
+    /// Showcase sessions for README screenshots — diverse projects, all statuses represented.
+    static let qaShowcase: [Session] = [
+        .mock(id: "1", project: "cctop", branch: "main",
+              status: .waitingPermission, notificationMessage: "Allow Bash: npm test"),
+        .mock(id: "2", project: "my-app", branch: "feature/auth",
+              sessionName: "refactor auth flow",
+              status: .working, lastTool: "Edit", lastToolDetail: "/src/auth.ts"),
+        .mock(id: "3", project: "api-server", branch: "fix/timeout",
+              status: .waitingInput, lastPrompt: "Should I also update the retry logic?"),
+        .mock(id: "4", project: "docs", branch: "main", status: .idle),
     ]
 }

@@ -9,7 +9,9 @@
 If you run multiple Claude Code sessions across different projects, you know the pain: constantly cycling through terminal tabs to check which ones are waiting for input, which need permission, and which are still working. cctop sits in your macOS menubar and shows you the status of every session at a glance — so you only switch when something actually needs you.
 
 <p align="center">
-  <img src="docs/menubar.png" alt="cctop menubar popup" width="420">
+  <img src="docs/menubar-light.png" alt="cctop menubar popup (light mode)" width="340">
+  &nbsp;&nbsp;
+  <img src="docs/menubar-dark.png" alt="cctop menubar popup (dark mode)" width="340">
 </p>
 
 ## Features

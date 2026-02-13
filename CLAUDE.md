@@ -286,17 +286,17 @@ cat ~/.cctop/sessions/*.json | jq '.project_name + " | " + .status'
 
 ## Menubar Screenshot
 
-The menubar screenshot (`docs/menubar.png`) is generated from a snapshot test that renders `PopupView` with mock data:
+The menubar screenshots (`docs/menubar-light.png` and `docs/menubar-dark.png`) are generated from a snapshot test that renders `PopupView` with mock data:
 
 ```bash
-# Regenerate the menubar screenshot
+# Regenerate the menubar screenshots (light + dark)
 xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
   -only-testing:CctopMenubarTests/SnapshotTests/testGenerateMenubarScreenshot \
   -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
-cp /tmp/menubar.png docs/menubar.png
+cp /tmp/menubar-light.png /tmp/menubar-dark.png docs/
 ```
 
-The mock sessions are defined in `Session+Mock.swift`. Edit `mockSessions` to change what appears in the screenshot.
+The showcase sessions are defined in `Session+Mock.swift` (`qaShowcase`). Edit that array to change what appears in the screenshots.
 
 ## Agent Workflow Guidelines
 
