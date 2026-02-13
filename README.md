@@ -10,7 +10,7 @@ If you run multiple Claude Code sessions across different projects, you know the
 
 <p align="center">
   <img src="docs/menubar-light.png" alt="cctop menubar popup (light mode)" width="340">
-  &nbsp;&nbsp;
+  &nbsp;
   <img src="docs/menubar-dark.png" alt="cctop menubar popup (dark mode)" width="340">
 </p>
 
