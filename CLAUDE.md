@@ -162,9 +162,8 @@ rm ~/.cctop/sessions/test123.json
 The opencode plugin (`plugins/opencode/plugin.js`) runs in-process in Bun. To test manually:
 
 ```bash
-# Install the plugin locally (from repo checkout)
-mkdir -p ~/.config/opencode/plugins/cctop
-cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop/
+# Install the plugin locally (dev build)
+cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop.js
 
 # Start an opencode session — a session file should appear
 ls ~/.cctop/sessions/
@@ -173,7 +172,7 @@ ls ~/.cctop/sessions/
 cat ~/.cctop/sessions/*.json | jq '.source'
 
 # Clean up
-rm -rf ~/.config/opencode/plugins/cctop
+rm ~/.config/opencode/plugins/cctop.js
 ```
 
 The plugin has no build step — it's a plain JS file. Edit `plugins/opencode/plugin.js` directly and re-copy to test changes.
@@ -198,8 +197,7 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 ### opencode
 
 ```bash
-mkdir -p ~/.config/opencode/plugins/cctop
-cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop/
+cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop.js
 ```
 
 Restart opencode to pick up the plugin.
@@ -212,7 +210,7 @@ Restart opencode to pick up the plugin.
 - Check debug logs: `grep cctop ~/.claude/debug/<session-id>.txt`
 
 ### Plugin not working (opencode)
-- Check if plugin files exist: `ls ~/.config/opencode/plugins/cctop/`
+- Check if plugin file exists: `ls ~/.config/opencode/plugins/cctop.js`
 - Restart opencode after installing
 - Check for session files: `ls ~/.cctop/sessions/`
 
@@ -335,13 +333,13 @@ The opencode plugin runs in-process (no SHIM/HOOK chain). Debugging is simpler:
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| No session file appears | Plugin not installed or not loaded | Verify files exist in `~/.config/opencode/plugins/cctop/`, restart opencode |
+| No session file appears | Plugin not installed or not loaded | Verify `~/.config/opencode/plugins/cctop.js` exists, restart opencode |
 | Session file appears but status doesn't update | Plugin event handler error | Check opencode logs for JS errors |
 | Session stuck in waiting_permission | `permission.replied` event not handled | Update plugin to latest version |
 
 ```bash
 # Check if the plugin is installed
-ls ~/.config/opencode/plugins/cctop/plugin.js
+ls ~/.config/opencode/plugins/cctop.js
 
 # Check if session files are being written
 ls -lt ~/.cctop/sessions/

@@ -69,13 +69,13 @@ swiftlint lint --strict
 
 - `plugin.js` — Event handler that writes session JSON to `~/.cctop/sessions/`
 - `package.json` — Plugin manifest (name, version)
-- No build step needed — edit `plugin.js` directly and copy to `~/.config/opencode/plugins/cctop/` to test
+- No build step needed — edit `plugin.js` directly and copy to `~/.config/opencode/plugins/cctop.js` to test
 
 ### Testing the opencode Plugin Locally
 
 ```bash
 # Copy your modified plugin into the opencode plugins directory
-cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop/plugin.js
+cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop.js
 
 # Restart opencode to pick up changes
 # (opencode loads plugins at startup — there's no hot reload)

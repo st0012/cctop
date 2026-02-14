@@ -60,9 +60,8 @@ Restart any running Claude Code sessions to activate (`/exit` then reopen). New 
 <summary><strong>opencode</strong></summary>
 
 ```bash
-mkdir -p ~/.config/opencode/plugins/cctop
-curl -sL https://raw.githubusercontent.com/st0012/cctop/master/plugins/opencode/plugin.js \
-  -o ~/.config/opencode/plugins/cctop/plugin.js
+cp /Applications/cctop.app/Contents/Resources/opencode-plugin.js \
+  ~/.config/opencode/plugins/cctop.js
 ```
 
 Restart opencode to activate. Sessions are tracked automatically — no per-project config needed.
@@ -136,7 +135,7 @@ claude plugin remove cctop
 claude plugin marketplace remove cctop
 
 # Remove the opencode plugin
-rm -rf ~/.config/opencode/plugins/cctop
+rm ~/.config/opencode/plugins/cctop.js
 
 # Remove session data and config
 rm -rf ~/.cctop
