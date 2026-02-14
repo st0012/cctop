@@ -195,6 +195,12 @@ export const cctop = async ({ directory }) => {
           updateSession({ status: "working" });
           break;
 
+        case "session.updated": {
+          const title = event.properties?.info?.title;
+          if (title) updateSession({ session_name: title });
+          break;
+        }
+
         case "session.deleted":
           // Let the menubar's liveness check handle cleanup
           break;
@@ -207,7 +213,7 @@ export const cctop = async ({ directory }) => {
       const prompt = output?.message?.content
         || output?.content
         || (typeof output?.text === "string" ? output.text : null);
-      const updates = { status: "working" };
+      const updates = { status: "working", branch: getGitBranch(directory) };
       if (prompt) updates.last_prompt = prompt;
       updateSession(updates);
     },
