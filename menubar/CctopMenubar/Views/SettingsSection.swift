@@ -38,9 +38,13 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
 
 struct SettingsSection: View {
     var updateAvailable: String?
+    @ObservedObject var pluginManager: PluginManager
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var justInstalled = false
+    @State private var installFailed = false
+    @State private var removeHovered = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -65,6 +69,8 @@ struct SettingsSection: View {
                 .buttonStyle(.plain)
                 Divider().padding(.horizontal, 14)
             }
+            monitoredToolsSection
+            Divider().padding(.horizontal, 14)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Appearance")
                     .font(.system(size: 11, weight: .semibold))
@@ -141,10 +147,161 @@ struct SettingsSection: View {
         )
         .padding(.horizontal, 8)
     }
+
+    private var monitoredToolsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Monitored Tools")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.textSecondary)
+
+            // Claude Code row (always shown)
+            toolRow(
+                name: "Claude Code",
+                installed: pluginManager.ccInstalled
+            )
+
+            // opencode row (only when config exists)
+            if pluginManager.ocConfigExists {
+                VStack(spacing: 4) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "terminal")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.textSecondary)
+                            .frame(width: 16, height: 16)
+                        Text("opencode")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if pluginManager.ocInstalled && !justInstalled {
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(Color.statusGreen)
+                                    .frame(width: 6, height: 6)
+                                Text("Connected")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Color.textMuted)
+                            }
+                            Button {
+                                if !pluginManager.removeOpenCodePlugin() {
+                                    installFailed = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                        installFailed = false
+                                    }
+                                }
+                            } label: {
+                                Text("Remove")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(removeHovered
+                                        ? Color.primary : Color.textMuted)
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { removeHovered = $0 }
+                        } else if !pluginManager.ocInstalled && !justInstalled {
+                            Button {
+                                if pluginManager.installOpenCodePlugin() {
+                                    justInstalled = true
+                                    installFailed = false
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                        justInstalled = false
+                                    }
+                                } else {
+                                    installFailed = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                        installFailed = false
+                                    }
+                                }
+                            } label: {
+                                Text("Install Plugin")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Color.segmentActiveText)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.amber)
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    if justInstalled {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.green)
+                            Text("Installed \u{2014} restart opencode to start tracking")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.textMuted)
+                        }
+                        .transition(.opacity)
+                    }
+                    if installFailed {
+                        Text("Failed \u{2014} check permissions")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.amber)
+                            .transition(.opacity)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 10)
+    }
+
+    private func toolRow(name: String, installed: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "terminal")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.textSecondary)
+                .frame(width: 16, height: 16)
+            Text(name)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+            Spacer()
+            if installed {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.statusGreen)
+                        .frame(width: 6, height: 6)
+                    Text("Connected")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.textMuted)
+                }
+            } else {
+                Text("Not installed")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+            }
+        }
+    }
 }
 
-#Preview {
-    SettingsSection()
-        .frame(width: 320)
-        .padding()
+#Preview("Default") {
+    SettingsSection(pluginManager: {
+        let pm = PluginManager()
+        pm.ccInstalled = true
+        return pm
+    }())
+    .frame(width: 320)
+    .padding()
+}
+#Preview("OC detected") {
+    SettingsSection(pluginManager: {
+        let pm = PluginManager()
+        pm.ccInstalled = true
+        pm.ocConfigExists = true
+        return pm
+    }())
+    .frame(width: 320)
+    .padding()
+}
+#Preview("Both connected") {
+    SettingsSection(pluginManager: {
+        let pm = PluginManager()
+        pm.ccInstalled = true
+        pm.ocInstalled = true
+        pm.ocConfigExists = true
+        return pm
+    }())
+    .frame(width: 320)
+    .padding()
 }

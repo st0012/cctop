@@ -1,37 +1,14 @@
 import SwiftUI
 
 struct EmptyStateView: View {
-    private let ccInstalled: Bool
-    private let ocInstalled: Bool
-    private let ocConfigExists: Bool
+    @ObservedObject var pluginManager: PluginManager
     @State private var copiedIndex: Int?
+    @State private var justInstalled = false
 
     private static let ccMarketplace = "claude plugin marketplace add st0012/cctop"
     private static let ccInstall = "claude plugin install cctop"
 
-    init() {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-
-        let ccDir = home.appendingPathComponent(".claude/plugins/cache/cctop")
-        var isDir: ObjCBool = false
-        self.ccInstalled = fm.fileExists(atPath: ccDir.path, isDirectory: &isDir) && isDir.boolValue
-
-        let ocConfigDir = home.appendingPathComponent(".config/opencode")
-        self.ocConfigExists = fm.fileExists(atPath: ocConfigDir.path)
-
-        let ocPlugin = home.appendingPathComponent(".config/opencode/plugins/cctop.js")
-        self.ocInstalled = fm.fileExists(atPath: ocPlugin.path)
-    }
-
-    /// Test-only initializer to force specific plugin states.
-    init(ccInstalled: Bool, ocInstalled: Bool, ocConfigExists: Bool = false) {
-        self.ccInstalled = ccInstalled
-        self.ocInstalled = ocInstalled
-        self.ocConfigExists = ocConfigExists
-    }
-
-    private var anyInstalled: Bool { ccInstalled || ocInstalled }
+    private var anyInstalled: Bool { pluginManager.ccInstalled || pluginManager.ocInstalled }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -63,9 +40,9 @@ struct EmptyStateView: View {
 
     private var installedView: some View {
         VStack(spacing: 8) {
-            pluginStatusRow("Claude Code", installed: ccInstalled)
-            if ocConfigExists {
-                pluginStatusRow("opencode", installed: ocInstalled)
+            pluginStatusRow("Claude Code", installed: pluginManager.ccInstalled)
+            if pluginManager.ocConfigExists {
+                ocPluginRow
             }
 
             Text("Start a session \u{2014} it will appear here automatically.")
@@ -90,12 +67,54 @@ struct EmptyStateView: View {
             Text(name)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(installed ? Color.textSecondary : Color.textMuted)
-            if !installed {
-                Text("(restart app to install)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-            }
             Spacer()
+        }
+    }
+
+    private var ocPluginRow: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: pluginManager.ocInstalled
+                    ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(pluginManager.ocInstalled ? .green : Color.textMuted)
+                Text("opencode")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(pluginManager.ocInstalled
+                        ? Color.textSecondary : Color.textMuted)
+                Spacer()
+                if !pluginManager.ocInstalled && !justInstalled {
+                    Button {
+                        if pluginManager.installOpenCodePlugin() {
+                            justInstalled = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                justInstalled = false
+                            }
+                        }
+                    } label: {
+                        Text("Install Plugin")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.segmentActiveText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.amber)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if justInstalled {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.green)
+                    Text("Installed \u{2014} restart opencode to start tracking sessions")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.textMuted)
+                    Spacer()
+                }
+                .transition(.opacity)
+            }
         }
     }
 
@@ -107,26 +126,14 @@ struct EmptyStateView: View {
                 commandRow(Self.ccInstall, index: 2)
             }
 
-            if ocConfigExists {
-                autoInstalledRow("opencode", installed: ocInstalled)
+            if pluginManager.ocConfigExists {
+                VStack(spacing: 6) {
+                    sectionHeader("opencode")
+                    ocPluginRow
+                }
             }
 
             stepRow(text: "Restart sessions after installing")
-        }
-    }
-
-    private func autoInstalledRow(_ name: String, installed: Bool) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: installed ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 12))
-                .foregroundStyle(installed ? .green : Color.textMuted)
-            Text(name)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(installed ? Color.textSecondary : Color.textMuted)
-            Text(installed ? "plugin installed automatically" : "restart app to install plugin")
-                .font(.system(size: 10))
-                .foregroundStyle(Color.textMuted)
-            Spacer()
         }
     }
 
@@ -183,31 +190,44 @@ struct EmptyStateView: View {
     }
 }
 
+// MARK: - Previews
+
+@MainActor
+private func previewPluginManager(
+    cc: Bool = false, oc: Bool = false, ocConfig: Bool = false
+) -> PluginManager {
+    let pm = PluginManager()
+    pm.ccInstalled = cc
+    pm.ocInstalled = oc
+    pm.ocConfigExists = ocConfig
+    return pm
+}
+
 #Preview("Not installed (CC only user)") {
-    EmptyStateView(ccInstalled: false, ocInstalled: false)
+    EmptyStateView(pluginManager: previewPluginManager())
         .frame(width: 320)
 }
 #Preview("Not installed (OC detected)") {
-    EmptyStateView(ccInstalled: false, ocInstalled: false, ocConfigExists: true)
+    EmptyStateView(pluginManager: previewPluginManager(ocConfig: true))
         .frame(width: 320)
 }
-#Preview("Not installed (OC auto-installed)") {
-    EmptyStateView(ccInstalled: false, ocInstalled: true, ocConfigExists: true)
+#Preview("Not installed (OC installed)") {
+    EmptyStateView(pluginManager: previewPluginManager(oc: true, ocConfig: true))
         .frame(width: 320)
 }
 #Preview("CC installed") {
-    EmptyStateView(ccInstalled: true, ocInstalled: false)
+    EmptyStateView(pluginManager: previewPluginManager(cc: true))
         .frame(width: 320)
 }
 #Preview("CC installed + OC detected") {
-    EmptyStateView(ccInstalled: true, ocInstalled: false, ocConfigExists: true)
+    EmptyStateView(pluginManager: previewPluginManager(cc: true, ocConfig: true))
         .frame(width: 320)
 }
 #Preview("Both installed") {
-    EmptyStateView(ccInstalled: true, ocInstalled: true, ocConfigExists: true)
+    EmptyStateView(pluginManager: previewPluginManager(cc: true, oc: true, ocConfig: true))
         .frame(width: 320)
 }
 #Preview("OC only") {
-    EmptyStateView(ccInstalled: false, ocInstalled: true, ocConfigExists: true)
+    EmptyStateView(pluginManager: previewPluginManager(oc: true, ocConfig: true))
         .frame(width: 320)
 }
