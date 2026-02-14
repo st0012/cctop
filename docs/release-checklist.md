@@ -87,9 +87,10 @@ grep '"version"' plugins/opencode/package.json
 ### 5. Test the opencode plugin install
 
 ```bash
-# Copy plugin files from the repo (or download from GitHub)
+# Install via curl (same as user-facing instructions)
 mkdir -p ~/.config/opencode/plugins/cctop
-cp plugins/opencode/plugin.js plugins/opencode/package.json ~/.config/opencode/plugins/cctop/
+curl -sL https://raw.githubusercontent.com/st0012/cctop/master/plugins/opencode/plugin.js \
+  -o ~/.config/opencode/plugins/cctop/plugin.js
 
 # Start an opencode session and verify a session file appears
 ls ~/.cctop/sessions/

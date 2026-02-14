@@ -162,9 +162,9 @@ rm ~/.cctop/sessions/test123.json
 The opencode plugin (`plugins/opencode/plugin.js`) runs in-process in Bun. To test manually:
 
 ```bash
-# Install the plugin locally
+# Install the plugin locally (from repo checkout)
 mkdir -p ~/.config/opencode/plugins/cctop
-cp plugins/opencode/plugin.js plugins/opencode/package.json ~/.config/opencode/plugins/cctop/
+cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop/
 
 # Start an opencode session — a session file should appear
 ls ~/.cctop/sessions/
@@ -173,7 +173,7 @@ ls ~/.cctop/sessions/
 cat ~/.cctop/sessions/*.json | jq '.source'
 
 # Clean up
-rm ~/.config/opencode/plugins/cctop/plugin.js ~/.config/opencode/plugins/cctop/package.json
+rm -rf ~/.config/opencode/plugins/cctop
 ```
 
 The plugin has no build step — it's a plain JS file. Edit `plugins/opencode/plugin.js` directly and re-copy to test changes.
@@ -199,7 +199,7 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 
 ```bash
 mkdir -p ~/.config/opencode/plugins/cctop
-cp plugins/opencode/plugin.js plugins/opencode/package.json ~/.config/opencode/plugins/cctop/
+cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop/
 ```
 
 Restart opencode to pick up the plugin.
