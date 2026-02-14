@@ -7,7 +7,9 @@ struct EmptyStateView: View {
 
     private static let ccMarketplace = "claude plugin marketplace add st0012/cctop"
     private static let ccInstall = "claude plugin install cctop"
-    private static let ocInstall = "cp -r /Applications/cctop.app/Contents/Resources/opencode-plugin/ ~/.config/opencode/plugins/cctop/"
+    private static let ocMkdir = "mkdir -p ~/.config/opencode/plugins/cctop"
+    // swiftlint:disable:next line_length
+    private static let ocCurl = "curl -sL https://raw.githubusercontent.com/st0012/cctop/master/plugins/opencode/plugin.js -o ~/.config/opencode/plugins/cctop/plugin.js"
 
     init() {
         let fm = FileManager.default
@@ -106,7 +108,8 @@ struct EmptyStateView: View {
             // opencode setup
             VStack(spacing: 6) {
                 sectionHeader("opencode")
-                commandRow(Self.ocInstall, index: 3)
+                commandRow(Self.ocMkdir, index: 3)
+                commandRow(Self.ocCurl, index: 4)
             }
 
             stepRow(text: "Restart sessions after installing")

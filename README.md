@@ -8,13 +8,13 @@
 A macOS menubar app that monitors your AI coding sessions at a glance — so you only switch when something actually needs you. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://github.com/nicholasgriffintn/opencode).
 
 <p align="center">
-  <img src="docs/menubar-screenshot.png" alt="cctop menubar popup" width="380">
+  <img src="docs/menubar-light.png" alt="cctop menubar popup" width="340">
 </p>
 
-<p align="center"><em>Monitoring sessions across projects.</em></p>
+<p align="center"><em>Monitoring Claude Code and opencode sessions side by side.</em></p>
 
 <p align="center">
-  <img src="docs/menubar-dark.png" alt="cctop status badges" width="340">
+  <img src="docs/menubar-dark.png" alt="cctop dark mode" width="340">
 </p>
 
 <p align="center"><em>Status badges show what's urgent — permission requests, waiting input, or still working.</em></p>
@@ -61,7 +61,8 @@ Restart any running Claude Code sessions to activate (`/exit` then reopen). New 
 
 ```bash
 mkdir -p ~/.config/opencode/plugins/cctop
-cp plugins/opencode/plugin.js plugins/opencode/package.json ~/.config/opencode/plugins/cctop/
+curl -sL https://raw.githubusercontent.com/st0012/cctop/master/plugins/opencode/plugin.js \
+  -o ~/.config/opencode/plugins/cctop/plugin.js
 ```
 
 Restart opencode to activate. Sessions are tracked automatically — no per-project config needed.
