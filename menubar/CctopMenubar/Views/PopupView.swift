@@ -11,7 +11,15 @@ struct PopupView: View {
     var pluginManager: PluginManager?
     @State private var showSettings = false
     @State private var gearHovered = false
+    @State private var ocBannerInstalled = false
+    @State private var installHovered = false
+    @State private var dismissHovered = false
     @AppStorage("ocBannerDismissed") private var ocBannerDismissed = false
+
+    private var showOcBanner: Bool {
+        guard let pm = pluginManager else { return false }
+        return pm.ocConfigExists && !pm.ocInstalled && !ocBannerDismissed
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,9 +30,8 @@ struct PopupView: View {
                     EmptyStateView(pluginManager: pluginManager)
                 }
             } else {
-                if let pm = pluginManager,
-                   pm.ocConfigExists, !pm.ocInstalled, !ocBannerDismissed {
-                    ocBanner(pluginManager: pm)
+                if showOcBanner {
+                    ocBanner
                 }
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 4) {
@@ -43,45 +50,52 @@ struct PopupView: View {
             }
             if showSettings {
                 Divider()
-                SettingsSection(updateAvailable: updateAvailable, pluginManager: pluginManager ?? PluginManager())
-                    .padding(.vertical, 8)
+                SettingsSection(
+                    updateAvailable: updateAvailable,
+                    pluginManager: pluginManager ?? PluginManager()
+                )
+                .padding(.vertical, 8)
             }
             Divider()
-            HStack {
-                QuitButton()
-                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-                Spacer()
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                        NotificationCenter.default.post(name: .settingsToggled, object: nil)
-                    }
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 14))
-                        .foregroundStyle(showSettings ? Color.amber : Color.secondary)
-                        .frame(width: 28, height: 28)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.primary.opacity(gearHovered ? 0.1 : 0))
-                        )
-                        .overlay(alignment: .topTrailing) {
-                            if updateAvailable != nil && !showSettings {
-                                Circle()
-                                    .fill(Color.amber)
-                                    .frame(width: 7, height: 7)
-                                    .offset(x: 2, y: -2)
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-                .onHover { gearHovered = $0 }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            footerBar
         }
+    }
+
+    private var footerBar: some View {
+        HStack {
+            QuitButton()
+            Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.textMuted)
+            Spacer()
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    NotificationCenter.default.post(name: .settingsToggled, object: nil)
+                }
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 14))
+                    .foregroundStyle(showSettings ? Color.amber : Color.secondary)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.primary.opacity(gearHovered ? 0.1 : 0))
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        if updateAvailable != nil && !showSettings {
+                            Circle()
+                                .fill(Color.amber)
+                                .frame(width: 7, height: 7)
+                                .offset(x: 2, y: -2)
+                        }
+                    }
+            }
+            .buttonStyle(.plain)
+            .onHover { gearHovered = $0 }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
     }
 
     private var hasMultipleSources: Bool {
@@ -99,11 +113,7 @@ struct PopupView: View {
         NSApp.deactivate()
     }
 
-    @State private var ocBannerInstalled = false
-    @State private var installHovered = false
-    @State private var dismissHovered = false
-
-    private func ocBanner(pluginManager: PluginManager) -> some View {
+    private var ocBanner: some View {
         HStack(spacing: 4) {
             if ocBannerInstalled {
                 Image(systemName: "checkmark")
@@ -118,7 +128,7 @@ struct PopupView: View {
                     .foregroundStyle(Color.textMuted)
                 Spacer()
                 Button {
-                    if pluginManager.installOpenCodePlugin() {
+                    if pluginManager?.installOpenCodePlugin() == true {
                         withAnimation { ocBannerInstalled = true }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                             withAnimation { ocBannerDismissed = true }

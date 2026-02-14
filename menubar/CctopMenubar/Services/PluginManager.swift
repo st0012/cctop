@@ -9,13 +9,16 @@ class PluginManager: ObservableObject {
     @Published var ocInstalled: Bool = false
     @Published var ocConfigExists: Bool = false
 
+    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    private static let ocPluginPath = home.appendingPathComponent(".config/opencode/plugins/cctop.js")
+
     init() {
         refresh()
     }
 
     func refresh() {
         let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
+        let home = Self.home
 
         let ccDir = home.appendingPathComponent(".claude/plugins/cache/cctop")
         var isDir: ObjCBool = false
@@ -24,13 +27,11 @@ class PluginManager: ObservableObject {
         let ocConfigDir = home.appendingPathComponent(".config/opencode")
         ocConfigExists = fm.fileExists(atPath: ocConfigDir.path)
 
-        let ocPlugin = home.appendingPathComponent(".config/opencode/plugins/cctop.js")
-        ocInstalled = fm.fileExists(atPath: ocPlugin.path)
+        ocInstalled = fm.fileExists(atPath: Self.ocPluginPath.path)
     }
 
     func installOpenCodePlugin() -> Bool {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
+        defer { refresh() }
 
         guard let bundledPlugin = Bundle.main.url(forResource: "opencode-plugin", withExtension: "js"),
               let bundledData = try? Data(contentsOf: bundledPlugin) else {
@@ -38,35 +39,28 @@ class PluginManager: ObservableObject {
             return false
         }
 
-        let pluginsDir = home.appendingPathComponent(".config/opencode/plugins")
-        let destPath = pluginsDir.appendingPathComponent("cctop.js")
+        let pluginsDir = Self.ocPluginPath.deletingLastPathComponent()
 
         do {
-            try fm.createDirectory(at: pluginsDir, withIntermediateDirectories: true)
-            try bundledData.write(to: destPath, options: .atomic)
-            logger.info("Installed opencode plugin to \(destPath.path, privacy: .public)")
-            refresh()
+            try FileManager.default.createDirectory(at: pluginsDir, withIntermediateDirectories: true)
+            try bundledData.write(to: Self.ocPluginPath, options: .atomic)
+            logger.info("Installed opencode plugin to \(Self.ocPluginPath.path, privacy: .public)")
             return true
         } catch {
             logger.error("Failed to install opencode plugin: \(error, privacy: .public)")
-            refresh()
             return false
         }
     }
 
     func removeOpenCodePlugin() -> Bool {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-        let destPath = home.appendingPathComponent(".config/opencode/plugins/cctop.js")
+        defer { refresh() }
 
         do {
-            try fm.removeItem(at: destPath)
-            logger.info("Removed opencode plugin from \(destPath.path, privacy: .public)")
-            refresh()
+            try FileManager.default.removeItem(at: Self.ocPluginPath)
+            logger.info("Removed opencode plugin from \(Self.ocPluginPath.path, privacy: .public)")
             return true
         } catch {
             logger.error("Failed to remove opencode plugin: \(error, privacy: .public)")
-            refresh()
             return false
         }
     }

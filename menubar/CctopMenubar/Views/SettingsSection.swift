@@ -154,92 +154,10 @@ struct SettingsSection: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.textSecondary)
 
-            // Claude Code row (always shown)
-            toolRow(
-                name: "Claude Code",
-                installed: pluginManager.ccInstalled
-            )
+            toolRow(name: "Claude Code", installed: pluginManager.ccInstalled)
 
-            // opencode row (only when config exists)
             if pluginManager.ocConfigExists {
-                VStack(spacing: 4) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "terminal")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.textSecondary)
-                            .frame(width: 16, height: 16)
-                        Text("opencode")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        if pluginManager.ocInstalled && !justInstalled {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(Color.statusGreen)
-                                    .frame(width: 6, height: 6)
-                                Text("Connected")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(Color.textMuted)
-                            }
-                            Button {
-                                if !pluginManager.removeOpenCodePlugin() {
-                                    installFailed = true
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                        installFailed = false
-                                    }
-                                }
-                            } label: {
-                                Text("Remove")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(removeHovered
-                                        ? Color.primary : Color.textMuted)
-                            }
-                            .buttonStyle(.plain)
-                            .onHover { removeHovered = $0 }
-                        } else if !pluginManager.ocInstalled && !justInstalled {
-                            Button {
-                                if pluginManager.installOpenCodePlugin() {
-                                    justInstalled = true
-                                    installFailed = false
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                        justInstalled = false
-                                    }
-                                } else {
-                                    installFailed = true
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                        installFailed = false
-                                    }
-                                }
-                            } label: {
-                                Text("Install Plugin")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(Color.segmentActiveText)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Color.amber)
-                                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    if justInstalled {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.green)
-                            Text("Installed \u{2014} restart opencode to start tracking")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Color.textMuted)
-                        }
-                        .transition(.opacity)
-                    }
-                    if installFailed {
-                        Text("Failed \u{2014} check permissions")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.amber)
-                            .transition(.opacity)
-                    }
-                }
+                openCodeRow
             }
         }
         .padding(.horizontal, 14)
@@ -247,7 +165,95 @@ struct SettingsSection: View {
         .padding(.bottom, 10)
     }
 
+    private var openCodeRow: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                toolLabel("opencode")
+                Spacer()
+                if justInstalled {
+                    EmptyView()
+                } else if pluginManager.ocInstalled {
+                    connectedBadge
+                    Button {
+                        if !pluginManager.removeOpenCodePlugin() {
+                            flashFailed()
+                        }
+                    } label: {
+                        Text("Remove")
+                            .font(.system(size: 10))
+                            .foregroundStyle(removeHovered ? Color.primary : Color.textMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { removeHovered = $0 }
+                } else {
+                    installPluginButton
+                }
+            }
+            if justInstalled {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.green)
+                    Text("Installed \u{2014} restart opencode to start tracking")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.textMuted)
+                }
+                .transition(.opacity)
+            }
+            if installFailed {
+                Text("Failed \u{2014} check permissions")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.amber)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private var installPluginButton: some View {
+        Button {
+            if pluginManager.installOpenCodePlugin() {
+                justInstalled = true
+                installFailed = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    justInstalled = false
+                }
+            } else {
+                flashFailed()
+            }
+        } label: {
+            Text("Install Plugin")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.segmentActiveText)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.amber)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func flashFailed() {
+        installFailed = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            installFailed = false
+        }
+    }
+
     private func toolRow(name: String, installed: Bool) -> some View {
+        HStack(spacing: 8) {
+            toolLabel(name)
+            Spacer()
+            if installed {
+                connectedBadge
+            } else {
+                Text("Not installed")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+            }
+        }
+    }
+
+    private func toolLabel(_ name: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "terminal")
                 .font(.system(size: 12))
@@ -256,21 +262,17 @@ struct SettingsSection: View {
             Text(name)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.primary)
-            Spacer()
-            if installed {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Color.statusGreen)
-                        .frame(width: 6, height: 6)
-                    Text("Connected")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.textMuted)
-                }
-            } else {
-                Text("Not installed")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-            }
+        }
+    }
+
+    private var connectedBadge: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(Color.statusGreen)
+                .frame(width: 6, height: 6)
+            Text("Connected")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.textMuted)
         }
     }
 }

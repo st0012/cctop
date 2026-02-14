@@ -74,15 +74,7 @@ struct EmptyStateView: View {
     private var ocPluginRow: some View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
-                Image(systemName: pluginManager.ocInstalled
-                    ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 12))
-                    .foregroundStyle(pluginManager.ocInstalled ? .green : Color.textMuted)
-                Text("opencode")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(pluginManager.ocInstalled
-                        ? Color.textSecondary : Color.textMuted)
-                Spacer()
+                pluginStatusRow("opencode", installed: pluginManager.ocInstalled)
                 if !pluginManager.ocInstalled && !justInstalled {
                     Button {
                         if pluginManager.installOpenCodePlugin() {
