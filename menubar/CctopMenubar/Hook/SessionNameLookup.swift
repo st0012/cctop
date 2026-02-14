@@ -45,13 +45,13 @@ enum SessionNameLookup {
               let entries = json["entries"] as? [[String: Any]]
         else { return nil }
 
+        var lastName: String?
         for entry in entries {
             guard let entryId = entry["sessionId"] as? String, entryId == sessionId else { continue }
             if let title = entry["customTitle"] as? String, !title.isEmpty {
-                return title
+                lastName = title
             }
-            return nil
         }
-        return nil
+        return lastName
     }
 }
