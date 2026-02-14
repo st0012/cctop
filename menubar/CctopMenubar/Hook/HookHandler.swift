@@ -204,13 +204,13 @@ enum HookHandler {
         guard let toolInput else { return nil }
 
         let field: String
-        switch toolName {
-        case "Bash": field = "command"
-        case "Edit", "Write", "Read": field = "file_path"
-        case "Grep", "Glob": field = "pattern"
-        case "WebFetch": field = "url"
-        case "WebSearch": field = "query"
-        case "Task": field = "description"
+        switch toolName.lowercased() {
+        case "bash": field = "command"
+        case "edit", "write", "read": field = "file_path"
+        case "grep", "glob": field = "pattern"
+        case "webfetch": field = "url"
+        case "websearch": field = "query"
+        case "task": field = "description"
         default: return nil
         }
 

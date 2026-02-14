@@ -13,7 +13,8 @@ extension Session {
         lastTool: String? = nil,
         lastToolDetail: String? = nil,
         notificationMessage: String? = nil,
-        terminal: TerminalInfo? = TerminalInfo(program: "Code", sessionId: nil, tty: nil)
+        terminal: TerminalInfo? = TerminalInfo(program: "Code", sessionId: nil, tty: nil),
+        source: String? = nil
     ) -> Session {
         var session = Session(
             sessionId: id,
@@ -29,7 +30,8 @@ extension Session {
             pidStartTime: pidStartTime,
             lastTool: lastTool,
             lastToolDetail: lastToolDetail,
-            notificationMessage: notificationMessage
+            notificationMessage: notificationMessage,
+            source: source
         )
         session.sessionName = sessionName
         return session
@@ -132,15 +134,23 @@ extension Session {
         .mock(id: "1", project: "solo-project", branch: "main", status: .working, lastTool: "Task", lastToolDetail: "Running tests"),
     ]
 
-    /// Showcase sessions for README screenshots — diverse projects, all statuses represented.
+    /// Showcase sessions for README screenshots — diverse projects, mixed sources.
     static let qaShowcase: [Session] = [
         .mock(id: "1", project: "cctop", branch: "main",
-              status: .waitingPermission, notificationMessage: "Allow Bash: npm test"),
+              status: .waitingPermission,
+              notificationMessage: "Allow Bash: npm test"),
         .mock(id: "2", project: "my-app", branch: "feature/auth",
               sessionName: "refactor auth flow",
-              status: .working, lastTool: "Edit", lastToolDetail: "/src/auth.ts"),
+              status: .working, lastTool: "Edit",
+              lastToolDetail: "/src/auth.ts"),
         .mock(id: "3", project: "api-server", branch: "fix/timeout",
-              status: .waitingInput, lastPrompt: "Should I also update the retry logic?"),
-        .mock(id: "4", project: "docs", branch: "main", status: .idle),
+              status: .working, lastTool: "bash",
+              lastToolDetail: "go test ./...",
+              source: "opencode"),
+        .mock(id: "4", project: "web-app", branch: "main",
+              status: .waitingInput,
+              lastPrompt: "Should I also update the retry logic?",
+              source: "opencode"),
+        .mock(id: "5", project: "docs", branch: "main", status: .idle),
     ]
 }

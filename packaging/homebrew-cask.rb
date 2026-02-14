@@ -19,7 +19,7 @@ cask "cctop" do
   end
 
   name "cctop"
-  desc "Monitor Claude Code sessions from the macOS menu bar"
+  desc "Monitor AI coding sessions from the macOS menu bar"
   homepage "https://github.com/st0012/cctop"
 
   livecheck do

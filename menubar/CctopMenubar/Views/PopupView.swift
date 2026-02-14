@@ -21,8 +21,12 @@ struct PopupView: View {
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 4) {
                         ForEach(sortedSessions) { session in
-                            SessionCardView(session: session, onReset: resetSession)
-                                .onTapGesture { focusSession(session) }
+                            SessionCardView(
+                                session: session,
+                                showSourceBadge: hasMultipleSources,
+                                onReset: resetSession
+                            )
+                            .onTapGesture { focusSession(session) }
                         }
                     }
                     .padding(8)
@@ -72,6 +76,11 @@ struct PopupView: View {
         }
     }
 
+    private var hasMultipleSources: Bool {
+        sessions.contains { $0.source != nil } && sessions.contains { $0.source == nil }
+            || Set(sessions.compactMap(\.source)).count > 1
+    }
+
     private var sortedSessions: [Session] {
         sessions.sorted {
             ($0.status.sortOrder, $1.lastActivity) < ($1.status.sortOrder, $0.lastActivity)
@@ -86,6 +95,9 @@ struct PopupView: View {
 
 #Preview("With sessions") {
     PopupView(sessions: Session.mockSessions).frame(width: 320)
+}
+#Preview("Mixed sources") {
+    PopupView(sessions: Session.qaShowcase).frame(width: 320)
 }
 #Preview("Empty") {
     PopupView(sessions: []).frame(width: 320)

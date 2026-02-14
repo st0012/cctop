@@ -67,11 +67,16 @@ struct Session: Codable, Identifiable {
     var notificationMessage: String?
     var sessionName: String?
     var workspaceFile: String?
+    var source: String?
 
     var id: String { pid.map { String($0) } ?? sessionId }
 
     var displayName: String {
         sessionName ?? projectName
+    }
+
+    var sourceLabel: String {
+        source == "opencode" ? "OC" : "CC"
     }
 
     enum CodingKeys: String, CodingKey {
@@ -89,6 +94,7 @@ struct Session: Codable, Identifiable {
         case notificationMessage = "notification_message"
         case sessionName = "session_name"
         case workspaceFile = "workspace_file"
+        case source
     }
 
     // MARK: - Constructors
@@ -110,7 +116,8 @@ struct Session: Codable, Identifiable {
         lastToolDetail: String?,
         notificationMessage: String?,
         sessionName: String? = nil,
-        workspaceFile: String? = nil
+        workspaceFile: String? = nil,
+        source: String? = nil
     ) {
         self.sessionId = sessionId
         self.projectPath = projectPath
@@ -128,6 +135,7 @@ struct Session: Codable, Identifiable {
         self.notificationMessage = notificationMessage
         self.sessionName = sessionName
         self.workspaceFile = workspaceFile
+        self.source = source
     }
 
     /// Convenience init for creating new sessions (used by cctop-hook).
@@ -148,6 +156,7 @@ struct Session: Codable, Identifiable {
         self.notificationMessage = nil
         self.sessionName = nil
         self.workspaceFile = nil
+        self.source = nil
     }
 
     // MARK: - File I/O
@@ -204,7 +213,8 @@ struct Session: Codable, Identifiable {
             lastToolDetail: lastToolDetail,
             notificationMessage: notificationMessage,
             sessionName: sessionName,
-            workspaceFile: workspaceFile
+            workspaceFile: workspaceFile,
+            source: source
         )
     }
 
@@ -298,16 +308,16 @@ struct Session: Codable, Identifiable {
     private func formatToolDisplay(tool: String, detail: String?) -> String {
         guard let detail else { return "\(tool)..." }
         let fileName = URL(fileURLWithPath: detail).lastPathComponent
-        switch tool {
-        case "Bash": return "Running: \(detail.prefix(30))"
-        case "Edit": return "Editing \(fileName)"
-        case "Write": return "Writing \(fileName)"
-        case "Read": return "Reading \(fileName)"
-        case "Grep": return "Searching: \(detail.prefix(30))"
-        case "Glob": return "Finding: \(detail.prefix(30))"
-        case "WebFetch": return "Fetching: \(detail.prefix(30))"
-        case "WebSearch": return "Searching: \(detail.prefix(30))"
-        case "Task": return "Task: \(detail.prefix(30))"
+        switch tool.lowercased() {
+        case "bash": return "Running: \(detail.prefix(30))"
+        case "edit": return "Editing \(fileName)"
+        case "write": return "Writing \(fileName)"
+        case "read": return "Reading \(fileName)"
+        case "grep": return "Searching: \(detail.prefix(30))"
+        case "glob": return "Finding: \(detail.prefix(30))"
+        case "webfetch": return "Fetching: \(detail.prefix(30))"
+        case "websearch": return "Searching: \(detail.prefix(30))"
+        case "task": return "Task: \(detail.prefix(30))"
         default: return "\(tool): \(detail.prefix(30))"
         }
     }
