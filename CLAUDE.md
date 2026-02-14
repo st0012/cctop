@@ -178,7 +178,8 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 ### Jump to session not working
 - **VS Code / Cursor**: Runs `code <path>` or `cursor <path>` to focus the project window. If a `.code-workspace` file is detected in the project directory, it's passed instead of the folder path.
 - **Workspace limitation**: cctop detects workspace files by scanning the project directory at session start. If the project folder contains a `.code-workspace` file but you opened the folder directly (not via the workspace file), cctop may incorrectly open the workspace instead of focusing the folder window. VS Code does not expose which mode was used via environment variables or APIs.
-- **Other editors**: Falls back to `NSRunningApplication.activate()` (activates the app but cannot target a specific window).
+- **iTerm2**: Uses AppleScript to match the session's `ITERM_SESSION_ID` GUID against iTerm2's `unique id` property. Raises the correct window (`set index of w to 1`), selects the tab, and focuses the pane. Falls back to generic `app.activate()` if the session ID is missing or stale. Requires macOS Automation permission (prompted on first use via `NSAppleEventsUsageDescription`).
+- **Other terminals**: Falls back to `NSRunningApplication.activate()` (activates the app but cannot target a specific window).
 
 ## Session Status Logic
 
