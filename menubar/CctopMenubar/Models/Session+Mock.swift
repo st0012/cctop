@@ -12,7 +12,8 @@ extension Session {
         pidStartTime: TimeInterval? = nil,
         lastTool: String? = nil,
         lastToolDetail: String? = nil,
-        notificationMessage: String? = nil
+        notificationMessage: String? = nil,
+        terminal: TerminalInfo? = TerminalInfo(program: "Code", sessionId: nil, tty: nil)
     ) -> Session {
         var session = Session(
             sessionId: id,
@@ -23,7 +24,7 @@ extension Session {
             lastPrompt: lastPrompt,
             lastActivity: Date(),
             startedAt: Date(),
-            terminal: TerminalInfo(program: "Code", sessionId: nil, tty: nil),
+            terminal: terminal,
             pid: pid,
             pidStartTime: pidStartTime,
             lastTool: lastTool,
