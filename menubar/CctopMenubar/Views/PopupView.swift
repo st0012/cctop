@@ -8,16 +8,24 @@ struct PopupView: View {
     let sessions: [Session]
     var resetSession: ((Session) -> Void)?
     var updateAvailable: String?
+    var pluginManager: PluginManager?
     @State private var showSettings = false
     @State private var gearHovered = false
+    @AppStorage("ocBannerDismissed") private var ocBannerDismissed = false
 
     var body: some View {
         VStack(spacing: 0) {
             HeaderView(sessions: sessions)
             Divider()
             if sessions.isEmpty {
-                EmptyStateView()
+                if let pluginManager {
+                    EmptyStateView(pluginManager: pluginManager)
+                }
             } else {
+                if let pm = pluginManager,
+                   pm.ocConfigExists, !pm.ocInstalled, !ocBannerDismissed {
+                    ocBanner(pluginManager: pm)
+                }
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 4) {
                         ForEach(sortedSessions) { session in
@@ -35,7 +43,7 @@ struct PopupView: View {
             }
             if showSettings {
                 Divider()
-                SettingsSection(updateAvailable: updateAvailable)
+                SettingsSection(updateAvailable: updateAvailable, pluginManager: pluginManager ?? PluginManager())
                     .padding(.vertical, 8)
             }
             Divider()
@@ -90,6 +98,58 @@ struct PopupView: View {
         focusTerminal(session: session)
         NSApp.deactivate()
     }
+
+    @State private var ocBannerInstalled = false
+    @State private var installHovered = false
+    @State private var dismissHovered = false
+
+    private func ocBanner(pluginManager: PluginManager) -> some View {
+        HStack(spacing: 4) {
+            if ocBannerInstalled {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.green)
+                Text("Installed \u{2014} restart opencode to start tracking")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+            } else {
+                Text("Track opencode sessions too?")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+                Spacer()
+                Button {
+                    if pluginManager.installOpenCodePlugin() {
+                        withAnimation { ocBannerInstalled = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            withAnimation { ocBannerDismissed = true }
+                        }
+                    }
+                } label: {
+                    Text("Install")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.amber)
+                        .opacity(installHovered ? 1.0 : 0.8)
+                        .underline(installHovered)
+                }
+                .buttonStyle(.plain)
+                .onHover { installHovered = $0 }
+                Button {
+                    withAnimation { ocBannerDismissed = true }
+                } label: {
+                    Text("Dismiss")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.textMuted)
+                        .opacity(dismissHovered ? 1.0 : 0.7)
+                        .underline(dismissHovered)
+                }
+                .buttonStyle(.plain)
+                .onHover { dismissHovered = $0 }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 5)
+        .background(Color.amber.opacity(0.05))
+    }
 }
 
 #Preview("With sessions") {
@@ -99,5 +159,13 @@ struct PopupView: View {
     PopupView(sessions: Session.qaShowcase).frame(width: 320)
 }
 #Preview("Empty") {
-    PopupView(sessions: []).frame(width: 320)
+    PopupView(sessions: [], pluginManager: PluginManager()).frame(width: 320)
+}
+#Preview("OC banner") {
+    PopupView(sessions: Session.mockSessions, pluginManager: {
+        let pm = PluginManager()
+        pm.ocConfigExists = true
+        pm.ocInstalled = false
+        return pm
+    }()).frame(width: 320)
 }
