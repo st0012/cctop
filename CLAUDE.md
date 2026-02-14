@@ -4,6 +4,12 @@
 
 cctop is a macOS menubar app for monitoring Claude Code sessions across workspaces. It tracks session status (idle, working, needs attention) via Claude Code hooks and allows jumping to sessions.
 
+## MUST FOLLOW: Development Principles
+
+- Do NOT modify the user's tool configuration without explicit consent (e.g. installing plugins, editing hooks or settings files)
+- Do NOT make breaking changes that require users to restart running sessions to reconnect to the app
+  - Newly added features being unavailable until restart is acceptable
+
 ## Architecture
 
 ```
