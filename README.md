@@ -61,7 +61,7 @@ Restart any running Claude Code sessions to activate (`/exit` then reopen). New 
 
 ```bash
 mkdir -p ~/.config/opencode/plugins/cctop
-cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop/
+cp plugins/opencode/plugin.js plugins/opencode/package.json ~/.config/opencode/plugins/cctop/
 ```
 
 Restart opencode to activate. Sessions are tracked automatically — no per-project config needed.

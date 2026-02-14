@@ -1,11 +1,12 @@
 # Contributing to cctop
 
-Thanks for your interest in contributing to cctop! The project is a pure Swift macOS app with two Xcode targets:
+Thanks for your interest in contributing to cctop! The project has three main components:
 
 - **CctopMenubar** - macOS menubar app (SwiftUI)
-- **cctop-hook** - CLI hook handler called by Claude Code
+- **cctop-hook** - CLI hook handler for Claude Code (Swift, Xcode target)
+- **opencode plugin** - JS plugin for opencode (`plugins/opencode/plugin.js`)
 
-Both targets share model code in `Models/`.
+The two Swift targets share model code in `Models/`. The opencode plugin is a standalone JS file with zero dependencies.
 
 ## Getting Started
 
@@ -57,12 +58,18 @@ swiftlint lint --strict
 
 ### Code Organization
 
-Source is in `menubar/CctopMenubar/`. Use Xcode or SwiftUI Previews for visual feedback -- all views have `#Preview` blocks with mock data.
+**Swift** (in `menubar/CctopMenubar/`). Use Xcode or SwiftUI Previews for visual feedback -- all views have `#Preview` blocks with mock data.
 
-- `Models/` — Shared between both targets (Session, SessionStatus, HookEvent, Config)
+- `Models/` — Shared between both Swift targets (Session, SessionStatus, HookEvent, Config)
 - `Views/` — Menubar app only (SwiftUI views)
 - `Services/` — Menubar app only (SessionManager, FocusTerminal)
 - `Hook/` — cctop-hook CLI only (HookMain, HookHandler, HookInput, HookLogger)
+
+**opencode plugin** (in `plugins/opencode/`). A single JS file that runs in-process in Bun.
+
+- `plugin.js` — Event handler that writes session JSON to `~/.cctop/sessions/`
+- `package.json` — Plugin manifest (name, version)
+- No build step needed — edit `plugin.js` directly and copy to `~/.config/opencode/plugins/cctop/` to test
 
 ### Version Bumping
 
@@ -72,7 +79,7 @@ When releasing a new version, use the bump script to update all version referenc
 ./scripts/bump-version.sh 0.3.0
 ```
 
-This updates `packaging/homebrew-cask.rb`, the plugin manifests, and the Xcode project.
+This updates `packaging/homebrew-cask.rb`, both plugin manifests (Claude Code and opencode), and the Xcode project.
 
 ## Reporting Issues
 

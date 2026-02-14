@@ -2,7 +2,7 @@
 // Writes session state to ~/.cctop/sessions/{pid}.json for the cctop menubar app.
 // Zero dependencies — runs in-process in Bun.
 
-import { existsSync, mkdirSync, writeFileSync, renameSync, readdirSync, readFileSync } from "fs";
+import { mkdirSync, writeFileSync, renameSync } from "fs";
 import { join, basename } from "path";
 import { homedir } from "os";
 import { execSync } from "child_process";
@@ -167,15 +167,40 @@ export const cctop = async ({ directory }) => {
           updateSession({ status: "idle" });
           break;
 
+        case "session.status": {
+          const type = event.properties?.status?.type
+            || event.properties?.type
+            || event.status?.type;
+          if (type === "busy") {
+            updateSession({ status: "working" });
+          } else if (type === "retry") {
+            updateSession({ status: "needs_attention" });
+          }
+          // type === "idle" is handled by session.idle event
+          break;
+        }
+
+        case "permission.replied":
+          // Permission resolved (approved or denied) — agent will proceed
+          clearToolState();
+          updateSession({ status: "working" });
+          break;
+
         case "session.deleted":
           // Let the menubar's liveness check handle cleanup
           break;
       }
     },
 
-    "chat.message": async (_input, _output) => {
+    "chat.message": async (_input, output) => {
       clearToolState();
-      updateSession({ status: "working" });
+      // Extract user prompt for context display (mirrors CC's UserPromptSubmit)
+      const prompt = output?.message?.content
+        || output?.content
+        || (typeof output?.text === "string" ? output.text : null);
+      const updates = { status: "working" };
+      if (prompt) updates.last_prompt = prompt;
+      updateSession(updates);
     },
 
     "tool.execute.before": async (_input, output) => {

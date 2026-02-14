@@ -79,9 +79,26 @@ open /Applications/cctop.app
 
 # Verify the hook binary is in the app bundle
 ls -la /Applications/cctop.app/Contents/MacOS/cctop-hook
+
+# Verify opencode plugin version matches the release
+grep '"version"' plugins/opencode/package.json
 ```
 
-### 5. If anything goes wrong
+### 5. Test the opencode plugin install
+
+```bash
+# Copy plugin files from the repo (or download from GitHub)
+mkdir -p ~/.config/opencode/plugins/cctop
+cp plugins/opencode/plugin.js plugins/opencode/package.json ~/.config/opencode/plugins/cctop/
+
+# Start an opencode session and verify a session file appears
+ls ~/.cctop/sessions/
+
+# Verify the session includes source: "opencode"
+cat ~/.cctop/sessions/*.json | jq '.source'
+```
+
+### 6. If anything goes wrong
 
 ```bash
 # Delete the tag and release to re-do
