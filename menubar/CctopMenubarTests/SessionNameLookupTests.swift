@@ -145,6 +145,26 @@ final class SessionNameLookupTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    func testIndexReturnsLastTitleWhenMultipleEntries() {
+        let transcriptPath = tmpDir + "/transcript.jsonl"
+        try! "{\"type\":\"system\"}\n".write(toFile: transcriptPath, atomically: true, encoding: .utf8)
+
+        let indexPath = tmpDir + "/sessions-index.json"
+        let index = """
+        {"entries":[
+            {"sessionId":"s1","customTitle":"first name"},
+            {"sessionId":"other","customTitle":"unrelated"},
+            {"sessionId":"s1","customTitle":"renamed"}
+        ]}
+        """
+        try! index.write(toFile: indexPath, atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupSessionName(
+            transcriptPath: transcriptPath, sessionId: "s1"
+        )
+        XCTAssertEqual(result, "renamed")
+    }
+
     func testTranscriptTakesPriorityOverIndex() {
         let transcriptPath = tmpDir + "/transcript.jsonl"
         let content = """
