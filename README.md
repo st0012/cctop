@@ -42,10 +42,7 @@ Or [download the latest release](https://github.com/st0012/cctop/releases/latest
 
 ### Step 2: Install the plugin for your tool
 
-The app needs a plugin to receive session events. Install the one that matches your tool (or both — sessions from all tools appear in the same menubar popup).
-
-<details open>
-<summary><strong>Claude Code</strong></summary>
+#### Claude Code
 
 ```bash
 claude plugin marketplace add st0012/cctop
@@ -54,19 +51,9 @@ claude plugin install cctop
 
 Restart any running Claude Code sessions to activate (`/exit` then reopen). New sessions are tracked automatically — no per-project config needed.
 
-</details>
+#### opencode
 
-<details>
-<summary><strong>opencode</strong></summary>
-
-```bash
-cp /Applications/cctop.app/Contents/Resources/opencode-plugin.js \
-  ~/.config/opencode/plugins/cctop.js
-```
-
-Restart opencode to activate. Sessions are tracked automatically — no per-project config needed.
-
-</details>
+The plugin is installed automatically when cctop detects opencode on your system (`~/.config/opencode/` exists). Just restart opencode to start tracking sessions. No manual setup needed.
 
 ## Privacy
 
@@ -89,7 +76,7 @@ cat ~/.cctop/sessions/*.json | python3 -m json.tool
 ## FAQ
 
 **Does it work with opencode?**
-Yes. Install the opencode plugin (see Step 2 above) and sessions appear automatically alongside Claude Code sessions in the same menubar popup. When running both tools, a small CC/OC badge appears on each session card to tell them apart.
+Yes. If opencode is configured on your system, cctop automatically installs the plugin on launch. Sessions appear alongside Claude Code sessions in the same menubar popup. When running both tools, a small CC/OC badge appears on each session card to tell them apart.
 
 **Does cctop slow down my coding tool?**
 No. The plugin writes a small JSON file on each event and returns immediately. There is no measurable impact on performance.
@@ -134,7 +121,7 @@ rm -rf /Applications/cctop.app
 claude plugin remove cctop
 claude plugin marketplace remove cctop
 
-# Remove the opencode plugin
+# Remove the opencode plugin (auto-reinstalled on launch, so remove the app first)
 rm ~/.config/opencode/plugins/cctop.js
 
 # Remove session data and config
