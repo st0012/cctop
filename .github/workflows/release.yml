@@ -98,9 +98,11 @@ jobs:
           path: artifacts
 
       - name: Build release body
-        id: body
         run: |
-          BODY="## Installation
+          TAG="${{ github.ref_name }}"
+          cat > "$RUNNER_TEMP/release-body.md" << BODY
+          <details>
+          <summary>Installation</summary>
 
           ### Homebrew
           \`\`\`bash
@@ -110,7 +112,7 @@ jobs:
 
           ### macOS (Apple Silicon)
           \`\`\`bash
-          curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-arm64.zip -o cctop.zip
+          curl -sL https://github.com/st0012/cctop/releases/download/${TAG}/cctop-macOS-arm64.zip -o cctop.zip
           unzip cctop.zip
           mv cctop.app /Applications/
           open /Applications/cctop.app
@@ -118,7 +120,7 @@ jobs:
 
           ### macOS (Intel)
           \`\`\`bash
-          curl -sL https://github.com/st0012/cctop/releases/download/${{ github.ref_name }}/cctop-macOS-x86_64.zip -o cctop.zip
+          curl -sL https://github.com/st0012/cctop/releases/download/${TAG}/cctop-macOS-x86_64.zip -o cctop.zip
           unzip cctop.zip
           mv cctop.app /Applications/
           open /Applications/cctop.app
@@ -132,10 +134,10 @@ jobs:
           cp -R dist/cctop.app /Applications/
           \`\`\`
 
-          > This release is signed and notarized with Apple Developer ID."
+          > This release is signed and notarized with Apple Developer ID.
 
-          # Write to file to avoid quoting issues
-          echo "$BODY" > "$RUNNER_TEMP/release-body.md"
+          </details>
+          BODY
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2
