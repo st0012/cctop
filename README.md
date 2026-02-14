@@ -3,12 +3,12 @@
 [![GitHub release](https://img.shields.io/github/v/release/st0012/cctop)](https://github.com/st0012/cctop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Know which AI coding sessions need you — without switching tabs.**
+**Know which AI coding sessions need you in one place.**
 
 A macOS menubar app that monitors your AI coding sessions at a glance — so you only switch when something actually needs you. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
 
 <p align="center">
-  <img src="docs/menubar-light.png" alt="cctop menubar popup" width="340">
+  <img src="docs/menubar-screenshot.png" alt="cctop menubar popup" width="340">
 </p>
 
 <p align="center"><em>Monitoring Claude Code and opencode sessions side by side.</em></p>
@@ -24,7 +24,7 @@ A macOS menubar app that monitors your AI coding sessions at a glance — so you
 - Lives in your menubar — one click or a keyboard shortcut away
 - Color-coded status badges: idle, working, waiting for input, waiting for permission, compacting
 - See what each session is doing: the current prompt, tool being used, or last activity
-- Click a session to jump to its VS Code or Cursor window
+- Click a session to jump to its VS Code/Cursor/iTerm window
 - Native macOS app — lightweight, always running, no Electron
 
 ## Installation
@@ -40,20 +40,9 @@ brew install --cask cctop
 
 Or [download the latest release](https://github.com/st0012/cctop/releases/latest) — the app is signed and notarized by Apple.
 
-### Step 2: Install the plugin for your tool
+### Step 2: Connect your tools
 
-#### Claude Code
-
-```bash
-claude plugin marketplace add st0012/cctop
-claude plugin install cctop
-```
-
-Restart any running Claude Code sessions to activate (`/exit` then reopen). New sessions are tracked automatically — no per-project config needed.
-
-#### opencode
-
-The plugin is installed automatically when cctop detects opencode on your system (`~/.config/opencode/` exists). Just restart opencode to start tracking sessions. No manual setup needed.
+Follow the app's instructions to install Claude Code and/or opencode plugin.
 
 ## Privacy
 
@@ -74,9 +63,6 @@ cat ~/.cctop/sessions/*.json | python3 -m json.tool
 ```
 
 ## FAQ
-
-**Does it work with opencode?**
-Yes. If opencode is configured on your system, cctop automatically installs the plugin on launch. Sessions appear alongside Claude Code sessions in the same menubar popup. When running both tools, a small CC/OC badge appears on each session card to tell them apart.
 
 **Does cctop slow down my coding tool?**
 No. The plugin writes a small JSON file on each event and returns immediately. There is no measurable impact on performance.
@@ -121,7 +107,7 @@ rm -rf /Applications/cctop.app
 claude plugin remove cctop
 claude plugin marketplace remove cctop
 
-# Remove the opencode plugin (auto-reinstalled on launch, so remove the app first)
+# Remove the opencode plugin
 rm ~/.config/opencode/plugins/cctop.js
 
 # Remove session data and config
@@ -148,8 +134,8 @@ Both tools write to the same session store — the menubar app doesn't care wher
                                            │   ├── 456.json    │
                                            │   └── 789.json    │
                                            └──────────┬────────┘
-┌─────────────┐   plugin event    ┌────────────┐      │
-│  opencode   │ ────────────────> │ JS plugin  │ ──┘  │ file watcher
+┌─────────────┐   plugin event    ┌────────────┐  ▲   │
+│  opencode   │ ────────────────> │ JS plugin  │ ─┘   │ file watcher
 │  (session)  │  session.status,  │            │      ▼
 │             │  tool.execute,…   │            │  ┌──────────────┐
 └─────────────┘                   └────────────┘  │ Menubar app  │
