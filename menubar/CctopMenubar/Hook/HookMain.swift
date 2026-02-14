@@ -8,7 +8,7 @@ import Foundation
 /// Usage: cctop-hook <HookName>
 @main
 struct HookMain {
-    static let version = "0.5.0"
+    static let version = "0.5.1"
 
     static func main() {
         let args = CommandLine.arguments

@@ -7,7 +7,7 @@
 #   brew install --cask cctop
 #
 cask "cctop" do
-  version "0.5.0"
+  version "0.5.1"
 
   on_arm do
     url "https://github.com/st0012/cctop/releases/download/v#{version}/cctop-macOS-arm64.zip"
