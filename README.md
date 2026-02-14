@@ -80,7 +80,13 @@ No. Once the plugin is installed, all Claude Code sessions are automatically tra
 **Does it work with VS Code and Cursor?**
 Yes. Clicking a session card focuses the correct project window.
 
-**Does it work with Warp, iTerm2, or other terminals?**
+**Does it work with iTerm2?**
+Yes. Clicking a session card raises the correct iTerm2 window, selects the tab, and focuses the pane — even with split panes or multiple windows.
+
+> [!NOTE]
+> Requires macOS Automation permission. You'll be prompted to grant it on first use.
+
+**Does it work with Warp or other terminals?**
 It activates the app but cannot target a specific terminal tab. You'll need to find the right tab manually.
 
 **How does cctop name sessions?**
