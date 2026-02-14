@@ -159,10 +159,12 @@ rm ~/.cctop/sessions/test123.json
 
 ## Testing the opencode Plugin
 
-The opencode plugin (`plugins/opencode/plugin.js`) runs in-process in Bun. To test manually:
+The opencode plugin (`plugins/opencode/plugin.js`) is auto-installed by the menubar app on launch when it detects `~/.config/opencode/` exists. The bundled plugin is copied to `~/.config/opencode/plugins/cctop.js`. If the installed file already matches the bundled version, the copy is skipped.
+
+For local development, you can manually copy your modified plugin to override the auto-installed version:
 
 ```bash
-# Install the plugin locally (dev build)
+# Override the auto-installed plugin with your local changes
 cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop.js
 
 # Start an opencode session — a session file should appear
@@ -170,12 +172,9 @@ ls ~/.cctop/sessions/
 
 # Check the session file includes source: "opencode"
 cat ~/.cctop/sessions/*.json | jq '.source'
-
-# Clean up
-rm ~/.config/opencode/plugins/cctop.js
 ```
 
-The plugin has no build step — it's a plain JS file. Edit `plugins/opencode/plugin.js` directly and re-copy to test changes.
+Note: Launching the menubar app will overwrite your local changes if the bundled plugin differs. To avoid this during development, either quit the app or use `make run` (which builds and launches the debug app with your latest plugin changes bundled).
 
 ## Plugin Installation (Local Development)
 
@@ -196,11 +195,7 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 
 ### opencode
 
-```bash
-cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop.js
-```
-
-Restart opencode to pick up the plugin.
+The opencode plugin is auto-installed by the menubar app on launch when `~/.config/opencode/` exists. No manual steps needed — just launch the app and restart opencode.
 
 ## Common Issues
 
@@ -210,8 +205,9 @@ Restart opencode to pick up the plugin.
 - Check debug logs: `grep cctop ~/.claude/debug/<session-id>.txt`
 
 ### Plugin not working (opencode)
+- The plugin is auto-installed on app launch if `~/.config/opencode/` exists
 - Check if plugin file exists: `ls ~/.config/opencode/plugins/cctop.js`
-- Restart opencode after installing
+- Restart opencode after the app installs the plugin
 - Check for session files: `ls ~/.cctop/sessions/`
 
 ### "command not found" errors
@@ -333,7 +329,7 @@ The opencode plugin runs in-process (no SHIM/HOOK chain). Debugging is simpler:
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| No session file appears | Plugin not installed or not loaded | Verify `~/.config/opencode/plugins/cctop.js` exists, restart opencode |
+| No session file appears | Plugin not installed or not loaded | Verify `~/.config/opencode/plugins/cctop.js` exists (auto-installed on app launch), restart opencode |
 | Session file appears but status doesn't update | Plugin event handler error | Check opencode logs for JS errors |
 | Session stuck in waiting_permission | `permission.replied` event not handled | Update plugin to latest version |
 

@@ -3,12 +3,11 @@ import SwiftUI
 struct EmptyStateView: View {
     private let ccInstalled: Bool
     private let ocInstalled: Bool
+    private let ocConfigExists: Bool
     @State private var copiedIndex: Int?
 
     private static let ccMarketplace = "claude plugin marketplace add st0012/cctop"
     private static let ccInstall = "claude plugin install cctop"
-    private static let ocInstall =
-        "cp /Applications/cctop.app/Contents/Resources/opencode-plugin.js ~/.config/opencode/plugins/cctop.js"
 
     init() {
         let fm = FileManager.default
@@ -18,14 +17,18 @@ struct EmptyStateView: View {
         var isDir: ObjCBool = false
         self.ccInstalled = fm.fileExists(atPath: ccDir.path, isDirectory: &isDir) && isDir.boolValue
 
+        let ocConfigDir = home.appendingPathComponent(".config/opencode")
+        self.ocConfigExists = fm.fileExists(atPath: ocConfigDir.path)
+
         let ocPlugin = home.appendingPathComponent(".config/opencode/plugins/cctop.js")
         self.ocInstalled = fm.fileExists(atPath: ocPlugin.path)
     }
 
     /// Test-only initializer to force specific plugin states.
-    init(ccInstalled: Bool, ocInstalled: Bool) {
+    init(ccInstalled: Bool, ocInstalled: Bool, ocConfigExists: Bool = false) {
         self.ccInstalled = ccInstalled
         self.ocInstalled = ocInstalled
+        self.ocConfigExists = ocConfigExists
     }
 
     private var anyInstalled: Bool { ccInstalled || ocInstalled }
@@ -61,7 +64,9 @@ struct EmptyStateView: View {
     private var installedView: some View {
         VStack(spacing: 8) {
             pluginStatusRow("Claude Code", installed: ccInstalled)
-            pluginStatusRow("opencode", installed: ocInstalled)
+            if ocConfigExists {
+                pluginStatusRow("opencode", installed: ocInstalled)
+            }
 
             Text("Start a session \u{2014} it will appear here automatically.")
                 .font(.system(size: 12))
@@ -85,6 +90,11 @@ struct EmptyStateView: View {
             Text(name)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(installed ? Color.textSecondary : Color.textMuted)
+            if !installed {
+                Text("(restart app to install)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+            }
             Spacer()
         }
     }
@@ -97,12 +107,26 @@ struct EmptyStateView: View {
                 commandRow(Self.ccInstall, index: 2)
             }
 
-            VStack(spacing: 6) {
-                sectionHeader("opencode")
-                commandRow(Self.ocInstall, index: 3)
+            if ocConfigExists {
+                autoInstalledRow("opencode", installed: ocInstalled)
             }
 
             stepRow(text: "Restart sessions after installing")
+        }
+    }
+
+    private func autoInstalledRow(_ name: String, installed: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: installed ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 12))
+                .foregroundStyle(installed ? .green : Color.textMuted)
+            Text(name)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(installed ? Color.textSecondary : Color.textMuted)
+            Text(installed ? "plugin installed automatically" : "restart app to install plugin")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.textMuted)
+            Spacer()
         }
     }
 
@@ -159,19 +183,31 @@ struct EmptyStateView: View {
     }
 }
 
-#Preview("Not installed") {
+#Preview("Not installed (CC only user)") {
     EmptyStateView(ccInstalled: false, ocInstalled: false)
+        .frame(width: 320)
+}
+#Preview("Not installed (OC detected)") {
+    EmptyStateView(ccInstalled: false, ocInstalled: false, ocConfigExists: true)
+        .frame(width: 320)
+}
+#Preview("Not installed (OC auto-installed)") {
+    EmptyStateView(ccInstalled: false, ocInstalled: true, ocConfigExists: true)
         .frame(width: 320)
 }
 #Preview("CC installed") {
     EmptyStateView(ccInstalled: true, ocInstalled: false)
         .frame(width: 320)
 }
+#Preview("CC installed + OC detected") {
+    EmptyStateView(ccInstalled: true, ocInstalled: false, ocConfigExists: true)
+        .frame(width: 320)
+}
 #Preview("Both installed") {
-    EmptyStateView(ccInstalled: true, ocInstalled: true)
+    EmptyStateView(ccInstalled: true, ocInstalled: true, ocConfigExists: true)
         .frame(width: 320)
 }
 #Preview("OC only") {
-    EmptyStateView(ccInstalled: false, ocInstalled: true)
+    EmptyStateView(ccInstalled: false, ocInstalled: true, ocConfigExists: true)
         .frame(width: 320)
 }

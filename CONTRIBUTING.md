@@ -69,9 +69,12 @@ swiftlint lint --strict
 
 - `plugin.js` — Event handler that writes session JSON to `~/.cctop/sessions/`
 - `package.json` — Plugin manifest (name, version)
-- No build step needed — edit `plugin.js` directly and copy to `~/.config/opencode/plugins/cctop.js` to test
+- Auto-installed by the menubar app on launch when `~/.config/opencode/` exists
+- No build step needed — edit `plugin.js` directly and use the manual copy below to test changes
 
 ### Testing the opencode Plugin Locally
+
+The plugin is auto-installed by the menubar app on launch. For local development, manually copy your modified version to override it:
 
 ```bash
 # Copy your modified plugin into the opencode plugins directory
@@ -85,10 +88,9 @@ ls ~/.cctop/sessions/
 
 # Check the session JSON contents
 cat ~/.cctop/sessions/*.json | python3 -m json.tool
-
-# Watch for new session events in real time
-ls -lt ~/.cctop/sessions/ | head -5
 ```
+
+Note: Launching the menubar app will overwrite your local changes if the bundled plugin differs. Either quit the app while iterating, or use `make run` to build and launch with your latest changes bundled.
 
 The plugin runs inside opencode's Bun runtime — no separate Node.js or Bun install is needed. You can check syntax without opencode by running `node -c plugins/opencode/plugin.js`.
 

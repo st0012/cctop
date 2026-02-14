@@ -5,7 +5,7 @@
 
 **Know which AI coding sessions need you — without switching tabs.**
 
-A macOS menubar app that monitors your AI coding sessions at a glance — so you only switch when something actually needs you. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://github.com/nicholasgriffintn/opencode).
+A macOS menubar app that monitors your AI coding sessions at a glance — so you only switch when something actually needs you. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
 
 <p align="center">
   <img src="docs/menubar-light.png" alt="cctop menubar popup" width="340">

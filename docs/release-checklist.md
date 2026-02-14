@@ -84,12 +84,16 @@ ls -la /Applications/cctop.app/Contents/MacOS/cctop-hook
 grep '"version"' plugins/opencode/package.json
 ```
 
-### 5. Test the opencode plugin install
+### 5. Test the opencode plugin auto-install
 
 ```bash
-# Install from app bundle (same as user-facing instructions)
-cp /Applications/cctop.app/Contents/Resources/opencode-plugin.js \
-  ~/.config/opencode/plugins/cctop.js
+# Verify the bundled plugin is in the app's Resources
+ls -la /Applications/cctop.app/Contents/Resources/opencode-plugin.js
+
+# If opencode is configured (~/.config/opencode/ exists), launch the app
+# and verify it auto-installs the plugin
+open /Applications/cctop.app
+ls -la ~/.config/opencode/plugins/cctop.js
 
 # Start an opencode session and verify a session file appears
 ls ~/.cctop/sessions/
