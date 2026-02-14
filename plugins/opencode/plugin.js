@@ -41,7 +41,10 @@ const MAX_TOOL_DETAIL_LEN = 120;
 
 function normalizeTool(name) {
   if (!name) return null;
-  return TOOL_NAME_MAP[name.toLowerCase()] || name;
+  const lower = name.toLowerCase();
+  if (TOOL_NAME_MAP[lower]) return TOOL_NAME_MAP[lower];
+  // Capitalize first letter for unknown tools (future-proof)
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 function extractToolDetail(normalizedName, args) {
@@ -109,7 +112,7 @@ function ensureSession(directory) {
       started_at: isoNow(),
       terminal: getTerminalInfo(),
       pid: PID,
-      pid_start_time: null,
+      pid_start_time: Math.floor(Date.now() / 1000 - process.uptime()),
       last_tool: null,
       last_tool_detail: null,
       notification_message: null,
@@ -159,9 +162,14 @@ export const cctop = async ({ directory }) => {
           updateSession({ status: "waiting_input" });
           break;
 
-        case "session.error":
-          updateSession({ status: "needs_attention" });
+        case "session.error": {
+          const errMsg = event.error?.message || event.message || null;
+          updateSession({
+            status: "needs_attention",
+            notification_message: errMsg,
+          });
           break;
+        }
 
         case "session.compacted":
           updateSession({ status: "idle" });
@@ -176,7 +184,8 @@ export const cctop = async ({ directory }) => {
           } else if (type === "retry") {
             updateSession({ status: "needs_attention" });
           }
-          // type === "idle" is handled by session.idle event
+          // type === "idle" is handled by session.idle event — ignore here
+          // to avoid overriding the waiting_input state
           break;
         }
 

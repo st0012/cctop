@@ -113,6 +113,15 @@ It activates the app but cannot target a specific terminal tab. You'll need to f
 **How does cctop name sessions?**
 By default, the project directory name (e.g. `/path/to/my-app` shows as "my-app"). In Claude Code, you can rename a session with `/rename` and cctop picks that up.
 
+**No sessions are showing up — what do I check?**
+First, make sure you restarted sessions after installing the plugin. Then check if session files exist: `ls ~/.cctop/sessions/`. If the directory is empty, the plugin isn't writing data — verify it's installed correctly (see Step 2). If files exist but the menubar shows nothing, try restarting the cctop app.
+
+**What happens if opencode (or Claude Code) crashes?**
+cctop detects dead sessions automatically. It checks whether each session's process is still running and removes stale entries. No manual cleanup needed.
+
+**Does the opencode plugin need Node.js or Bun installed separately?**
+No. The plugin runs inside opencode's built-in Bun runtime. You don't need to install anything beyond the plugin file itself.
+
 **Why does the app need to be in /Applications/?**
 The Claude Code plugin looks for `cctop-hook` inside `/Applications/cctop.app`. Installing elsewhere breaks the hook path. (The opencode plugin writes session files directly and does not need the app in a specific location.)
 

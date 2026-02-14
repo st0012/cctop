@@ -71,6 +71,27 @@ swiftlint lint --strict
 - `package.json` — Plugin manifest (name, version)
 - No build step needed — edit `plugin.js` directly and copy to `~/.config/opencode/plugins/cctop/` to test
 
+### Testing the opencode Plugin Locally
+
+```bash
+# Copy your modified plugin into the opencode plugins directory
+cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop/plugin.js
+
+# Restart opencode to pick up changes
+# (opencode loads plugins at startup — there's no hot reload)
+
+# Verify session files are written
+ls ~/.cctop/sessions/
+
+# Check the session JSON contents
+cat ~/.cctop/sessions/*.json | python3 -m json.tool
+
+# Watch for new session events in real time
+ls -lt ~/.cctop/sessions/ | head -5
+```
+
+The plugin runs inside opencode's Bun runtime — no separate Node.js or Bun install is needed. You can check syntax without opencode by running `node -c plugins/opencode/plugin.js`.
+
 ### Version Bumping
 
 When releasing a new version, use the bump script to update all version references at once:
