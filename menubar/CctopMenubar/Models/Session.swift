@@ -66,6 +66,7 @@ struct Session: Codable, Identifiable {
     var lastToolDetail: String?
     var notificationMessage: String?
     var sessionName: String?
+    var workspaceFile: String?
 
     var id: String { pid.map { String($0) } ?? sessionId }
 
@@ -87,6 +88,7 @@ struct Session: Codable, Identifiable {
         case lastToolDetail = "last_tool_detail"
         case notificationMessage = "notification_message"
         case sessionName = "session_name"
+        case workspaceFile = "workspace_file"
     }
 
     // MARK: - Constructors
@@ -107,7 +109,8 @@ struct Session: Codable, Identifiable {
         lastTool: String?,
         lastToolDetail: String?,
         notificationMessage: String?,
-        sessionName: String? = nil
+        sessionName: String? = nil,
+        workspaceFile: String? = nil
     ) {
         self.sessionId = sessionId
         self.projectPath = projectPath
@@ -124,6 +127,7 @@ struct Session: Codable, Identifiable {
         self.lastToolDetail = lastToolDetail
         self.notificationMessage = notificationMessage
         self.sessionName = sessionName
+        self.workspaceFile = workspaceFile
     }
 
     /// Convenience init for creating new sessions (used by cctop-hook).
@@ -143,6 +147,7 @@ struct Session: Codable, Identifiable {
         self.lastToolDetail = nil
         self.notificationMessage = nil
         self.sessionName = nil
+        self.workspaceFile = nil
     }
 
     // MARK: - File I/O
@@ -198,8 +203,35 @@ struct Session: Codable, Identifiable {
             lastTool: lastTool,
             lastToolDetail: lastToolDetail,
             notificationMessage: notificationMessage,
-            sessionName: sessionName
+            sessionName: sessionName,
+            workspaceFile: workspaceFile
         )
+    }
+
+    /// Look for a `.code-workspace` file in the given directory.
+    /// If exactly one exists, return it. If multiple exist, prefer one matching the project name.
+    static func findWorkspaceFile(in projectPath: String) -> String? {
+        guard let entries = try? FileManager.default.contentsOfDirectory(atPath: projectPath) else {
+            return nil
+        }
+
+        let workspaceFiles = entries.filter { $0.hasSuffix(".code-workspace") }
+        if workspaceFiles.isEmpty { return nil }
+
+        func fullPath(_ name: String) -> String {
+            (projectPath as NSString).appendingPathComponent(name)
+        }
+
+        if workspaceFiles.count == 1 { return fullPath(workspaceFiles[0]) }
+
+        // Multiple workspace files: prefer one matching the project folder name
+        let projectName = URL(fileURLWithPath: projectPath).lastPathComponent
+        if let match = workspaceFiles.first(where: {
+            ($0 as NSString).deletingPathExtension == projectName
+        }) {
+            return fullPath(match)
+        }
+        return nil
     }
 
     static func extractProjectName(_ path: String) -> String {
