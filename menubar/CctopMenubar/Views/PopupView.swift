@@ -77,8 +77,7 @@ struct PopupView: View {
     }
 
     private var hasMultipleSources: Bool {
-        (sessions.contains { $0.source != nil } && sessions.contains { $0.source == nil })
-            || Set(sessions.compactMap(\.source)).count > 1
+        Set(sessions.map(\.sourceLabel)).count > 1
     }
 
     private var sortedSessions: [Session] {

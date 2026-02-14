@@ -99,29 +99,27 @@ function writeSession(session) {
 let session = null;
 
 function ensureSession(directory) {
-  if (!session) {
-    const branch = getGitBranch(directory);
-    session = {
-      session_id: `opencode-${PID}`,
-      project_path: directory,
-      project_name: basename(directory),
-      branch,
-      status: "idle",
-      last_prompt: null,
-      last_activity: isoNow(),
-      started_at: isoNow(),
-      terminal: getTerminalInfo(),
-      pid: PID,
-      pid_start_time: Math.floor(Date.now() / 1000 - process.uptime()),
-      last_tool: null,
-      last_tool_detail: null,
-      notification_message: null,
-      session_name: null,
-      workspace_file: null,
-      source: "opencode",
-    };
-  }
-  return session;
+  if (session) return;
+  const branch = getGitBranch(directory);
+  session = {
+    session_id: `opencode-${PID}`,
+    project_path: directory,
+    project_name: basename(directory),
+    branch,
+    status: "idle",
+    last_prompt: null,
+    last_activity: isoNow(),
+    started_at: isoNow(),
+    terminal: getTerminalInfo(),
+    pid: PID,
+    pid_start_time: Math.floor(Date.now() / 1000 - process.uptime()),
+    last_tool: null,
+    last_tool_detail: null,
+    notification_message: null,
+    session_name: null,
+    workspace_file: null,
+    source: "opencode",
+  };
 }
 
 function updateSession(updates) {
@@ -176,6 +174,7 @@ export const cctop = async ({ directory }) => {
           break;
 
         case "session.status": {
+          // opencode nests the status type differently across versions
           const type = event.properties?.status?.type
             || event.properties?.type
             || event.status?.type;
@@ -209,7 +208,6 @@ export const cctop = async ({ directory }) => {
 
     "chat.message": async (_input, output) => {
       clearToolState();
-      // Extract user prompt for context display (mirrors CC's UserPromptSubmit)
       const prompt = output?.message?.content
         || output?.content
         || (typeof output?.text === "string" ? output.text : null);
@@ -236,15 +234,13 @@ export const cctop = async ({ directory }) => {
 
     "permission.ask": async (input, _output) => {
       const tool = normalizeTool(input?.tool);
-      const args = input?.args;
-      let msg = input?.title;
-      if (!msg && tool) {
-        const detail = extractToolDetail(tool, args);
-        msg = detail ? `${tool}: ${detail}` : tool;
-      }
+      const detail = extractToolDetail(tool, input?.args);
+      const msg = input?.title
+        || (tool && detail ? `${tool}: ${detail}` : tool)
+        || "Permission needed";
       updateSession({
         status: "waiting_permission",
-        notification_message: msg || "Permission needed",
+        notification_message: msg,
         last_tool: null,
         last_tool_detail: null,
       });

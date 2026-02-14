@@ -28,12 +28,6 @@ struct EmptyStateView: View {
         self.ocInstalled = ocInstalled
     }
 
-    /// Legacy test initializer — treats pluginInstalled as CC installed.
-    init(pluginInstalled: Bool) {
-        self.ccInstalled = pluginInstalled
-        self.ocInstalled = false
-    }
-
     private var anyInstalled: Bool { ccInstalled || ocInstalled }
 
     var body: some View {
@@ -97,14 +91,12 @@ struct EmptyStateView: View {
 
     private var notInstalledView: some View {
         VStack(spacing: 12) {
-            // Claude Code setup
             VStack(spacing: 6) {
                 sectionHeader("Claude Code")
                 commandRow(Self.ccMarketplace, index: 1)
                 commandRow(Self.ccInstall, index: 2)
             }
 
-            // opencode setup
             VStack(spacing: 6) {
                 sectionHeader("opencode")
                 commandRow(Self.ocInstall, index: 3)
