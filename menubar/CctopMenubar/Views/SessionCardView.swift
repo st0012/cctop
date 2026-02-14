@@ -1,5 +1,11 @@
 import SwiftUI
 
+extension Session {
+    var sourceBadgeColor: Color {
+        source == "opencode" ? .blue : .amber
+    }
+}
+
 struct SessionCardView: View {
     let session: Session
     var showSourceBadge = false
@@ -29,10 +35,10 @@ struct SessionCardView: View {
                 if showSourceBadge {
                     Text(session.sourceLabel)
                         .font(.system(size: 9))
-                        .foregroundStyle(Color.textMuted)
+                        .foregroundStyle(session.sourceBadgeColor)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(Color.primary.opacity(0.06))
+                        .background(session.sourceBadgeColor.opacity(0.1))
                         .clipShape(Capsule())
                 }
 
