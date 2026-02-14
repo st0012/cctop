@@ -10,22 +10,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var panel: FloatingPanel!
     private var sessionManager: SessionManager!
     private var updateChecker: UpdateChecker!
+    private var pluginManager: PluginManager!
     private var cancellable: AnyCancellable?
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
         installHookBinaryIfNeeded()
-        installOpenCodePluginIfNeeded()
 
         UNUserNotificationCenter.current().delegate = self
 
         sessionManager = SessionManager()
         updateChecker = UpdateChecker()
+        pluginManager = PluginManager()
 
         setupStatusItem()
 
-        let contentView = PanelContentView(sessionManager: sessionManager, updateChecker: updateChecker)
+        let contentView = PanelContentView(sessionManager: sessionManager, updateChecker: updateChecker, pluginManager: pluginManager)
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
         hostingView.layer?.cornerRadius = 10
@@ -164,38 +165,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
-    /// Copies the bundled opencode plugin into ~/.config/opencode/plugins/ if opencode is installed.
-    /// Only acts when ~/.config/opencode/ already exists (proves opencode is configured).
-    /// Skips the copy when the installed file already matches the bundled version.
-    private func installOpenCodePluginIfNeeded() {
-        let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "AppDelegate")
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-
-        // Only proceed if opencode is configured on this machine
-        let ocConfigDir = home.appendingPathComponent(".config/opencode")
-        guard fm.fileExists(atPath: ocConfigDir.path) else { return }
-
-        guard let bundledPlugin = Bundle.main.url(forResource: "opencode-plugin", withExtension: "js"),
-              let bundledData = try? Data(contentsOf: bundledPlugin) else { return }
-
-        let pluginsDir = ocConfigDir.appendingPathComponent("plugins")
-        let destPath = pluginsDir.appendingPathComponent("cctop.js")
-
-        // Skip if installed file already matches bundled content
-        if let installedData = try? Data(contentsOf: destPath), installedData == bundledData {
-            return
-        }
-
-        do {
-            try fm.createDirectory(at: pluginsDir, withIntermediateDirectories: true)
-            try bundledData.write(to: destPath, options: .atomic)
-            logger.info("Installed opencode plugin to \(destPath.path, privacy: .public)")
-        } catch {
-            logger.error("Failed to install opencode plugin: \(error, privacy: .public)")
-        }
-    }
-
     private func positionPanel(animate: Bool = false) {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
         let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
@@ -236,10 +205,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
     @ObservedObject var updateChecker: UpdateChecker
+    @ObservedObject var pluginManager: PluginManager
     var body: some View {
-        PopupView(sessions: sessionManager.sessions, resetSession: sessionManager.resetSession, updateAvailable: updateChecker.updateAvailable)
-            .frame(width: 320)
-            .background(Color.panelBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+        PopupView(
+            sessions: sessionManager.sessions,
+            resetSession: sessionManager.resetSession,
+            updateAvailable: updateChecker.updateAvailable,
+            pluginManager: pluginManager
+        )
+        .frame(width: 320)
+        .background(Color.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
