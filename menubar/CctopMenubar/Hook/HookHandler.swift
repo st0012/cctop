@@ -69,6 +69,7 @@ enum HookHandler {
         switch event {
         case .sessionStart:
             clearToolState(&session)
+            session.workspaceFile = Session.findWorkspaceFile(in: input.cwd)
             cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: session.pid)
 
         case .userPromptSubmit:

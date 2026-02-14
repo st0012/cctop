@@ -176,7 +176,8 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 - In-app reset: right-click a session in the menubar to reset status to idle
 
 ### Jump to session not working
-- **VS Code / Cursor**: Uses the CLI binary inside the app bundle (e.g. `Visual Studio Code.app/.../bin/code <path>`) to focus the project window. Falls back to `open -a` if the CLI isn't found. No shell PATH dependency.
+- **VS Code / Cursor**: Runs `code <path>` or `cursor <path>` to focus the project window. If a `.code-workspace` file is detected in the project directory, it's passed instead of the folder path.
+- **Workspace limitation**: cctop detects workspace files by scanning the project directory at session start. If the project folder contains a `.code-workspace` file but you opened the folder directly (not via the workspace file), cctop may incorrectly open the workspace instead of focusing the folder window. VS Code does not expose which mode was used via environment variables or APIs.
 - **Other editors**: Falls back to `NSRunningApplication.activate()` (activates the app but cannot target a specific window).
 
 ## Session Status Logic

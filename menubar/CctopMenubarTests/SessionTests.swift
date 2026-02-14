@@ -176,6 +176,41 @@ final class SessionTests: XCTestCase {
         XCTAssertGreaterThan(startTime ?? 0, 0)
     }
 
+    func testDecodesWorkspaceFile() throws {
+        let json = """
+        {
+            "session_id": "ws-1",
+            "project_path": "/Users/test/projects/myapp",
+            "project_name": "myapp",
+            "branch": "main",
+            "status": "working",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "Code"},
+            "workspace_file": "/Users/test/projects/myapp/myapp.code-workspace"
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertEqual(session.workspaceFile, "/Users/test/projects/myapp/myapp.code-workspace")
+    }
+
+    func testDecodesWithoutWorkspaceFile() throws {
+        let json = """
+        {
+            "session_id": "no-ws",
+            "project_path": "/tmp",
+            "project_name": "test",
+            "branch": "main",
+            "status": "idle",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "Code"}
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertNil(session.workspaceFile)
+    }
+
     func testOldJsonWithContextCompactedStillDecodes() throws {
         let json = """
         {
