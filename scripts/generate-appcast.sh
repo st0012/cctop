@@ -81,7 +81,7 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 DOWNLOAD_URL_PREFIX="https://github.com/st0012/cctop/releases/download/v${VERSION}/"
-FEED_URL="https://st0012.github.io/cctop/appcast.xml"
+FEED_URL="https://raw.githubusercontent.com/st0012/cctop/master/appcast.xml"
 
 # Work in a temp directory (generate_appcast operates on a directory)
 WORK_DIR=$(mktemp -d /tmp/cctop-appcast.XXXXXX)
