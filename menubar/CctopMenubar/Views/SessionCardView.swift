@@ -9,6 +9,7 @@ extension Session {
 struct SessionCardView: View {
     let session: Session
     var showSourceBadge = false
+    @State private var isHovered = false
     @State private var pulsing = false
 
     var body: some View {
@@ -83,9 +84,14 @@ struct SessionCardView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.cardBackground)
+        .background(isHovered ? Color.primary.opacity(0.06) : Color.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.cardBorder, lineWidth: 1))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isHovered ? Color.primary.opacity(0.15) : Color.cardBorder, lineWidth: 1)
+        )
+        .onHover { isHovered = $0 }
+        .animation(.easeOut(duration: 0.15), value: isHovered)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(cardAccessibilityLabel)
         .onAppear { updatePulsing(for: session.status) }

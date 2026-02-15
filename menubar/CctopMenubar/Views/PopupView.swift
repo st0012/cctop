@@ -40,6 +40,7 @@ struct PopupView: View {
                                 showSourceBadge: hasMultipleSources
                             )
                             .onTapGesture { focusSession(session) }
+                            .help("Click to jump to session")
                         }
                     }
                     .padding(8)
