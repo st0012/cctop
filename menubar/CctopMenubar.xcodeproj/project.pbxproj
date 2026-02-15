@@ -28,7 +28,6 @@
 		G10000030000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000040000000000000001 /* AppDelegate.swift */; };
 		H10000010000000000000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000020000000000000001 /* AppSettings.swift */; };
 		HT0000010000000000000001 /* HookEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HT0000020000000000000001 /* HookEventTests.swift */; };
-		IO0000010000000000000001 /* InstallOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = IO0000020000000000000001 /* InstallOrigin.swift */; };
 		J10000010000000000000001 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = J10000020000000000000001 /* SettingsSection.swift */; };
 		K10000010000000000000001 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000020000000000000001 /* Color+Theme.swift */; };
 		L10000010000000000000001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L10000020000000000000001 /* EmptyStateView.swift */; };
@@ -86,7 +85,6 @@
 		G10000040000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		H10000020000000000000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		HT0000020000000000000001 /* HookEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventTests.swift; sourceTree = "<group>"; };
-		IO0000020000000000000001 /* InstallOrigin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallOrigin.swift; sourceTree = "<group>"; };
 		J10000020000000000000001 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		K10000020000000000000001 /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 		L10000020000000000000001 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
@@ -151,7 +149,6 @@
 				C10000020000000000000001 /* SessionManager.swift */,
 				E10000020000000000000001 /* FocusTerminal.swift */,
 				SP0000020000000000000001 /* SparkleUpdater.swift */,
-				IO0000020000000000000001 /* InstallOrigin.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
 			);
 			path = Services;
@@ -376,7 +373,6 @@
 				K10000010000000000000001 /* Color+Theme.swift in Sources */,
 				L10000010000000000000001 /* EmptyStateView.swift in Sources */,
 				SP0000010000000000000001 /* SparkleUpdater.swift in Sources */,
-				IO0000010000000000000001 /* InstallOrigin.swift in Sources */,
 				PM0000010000000000000001 /* PluginManager.swift in Sources */,
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,

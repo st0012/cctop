@@ -27,16 +27,12 @@ cask "cctop" do
     strategy :github_latest
   end
 
+  auto_updates true
   depends_on macos: ">= :ventura"
 
   app "cctop.app"
   binary "#{appdir}/cctop.app/Contents/MacOS/cctop-hook"
 
-  caveats <<~EOS
-    cctop is not notarized. On first launch, you may need to right-click
-    the app and select "Open", or go to System Settings > Privacy & Security
-    and click "Open Anyway".
-  EOS
 
   zap trash: [
     "~/.cctop",
