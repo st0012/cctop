@@ -1,4 +1,10 @@
-import { Color, Icon, launchCommand, LaunchType, MenuBarExtra } from "@raycast/api";
+import {
+  Color,
+  Icon,
+  launchCommand,
+  LaunchType,
+  MenuBarExtra,
+} from "@raycast/api";
 
 import { jumpToSession } from "./actions";
 import {
@@ -6,15 +12,14 @@ import {
   displayName,
   contextLine,
   needsAttention,
-  statusGroup,
-  StatusGroup,
+  groupSessions,
 } from "./sessions";
 import { statusIcon } from "./status-ui";
-import { CctopSession } from "./types";
-
 export default function MenuBarStatus() {
   const sessions = loadSessions();
-  const attentionCount = sessions.filter((s) => needsAttention(s.status)).length;
+  const attentionCount = sessions.filter((s) =>
+    needsAttention(s.status),
+  ).length;
 
   const icon =
     attentionCount > 0
@@ -24,16 +29,7 @@ export default function MenuBarStatus() {
   const title = attentionCount > 0 ? String(attentionCount) : undefined;
   const tooltip = `cctop: ${sessions.length} session${sessions.length !== 1 ? "s" : ""}`;
 
-  // Group sessions by status group for menu sections
-  const order: StatusGroup[] = ["Needs Attention", "Active", "Idle"];
-  const grouped = new Map<StatusGroup, CctopSession[]>();
-  for (const s of sessions) {
-    const g = statusGroup(s.status);
-    const list = grouped.get(g) ?? [];
-    list.push(s);
-    grouped.set(g, list);
-  }
-  const groups = order.filter((g) => grouped.has(g)).map((g) => ({ group: g, sessions: grouped.get(g)! }));
+  const groups = groupSessions(sessions);
 
   return (
     <MenuBarExtra icon={icon} title={title} tooltip={tooltip}>
@@ -57,7 +53,12 @@ export default function MenuBarStatus() {
       <MenuBarExtra.Section>
         <MenuBarExtra.Item
           title="Show All Sessions"
-          onAction={() => launchCommand({ name: "show-sessions", type: LaunchType.UserInitiated })}
+          onAction={() =>
+            launchCommand({
+              name: "show-sessions",
+              type: LaunchType.UserInitiated,
+            })
+          }
         />
       </MenuBarExtra.Section>
     </MenuBarExtra>

@@ -1,4 +1,13 @@
-import { Action, ActionPanel, Color, Icon, List, LocalStorage, showToast, Toast } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Color,
+  Icon,
+  List,
+  LocalStorage,
+  showToast,
+  Toast,
+} from "@raycast/api";
 import { useCachedPromise } from "@raycast/utils";
 import { existsSync } from "fs";
 import { useEffect, useState } from "react";
@@ -11,13 +20,18 @@ import {
   relativeTime,
   sourceLabel,
   statusGroup,
+  groupSessions,
   needsAttention,
   formatToolDisplay,
   resetSession,
   getSessionsDir,
-  StatusGroup,
 } from "./sessions";
-import { statusColor, statusLabel, statusDescription, statusIcon } from "./status-ui";
+import {
+  statusColor,
+  statusLabel,
+  statusDescription,
+  statusIcon,
+} from "./status-ui";
 import { CctopSession } from "./types";
 
 /** Check if sessions come from multiple sources (CC + OC) */
@@ -34,7 +48,10 @@ function useSections(sessions: CctopSession[]): boolean {
 }
 
 /** Build accessories array for a session list item */
-function sessionAccessories(session: CctopSession, showSource: boolean): List.Item.Accessory[] {
+function sessionAccessories(
+  session: CctopSession,
+  showSource: boolean,
+): List.Item.Accessory[] {
   const accessories: List.Item.Accessory[] = [];
 
   if (showSource) {
@@ -44,17 +61,25 @@ function sessionAccessories(session: CctopSession, showSource: boolean): List.It
     });
   }
 
-  accessories.push({ tag: { value: session.branch, color: Color.SecondaryText } });
+  accessories.push({
+    tag: { value: session.branch, color: Color.SecondaryText },
+  });
   accessories.push({ text: relativeTime(session.last_activity) });
-  accessories.push({ tag: { value: statusLabel(session.status), color: statusColor(session.status) } });
+  accessories.push({
+    tag: {
+      value: statusLabel(session.status),
+      color: statusColor(session.status),
+    },
+  });
 
   return accessories;
 }
 
 /** Detail pane showing full session metadata */
 function SessionDetail({ session }: { session: CctopSession }) {
-  const toolDisplay =
-    session.last_tool ? formatToolDisplay(session.last_tool, session.last_tool_detail) : undefined;
+  const toolDisplay = session.last_tool
+    ? formatToolDisplay(session.last_tool, session.last_tool_detail)
+    : undefined;
 
   return (
     <List.Item.Detail
@@ -66,27 +91,61 @@ function SessionDetail({ session }: { session: CctopSession }) {
               color={statusColor(session.status)}
             />
           </List.Item.Detail.Metadata.TagList>
-          <List.Item.Detail.Metadata.Label title="Project" text={session.project_name} />
-          {session.session_name && session.session_name !== session.project_name && (
-            <List.Item.Detail.Metadata.Label title="Session Name" text={session.session_name} />
-          )}
-          <List.Item.Detail.Metadata.Label title="Branch" text={session.branch} />
-          <List.Item.Detail.Metadata.Label title="Path" text={session.project_path} />
-          <List.Item.Detail.Metadata.Label title="Terminal" text={getTerminalLabel(session)} />
+          <List.Item.Detail.Metadata.Label
+            title="Project"
+            text={session.project_name}
+          />
+          {session.session_name &&
+            session.session_name !== session.project_name && (
+              <List.Item.Detail.Metadata.Label
+                title="Session Name"
+                text={session.session_name}
+              />
+            )}
+          <List.Item.Detail.Metadata.Label
+            title="Branch"
+            text={session.branch}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Path"
+            text={session.project_path}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Terminal"
+            text={getTerminalLabel(session)}
+          />
           <List.Item.Detail.Metadata.Label
             title="Source"
             text={session.source === "opencode" ? "opencode" : "Claude Code"}
           />
           <List.Item.Detail.Metadata.Separator />
-          <List.Item.Detail.Metadata.Label title="Started" text={relativeTime(session.started_at)} />
-          <List.Item.Detail.Metadata.Label title="Last Activity" text={relativeTime(session.last_activity)} />
-          {toolDisplay && <List.Item.Detail.Metadata.Label title="Last Tool" text={toolDisplay} />}
+          <List.Item.Detail.Metadata.Label
+            title="Started"
+            text={relativeTime(session.started_at)}
+          />
+          <List.Item.Detail.Metadata.Label
+            title="Last Activity"
+            text={relativeTime(session.last_activity)}
+          />
+          {toolDisplay && (
+            <List.Item.Detail.Metadata.Label
+              title="Last Tool"
+              text={toolDisplay}
+            />
+          )}
           {session.last_prompt && (
-            <List.Item.Detail.Metadata.Label title="Last Prompt" text={session.last_prompt} />
+            <List.Item.Detail.Metadata.Label
+              title="Last Prompt"
+              text={session.last_prompt}
+            />
           )}
-          {session.status === "waiting_permission" && session.notification_message && (
-            <List.Item.Detail.Metadata.Label title="Notification" text={session.notification_message} />
-          )}
+          {session.status === "waiting_permission" &&
+            session.notification_message && (
+              <List.Item.Detail.Metadata.Label
+                title="Notification"
+                text={session.notification_message}
+              />
+            )}
         </List.Item.Detail.Metadata>
       }
     />
@@ -122,9 +181,15 @@ function SessionActions({
             try {
               resetSession(session);
               revalidate();
-              await showToast({ style: Toast.Style.Success, title: "Session reset to idle" });
+              await showToast({
+                style: Toast.Style.Success,
+                title: "Session reset to idle",
+              });
             } catch {
-              await showToast({ style: Toast.Style.Failure, title: "Failed to reset session" });
+              await showToast({
+                style: Toast.Style.Failure,
+                title: "Failed to reset session",
+              });
             }
           }}
         />
@@ -141,7 +206,7 @@ function SessionActions({
         shortcut={{ modifiers: ["cmd"], key: "c" }}
       />
       <Action.CopyToClipboard
-        title="Copy Session ID"
+        title="Copy Session Id"
         content={session.session_id}
         shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
       />
@@ -189,28 +254,18 @@ function SessionItem({
   );
 }
 
-/** Group sessions by status group, preserving sort order within groups */
-function groupSessions(sessions: CctopSession[]): { group: StatusGroup; sessions: CctopSession[] }[] {
-  const order: StatusGroup[] = ["Needs Attention", "Active", "Idle"];
-  const grouped = new Map<StatusGroup, CctopSession[]>();
-
-  for (const session of sessions) {
-    const group = statusGroup(session.status);
-    const list = grouped.get(group) ?? [];
-    list.push(session);
-    grouped.set(group, list);
-  }
-
-  return order.filter((g) => grouped.has(g)).map((g) => ({ group: g, sessions: grouped.get(g)! }));
-}
-
 /** Filter sessions based on the selected dropdown value */
-function filterSessions(sessions: CctopSession[], filter: string): CctopSession[] {
+function filterSessions(
+  sessions: CctopSession[],
+  filter: string,
+): CctopSession[] {
   switch (filter) {
     case "attention":
       return sessions.filter((s) => needsAttention(s.status));
     case "active":
-      return sessions.filter((s) => s.status === "working" || s.status === "compacting");
+      return sessions.filter(
+        (s) => s.status === "working" || s.status === "compacting",
+      );
     case "idle":
       return sessions.filter((s) => s.status === "idle");
     default:
@@ -219,7 +274,11 @@ function filterSessions(sessions: CctopSession[], filter: string): CctopSession[
 }
 
 export default function ShowSessions() {
-  const { data: sessions, revalidate, isLoading } = useCachedPromise(async () => loadSessions());
+  const {
+    data: sessions,
+    revalidate,
+    isLoading,
+  } = useCachedPromise(async () => loadSessions());
   const [isShowingDetail, setIsShowingDetail] = useState(false);
   const [filter, setFilter] = useState("all");
 
@@ -248,7 +307,9 @@ export default function ShowSessions() {
     });
   };
 
-  const attentionCount = allSessions.filter((s) => needsAttention(s.status)).length;
+  const attentionCount = allSessions.filter((s) =>
+    needsAttention(s.status),
+  ).length;
   const navTitle =
     attentionCount > 0
       ? `${allSessions.length} sessions (${attentionCount} need attention)`
@@ -275,12 +336,19 @@ export default function ShowSessions() {
       actions={
         !dirExists ? (
           <ActionPanel>
-            <Action.OpenInBrowser title="cctop Setup Guide" url="https://github.com/st0012/cctop#readme" />
+            <Action.OpenInBrowser
+              title="Cctop Setup Guide"
+              url="https://github.com/st0012/cctop#readme"
+            />
           </ActionPanel>
         ) : undefined
       }
       searchBarAccessory={
-        <List.Dropdown tooltip="Filter by status" onChange={setFilter} storeValue>
+        <List.Dropdown
+          tooltip="Filter by status"
+          onChange={setFilter}
+          storeValue
+        >
           <List.Dropdown.Item title="All Sessions" value="all" />
           <List.Dropdown.Item title="Needs Attention" value="attention" />
           <List.Dropdown.Item title="Active" value="active" />
@@ -302,11 +370,17 @@ export default function ShowSessions() {
         />
       )}
       {sectioned
-        ? groupSessions(filteredSessions).map(({ group, sessions: groupSessions }) => (
-            <List.Section key={group} title={group} subtitle={`${groupSessions.length}`}>
-              {groupSessions.map(renderItem)}
-            </List.Section>
-          ))
+        ? groupSessions(filteredSessions).map(
+            ({ group, sessions: groupSessions }) => (
+              <List.Section
+                key={group}
+                title={group}
+                subtitle={`${groupSessions.length}`}
+              >
+                {groupSessions.map(renderItem)}
+              </List.Section>
+            ),
+          )
         : filteredSessions.map(renderItem)}
     </List>
   );

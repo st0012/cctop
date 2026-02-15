@@ -57,7 +57,9 @@ export function statusDescription(status: SessionStatus): string {
 
 /** Map session status to icon shape based on urgency */
 export function statusIcon(status: SessionStatus): Image.ImageLike {
-  if (needsAttention(status)) return { source: Icon.ExclamationMark, tintColor: statusColor(status) };
-  if (status === "idle") return { source: Icon.Circle, tintColor: statusColor(status) };
+  if (needsAttention(status))
+    return { source: Icon.ExclamationMark, tintColor: statusColor(status) };
+  if (status === "idle")
+    return { source: Icon.Circle, tintColor: statusColor(status) };
   return { source: Icon.CircleFilled, tintColor: statusColor(status) };
 }

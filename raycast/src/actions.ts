@@ -70,11 +70,17 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
     const program = session.terminal?.program?.toLowerCase() ?? "";
     const target = session.workspace_file ?? session.project_path;
 
-    if (program.includes("code") || program.includes("cursor") || program.includes("windsurf")) {
+    if (
+      program.includes("code") ||
+      program.includes("cursor") ||
+      program.includes("windsurf")
+    ) {
       // VS Code / Cursor / Windsurf: use CLI to focus the project or workspace
-      const cli = program.includes("cursor") ? "cursor"
-        : program.includes("windsurf") ? "windsurf"
-        : "code";
+      const cli = program.includes("cursor")
+        ? "cursor"
+        : program.includes("windsurf")
+          ? "windsurf"
+          : "code";
       execFileSync(cli, [target]);
     } else if (program.includes("iterm")) {
       // iTerm2: use AppleScript to find and focus the specific session
@@ -101,6 +107,9 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
     await closeMainWindow();
     await popToRoot();
   } catch {
-    await showToast({ style: Toast.Style.Failure, title: "Failed to focus session" });
+    await showToast({
+      style: Toast.Style.Failure,
+      title: "Failed to focus session",
+    });
   }
 }

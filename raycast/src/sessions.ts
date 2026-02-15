@@ -2,7 +2,12 @@ import { readdirSync, readFileSync, writeFileSync, renameSync } from "fs";
 import { homedir } from "os";
 import { basename, join } from "path";
 
-import { CctopSession, KNOWN_STATUSES, SessionStatus, STATUS_SORT_ORDER } from "./types";
+import {
+  CctopSession,
+  KNOWN_STATUSES,
+  SessionStatus,
+  STATUS_SORT_ORDER,
+} from "./types";
 
 /**
  * Returns the sessions directory, checking CCTOP_SESSIONS_DIR env var first.
@@ -48,7 +53,14 @@ function parseStatus(raw: string): SessionStatus {
 function parseSession(json: string): CctopSession | null {
   try {
     const raw = JSON.parse(json);
-    if (!raw.session_id || !raw.project_path || !raw.project_name || !raw.branch || !raw.last_activity) return null;
+    if (
+      !raw.session_id ||
+      !raw.project_path ||
+      !raw.project_name ||
+      !raw.branch ||
+      !raw.last_activity
+    )
+      return null;
     return { ...raw, status: parseStatus(raw.status ?? "idle") };
   } catch {
     return null;
@@ -126,7 +138,10 @@ function fileName(path: string): string {
  * Format tool display matching Session.swift formatToolDisplay (lines 308-322).
  * Case-insensitive tool name matching (opencode sends lowercase, Claude Code sends capitalized).
  */
-export function formatToolDisplay(tool: string, detail?: string | null): string {
+export function formatToolDisplay(
+  tool: string,
+  detail?: string | null,
+): string {
   if (!detail) return `${tool}...`;
   const name = fileName(detail);
   switch (tool.toLowerCase()) {
@@ -204,7 +219,11 @@ export function relativeTime(isoDate: string): string {
  * Matches SessionStatus.swift needsAttention (lines 16-20).
  */
 export function needsAttention(status: SessionStatus): boolean {
-  return status === "waiting_permission" || status === "waiting_input" || status === "needs_attention";
+  return (
+    status === "waiting_permission" ||
+    status === "waiting_input" ||
+    status === "needs_attention"
+  );
 }
 
 /**
@@ -237,4 +256,26 @@ export function statusGroup(status: SessionStatus): StatusGroup {
   if (needsAttention(status)) return "Needs Attention";
   if (status === "working" || status === "compacting") return "Active";
   return "Idle";
+}
+
+/**
+ * Group sessions by status category, preserving sort order within groups.
+ * Omits empty groups.
+ */
+export function groupSessions(
+  sessions: CctopSession[],
+): { group: StatusGroup; sessions: CctopSession[] }[] {
+  const order: StatusGroup[] = ["Needs Attention", "Active", "Idle"];
+  const grouped = new Map<StatusGroup, CctopSession[]>();
+
+  for (const session of sessions) {
+    const group = statusGroup(session.status);
+    const list = grouped.get(group) ?? [];
+    list.push(session);
+    grouped.set(group, list);
+  }
+
+  return order
+    .filter((g) => grouped.has(g))
+    .map((g) => ({ group: g, sessions: grouped.get(g)! }));
 }
