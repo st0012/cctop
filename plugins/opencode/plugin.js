@@ -24,7 +24,8 @@ const TOOL_NAME_MAP = {
   task: "Task",
 };
 
-// Tool detail field extraction (mirrors HookHandler.extractToolDetail)
+// Tool detail field extraction (mirrors HookHandler.extractToolDetail).
+// Note: opencode uses camelCase args (filePath), Claude Code uses snake_case (file_path).
 const TOOL_DETAIL_FIELD = {
   Bash: "command",
   Edit: "filePath",
@@ -211,7 +212,7 @@ export const cctop = async ({ directory }) => {
       const prompt = output?.message?.content
         || output?.content
         || (typeof output?.text === "string" ? output.text : null);
-      const updates = { status: "working", branch: getGitBranch(directory) };
+      const updates = { status: "working" };
       if (prompt) updates.last_prompt = prompt;
       updateSession(updates);
     },

@@ -253,8 +253,13 @@ The menubar app detects opencode when `~/.config/opencode/` exists and offers to
 | tool.execute.before | working (sets last_tool/last_tool_detail) |
 | tool.execute.after | working |
 | session.idle | waiting_input (opencode is always interactive) |
+| session.status (busy) | working |
+| session.status (retry) | needs_attention |
 | permission.ask | waiting_permission |
+| permission.replied | working |
 | session.error | needs_attention |
+| session.updated | (extracts session title) |
+| session.deleted | no-op (liveness check handles cleanup) |
 | experimental.session.compacting | compacting |
 | session.compacted | idle |
 
