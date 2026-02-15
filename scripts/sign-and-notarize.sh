@@ -14,8 +14,11 @@ set -euo pipefail
 #   APPLE_ID             - Apple ID email
 #   APPLE_APP_PASSWORD   - App-specific password for notarytool
 #
-# The script signs each Mach-O binary individually (not --deep),
-# then submits the app for notarization and staples the ticket.
+# Signing strategy:
+#   - Sparkle framework components are signed WITHOUT app entitlements
+#     (preserves Sparkle's built-in XPC entitlements)
+#   - Only the main app executable and app bundle get --entitlements
+#   - All components get hardened runtime + timestamp
 
 DRY_RUN=false
 SIGN_ONLY=false
@@ -49,14 +52,31 @@ if [[ ! -f "$ENTITLEMENTS" ]]; then
     exit 1
 fi
 
+MAIN_EXEC="$APP_PATH/Contents/MacOS/$(defaults read "$APP_PATH/Contents/Info.plist" CFBundleExecutable 2>/dev/null || basename "$APP_PATH" .app)"
+
+# Sign a single item. Only the main executable and app bundle get entitlements;
+# everything else (Sparkle XPCs, helper apps, frameworks) is signed with just
+# identity + hardened runtime to preserve their built-in entitlements.
+sign_item() {
+    local item="$1"
+    local args=(--force --timestamp --options runtime --sign "$APPLE_IDENTITY")
+
+    if [[ "$item" = "$MAIN_EXEC" || "$item" = "$APP_PATH" ]]; then
+        args+=(--entitlements "$ENTITLEMENTS")
+    fi
+
+    echo "  Signing $(basename "$item")..."
+    codesign "${args[@]}" "$item"
+}
+
 # Discover all signable items in the bundle, innermost first.
 #
 # Signing order matters for notarization — inner items must be signed
 # before their enclosing bundle. This handles Sparkle.framework's nested
-# structure: XPC services, helper apps (Autoupdate.app, Updater.app),
-# and executables inside those bundles.
+# structure: XPC services, helper apps (Updater.app), standalone executables
+# (Autoupdate), and the framework dylib.
 #
-# Order: dylibs -> inner executables -> nested bundles (depth-first) -> main exec -> app bundle
+# Order: dylibs -> all inner executables -> nested bundles (depth-first) -> main exec -> app bundle
 discover_signable_items() {
     local app="$1"
     local items=()
@@ -66,21 +86,21 @@ discover_signable_items() {
         items+=("$item")
     done < <(find "$app/Contents" -type f -name '*.dylib' -print0 2>/dev/null)
 
-    # 2. Mach-O executables inside nested bundles (frameworks, XPCs, helper apps).
-    #    These must be signed BEFORE their enclosing bundle directory.
-    #    Scan all MacOS/ dirs inside Contents/ (not just the top-level one).
-    local main_exec
-    main_exec="$app/Contents/MacOS/$(defaults read "$app/Contents/Info.plist" CFBundleExecutable 2>/dev/null || basename "$app" .app)"
+    # 2. All Mach-O executables inside the bundle (not just MacOS/ paths).
+    #    This catches Sparkle's standalone Autoupdate binary which lives at
+    #    Sparkle.framework/Versions/B/Autoupdate (no MacOS/ in path).
     while IFS= read -r -d '' item; do
-        # Skip the main app executable -- signed with the app bundle at the end
-        [[ "$item" = "$main_exec" ]] && continue
+        # Skip the main app executable -- signed with entitlements at the end
+        [[ "$item" = "$MAIN_EXEC" ]] && continue
         # Skip dylibs -- already signed in step 1
         [[ "$item" == *.dylib ]] && continue
         items+=("$item")
-    done < <(find "$app/Contents" -type f -perm +111 -path "*/MacOS/*" -print0 2>/dev/null)
+    done < <(find "$app/Contents" -type f -perm +111 \
+        \( -path "*/MacOS/*" -o -path "*/Frameworks/*" \) \
+        ! -name '*.dylib' -print0 2>/dev/null)
 
     # 3. Nested signable bundles (depth-first so innermost are signed first).
-    #    Includes: *.xpc (Sparkle Downloader/Installer), *.app (Sparkle Autoupdate/Updater),
+    #    Includes: *.xpc (Sparkle Downloader/Installer), *.app (Sparkle Updater),
     #    *.bundle, *.framework, *.appex
     while IFS= read -r -d '' item; do
         items+=("$item")
@@ -88,12 +108,12 @@ discover_signable_items() {
         \( -name '*.xpc' -o -name '*.app' -o -name '*.appex' -o -name '*.bundle' -o -name '*.framework' \) \
         -print0 2>/dev/null)
 
-    # 4. Main executable
-    if [[ -f "$main_exec" ]]; then
-        items+=("$main_exec")
+    # 4. Main executable (with entitlements)
+    if [[ -f "$MAIN_EXEC" ]]; then
+        items+=("$MAIN_EXEC")
     fi
 
-    # 5. The app bundle itself
+    # 5. The app bundle itself (with entitlements)
     items+=("$app")
 
     printf '%s\n' "${items[@]}"
@@ -107,11 +127,15 @@ if [[ "$DRY_RUN" = true ]]; then
     echo "Signing order:"
     i=1
     while IFS= read -r item; do
-        echo "  $i. $item"
+        if [[ "$item" = "$MAIN_EXEC" || "$item" = "$APP_PATH" ]]; then
+            echo "  $i. $item  [+entitlements]"
+        else
+            echo "  $i. $item"
+        fi
         ((i++))
     done <<< "$SIGNABLE_ITEMS"
     echo ""
-    echo "Entitlements: $ENTITLEMENTS"
+    echo "Entitlements (app only): $ENTITLEMENTS"
     echo ""
     echo "Required env vars:"
     echo "  APPLE_IDENTITY     = ${APPLE_IDENTITY:-(not set)}"
@@ -122,11 +146,6 @@ if [[ "$DRY_RUN" = true ]]; then
     else
         echo "  APPLE_APP_PASSWORD = (not set)"
     fi
-    echo ""
-    echo "Post-sign steps:"
-    echo "  1. Create zip with ditto"
-    echo "  2. Submit to notarytool"
-    echo "  3. Staple ticket to .app"
     exit 0
 fi
 
@@ -138,18 +157,14 @@ for var in APPLE_IDENTITY APPLE_TEAM_ID APPLE_ID APPLE_APP_PASSWORD; do
     fi
 done
 
-CODESIGN_ARGS=(
-    --force
-    --timestamp
-    --options runtime
-    --sign "$APPLE_IDENTITY"
-    --entitlements "$ENTITLEMENTS"
-)
+# Strip extended attributes before signing (prevents spurious failures)
+echo "==> Stripping extended attributes..."
+xattr -cr "$APP_PATH"
+find "$APP_PATH" -name '._*' -delete 2>/dev/null || true
 
 echo "==> Signing all code in bundle..."
 while IFS= read -r item; do
-    echo "  Signing $(basename "$item")..."
-    codesign "${CODESIGN_ARGS[@]}" "$item"
+    sign_item "$item"
 done <<< "$SIGNABLE_ITEMS"
 
 echo "==> Verifying signature..."
@@ -166,11 +181,27 @@ NOTARIZE_ZIP="$(dirname "$APP_PATH")/cctop-notarize.zip"
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$NOTARIZE_ZIP"
 
 echo "==> Submitting for notarization..."
-xcrun notarytool submit "$NOTARIZE_ZIP" \
+SUBMIT_OUTPUT=$(xcrun notarytool submit "$NOTARIZE_ZIP" \
     --apple-id "$APPLE_ID" \
     --password "$APPLE_APP_PASSWORD" \
     --team-id "$APPLE_TEAM_ID" \
-    --wait
+    --wait 2>&1) || true
+
+echo "$SUBMIT_OUTPUT"
+
+# Extract submission ID and check result
+SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep -m1 'id:' | awk '{print $2}')
+if echo "$SUBMIT_OUTPUT" | grep -q "status: Invalid"; then
+    echo "==> Notarization FAILED. Fetching log..."
+    if [[ -n "$SUBMISSION_ID" ]]; then
+        xcrun notarytool log "$SUBMISSION_ID" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" || true
+    fi
+    rm -f "$NOTARIZE_ZIP"
+    exit 1
+fi
 
 rm -f "$NOTARIZE_ZIP"
 
