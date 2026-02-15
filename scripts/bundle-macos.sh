@@ -66,11 +66,11 @@ cp "$REPO_ROOT/plugins/opencode/plugin.js" "$APP/Contents/Resources/opencode-plu
 # Ad-hoc sign (innermost first — no --deep)
 echo "==> Signing app bundle..."
 
-# Sign nested bundles/frameworks first
+# Sign nested bundles/frameworks first (includes Sparkle's XPC services and helper apps)
 while IFS= read -r -d '' nested; do
     echo "  Signing $(basename "$nested")..."
     codesign --force --sign - "$nested"
-done < <(find "$APP/Contents" -depth \( -name "*.bundle" -o -name "*.framework" -o -name "*.dylib" \) -print0)
+done < <(find "$APP/Contents" -depth \( -name "*.bundle" -o -name "*.framework" -o -name "*.xpc" -o -name "*.app" -o -name "*.appex" -o -name "*.dylib" \) -print0)
 
 # Sign cctop-hook
 echo "  Signing cctop-hook..."

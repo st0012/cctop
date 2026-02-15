@@ -9,6 +9,7 @@ import SwiftUI
 ///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
 ///     -only-testing:CctopMenubarTests/QASnapshotTests \
 ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+@MainActor
 final class QASnapshotTests: XCTestCase {
 
     override class func setUp() {
@@ -71,6 +72,31 @@ final class QASnapshotTests: XCTestCase {
         try renderSnapshot(sessions: Session.qaFiveSessions, name: "10-five-sessions-dark", colorScheme: .dark)
     }
 
+    // MARK: - Update UI scenarios
+
+    func testSettingsUpdateAvailable() throws {
+        let updater = DisabledUpdater()
+        updater.pendingUpdateVersion = "0.7.0"
+        try renderSettingsSnapshot(updater: updater, name: "12-settings-update-available")
+    }
+
+    func testSettingsUpdateAvailableDark() throws {
+        let updater = DisabledUpdater()
+        updater.pendingUpdateVersion = "0.7.0"
+        try renderSettingsSnapshot(updater: updater, name: "13-settings-update-available-dark", colorScheme: .dark)
+    }
+
+    func testSettingsUpToDate() throws {
+        try renderSettingsSnapshot(updater: MockQAUpdater(), name: "14-settings-up-to-date")
+    }
+
+    func testSettingsDisabledDev() throws {
+        try renderSettingsSnapshot(
+            updater: DisabledUpdater(reason: .development),
+            name: "15-settings-disabled-dev"
+        )
+    }
+
     // MARK: - Live update simulation
 
     /// Simulates adding a 5th session to an existing 4-session view.
@@ -105,7 +131,7 @@ final class QASnapshotTests: XCTestCase {
     }
 
     private func popupView(for sessions: [Session]) -> some View {
-        PopupView(sessions: sessions)
+        PopupView(sessions: sessions, updater: DisabledUpdater())
             .frame(width: 320)
             .background(Color(NSColor.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -119,7 +145,7 @@ final class QASnapshotTests: XCTestCase {
         name: String,
         colorScheme: ColorScheme = .light
     ) throws {
-        let view = PopupView(sessions: sessions)
+        let view = PopupView(sessions: sessions, updater: DisabledUpdater())
             .frame(width: 320)
             .background(Color(NSColor.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -128,6 +154,37 @@ final class QASnapshotTests: XCTestCase {
         let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 320, height: 800),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = NSAppearance(named: appearance)
+
+        let hostingView = NSHostingView(rootView: view)
+        window.contentView = hostingView
+
+        let fittingSize = hostingView.fittingSize
+        window.setContentSize(fittingSize)
+        hostingView.frame = NSRect(origin: .zero, size: fittingSize)
+        hostingView.layoutSubtreeIfNeeded()
+
+        try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
+    }
+
+    private func renderSettingsSnapshot(
+        updater: UpdaterBase,
+        name: String,
+        colorScheme: ColorScheme = .light
+    ) throws {
+        let view = SettingsSection(updater: updater, pluginManager: PluginManager())
+            .frame(width: 320)
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+            .environment(\.colorScheme, colorScheme)
+
+        let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 600),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -160,4 +217,11 @@ final class QASnapshotTests: XCTestCase {
         try pngData.write(to: URL(fileURLWithPath: path))
         print("QA snapshot saved: \(path)")
     }
+}
+
+// MARK: - Mock Updater for QA
+
+@MainActor
+private class MockQAUpdater: UpdaterBase {
+    override var canCheckForUpdates: Bool { true }
 }

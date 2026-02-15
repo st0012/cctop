@@ -7,7 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9C7FB5862F422A830090B18A /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 9C7FB52D2F3A0CEA0090B18A /* KeyboardShortcuts */; };
+		9C7FB58D2F422D1E0090B18A /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 9C7FB58C2F422D1E0090B18A /* Sparkle */; };
 		A10000010000000000000001 /* CctopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000001 /* CctopApp.swift */; };
+		AC0000010000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AC0000020000000000000001 /* Assets.xcassets */; };
 		B10000010000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
 		B10000030000000000000001 /* SessionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000040000000000000001 /* SessionStatus.swift */; };
 		C10000010000000000000001 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000020000000000000001 /* SessionManager.swift */; };
@@ -18,38 +21,37 @@
 		D10000090000000000000001 /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000A000000000000001 /* QuitButton.swift */; };
 		E10000010000000000000001 /* FocusTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000001 /* FocusTerminal.swift */; };
 		F10000010000000000000001 /* Session+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000020000000000000001 /* Session+Mock.swift */; };
+		FK0000010000000000000001 /* ForkSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FK0000020000000000000001 /* ForkSessionTests.swift */; };
+		FT0000010000000000000001 /* WorkspaceFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000001 /* WorkspaceFileTests.swift */; };
+		FT0000010000000000000002 /* FocusTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000002 /* FocusTerminalTests.swift */; };
 		G10000010000000000000001 /* FloatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000020000000000000001 /* FloatingPanel.swift */; };
 		G10000030000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000040000000000000001 /* AppDelegate.swift */; };
 		H10000010000000000000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000020000000000000001 /* AppSettings.swift */; };
+		HT0000010000000000000001 /* HookEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HT0000020000000000000001 /* HookEventTests.swift */; };
 		J10000010000000000000001 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = J10000020000000000000001 /* SettingsSection.swift */; };
 		K10000010000000000000001 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000020000000000000001 /* Color+Theme.swift */; };
 		L10000010000000000000001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L10000020000000000000001 /* EmptyStateView.swift */; };
-		U10000010000000000000001 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = U10000020000000000000001 /* UpdateChecker.swift */; };
-		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
 		N10000010000000000000001 /* SessionStatus+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000020000000000000001 /* SessionStatus+UI.swift */; };
 		N10000030000000000000001 /* HookEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000040000000000000001 /* HookEvent.swift */; };
 		N10000050000000000000001 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000060000000000000001 /* Config.swift */; };
+		P1000000A000000000000001 /* SessionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000040000000000000001 /* SessionStatus.swift */; };
+		P1000000B000000000000001 /* HookEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000040000000000000001 /* HookEvent.swift */; };
+		P1000000C000000000000001 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000060000000000000001 /* Config.swift */; };
 		P10000010000000000000001 /* HookMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000020000000000000001 /* HookMain.swift */; };
 		P10000030000000000000001 /* HookInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000040000000000000001 /* HookInput.swift */; };
 		P10000050000000000000001 /* HookHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000060000000000000001 /* HookHandler.swift */; };
 		P10000070000000000000001 /* HookLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000080000000000000001 /* HookLogger.swift */; };
-		SN0000010000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
-		SN0000050000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
 		P10000090000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
-		P1000000A000000000000001 /* SessionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000040000000000000001 /* SessionStatus.swift */; };
-		P1000000B000000000000001 /* HookEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000040000000000000001 /* HookEvent.swift */; };
-		P1000000C000000000000001 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000060000000000000001 /* Config.swift */; };
+		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
+		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
+		SN0000010000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
+		SN0000030000000000000001 /* SessionNameLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000040000000000000001 /* SessionNameLookupTests.swift */; };
+		SN0000050000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
+		SP0000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = SP0000020000000000000001 /* SparkleUpdater.swift */; };
 		T10000010000000000000001 /* SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000020000000000000001 /* SessionTests.swift */; };
-		T10000070000000000000002 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000080000000000000002 /* AppSettingsTests.swift */; };
 		T10000030000000000000001 /* SessionStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000040000000000000001 /* SessionStatusTests.swift */; };
 		T10000050000000000000002 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000060000000000000002 /* SnapshotTests.swift */; };
-		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
-		HT0000010000000000000001 /* HookEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HT0000020000000000000001 /* HookEventTests.swift */; };
-		SN0000030000000000000001 /* SessionNameLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000040000000000000001 /* SessionNameLookupTests.swift */; };
-		FK0000010000000000000001 /* ForkSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FK0000020000000000000001 /* ForkSessionTests.swift */; };
-		FT0000010000000000000002 /* FocusTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000002 /* FocusTerminalTests.swift */; };
-		AC0000010000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AC0000020000000000000001 /* Assets.xcassets */; };
-		FT0000010000000000000001 /* WorkspaceFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000001 /* WorkspaceFileTests.swift */; };
+		T10000070000000000000002 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000080000000000000002 /* AppSettingsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,6 +67,7 @@
 /* Begin PBXFileReference section */
 		A10000020000000000000001 /* CctopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CctopApp.swift; sourceTree = "<group>"; };
 		A10000030000000000000001 /* CctopMenubar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CctopMenubar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AC0000020000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000020000000000000001 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		B10000040000000000000001 /* SessionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatus.swift; sourceTree = "<group>"; };
 		C10000020000000000000001 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
@@ -75,40 +78,48 @@
 		D10000080000000000000001 /* PopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupView.swift; sourceTree = "<group>"; };
 		E10000020000000000000001 /* FocusTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminal.swift; sourceTree = "<group>"; };
 		F10000020000000000000001 /* Session+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Session+Mock.swift"; sourceTree = "<group>"; };
+		FK0000020000000000000001 /* ForkSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForkSessionTests.swift; sourceTree = "<group>"; };
+		FT0000020000000000000001 /* WorkspaceFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceFileTests.swift; sourceTree = "<group>"; };
+		FT0000020000000000000002 /* FocusTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminalTests.swift; sourceTree = "<group>"; };
 		G10000020000000000000001 /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
 		G10000040000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		H10000020000000000000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
+		HT0000020000000000000001 /* HookEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventTests.swift; sourceTree = "<group>"; };
 		J10000020000000000000001 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		K10000020000000000000001 /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 		L10000020000000000000001 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
-		T10000020000000000000001 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
-		T10000080000000000000002 /* AppSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsTests.swift; sourceTree = "<group>"; };
-		T10000040000000000000001 /* SessionStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatusTests.swift; sourceTree = "<group>"; };
-		T10000060000000000000001 /* CctopMenubarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CctopMenubarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		T10000060000000000000002 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotTests.swift; sourceTree = "<group>"; };
-		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
-		HT0000020000000000000001 /* HookEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventTests.swift; sourceTree = "<group>"; };
-		SN0000040000000000000001 /* SessionNameLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookupTests.swift; sourceTree = "<group>"; };
-		FK0000020000000000000001 /* ForkSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForkSessionTests.swift; sourceTree = "<group>"; };
-		FT0000020000000000000002 /* FocusTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminalTests.swift; sourceTree = "<group>"; };
-		AC0000020000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		FT0000020000000000000001 /* WorkspaceFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceFileTests.swift; sourceTree = "<group>"; };
 		M10000010000000000000001 /* CctopMenubar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CctopMenubar.entitlements; sourceTree = "<group>"; };
-		U10000020000000000000001 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
-		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
 		N10000020000000000000001 /* SessionStatus+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionStatus+UI.swift"; sourceTree = "<group>"; };
 		N10000040000000000000001 /* HookEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEvent.swift; sourceTree = "<group>"; };
 		N10000060000000000000001 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		P1000000D000000000000001 /* cctop-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "cctop-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
 		P10000020000000000000001 /* HookMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookMain.swift; sourceTree = "<group>"; };
 		P10000040000000000000001 /* HookInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookInput.swift; sourceTree = "<group>"; };
 		P10000060000000000000001 /* HookHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandler.swift; sourceTree = "<group>"; };
 		P10000080000000000000001 /* HookLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookLogger.swift; sourceTree = "<group>"; };
+		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
+		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
 		SN0000020000000000000001 /* SessionNameLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookup.swift; sourceTree = "<group>"; };
-		P1000000D000000000000001 /* cctop-hook */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "cctop-hook"; sourceTree = BUILT_PRODUCTS_DIR; };
+		SN0000040000000000000001 /* SessionNameLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookupTests.swift; sourceTree = "<group>"; };
+		SP0000020000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
+		T10000020000000000000001 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
+		T10000040000000000000001 /* SessionStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatusTests.swift; sourceTree = "<group>"; };
+		T10000060000000000000001 /* CctopMenubarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CctopMenubarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		T10000060000000000000002 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotTests.swift; sourceTree = "<group>"; };
+		T10000080000000000000002 /* AppSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000040000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C7FB5862F422A830090B18A /* KeyboardShortcuts in Frameworks */,
+				9C7FB58D2F422D1E0090B18A /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		P1000000E000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,33 +133,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		P1000000E000000000000001 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
-/* Begin PBXResourcesBuildPhase section */
-		AC0000030000000000000001 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				AC0000010000000000000001 /* Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
-
 /* Begin PBXGroup section */
+		9C7FB5882F422CF50090B18A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		A1000000A000000000000001 /* Services */ = {
 			isa = PBXGroup;
 			children = (
 				C10000020000000000000001 /* SessionManager.swift */,
 				E10000020000000000000001 /* FocusTerminal.swift */,
-				U10000020000000000000001 /* UpdateChecker.swift */,
+				SP0000020000000000000001 /* SparkleUpdater.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
 			);
 			path = Services;
@@ -159,20 +159,9 @@
 			children = (
 				A10000060000000000000001 /* CctopMenubar */,
 				T10000080000000000000001 /* CctopMenubarTests */,
+				9C7FB5882F422CF50090B18A /* Frameworks */,
 				A10000070000000000000001 /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		P1000000F000000000000001 /* Hook */ = {
-			isa = PBXGroup;
-			children = (
-				P10000020000000000000001 /* HookMain.swift */,
-				P10000040000000000000001 /* HookInput.swift */,
-				P10000060000000000000001 /* HookHandler.swift */,
-				P10000080000000000000001 /* HookLogger.swift */,
-				SN0000020000000000000001 /* SessionNameLookup.swift */,
-			);
-			path = Hook;
 			sourceTree = "<group>";
 		};
 		A10000060000000000000001 /* CctopMenubar */ = {
@@ -210,7 +199,7 @@
 				N10000060000000000000001 /* Config.swift */,
 				F10000020000000000000001 /* Session+Mock.swift */,
 				H10000020000000000000001 /* AppSettings.swift */,
-			K10000020000000000000001 /* Color+Theme.swift */,
+				K10000020000000000000001 /* Color+Theme.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -228,6 +217,18 @@
 				N10000020000000000000001 /* SessionStatus+UI.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		P1000000F000000000000001 /* Hook */ = {
+			isa = PBXGroup;
+			children = (
+				P10000020000000000000001 /* HookMain.swift */,
+				P10000040000000000000001 /* HookInput.swift */,
+				P10000060000000000000001 /* HookHandler.swift */,
+				P10000080000000000000001 /* HookLogger.swift */,
+				SN0000020000000000000001 /* SessionNameLookup.swift */,
+			);
+			path = Hook;
 			sourceTree = "<group>";
 		};
 		T10000080000000000000001 /* CctopMenubarTests */ = {
@@ -265,10 +266,27 @@
 			name = CctopMenubar;
 			packageProductDependencies = (
 				9C7FB52D2F3A0CEA0090B18A /* KeyboardShortcuts */,
+				9C7FB58C2F422D1E0090B18A /* Sparkle */,
 			);
 			productName = CctopMenubar;
 			productReference = A10000030000000000000001 /* CctopMenubar.app */;
 			productType = "com.apple.product-type.application";
+		};
+		P10000100000000000000001 /* cctop-hook */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = P10000110000000000000001 /* Build configuration list for PBXNativeTarget "cctop-hook" */;
+			buildPhases = (
+				P10000120000000000000001 /* Sources */,
+				P1000000E000000000000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "cctop-hook";
+			productName = "cctop-hook";
+			productReference = P1000000D000000000000001 /* cctop-hook */;
+			productType = "com.apple.product-type.tool";
 		};
 		T10000090000000000000001 /* CctopMenubarTests */ = {
 			isa = PBXNativeTarget;
@@ -286,22 +304,6 @@
 			productName = CctopMenubarTests;
 			productReference = T10000060000000000000001 /* CctopMenubarTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		P10000100000000000000001 /* cctop-hook */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = P10000110000000000000001 /* Build configuration list for PBXNativeTarget "cctop-hook" */;
-			buildPhases = (
-				P10000120000000000000001 /* Sources */,
-				P1000000E000000000000001 /* Frameworks */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = "cctop-hook";
-			productName = "cctop-hook";
-			productReference = P1000000D000000000000001 /* cctop-hook */;
-			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
 
@@ -324,6 +326,7 @@
 			mainGroup = A10000050000000000000001;
 			packageReferences = (
 				9C7FB52C2F3A0CEA0090B18A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				9C7FB58B2F422D1E0090B18A /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			productRefGroup = A10000070000000000000001 /* Products */;
 			projectDirPath = "";
@@ -335,6 +338,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AC0000030000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC0000010000000000000001 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A1000000D000000000000001 /* Sources */ = {
@@ -358,12 +372,28 @@
 				J10000010000000000000001 /* SettingsSection.swift in Sources */,
 				K10000010000000000000001 /* Color+Theme.swift in Sources */,
 				L10000010000000000000001 /* EmptyStateView.swift in Sources */,
-				U10000010000000000000001 /* UpdateChecker.swift in Sources */,
+				SP0000010000000000000001 /* SparkleUpdater.swift in Sources */,
 				PM0000010000000000000001 /* PluginManager.swift in Sources */,
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,
 				N10000050000000000000001 /* Config.swift in Sources */,
 				SN0000050000000000000001 /* SessionNameLookup.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		P10000120000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				P10000010000000000000001 /* HookMain.swift in Sources */,
+				P10000030000000000000001 /* HookInput.swift in Sources */,
+				P10000050000000000000001 /* HookHandler.swift in Sources */,
+				P10000070000000000000001 /* HookLogger.swift in Sources */,
+				SN0000010000000000000001 /* SessionNameLookup.swift in Sources */,
+				P10000090000000000000001 /* Session.swift in Sources */,
+				P1000000A000000000000001 /* SessionStatus.swift in Sources */,
+				P1000000B000000000000001 /* HookEvent.swift in Sources */,
+				P1000000C000000000000001 /* Config.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -381,22 +411,6 @@
 				FK0000010000000000000001 /* ForkSessionTests.swift in Sources */,
 				FT0000010000000000000001 /* WorkspaceFileTests.swift in Sources */,
 				FT0000010000000000000002 /* FocusTerminalTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		P10000120000000000000001 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				P10000010000000000000001 /* HookMain.swift in Sources */,
-				P10000030000000000000001 /* HookInput.swift in Sources */,
-				P10000050000000000000001 /* HookHandler.swift in Sources */,
-				P10000070000000000000001 /* HookLogger.swift in Sources */,
-				SN0000010000000000000001 /* SessionNameLookup.swift in Sources */,
-				P10000090000000000000001 /* Session.swift in Sources */,
-				P1000000A000000000000001 /* SessionStatus.swift in Sources */,
-				P1000000B000000000000001 /* HookEvent.swift in Sources */,
-				P1000000C000000000000001 /* Config.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -486,9 +500,13 @@
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "cctop needs to control terminal apps to focus the correct window when you click a session.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = "";
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/st0012/cctop/master/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "7Ts0HFX10tBXROh8uS9x2Gvuy+K5g3WT48FFYSIR51g=";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 0.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.st0012.CctopMenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ENABLE_SPARKLE";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -508,10 +526,38 @@
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "cctop needs to control terminal apps to focus the correct window when you click a session.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = "";
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/st0012/cctop/master/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "7Ts0HFX10tBXROh8uS9x2Gvuy+K5g3WT48FFYSIR51g=";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 0.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.st0012.CctopMenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) ENABLE_SPARKLE";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		P10000130000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 601;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 0.6.1;
+				PRODUCT_NAME = "cctop-hook";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		P10000140000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 601;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 0.6.1;
+				PRODUCT_NAME = "cctop-hook";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -550,30 +596,6 @@
 			};
 			name = Release;
 		};
-		P10000130000000000000001 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 601;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.6.1;
-				PRODUCT_NAME = "cctop-hook";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		P10000140000000000000001 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 601;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.6.1;
-				PRODUCT_NAME = "cctop-hook";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -595,20 +617,20 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		T1000000A000000000000001 /* Build configuration list for PBXNativeTarget "CctopMenubarTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				T1000000D000000000000001 /* Debug */,
-				T1000000E000000000000001 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		P10000110000000000000001 /* Build configuration list for PBXNativeTarget "cctop-hook" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				P10000130000000000000001 /* Debug */,
 				P10000140000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		T1000000A000000000000001 /* Build configuration list for PBXNativeTarget "CctopMenubarTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				T1000000D000000000000001 /* Debug */,
+				T1000000E000000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -624,6 +646,14 @@
 				minimumVersion = 2.4.0;
 			};
 		};
+		9C7FB58B2F422D1E0090B18A /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -631,6 +661,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9C7FB52C2F3A0CEA0090B18A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
 			productName = KeyboardShortcuts;
+		};
+		9C7FB58C2F422D1E0090B18A /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9C7FB58B2F422D1E0090B18A /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

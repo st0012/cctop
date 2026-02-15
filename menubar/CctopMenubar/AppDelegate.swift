@@ -9,7 +9,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var statusItem: NSStatusItem!
     private var panel: FloatingPanel!
     private var sessionManager: SessionManager!
-    private var updateChecker: UpdateChecker!
+    private var updater: UpdaterBase!
     private var pluginManager: PluginManager!
     private var cancellable: AnyCancellable?
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
@@ -21,12 +21,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         UNUserNotificationCenter.current().delegate = self
 
         sessionManager = SessionManager()
-        updateChecker = UpdateChecker()
+        updater = makeUpdater()
         pluginManager = PluginManager()
 
         setupStatusItem()
 
-        let contentView = PanelContentView(sessionManager: sessionManager, updateChecker: updateChecker, pluginManager: pluginManager)
+        let contentView = PanelContentView(sessionManager: sessionManager, updater: updater, pluginManager: pluginManager)
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
         hostingView.layer?.cornerRadius = 10
@@ -204,12 +204,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
-    @ObservedObject var updateChecker: UpdateChecker
+    @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     var body: some View {
         PopupView(
             sessions: sessionManager.sessions,
-            updateAvailable: updateChecker.updateAvailable,
+            updater: updater,
             pluginManager: pluginManager
         )
         .frame(width: 320)

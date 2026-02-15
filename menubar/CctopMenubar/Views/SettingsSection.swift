@@ -1,43 +1,35 @@
+import KeyboardShortcuts
 import ServiceManagement
 import SwiftUI
-import KeyboardShortcuts
 
 struct AmberSegmentedPicker<Value: Hashable>: View {
     let options: [(value: Value, label: String)]
     @Binding var selection: Value
-
     var body: some View {
         HStack(spacing: 0) {
             ForEach(options.indices, id: \.self) { index in
                 let option = options[index]
                 let isSelected = selection == option.value
                 Button {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        selection = option.value
-                    }
+                    withAnimation(.easeOut(duration: 0.15)) { selection = option.value }
                 } label: {
                     Text(option.label)
                         .font(.system(size: 12, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity).padding(.vertical, 5)
                         .foregroundStyle(isSelected ? Color.segmentActiveText : Color.segmentText)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(isSelected ? Color.amber : Color.clear)
-                        )
+                        .background(RoundedRectangle(cornerRadius: 5)
+                            .fill(isSelected ? Color.amber : Color.clear))
                         .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                }.buttonStyle(.plain)
             }
         }
-        .padding(2)
-        .background(Color.segmentBackground)
+        .padding(2).background(Color.segmentBackground)
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
 struct SettingsSection: View {
-    var updateAvailable: String?
+    @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
@@ -48,28 +40,13 @@ struct SettingsSection: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let version = updateAvailable {
-                Button {
-                    NSWorkspace.shared.open(UpdateChecker.releasesPageURL)
-                } label: {
-                    HStack {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .foregroundStyle(Color.amber)
-                        Text("Update available: v\(version)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Image(systemName: "arrow.up.forward")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.textSecondary)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-                Divider().padding(.horizontal, 14)
-            }
-            monitoredToolsSection
+            updateSection
+            MonitoredToolsView(
+                pluginManager: pluginManager,
+                justInstalled: $justInstalled,
+                installFailed: $installFailed,
+                removeHovered: $removeHovered
+            )
             Divider().padding(.horizontal, 14)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Appearance")
@@ -148,14 +125,91 @@ struct SettingsSection: View {
         .padding(.horizontal, 8)
     }
 
-    private var monitoredToolsSection: some View {
+    @ViewBuilder
+    private var updateSection: some View {
+        if let version = updater.pendingUpdateVersion {
+            Button {
+                updater.checkForUpdates()
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(Color.amber)
+                    Text("Update available: v\(version)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text("Install v\(version)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.amber)
+                        .clipShape(Capsule())
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
+            .buttonStyle(.plain)
+            Divider().padding(.horizontal, 14)
+        } else if let reason = updater.disabledReason {
+            disabledSection(reason: reason)
+            Divider().padding(.horizontal, 14)
+        } else if updater.canCheckForUpdates {
+            updateControlsSection
+            Divider().padding(.horizontal, 14)
+        }
+    }
+
+    private var updateControlsSection: some View {
+        VStack(spacing: 0) {
+            Toggle(isOn: $updater.automaticallyChecksForUpdates) {
+                Text("Automatic Updates")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.textSecondary)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+
+            Button {
+                updater.checkForUpdates()
+            } label: {
+                Text("Check for Updates\u{2026}")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 8)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func disabledSection(reason: DisabledReason) -> some View {
+        Text(reason.reasonText)
+            .font(.system(size: 10))
+            .foregroundStyle(Color.textMuted)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+    }
+
+}
+
+// MARK: - Monitored Tools
+
+private struct MonitoredToolsView: View {
+    @ObservedObject var pluginManager: PluginManager
+    @Binding var justInstalled: Bool
+    @Binding var installFailed: Bool
+    @Binding var removeHovered: Bool
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Monitored Tools")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.textSecondary)
-
             toolRow(name: "Claude Code", installed: pluginManager.ccInstalled)
-
             if pluginManager.ocConfigExists {
                 openCodeRow
             }
@@ -243,67 +297,57 @@ struct SettingsSection: View {
         HStack(spacing: 8) {
             toolLabel(name)
             Spacer()
-            if installed {
-                connectedBadge
-            } else {
-                Text("Not installed")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
+            if installed { connectedBadge } else {
+                Text("Not installed").font(.system(size: 10)).foregroundStyle(Color.textMuted)
             }
         }
     }
 
     private func toolLabel(_ name: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "terminal")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.textSecondary)
-                .frame(width: 16, height: 16)
-            Text(name)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
+            Image(systemName: "terminal").font(.system(size: 12))
+                .foregroundStyle(Color.textSecondary).frame(width: 16, height: 16)
+            Text(name).font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
         }
     }
 
     private var connectedBadge: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(Color.statusGreen)
-                .frame(width: 6, height: 6)
-            Text("Connected")
-                .font(.system(size: 10))
-                .foregroundStyle(Color.textMuted)
+            Circle().fill(Color.statusGreen).frame(width: 6, height: 6)
+            Text("Connected").font(.system(size: 10)).foregroundStyle(Color.textMuted)
         }
     }
 }
 
+// MARK: - Preview Helpers
+
+@MainActor private class MockUpdater: UpdaterBase {
+    override var canCheckForUpdates: Bool { true }
+}
+@MainActor private func previewPM(
+    cc: Bool = true, oc: Bool = false, ocConfig: Bool = false
+) -> PluginManager {
+    let pm = PluginManager()
+    pm.ccInstalled = cc; pm.ocInstalled = oc; pm.ocConfigExists = ocConfig
+    return pm
+}
 #Preview("Default") {
-    SettingsSection(pluginManager: {
-        let pm = PluginManager()
-        pm.ccInstalled = true
-        return pm
-    }())
-    .frame(width: 320)
-    .padding()
+    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding()
+}
+#Preview("Update available") {
+    let up = DisabledUpdater(); up.pendingUpdateVersion = "0.7.0"
+    return SettingsSection(updater: up, pluginManager: previewPM()).frame(width: 320).padding()
 }
 #Preview("OC detected") {
-    SettingsSection(pluginManager: {
-        let pm = PluginManager()
-        pm.ccInstalled = true
-        pm.ocConfigExists = true
-        return pm
-    }())
-    .frame(width: 320)
-    .padding()
+    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(ocConfig: true)).frame(width: 320).padding()
 }
 #Preview("Both connected") {
-    SettingsSection(pluginManager: {
-        let pm = PluginManager()
-        pm.ccInstalled = true
-        pm.ocInstalled = true
-        pm.ocConfigExists = true
-        return pm
-    }())
-    .frame(width: 320)
-    .padding()
+    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true)).frame(width: 320).padding()
+}
+#Preview("Sparkle: update available") {
+    let mock = MockUpdater(); mock.pendingUpdateVersion = "0.7.0"
+    return SettingsSection(updater: mock, pluginManager: previewPM()).frame(width: 320).padding()
+}
+#Preview("Sparkle: up to date") {
+    SettingsSection(updater: MockUpdater(), pluginManager: previewPM()).frame(width: 320).padding()
 }

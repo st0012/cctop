@@ -29,12 +29,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ -z "$APP_PATH" ]; then
+if [[ -z "$APP_PATH" ]]; then
     echo "Usage: $0 [--dry-run] <path-to-.app>"
     exit 1
 fi
 
-if [ ! -d "$APP_PATH" ]; then
+if [[ ! -d "$APP_PATH" ]]; then
     echo "Error: $APP_PATH does not exist or is not a directory"
     exit 1
 fi
@@ -44,40 +44,52 @@ APP_PATH="$(cd "$(dirname "$APP_PATH")" && pwd)/$(basename "$APP_PATH")"
 
 ENTITLEMENTS="$(cd "$(dirname "$0")/.." && pwd)/menubar/CctopMenubar/CctopMenubar.entitlements"
 
-if [ ! -f "$ENTITLEMENTS" ]; then
+if [[ ! -f "$ENTITLEMENTS" ]]; then
     echo "Error: Entitlements file not found at $ENTITLEMENTS"
     exit 1
 fi
 
 # Discover all signable items in the bundle, innermost first.
-# Order: dylibs -> bundles/frameworks -> executables -> app bundle
+#
+# Signing order matters for notarization — inner items must be signed
+# before their enclosing bundle. This handles Sparkle.framework's nested
+# structure: XPC services, helper apps (Autoupdate.app, Updater.app),
+# and executables inside those bundles.
+#
+# Order: dylibs -> inner executables -> nested bundles (depth-first) -> main exec -> app bundle
 discover_signable_items() {
     local app="$1"
     local items=()
 
-    # 1. Shared libraries (dylibs)
+    # 1. Shared libraries (dylibs) anywhere in the bundle
     while IFS= read -r -d '' item; do
         items+=("$item")
     done < <(find "$app/Contents" -type f -name '*.dylib' -print0 2>/dev/null)
 
-    # 2. Nested bundles and frameworks (sign the directory)
-    while IFS= read -r -d '' item; do
-        items+=("$item")
-    done < <(find "$app/Contents" -type d \( -name '*.bundle' -o -name '*.framework' \) -print0 2>/dev/null)
-
-    # 3. Mach-O executables in MacOS/ (excluding dylibs already handled and the main executable)
+    # 2. Mach-O executables inside nested bundles (frameworks, XPCs, helper apps).
+    #    These must be signed BEFORE their enclosing bundle directory.
+    #    Scan all MacOS/ dirs inside Contents/ (not just the top-level one).
     local main_exec
     main_exec="$app/Contents/MacOS/$(defaults read "$app/Contents/Info.plist" CFBundleExecutable 2>/dev/null || basename "$app" .app)"
     while IFS= read -r -d '' item; do
-        # Skip the main executable -- it gets signed when we sign the bundle
-        [ "$item" = "$main_exec" ] && continue
+        # Skip the main app executable -- signed with the app bundle at the end
+        [[ "$item" = "$main_exec" ]] && continue
         # Skip dylibs -- already signed in step 1
         [[ "$item" == *.dylib ]] && continue
         items+=("$item")
-    done < <(find "$app/Contents/MacOS" -type f -perm +111 -print0 2>/dev/null)
+    done < <(find "$app/Contents" -type f -perm +111 -path "*/MacOS/*" -print0 2>/dev/null)
+
+    # 3. Nested signable bundles (depth-first so innermost are signed first).
+    #    Includes: *.xpc (Sparkle Downloader/Installer), *.app (Sparkle Autoupdate/Updater),
+    #    *.bundle, *.framework, *.appex
+    while IFS= read -r -d '' item; do
+        items+=("$item")
+    done < <(find "$app/Contents" -depth -type d \
+        \( -name '*.xpc' -o -name '*.app' -o -name '*.appex' -o -name '*.bundle' -o -name '*.framework' \) \
+        -print0 2>/dev/null)
 
     # 4. Main executable
-    if [ -f "$main_exec" ]; then
+    if [[ -f "$main_exec" ]]; then
         items+=("$main_exec")
     fi
 
@@ -89,7 +101,7 @@ discover_signable_items() {
 
 SIGNABLE_ITEMS=$(discover_signable_items "$APP_PATH")
 
-if [ "$DRY_RUN" = true ]; then
+if [[ "$DRY_RUN" = true ]]; then
     echo "==> DRY RUN: would sign and notarize $APP_PATH"
     echo ""
     echo "Signing order:"
@@ -105,8 +117,11 @@ if [ "$DRY_RUN" = true ]; then
     echo "  APPLE_IDENTITY     = ${APPLE_IDENTITY:-(not set)}"
     echo "  APPLE_TEAM_ID      = ${APPLE_TEAM_ID:-(not set)}"
     echo "  APPLE_ID           = ${APPLE_ID:-(not set)}"
-    echo "  APPLE_APP_PASSWORD = ${APPLE_APP_PASSWORD:+(set)}"
-    [ -z "${APPLE_APP_PASSWORD:-}" ] && echo "  APPLE_APP_PASSWORD = (not set)"
+    if [[ -n "${APPLE_APP_PASSWORD:-}" ]]; then
+        echo "  APPLE_APP_PASSWORD = (set)"
+    else
+        echo "  APPLE_APP_PASSWORD = (not set)"
+    fi
     echo ""
     echo "Post-sign steps:"
     echo "  1. Create zip with ditto"
@@ -117,7 +132,7 @@ fi
 
 # Validate required env vars
 for var in APPLE_IDENTITY APPLE_TEAM_ID APPLE_ID APPLE_APP_PASSWORD; do
-    if [ -z "${!var:-}" ]; then
+    if [[ -z "${!var:-}" ]]; then
         echo "Error: $var is not set"
         exit 1
     fi
@@ -141,7 +156,7 @@ echo "==> Verifying signature..."
 codesign --verify --verbose=2 "$APP_PATH"
 spctl --assess --type execute --verbose=2 "$APP_PATH" || echo "  (spctl check may fail without notarization)"
 
-if [ "$SIGN_ONLY" = true ]; then
+if [[ "$SIGN_ONLY" = true ]]; then
     echo "==> Done! $APP_PATH is signed (notarization skipped)."
     exit 0
 fi
