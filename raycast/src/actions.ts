@@ -16,13 +16,17 @@ function extractITermGUID(sessionId: string | null | undefined): string | null {
   return sessionId.substring(colonIndex + 1);
 }
 
+/** iTerm2 GUIDs are hex strings with hyphens (e.g. "w0t0p0:XXXXXXXX-..."). */
+function isValidGUID(s: string): boolean {
+  return /^[0-9a-fA-F-]+$/.test(s);
+}
+
 /**
  * Build the AppleScript to focus a specific iTerm2 session by GUID.
  * Matches the AppleScript in FocusTerminal.swift:focusITerm2Session().
+ * Caller must validate the GUID with isValidGUID() before calling this.
  */
 function buildITermScript(guid: string): string {
-  // Escape double quotes in the GUID (shouldn't normally contain them, but be safe)
-  const escaped = guid.replace(/"/g, '\\"');
   return `
     tell application "iTerm2"
       activate
@@ -31,7 +35,7 @@ function buildITermScript(guid: string): string {
           repeat with t in tabs
             tell t
               repeat with s in sessions
-                if (unique id of s) is equal to "${escaped}" then
+                if (unique id of s) is equal to "${guid}" then
                   set index of w to 1
                   select t
                   tell s to select
@@ -83,7 +87,7 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
     } else if (program.includes("iterm")) {
       // iTerm2: use AppleScript to find and focus the specific session
       const guid = extractITermGUID(session.terminal?.session_id);
-      if (guid) {
+      if (guid && isValidGUID(guid)) {
         execFileSync("osascript", ["-e", buildITermScript(guid)]);
       } else {
         execFileSync("open", ["-a", "iTerm"]);

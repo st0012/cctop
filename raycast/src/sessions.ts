@@ -60,7 +60,25 @@ function parseSession(json: string): CctopSession | null {
       !raw.last_activity
     )
       return null;
-    return { ...raw, status: parseStatus(raw.status ?? "idle") };
+    return {
+      session_id: raw.session_id,
+      project_path: raw.project_path,
+      project_name: raw.project_name,
+      branch: raw.branch,
+      status: parseStatus(raw.status ?? "idle"),
+      last_prompt: raw.last_prompt ?? null,
+      last_activity: raw.last_activity,
+      started_at: raw.started_at ?? raw.last_activity,
+      terminal: raw.terminal ?? null,
+      pid: raw.pid ?? null,
+      pid_start_time: raw.pid_start_time ?? null,
+      last_tool: raw.last_tool ?? null,
+      last_tool_detail: raw.last_tool_detail ?? null,
+      notification_message: raw.notification_message ?? null,
+      session_name: raw.session_name ?? null,
+      workspace_file: raw.workspace_file ?? null,
+      source: raw.source ?? null,
+    };
   } catch {
     return null;
   }
