@@ -11,25 +11,36 @@ import Security
 class UpdaterBase: NSObject, ObservableObject {
     @Published var pendingUpdateVersion: String?
     @Published var automaticallyChecksForUpdates: Bool = true
-    @Published var automaticallyDownloadsUpdates: Bool = true
 
     var canCheckForUpdates: Bool { false }
-    var disabledReason: String? { nil }
+    var disabledReason: DisabledReason? { nil }
     func checkForUpdates() {}
 }
 
 // MARK: - Disabled Updater
 
+enum DisabledReason {
+    case development
+    case unsigned
+
+    var reasonText: String {
+        switch self {
+        case .development: return "Updates unavailable in development builds."
+        case .unsigned: return "Updates unavailable in this build."
+        }
+    }
+}
+
 @MainActor
 final class DisabledUpdater: UpdaterBase {
-    private let reason: String?
+    private let reason: DisabledReason?
 
-    init(reason: String? = nil) {
+    init(reason: DisabledReason? = nil) {
         self.reason = reason
         super.init()
     }
 
-    override var disabledReason: String? { reason }
+    override var disabledReason: DisabledReason? { reason }
 }
 
 // MARK: - Sparkle Updater
@@ -52,21 +63,15 @@ final class SparkleUpdater: UpdaterBase, @preconcurrency SPUUpdaterDelegate {
         updater.automaticallyChecksForUpdates = autoUpdate
         updater.automaticallyDownloadsUpdates = autoUpdate
         automaticallyChecksForUpdates = autoUpdate
-        automaticallyDownloadsUpdates = autoUpdate
         controller.startUpdater()
 
-        // Forward toggle changes to Sparkle's updater
+        // Forward toggle changes to Sparkle's updater (syncs both check + download)
         $automaticallyChecksForUpdates
             .dropFirst()
             .sink { [weak self] newValue in
                 self?.controller.updater.automaticallyChecksForUpdates = newValue
-                UserDefaults.standard.set(newValue, forKey: "autoUpdateEnabled")
-            }
-            .store(in: &cancellables)
-        $automaticallyDownloadsUpdates
-            .dropFirst()
-            .sink { [weak self] newValue in
                 self?.controller.updater.automaticallyDownloadsUpdates = newValue
+                UserDefaults.standard.set(newValue, forKey: "autoUpdateEnabled")
             }
             .store(in: &cancellables)
     }
@@ -125,19 +130,15 @@ func makeUpdater() -> UpdaterBase {
     let isBundledApp = bundleURL.pathExtension == "app"
 
     guard isBundledApp else {
-        return DisabledUpdater(reason: "Updates unavailable in development builds.")
-    }
-
-    if InstallOrigin.isHomebrewCask() {
-        return DisabledUpdater(reason: "Updates managed by Homebrew.")
+        return DisabledUpdater(reason: .development)
     }
 
     #if canImport(Sparkle) && ENABLE_SPARKLE
     guard isDeveloperIDSigned(bundleURL: bundleURL) else {
-        return DisabledUpdater(reason: "Updates unavailable in this build.")
+        return DisabledUpdater(reason: .unsigned)
     }
     return SparkleUpdater()
     #else
-    return DisabledUpdater(reason: "Updates unavailable in this build.")
+    return DisabledUpdater(reason: .unsigned)
     #endif
 }

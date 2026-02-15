@@ -37,7 +37,6 @@ struct SettingsSection: View {
     @State private var justInstalled = false
     @State private var installFailed = false
     @State private var removeHovered = false
-    @State private var brewCopied = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -139,9 +138,13 @@ struct SettingsSection: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.primary)
                     Spacer()
-                    Text("Install Update")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Color.amber)
+                    Text("Install v\(version)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.amber)
+                        .clipShape(Capsule())
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
@@ -149,7 +152,7 @@ struct SettingsSection: View {
             .buttonStyle(.plain)
             Divider().padding(.horizontal, 14)
         } else if let reason = updater.disabledReason {
-            homebrewOrDisabledSection(reason: reason)
+            disabledSection(reason: reason)
             Divider().padding(.horizontal, 14)
         } else if updater.canCheckForUpdates {
             updateControlsSection
@@ -169,9 +172,6 @@ struct SettingsSection: View {
             .padding(.horizontal, 14)
             .padding(.top, 10)
             .padding(.bottom, 8)
-            .onChange(of: updater.automaticallyChecksForUpdates) { newValue in
-                updater.automaticallyDownloadsUpdates = newValue
-            }
 
             Button {
                 updater.checkForUpdates()
@@ -186,54 +186,12 @@ struct SettingsSection: View {
         }
     }
 
-    @ViewBuilder
-    private func homebrewOrDisabledSection(reason: String) -> some View {
-        if reason.contains("Homebrew") {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(reason)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-                brewCommandRow
-            }
+    private func disabledSection(reason: DisabledReason) -> some View {
+        Text(reason.reasonText)
+            .font(.system(size: 10))
+            .foregroundStyle(Color.textMuted)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-        } else {
-            Text(reason)
-                .font(.system(size: 10))
-                .foregroundStyle(Color.textMuted)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-        }
-    }
-
-    private static let brewCommand = "brew upgrade --cask cctop"
-
-    private var brewCommandRow: some View {
-        HStack(spacing: 6) {
-            Text(Self.brewCommand)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(Color.textSecondary)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(Self.brewCommand, forType: .string)
-                brewCopied = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    brewCopied = false
-                }
-            } label: {
-                Image(systemName: brewCopied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 10))
-                    .foregroundStyle(brewCopied ? .green : Color.textSecondary)
-                    .frame(width: 20, height: 20)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color.primary.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
 }
@@ -363,38 +321,33 @@ private struct MonitoredToolsView: View {
 
 // MARK: - Preview Helpers
 
-@MainActor
-private func previewPM(cc: Bool = true, oc: Bool = false, ocConfig: Bool = false) -> PluginManager {
+@MainActor private class MockUpdater: UpdaterBase {
+    override var canCheckForUpdates: Bool { true }
+}
+@MainActor private func previewPM(
+    cc: Bool = true, oc: Bool = false, ocConfig: Bool = false
+) -> PluginManager {
     let pm = PluginManager()
-    pm.ccInstalled = cc
-    pm.ocInstalled = oc
-    pm.ocConfigExists = ocConfig
+    pm.ccInstalled = cc; pm.ocInstalled = oc; pm.ocConfigExists = ocConfig
     return pm
 }
-
 #Preview("Default") {
-    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM())
-        .frame(width: 320).padding()
-}
-#Preview("Homebrew") {
-    SettingsSection(
-        updater: DisabledUpdater(reason: "Updates managed by Homebrew."),
-        pluginManager: previewPM()
-    ).frame(width: 320).padding()
+    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding()
 }
 #Preview("Update available") {
-    let mock = DisabledUpdater()
-    mock.pendingUpdateVersion = "0.7.0"
-    return SettingsSection(updater: mock, pluginManager: previewPM())
-        .frame(width: 320).padding()
+    let up = DisabledUpdater(); up.pendingUpdateVersion = "0.7.0"
+    return SettingsSection(updater: up, pluginManager: previewPM()).frame(width: 320).padding()
 }
 #Preview("OC detected") {
-    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(ocConfig: true))
-        .frame(width: 320).padding()
+    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(ocConfig: true)).frame(width: 320).padding()
 }
 #Preview("Both connected") {
-    SettingsSection(
-        updater: DisabledUpdater(),
-        pluginManager: previewPM(oc: true, ocConfig: true)
-    ).frame(width: 320).padding()
+    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true)).frame(width: 320).padding()
+}
+#Preview("Sparkle: update available") {
+    let mock = MockUpdater(); mock.pendingUpdateVersion = "0.7.0"
+    return SettingsSection(updater: mock, pluginManager: previewPM()).frame(width: 320).padding()
+}
+#Preview("Sparkle: up to date") {
+    SettingsSection(updater: MockUpdater(), pluginManager: previewPM()).frame(width: 320).padding()
 }
