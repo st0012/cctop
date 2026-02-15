@@ -50,31 +50,43 @@ if [ ! -f "$ENTITLEMENTS" ]; then
 fi
 
 # Discover all signable items in the bundle, innermost first.
-# Order: dylibs -> bundles/frameworks -> executables -> app bundle
+#
+# Signing order matters for notarization — inner items must be signed
+# before their enclosing bundle. This handles Sparkle.framework's nested
+# structure: XPC services, helper apps (Autoupdate.app, Updater.app),
+# and executables inside those bundles.
+#
+# Order: dylibs -> inner executables -> nested bundles (depth-first) -> main exec -> app bundle
 discover_signable_items() {
     local app="$1"
     local items=()
 
-    # 1. Shared libraries (dylibs)
+    # 1. Shared libraries (dylibs) anywhere in the bundle
     while IFS= read -r -d '' item; do
         items+=("$item")
     done < <(find "$app/Contents" -type f -name '*.dylib' -print0 2>/dev/null)
 
-    # 2. Nested bundles and frameworks (sign the directory)
-    while IFS= read -r -d '' item; do
-        items+=("$item")
-    done < <(find "$app/Contents" -type d \( -name '*.bundle' -o -name '*.framework' \) -print0 2>/dev/null)
-
-    # 3. Mach-O executables in MacOS/ (excluding dylibs already handled and the main executable)
+    # 2. Mach-O executables inside nested bundles (frameworks, XPCs, helper apps).
+    #    These must be signed BEFORE their enclosing bundle directory.
+    #    Scan all MacOS/ dirs inside Contents/ (not just the top-level one).
     local main_exec
     main_exec="$app/Contents/MacOS/$(defaults read "$app/Contents/Info.plist" CFBundleExecutable 2>/dev/null || basename "$app" .app)"
     while IFS= read -r -d '' item; do
-        # Skip the main executable -- it gets signed when we sign the bundle
+        # Skip the main app executable -- signed with the app bundle at the end
         [ "$item" = "$main_exec" ] && continue
         # Skip dylibs -- already signed in step 1
         [[ "$item" == *.dylib ]] && continue
         items+=("$item")
-    done < <(find "$app/Contents/MacOS" -type f -perm +111 -print0 2>/dev/null)
+    done < <(find "$app/Contents" -type f -perm +111 -path "*/MacOS/*" -print0 2>/dev/null)
+
+    # 3. Nested signable bundles (depth-first so innermost are signed first).
+    #    Includes: *.xpc (Sparkle Downloader/Installer), *.app (Sparkle Autoupdate/Updater),
+    #    *.bundle, *.framework, *.appex
+    while IFS= read -r -d '' item; do
+        items+=("$item")
+    done < <(find "$app/Contents" -depth -type d \
+        \( -name '*.xpc' -o -name '*.app' -o -name '*.appex' -o -name '*.bundle' -o -name '*.framework' \) \
+        -print0 2>/dev/null)
 
     # 4. Main executable
     if [ -f "$main_exec" ]; then

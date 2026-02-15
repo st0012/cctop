@@ -24,7 +24,8 @@
 		J10000010000000000000001 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = J10000020000000000000001 /* SettingsSection.swift */; };
 		K10000010000000000000001 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000020000000000000001 /* Color+Theme.swift */; };
 		L10000010000000000000001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L10000020000000000000001 /* EmptyStateView.swift */; };
-		U10000010000000000000001 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = U10000020000000000000001 /* UpdateChecker.swift */; };
+		SP0000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = SP0000020000000000000001 /* SparkleUpdater.swift */; };
+		IO0000010000000000000001 /* InstallOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = IO0000020000000000000001 /* InstallOrigin.swift */; };
 		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
 		N10000010000000000000001 /* SessionStatus+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000020000000000000001 /* SessionStatus+UI.swift */; };
 		N10000030000000000000001 /* HookEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000040000000000000001 /* HookEvent.swift */; };
@@ -94,7 +95,8 @@
 		AC0000020000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FT0000020000000000000001 /* WorkspaceFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceFileTests.swift; sourceTree = "<group>"; };
 		M10000010000000000000001 /* CctopMenubar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CctopMenubar.entitlements; sourceTree = "<group>"; };
-		U10000020000000000000001 /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
+		SP0000020000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
+		IO0000020000000000000001 /* InstallOrigin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallOrigin.swift; sourceTree = "<group>"; };
 		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
 		N10000020000000000000001 /* SessionStatus+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionStatus+UI.swift"; sourceTree = "<group>"; };
 		N10000040000000000000001 /* HookEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEvent.swift; sourceTree = "<group>"; };
@@ -148,7 +150,8 @@
 			children = (
 				C10000020000000000000001 /* SessionManager.swift */,
 				E10000020000000000000001 /* FocusTerminal.swift */,
-				U10000020000000000000001 /* UpdateChecker.swift */,
+				SP0000020000000000000001 /* SparkleUpdater.swift */,
+				IO0000020000000000000001 /* InstallOrigin.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
 			);
 			path = Services;
@@ -358,7 +361,8 @@
 				J10000010000000000000001 /* SettingsSection.swift in Sources */,
 				K10000010000000000000001 /* Color+Theme.swift in Sources */,
 				L10000010000000000000001 /* EmptyStateView.swift in Sources */,
-				U10000010000000000000001 /* UpdateChecker.swift in Sources */,
+				SP0000010000000000000001 /* SparkleUpdater.swift in Sources */,
+				IO0000010000000000000001 /* InstallOrigin.swift in Sources */,
 				PM0000010000000000000001 /* PluginManager.swift in Sources */,
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,

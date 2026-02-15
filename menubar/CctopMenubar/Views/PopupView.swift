@@ -6,7 +6,7 @@ extension Notification.Name {
 
 struct PopupView: View {
     let sessions: [Session]
-    var updateAvailable: String?
+    @ObservedObject var updater: UpdaterBase
     var pluginManager: PluginManager?
     @State private var showSettings = false
     @State private var gearHovered = false
@@ -50,7 +50,7 @@ struct PopupView: View {
             if showSettings {
                 Divider()
                 SettingsSection(
-                    updateAvailable: updateAvailable,
+                    updater: updater,
                     pluginManager: pluginManager ?? PluginManager()
                 )
                 .padding(.vertical, 8)
@@ -82,7 +82,7 @@ struct PopupView: View {
                             .fill(Color.primary.opacity(gearHovered ? 0.1 : 0))
                     )
                     .overlay(alignment: .topTrailing) {
-                        if updateAvailable != nil && !showSettings {
+                        if updater.pendingUpdateVersion != nil && !showSettings {
                             Circle()
                                 .fill(Color.amber)
                                 .frame(width: 7, height: 7)
@@ -162,16 +162,18 @@ struct PopupView: View {
 }
 
 #Preview("With sessions") {
-    PopupView(sessions: Session.mockSessions).frame(width: 320)
+    PopupView(sessions: Session.mockSessions, updater: DisabledUpdater()).frame(width: 320)
 }
 #Preview("Mixed sources") {
-    PopupView(sessions: Session.qaShowcase).frame(width: 320)
+    PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater()).frame(width: 320)
 }
 #Preview("Empty") {
-    PopupView(sessions: [], pluginManager: PluginManager()).frame(width: 320)
+    PopupView(
+        sessions: [], updater: DisabledUpdater(), pluginManager: PluginManager()
+    ).frame(width: 320)
 }
 #Preview("OC banner") {
-    PopupView(sessions: Session.mockSessions, pluginManager: {
+    PopupView(sessions: Session.mockSessions, updater: DisabledUpdater(), pluginManager: {
         let pm = PluginManager()
         pm.ocConfigExists = true
         pm.ocInstalled = false

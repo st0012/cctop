@@ -37,7 +37,7 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
 }
 
 struct SettingsSection: View {
-    var updateAvailable: String?
+    @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
@@ -48,9 +48,9 @@ struct SettingsSection: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let version = updateAvailable {
+            if let version = updater.pendingUpdateVersion {
                 Button {
-                    NSWorkspace.shared.open(UpdateChecker.releasesPageURL)
+                    updater.checkForUpdates()
                 } label: {
                     HStack {
                         Image(systemName: "arrow.down.circle.fill")
@@ -59,12 +59,31 @@ struct SettingsSection: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.primary)
                         Spacer()
-                        Image(systemName: "arrow.up.forward")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.textSecondary)
+                        Text("Install Update")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.amber)
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                Divider().padding(.horizontal, 14)
+            } else if let reason = updater.disabledReason {
+                Text(reason)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                Divider().padding(.horizontal, 14)
+            } else if updater.canCheckForUpdates {
+                Button {
+                    updater.checkForUpdates()
+                } label: {
+                    Text("Check for Updates\u{2026}")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
                 Divider().padding(.horizontal, 14)
@@ -278,7 +297,7 @@ struct SettingsSection: View {
 }
 
 #Preview("Default") {
-    SettingsSection(pluginManager: {
+    SettingsSection(updater: DisabledUpdater(), pluginManager: {
         let pm = PluginManager()
         pm.ccInstalled = true
         return pm
@@ -287,7 +306,7 @@ struct SettingsSection: View {
     .padding()
 }
 #Preview("OC detected") {
-    SettingsSection(pluginManager: {
+    SettingsSection(updater: DisabledUpdater(), pluginManager: {
         let pm = PluginManager()
         pm.ccInstalled = true
         pm.ocConfigExists = true
@@ -297,7 +316,7 @@ struct SettingsSection: View {
     .padding()
 }
 #Preview("Both connected") {
-    SettingsSection(pluginManager: {
+    SettingsSection(updater: DisabledUpdater(), pluginManager: {
         let pm = PluginManager()
         pm.ccInstalled = true
         pm.ocInstalled = true

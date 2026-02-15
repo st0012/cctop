@@ -2,6 +2,7 @@ import XCTest
 @testable import CctopMenubar
 import SwiftUI
 
+@MainActor
 final class SnapshotTests: XCTestCase {
     /// Renders the PopupView with showcase sessions and saves light + dark screenshots.
     ///
@@ -20,7 +21,7 @@ final class SnapshotTests: XCTestCase {
         let outputPath = "\(docsDir)/\(filename)"
 
         let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
-        let view = PopupView(sessions: Session.qaShowcase)
+        let view = PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater())
             .frame(width: 320)
             .background(Color(NSColor.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))

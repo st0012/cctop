@@ -9,6 +9,7 @@ import SwiftUI
 ///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
 ///     -only-testing:CctopMenubarTests/QASnapshotTests \
 ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+@MainActor
 final class QASnapshotTests: XCTestCase {
 
     override class func setUp() {
@@ -105,7 +106,7 @@ final class QASnapshotTests: XCTestCase {
     }
 
     private func popupView(for sessions: [Session]) -> some View {
-        PopupView(sessions: sessions)
+        PopupView(sessions: sessions, updater: DisabledUpdater())
             .frame(width: 320)
             .background(Color(NSColor.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -119,7 +120,7 @@ final class QASnapshotTests: XCTestCase {
         name: String,
         colorScheme: ColorScheme = .light
     ) throws {
-        let view = PopupView(sessions: sessions)
+        let view = PopupView(sessions: sessions, updater: DisabledUpdater())
             .frame(width: 320)
             .background(Color(NSColor.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
