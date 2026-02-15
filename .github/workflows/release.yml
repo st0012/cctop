@@ -25,8 +25,6 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_16.3.app
 
       - name: Build and bundle
-        env:
-          SPARKLE_ED25519_PUBLIC_KEY: ${{ secrets.SPARKLE_ED25519_PUBLIC_KEY }}
         run: ./scripts/bundle-macos.sh --arch ${{ matrix.arch }}
 
       - name: Sign and notarize
@@ -157,9 +155,20 @@ jobs:
     name: Update Sparkle Appcast
     needs: release
     runs-on: macos-15
-    if: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY != '' }}
     steps:
+      - name: Check for signing key
+        env:
+          KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::notice::SPARKLE_ED25519_PRIVATE_KEY not configured, skipping appcast update"
+            exit 1
+          fi
+
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: master
+          fetch-depth: 0
 
       - name: Download all artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -191,13 +200,22 @@ jobs:
           git add appcast.xml
           git diff --cached --quiet && echo "No changes to appcast.xml" && exit 0
           git commit -m "Update appcast.xml for v${{ steps.version.outputs.version }}"
-          git push origin HEAD:master
+          git push origin master
 
   update-homebrew:
     name: Update Homebrew Tap
     needs: release
     runs-on: ubuntu-latest
     steps:
+      - name: Check for tap token
+        env:
+          TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::notice::TAP_GITHUB_TOKEN not configured, skipping Homebrew update"
+            exit 1
+          fi
+
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Download all artifacts

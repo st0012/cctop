@@ -27,12 +27,6 @@ BUILD_DIR="$REPO_ROOT/dist"
 
 XCODE_ARCHS="${ARCH:-$(uname -m)}"
 
-# Forward Sparkle public key to xcodebuild when available (CI sets this via secrets)
-SPARKLE_ARGS=()
-if [[ -n "${SPARKLE_ED25519_PUBLIC_KEY:-}" ]]; then
-    SPARKLE_ARGS+=("SPARKLE_ED25519_PUBLIC_KEY=$SPARKLE_ED25519_PUBLIC_KEY")
-fi
-
 if [ "$SKIP_BUILD" = false ]; then
     echo "==> Building CctopMenubar app..."
     xcodebuild build \
@@ -42,8 +36,7 @@ if [ "$SKIP_BUILD" = false ]; then
         -derivedDataPath "$REPO_ROOT/menubar/build/" \
         CODE_SIGN_IDENTITY="-" \
         ARCHS="$XCODE_ARCHS" \
-        ONLY_ACTIVE_ARCH=NO \
-        "${SPARKLE_ARGS[@]}"
+        ONLY_ACTIVE_ARCH=NO
 
     echo "==> Building cctop-hook CLI..."
     xcodebuild build \
