@@ -1,5 +1,5 @@
 // Jump-to-session action logic, replicating FocusTerminal.swift behavior
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import { closeMainWindow, popToRoot, showToast, Toast } from "@raycast/api";
 import { CctopSession } from "./types";
 
@@ -52,6 +52,7 @@ function buildITermScript(guid: string): string {
 export function getTerminalLabel(session: CctopSession): string {
   const program = session.terminal?.program?.toLowerCase() ?? "";
   if (program.includes("cursor")) return "Cursor";
+  if (program.includes("windsurf")) return "Windsurf";
   if (program.includes("code")) return "VS Code";
   if (program.includes("iterm")) return "iTerm2";
   if (program.includes("warp")) return "Warp";
@@ -69,23 +70,32 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
     const program = session.terminal?.program?.toLowerCase() ?? "";
     const target = session.workspace_file ?? session.project_path;
 
-    if (program.includes("code") || program.includes("cursor")) {
-      // VS Code / Cursor: use CLI to focus the project or workspace
-      const cli = program.includes("cursor") ? "cursor" : "code";
-      execSync(`${cli} "${target}"`);
+    if (program.includes("code") || program.includes("cursor") || program.includes("windsurf")) {
+      // VS Code / Cursor / Windsurf: use CLI to focus the project or workspace
+      const cli = program.includes("cursor") ? "cursor"
+        : program.includes("windsurf") ? "windsurf"
+        : "code";
+      execFileSync(cli, [target]);
     } else if (program.includes("iterm")) {
       // iTerm2: use AppleScript to find and focus the specific session
       const guid = extractITermGUID(session.terminal?.session_id);
       if (guid) {
-        execSync(`osascript -e '${buildITermScript(guid).replace(/'/g, "'\\''")}'`);
+        execFileSync("osascript", ["-e", buildITermScript(guid)]);
       } else {
-        execSync('open -a "iTerm"');
+        execFileSync("open", ["-a", "iTerm"]);
       }
     } else if (program.includes("warp")) {
-      execSync('open -a "Warp"');
+      execFileSync("open", ["-a", "Warp"]);
+    } else if (session.terminal?.program) {
+      // Generic terminal: try activating the app by name first (matches Swift's activateAppByName)
+      try {
+        execFileSync("open", ["-a", session.terminal.program]);
+      } catch {
+        execFileSync("open", [session.project_path]);
+      }
     } else {
-      // Generic fallback: open project path (Finder or default handler)
-      execSync(`open "${session.project_path}"`);
+      // No terminal info: open project path in Finder
+      execFileSync("open", [session.project_path]);
     }
 
     await closeMainWindow();

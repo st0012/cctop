@@ -126,7 +126,7 @@ function fileName(path: string): string {
  * Format tool display matching Session.swift formatToolDisplay (lines 308-322).
  * Case-insensitive tool name matching (opencode sends lowercase, Claude Code sends capitalized).
  */
-function formatToolDisplay(tool: string, detail?: string | null): string {
+export function formatToolDisplay(tool: string, detail?: string | null): string {
   if (!detail) return `${tool}...`;
   const name = fileName(detail);
   switch (tool.toLowerCase()) {
@@ -191,6 +191,7 @@ export function contextLine(session: CctopSession): string | null {
  */
 export function relativeTime(isoDate: string): string {
   const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
+  if (isNaN(seconds)) return "unknown";
   if (seconds < 0) return "just now";
   if (seconds >= 86400) return `${Math.floor(seconds / 86400)}d ago`;
   if (seconds >= 3600) return `${Math.floor(seconds / 3600)}h ago`;

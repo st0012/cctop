@@ -12,9 +12,15 @@
       "name": "show-sessions",
       "title": "Show Sessions",
       "description": "View all active AI coding sessions",
-      "mode": "view"
+      "mode": "view",
+      "keywords": ["session", "claude", "opencode", "ai", "coding", "monitor", "cctop"]
     }
   ],
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "lint": "ray lint"
+  },
   "dependencies": {
     "@raycast/api": "^1.87.0",
     "@raycast/utils": "^1.18.0"
