@@ -1,6 +1,15 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>cctop</title>
+        <item>
+            <title>0.6.2</title>
+            <pubDate>Sun, 15 Feb 2026 23:43:21 +0000</pubDate>
+            <link>https://raw.githubusercontent.com/st0012/cctop/master/appcast.xml</link>
+            <sparkle:version>602</sparkle:version>
+            <sparkle:shortVersionString>0.6.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/st0012/cctop/releases/download/v0.6.2/cctop-macOS-arm64.zip" length="1735002" type="application/octet-stream" />
+        </item>
     </channel>
 </rss>
