@@ -49,7 +49,10 @@ cctop/
 │   ├── plugin.js      # Event handler, writes session JSON directly
 │   └── package.json   # Plugin manifest
 ├── scripts/
-│   └── bundle-macos.sh   # Build and bundle .app
+│   ├── bundle-macos.sh        # Build and bundle .app
+│   ├── sign-and-notarize.sh   # Code sign + Apple notarization
+│   ├── generate-appcast.sh    # Sparkle appcast (multi-arch)
+│   └── bump-version.sh        # Version bumper (all files)
 ├── packaging/
 │   └── homebrew-cask.rb  # Homebrew cask template
 └── .claude-plugin/
@@ -450,6 +453,58 @@ cat ~/.cctop/sessions/*.json | jq '.project_name + " | " + .status'
 - `~/.claude/debug/<session-id>.txt` - Claude Code debug logs
 - `~/.claude/plugins/cache/cctop/` - Installed plugin cache
 - `~/.claude/settings.json` - Check if plugin is enabled
+
+## Release Pipeline
+
+The release is triggered by pushing a version tag (`v*`). The GitHub Actions workflow (`.github/workflows/release.yml`) runs 5 jobs:
+
+1. **Build macOS** (matrix: arm64 + x86_64) — `xcodebuild` archive + `scripts/bundle-macos.sh`
+2. **Sign & Notarize** — `scripts/sign-and-notarize.sh` (per-arch)
+3. **Create Release** — uploads both ZIPs to GitHub Releases
+4. **Update Sparkle Appcast** — `scripts/generate-appcast.sh` updates `appcast.xml` on master
+5. **Update Homebrew Tap** — updates the cask formula
+
+### Code Signing Strategy
+
+Sparkle framework components must be signed **without** the app's entitlements. Only the main executable and the `.app` bundle itself get `--entitlements`. Everything else (XPC services, helper apps, framework dylibs, standalone binaries) gets just identity + hardened runtime + timestamp. This is critical for notarization — Apple rejects bundles where XPC services have inappropriate entitlements like `com.apple.security.automation.apple-events`.
+
+The signing order is inside-out: dylibs first, then inner executables, then nested bundles (depth-first), then main executable, then the app bundle.
+
+**Key pitfall**: Sparkle's `Autoupdate` binary lives at `Sparkle.framework/Versions/B/Autoupdate` (no `MacOS/` in path). The discovery function must search `*/Frameworks/*` in addition to `*/MacOS/*` to find it.
+
+Use `--dry-run` to verify signing order without actually signing:
+```bash
+./scripts/sign-and-notarize.sh --dry-run dist/cctop.app
+```
+
+### Multi-Arch Appcast
+
+`generate_appcast` (Sparkle's tool) cannot handle multiple ZIPs with the same bundle version. The script works around this by:
+1. Generating the appcast with only the arm64 ZIP
+2. Signing the x86_64 ZIP separately with `sign_update`
+3. Using Python3 to add the x86_64 enclosure with `sparkle:cpu` attributes
+
+### Homebrew Caskroom PATH
+
+Homebrew's sparkle cask only symlinks the `sparkle` binary to `/opt/homebrew/bin/`. The `generate_appcast` and `sign_update` tools live in `/opt/homebrew/Caskroom/sparkle/*/bin/` and the script auto-discovers this path.
+
+### Debugging Release Failures
+
+```bash
+# Re-run signing locally with dry-run to check order
+./scripts/sign-and-notarize.sh --dry-run dist/cctop.app
+
+# Sign without notarizing (faster iteration)
+./scripts/sign-and-notarize.sh --sign-only dist/cctop.app
+
+# Test appcast generation locally
+SPARKLE_PRIVATE_KEY_FILE=~/.sparkle_ed25519 ./scripts/generate-appcast.sh --version 0.7.0 arm64.zip x86_64.zip
+```
+
+If notarization fails, the script automatically fetches the notarization log via `xcrun notarytool log`. Common causes:
+- Sparkle components signed with app entitlements (see signing strategy above)
+- Unsigned binaries in non-standard paths (like `Autoupdate`)
+- Missing hardened runtime flag
 
 ## Menubar Screenshot
 

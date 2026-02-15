@@ -116,6 +116,17 @@ generate_appcast \
 
 cp "$WORK_DIR/appcast.xml" "$APPCAST"
 
+# Validate that generate_appcast added the EdDSA signature
+if ! grep -q 'sparkle:edSignature=' "$APPCAST"; then
+    echo "Error: generate_appcast did not add sparkle:edSignature." >&2
+    echo "    The ED25519 private key may be invalid or mismatched." >&2
+    echo "    Appcast contents:" >&2
+    cat "$APPCAST" >&2
+    exit 1
+fi
+
+echo "    EdDSA signature: present"
+
 PRIMARY_ARCH=$(detect_arch "$(basename "$PRIMARY_ZIP")")
 
 # If there's a second ZIP (different arch), sign it and add as additional enclosure
@@ -124,77 +135,114 @@ if [[ ${#ZIPS[@]} -gt 1 ]]; then
     SECONDARY_ARCH=$(detect_arch "$(basename "$SECONDARY_ZIP")")
     SECONDARY_FILENAME=$(basename "$SECONDARY_ZIP")
     SECONDARY_LENGTH=$(stat -f%z "$SECONDARY_ZIP" 2>/dev/null || stat -c%s "$SECONDARY_ZIP")
+    SECONDARY_URL="${DOWNLOAD_URL_PREFIX}${SECONDARY_FILENAME}"
 
     echo "    Secondary ZIP: $SECONDARY_FILENAME (${SECONDARY_ARCH})"
 
-    # Sign the secondary ZIP
-    SIGNATURE=$(sign_update "$SECONDARY_ZIP" --ed-key-file "$KEY_FILE" 2>/dev/null | grep 'edSignature=' | sed 's/.*edSignature="\([^"]*\)".*/\1/')
+    # Sign the secondary ZIP (fail loudly if sign_update is missing or fails)
+    echo "    Signing secondary ZIP..."
+    SIGN_OUTPUT=$(sign_update "$SECONDARY_ZIP" --ed-key-file "$KEY_FILE" 2>&1) || {
+        echo "Error: sign_update failed:" >&2
+        echo "    $SIGN_OUTPUT" >&2
+        exit 1
+    }
 
+    SIGNATURE=$(echo "$SIGN_OUTPUT" | grep -o 'edSignature="[^"]*"' | sed 's/edSignature="//;s/"$//' || true)
     if [[ -z "$SIGNATURE" ]]; then
-        # Try alternate output format
-        SIGNATURE=$(sign_update "$SECONDARY_ZIP" --ed-key-file "$KEY_FILE" 2>&1)
+        echo "Error: Could not extract edSignature from sign_update output:" >&2
+        echo "    $SIGN_OUTPUT" >&2
+        exit 1
     fi
 
-    # Add sparkle:cpu to primary enclosure and insert secondary enclosure.
-    # The generate_appcast output has a single <enclosure> per item.
-    # We need to:
-    # 1. Add sparkle:cpu="$PRIMARY_ARCH" to the existing enclosure
-    # 2. Add a second enclosure for the secondary arch
-    SECONDARY_URL="${DOWNLOAD_URL_PREFIX}${SECONDARY_FILENAME}"
+    echo "    Secondary signature: ${SIGNATURE:0:20}..."
 
-    # Add cpu attribute to the primary enclosure for the current version
+    # Add sparkle:cpu to primary enclosure and insert secondary enclosure.
+    # Uses regex-based string manipulation instead of Python ET to avoid
+    # namespace mangling (ET drops sparkle:-prefixed attributes on rewrite).
     if [[ -n "$PRIMARY_ARCH" ]]; then
         python3 - "$APPCAST" "$VERSION" "$PRIMARY_ARCH" "$SECONDARY_URL" "$SECONDARY_LENGTH" "$SIGNATURE" "$SECONDARY_ARCH" << 'PYEOF'
-import sys, xml.etree.ElementTree as ET
+import sys, re
 
-appcast, version, primary_arch, sec_url, sec_len, sec_sig, sec_arch = sys.argv[1:]
+appcast_path, version, primary_arch, sec_url, sec_len, sec_sig, sec_arch = sys.argv[1:]
 
-# Register Sparkle namespace
-ns = {"sparkle": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
-ET.register_namespace("sparkle", ns["sparkle"])
-ET.register_namespace("dc", "http://purl.org/dc/elements/1.1/")
+with open(appcast_path) as f:
+    content = f.read()
 
-tree = ET.parse(appcast)
-root = tree.getroot()
+# Add sparkle:cpu to the primary enclosure (first <enclosure without sparkle:cpu)
+updated, count = re.subn(
+    r'(<enclosure\s)',
+    r'\1sparkle:cpu="' + primary_arch + '" ',
+    content,
+    count=1
+)
+if count == 0:
+    print("Error: Could not find <enclosure> tag to add sparkle:cpu", file=sys.stderr)
+    sys.exit(1)
+content = updated
 
-for item in root.iter("item"):
-    enc = item.find("enclosure")
-    if enc is None:
-        continue
-    # Match by version
-    sv = enc.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}version")
-    short_sv = enc.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}shortVersionString")
-    if sv != version.replace(".", "") and short_sv != version:
-        # Try matching build number
-        try:
-            build = "".join(version.split("."))
-            if sv != build:
-                continue
-        except Exception:
-            continue
+# Extract build number from sparkle:version element
+version_match = re.search(r'<sparkle:version>(\d+)</sparkle:version>', content)
+build_num = version_match.group(1) if version_match else ""
 
-    # Add cpu to primary enclosure
-    enc.set("sparkle:cpu", primary_arch)
+# Build secondary enclosure
+sec_enc = (
+    f'            <enclosure sparkle:cpu="{sec_arch}" '
+    f'url="{sec_url}" '
+    f'sparkle:edSignature="{sec_sig}" '
+    f'length="{sec_len}" '
+    f'type="application/octet-stream"'
+)
+if build_num:
+    sec_enc += f' sparkle:version="{build_num}" sparkle:shortVersionString="{version}"'
+sec_enc += ' />'
 
-    # Create secondary enclosure
-    sec_enc = ET.SubElement(item, "enclosure")
-    sec_enc.set("url", sec_url)
-    sec_enc.set("length", sec_len)
-    sec_enc.set("type", "application/octet-stream")
-    sec_enc.set("sparkle:cpu", sec_arch)
-    sec_enc.set("sparkle:edSignature", sec_sig)
-    # Copy version attributes from primary
-    for attr in ["{http://www.andymatuschak.org/xml-namespaces/sparkle}version",
-                 "{http://www.andymatuschak.org/xml-namespaces/sparkle}shortVersionString"]:
-        val = enc.get(attr)
-        if val:
-            sec_enc.set(attr.split("}")[-1].replace("{", "sparkle:"), val)
-    break
+# Insert secondary enclosure after the primary one
+updated, count = re.subn(
+    r'(<enclosure [^>]*/>\s*\n)',
+    r'\g<0>' + sec_enc + '\n',
+    content,
+    count=1
+)
+if count == 0:
+    print("Error: Could not insert secondary enclosure", file=sys.stderr)
+    sys.exit(1)
+content = updated
 
-tree.write(appcast, xml_declaration=True, encoding="utf-8")
+with open(appcast_path, 'w') as f:
+    f.write(content)
+
+print(f"    Added {sec_arch} enclosure")
 PYEOF
     fi
 fi
 
+# Final validation
+echo "==> Validating appcast..."
+ERRORS=0
+
+if ! grep -q 'sparkle:edSignature=' "$APPCAST"; then
+    echo "    FAIL: missing sparkle:edSignature" >&2
+    ERRORS=$((ERRORS + 1))
+fi
+
+if [[ ${#ZIPS[@]} -gt 1 ]]; then
+    ENCLOSURE_COUNT=$(grep -c '<enclosure ' "$APPCAST" || true)
+    if [[ "$ENCLOSURE_COUNT" -lt 2 ]]; then
+        echo "    FAIL: expected 2 enclosures, found $ENCLOSURE_COUNT" >&2
+        ERRORS=$((ERRORS + 1))
+    fi
+    if ! grep -q 'sparkle:cpu=' "$APPCAST"; then
+        echo "    FAIL: missing sparkle:cpu attributes" >&2
+        ERRORS=$((ERRORS + 1))
+    fi
+fi
+
+if [[ $ERRORS -gt 0 ]]; then
+    echo "    Appcast contents:" >&2
+    cat "$APPCAST" >&2
+    exit 1
+fi
+
+echo "    OK: all checks passed"
 echo "==> Appcast updated: $APPCAST"
 echo "    Feed URL: $FEED_URL"
