@@ -91,22 +91,6 @@ class SessionManager: ObservableObject {
         }
     }
 
-    func resetSession(_ session: Session) {
-        guard let pid = session.pid else { return }
-        let url = sessionsDir.appendingPathComponent("\(pid).json")
-        guard let data = try? Data(contentsOf: url),
-              var mutable = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data)
-        else { return }
-        mutable.status = .idle
-        mutable.lastTool = nil
-        mutable.lastToolDetail = nil
-        mutable.notificationMessage = nil
-        mutable.lastActivity = Date()
-        guard let encoded = try? JSONEncoder.sessionEncoder.encode(mutable) else { return }
-        try? encoded.write(to: url, options: .atomic)
-        loadSessions()
-    }
-
     static func requestNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error {

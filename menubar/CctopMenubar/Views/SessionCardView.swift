@@ -9,18 +9,12 @@ extension Session {
 struct SessionCardView: View {
     let session: Session
     var showSourceBadge = false
-    var onReset: ((Session) -> Void)?
     @State private var isHovered = false
-    @State private var resetHovered = false
     @State private var pulsing = false
-
-    private var showResetButton: Bool {
-        isHovered && session.status != .idle && onReset != nil
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            // Row 1: status dot + project name + time/reset + status badge
+            // Row 1: status dot + project name + time + status badge
             HStack(spacing: 8) {
                 Circle()
                     .fill(session.status.color)
@@ -44,24 +38,7 @@ struct SessionCardView: View {
 
                 Spacer()
 
-                if showResetButton {
-                    Button {
-                        onReset?(session)
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.system(size: 10))
-                            .foregroundStyle(resetHovered ? Color.primary : Color.secondary)
-                            .frame(width: 20, height: 20)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color.primary.opacity(resetHovered ? 0.1 : 0))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { resetHovered = $0 }
-                    .accessibilityLabel("Reset \(session.projectName) to idle")
-                    .help("Reset status to idle")
-                } else {
+                TimelineView(.periodic(from: .now, by: 10)) { _ in
                     Text(session.relativeTime)
                         .font(.system(size: 10))
                         .foregroundStyle(Color.textMuted)
@@ -107,9 +84,12 @@ struct SessionCardView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.cardBackground)
+        .background(isHovered ? Color.primary.opacity(0.06) : Color.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.cardBorder, lineWidth: 1))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isHovered ? Color.primary.opacity(0.15) : Color.cardBorder, lineWidth: 1)
+        )
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .accessibilityElement(children: .contain)

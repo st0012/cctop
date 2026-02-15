@@ -294,7 +294,6 @@ The menubar app detects opencode when `~/.config/opencode/` exists and offers to
 ### Stale sessions showing
 - Sessions store the PID of the Claude process and are validated by checking if that PID is still running
 - Manual cleanup: `rm ~/.cctop/sessions/<pid>.json`
-- In-app reset: right-click a session in the menubar to reset status to idle
 
 ### Jump to session not working
 - **VS Code / Cursor (menubar app)**: Runs `code <path>` or `cursor <path>` to focus the project window. If a `.code-workspace` file is detected in the project directory, it's passed instead of the folder path.

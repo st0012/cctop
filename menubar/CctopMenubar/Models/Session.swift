@@ -291,7 +291,7 @@ struct Session: Codable, Identifiable {
 
     var relativeTime: String {
         let seconds = Int(-lastActivity.timeIntervalSinceNow)
-        if seconds < 0 { return "just now" }
+        if seconds <= 0 { return "just now" }
         if seconds >= 86400 { return "\(seconds / 86400)d ago" }
         if seconds >= 3600 { return "\(seconds / 3600)h ago" }
         if seconds >= 60 { return "\(seconds / 60)m ago" }
