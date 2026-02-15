@@ -1,5 +1,6 @@
-import { Action, ActionPanel, Color, Icon, Image, List } from "@raycast/api";
+import { Action, ActionPanel, Color, Icon, Image, List, LocalStorage, showToast, Toast } from "@raycast/api";
 import { useCachedPromise } from "@raycast/utils";
+import { existsSync } from "fs";
 import { useEffect, useState } from "react";
 
 import { jumpToSession, getTerminalLabel } from "./actions";
@@ -12,6 +13,8 @@ import {
   statusGroup,
   needsAttention,
   formatToolDisplay,
+  resetSession,
+  getSessionsDir,
   StatusGroup,
 } from "./sessions";
 import { CctopSession, SessionStatus } from "./types";
@@ -153,10 +156,12 @@ function SessionActions({
   session,
   isShowingDetail,
   onToggleDetail,
+  revalidate,
 }: {
   session: CctopSession;
   isShowingDetail: boolean;
   onToggleDetail: () => void;
+  revalidate: () => void;
 }) {
   const terminalName = getTerminalLabel(session);
   return (
@@ -166,6 +171,22 @@ function SessionActions({
         icon={Icon.Terminal}
         onAction={() => jumpToSession(session)}
       />
+      {session.status !== "idle" && (
+        <Action
+          title="Reset to Idle"
+          icon={Icon.ArrowCounterClockwise}
+          shortcut={{ modifiers: ["cmd"], key: "r" }}
+          onAction={async () => {
+            try {
+              resetSession(session);
+              revalidate();
+              await showToast({ style: Toast.Style.Success, title: "Session reset to idle" });
+            } catch {
+              await showToast({ style: Toast.Style.Failure, title: "Failed to reset session" });
+            }
+          }}
+        />
+      )}
       <Action
         title={isShowingDetail ? "Hide Details" : "Show Details"}
         icon={Icon.Sidebar}
@@ -185,6 +206,7 @@ function SessionActions({
       <Action.Open
         title="Open in Finder"
         target={session.project_path}
+        application="Finder"
         shortcut={{ modifiers: ["cmd"], key: "o" }}
       />
     </ActionPanel>
@@ -197,11 +219,13 @@ function SessionItem({
   showSource,
   isShowingDetail,
   onToggleDetail,
+  revalidate,
 }: {
   session: CctopSession;
   showSource: boolean;
   isShowingDetail: boolean;
   onToggleDetail: () => void;
+  revalidate: () => void;
 }) {
   return (
     <List.Item
@@ -216,6 +240,7 @@ function SessionItem({
           session={session}
           isShowingDetail={isShowingDetail}
           onToggleDetail={onToggleDetail}
+          revalidate={revalidate}
         />
       }
     />
@@ -253,8 +278,15 @@ function filterSessions(sessions: CctopSession[], filter: string): CctopSession[
 
 export default function ShowSessions() {
   const { data: sessions, revalidate, isLoading } = useCachedPromise(async () => loadSessions());
-  const [isShowingDetail, setIsShowingDetail] = useState(true);
+  const [isShowingDetail, setIsShowingDetail] = useState(false);
   const [filter, setFilter] = useState("all");
+
+  // Restore persisted detail toggle preference
+  useEffect(() => {
+    LocalStorage.getItem<boolean>("showDetail").then((val) => {
+      if (val !== undefined) setIsShowingDetail(val);
+    });
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(revalidate, 2000);
@@ -265,7 +297,22 @@ export default function ShowSessions() {
   const filteredSessions = filterSessions(allSessions, filter);
   const showSource = hasMultipleSources(allSessions);
   const sectioned = useSections(filteredSessions);
-  const toggleDetail = () => setIsShowingDetail((prev) => !prev);
+
+  const toggleDetail = () => {
+    setIsShowingDetail((prev) => {
+      const next = !prev;
+      LocalStorage.setItem("showDetail", next);
+      return next;
+    });
+  };
+
+  const attentionCount = allSessions.filter((s) => needsAttention(s.status)).length;
+  const navTitle =
+    attentionCount > 0
+      ? `${allSessions.length} sessions (${attentionCount} need attention)`
+      : `${allSessions.length} session${allSessions.length !== 1 ? "s" : ""}`;
+
+  const dirExists = existsSync(getSessionsDir());
 
   const renderItem = (session: CctopSession) => (
     <SessionItem
@@ -274,6 +321,7 @@ export default function ShowSessions() {
       showSource={showSource}
       isShowingDetail={isShowingDetail}
       onToggleDetail={toggleDetail}
+      revalidate={revalidate}
     />
   );
 
@@ -281,6 +329,7 @@ export default function ShowSessions() {
     <List
       isLoading={isLoading}
       isShowingDetail={isShowingDetail}
+      navigationTitle={navTitle}
       searchBarAccessory={
         <List.Dropdown tooltip="Filter by status" onChange={setFilter} storeValue>
           <List.Dropdown.Item title="All Sessions" value="all" />
@@ -290,14 +339,22 @@ export default function ShowSessions() {
         </List.Dropdown>
       }
     >
-      <List.EmptyView
-        title="No Active Sessions"
-        description="Start a Claude Code or opencode session to see it here"
-        icon={Icon.Monitor}
-      />
+      {dirExists ? (
+        <List.EmptyView
+          title="No Active Sessions"
+          description="Start a Claude Code or opencode session to see it here"
+          icon={Icon.Monitor}
+        />
+      ) : (
+        <List.EmptyView
+          title="cctop Not Installed"
+          description="Install cctop to monitor your AI coding sessions"
+          icon={Icon.Download}
+        />
+      )}
       {sectioned
         ? groupSessions(filteredSessions).map(({ group, sessions: groupSessions }) => (
-            <List.Section key={group} title={group}>
+            <List.Section key={group} title={group} subtitle={`${groupSessions.length}`}>
               {groupSessions.map(renderItem)}
             </List.Section>
           ))

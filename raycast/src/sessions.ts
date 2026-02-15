@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "fs";
+import { readdirSync, readFileSync, writeFileSync, renameSync } from "fs";
 import { homedir } from "os";
 import { basename, join } from "path";
 
@@ -48,7 +48,7 @@ function parseStatus(raw: string): SessionStatus {
 function parseSession(json: string): CctopSession | null {
   try {
     const raw = JSON.parse(json);
-    if (!raw.session_id || !raw.project_path || !raw.project_name) return null;
+    if (!raw.session_id || !raw.project_path || !raw.project_name || !raw.branch || !raw.last_activity) return null;
     return { ...raw, status: parseStatus(raw.status ?? "idle") };
   } catch {
     return null;
@@ -205,6 +205,27 @@ export function relativeTime(isoDate: string): string {
  */
 export function needsAttention(status: SessionStatus): boolean {
   return status === "waiting_permission" || status === "waiting_input" || status === "needs_attention";
+}
+
+/**
+ * Reset a session to idle by modifying its JSON file.
+ * Read-modify-write with atomic rename, matching SessionManager.resetSession() in Swift.
+ */
+export function resetSession(session: CctopSession): void {
+  if (session.pid == null) return;
+  const dir = getSessionsDir();
+  const filePath = join(dir, `${session.pid}.json`);
+  const tmpPath = filePath + ".tmp";
+
+  const raw = JSON.parse(readFileSync(filePath, "utf-8"));
+  raw.status = "idle";
+  raw.last_tool = null;
+  raw.last_tool_detail = null;
+  raw.notification_message = null;
+  raw.last_activity = new Date().toISOString();
+
+  writeFileSync(tmpPath, JSON.stringify(raw, null, 2));
+  renameSync(tmpPath, filePath);
 }
 
 /**
