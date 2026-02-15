@@ -1,6 +1,7 @@
 // Jump-to-session action logic, replicating FocusTerminal.swift behavior
 import { execFileSync } from "child_process";
-import { closeMainWindow, popToRoot, showToast, Toast } from "@raycast/api";
+import { closeMainWindow, popToRoot } from "@raycast/api";
+import { showFailureToast } from "@raycast/utils";
 import { CctopSession } from "./types";
 
 /**
@@ -104,11 +105,6 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
     await closeMainWindow();
     await popToRoot();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    await showToast({
-      style: Toast.Style.Failure,
-      title: "Failed to focus session",
-      message: msg,
-    });
+    await showFailureToast(e, { title: "Failed to focus session" });
   }
 }

@@ -8,7 +8,7 @@ import {
   showToast,
   Toast,
 } from "@raycast/api";
-import { useCachedPromise } from "@raycast/utils";
+import { showFailureToast, useCachedPromise } from "@raycast/utils";
 import { existsSync } from "fs";
 import { useEffect, useState } from "react";
 
@@ -186,11 +186,8 @@ function SessionActions({
                 style: Toast.Style.Success,
                 title: "Session reset to idle",
               });
-            } catch {
-              await showToast({
-                style: Toast.Style.Failure,
-                title: "Failed to reset session",
-              });
+            } catch (e) {
+              await showFailureToast(e, { title: "Failed to reset session" });
             }
           }}
         />
@@ -207,7 +204,7 @@ function SessionActions({
         shortcut={{ modifiers: ["cmd"], key: "c" }}
       />
       <Action.CopyToClipboard
-        title="Copy Session Id"
+        title="Copy Session ID"
         content={session.session_id}
         shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
       />
@@ -335,6 +332,7 @@ export default function ShowSessions() {
       isLoading={isLoading}
       isShowingDetail={isShowingDetail}
       navigationTitle={navTitle}
+      searchBarPlaceholder="Search sessions..."
       actions={
         !dirExists ? (
           <ActionPanel>
@@ -360,9 +358,21 @@ export default function ShowSessions() {
     >
       {dirExists ? (
         <List.EmptyView
-          title="No Active Sessions"
-          description="Start a Claude Code or opencode session to see it here"
-          icon={Icon.Monitor}
+          title={
+            allSessions.length > 0 && filteredSessions.length === 0
+              ? "No Matching Sessions"
+              : "No Active Sessions"
+          }
+          description={
+            allSessions.length > 0 && filteredSessions.length === 0
+              ? "Try changing the filter to see more sessions"
+              : "Start a Claude Code or opencode session to see it here"
+          }
+          icon={
+            allSessions.length > 0 && filteredSessions.length === 0
+              ? Icon.Filter
+              : Icon.Monitor
+          }
         />
       ) : (
         <List.EmptyView
