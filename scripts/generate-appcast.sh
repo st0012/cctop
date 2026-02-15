@@ -62,10 +62,16 @@ if [[ ! -f "$KEY_FILE" ]]; then
     exit 1
 fi
 
-# Verify generate_appcast is available
+# Verify generate_appcast is available. Homebrew's sparkle cask only symlinks
+# the 'sparkle' binary, so add the Caskroom bin/ to PATH if needed.
 if ! command -v generate_appcast >/dev/null; then
-    echo "Error: generate_appcast not found. Install with: brew install sparkle" >&2
-    exit 1
+    SPARKLE_BIN=$(find "$(brew --caskroom 2>/dev/null)/sparkle" -maxdepth 2 -type d -name bin 2>/dev/null | head -1)
+    if [[ -n "$SPARKLE_BIN" && -x "$SPARKLE_BIN/generate_appcast" ]]; then
+        export PATH="$SPARKLE_BIN:$PATH"
+    else
+        echo "Error: generate_appcast not found. Install with: brew install sparkle" >&2
+        exit 1
+    fi
 fi
 
 # Determine version: --version flag > SPARKLE_RELEASE_VERSION env > git tag
