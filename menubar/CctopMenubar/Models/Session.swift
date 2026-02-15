@@ -248,32 +248,45 @@ struct Session: Codable, Identifiable {
         URL(fileURLWithPath: path).lastPathComponent
     }
 
-    static func processStartTime(pid: UInt32) -> TimeInterval? {
+    static func processInfo(pid: UInt32) -> kinfo_proc? {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.size
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, Int32(pid)]
         let result = sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0)
         guard result == 0, size > 0 else { return nil }
-        let tv = info.kp_proc.p_starttime
-        return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
+        return info
+    }
+
+    static func processStartTime(pid: UInt32) -> TimeInterval? {
+        guard let info = processInfo(pid: pid) else { return nil }
+        return startTime(from: info)
     }
 
     var isAlive: Bool {
         guard let pid else { return false }
-        let processRunning: Bool
-        if kill(Int32(pid), 0) == 0 {
-            processRunning = true
-        } else {
-            processRunning = errno == EPERM
-        }
-        guard processRunning else { return false }
+        guard kill(Int32(pid), 0) == 0 || errno == EPERM else { return false }
+        guard let info = Self.processInfo(pid: pid) else { return false }
+
         // Check PID reuse: if we recorded a start time, verify it still matches
-        if let stored = pidStartTime,
-           let current = Self.processStartTime(pid: pid),
-           abs(stored - current) > 1.0 {
+        if let stored = pidStartTime {
+            let current = Self.startTime(from: info)
+            if abs(stored - current) > 1.0 {
+                return false
+            }
+        }
+
+        // Orphan check: if parent is launchd (PPID=1), the terminal/IDE that
+        // spawned this session has died. The process is alive but unreachable.
+        if info.kp_eproc.e_ppid == 1 {
             return false
         }
+
         return true
+    }
+
+    private static func startTime(from info: kinfo_proc) -> TimeInterval {
+        let tv = info.kp_proc.p_starttime
+        return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
     }
 
     var relativeTime: String {
