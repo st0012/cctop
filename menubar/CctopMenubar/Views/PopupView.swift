@@ -6,7 +6,6 @@ extension Notification.Name {
 
 struct PopupView: View {
     let sessions: [Session]
-    var resetSession: ((Session) -> Void)?
     var updateAvailable: String?
     var pluginManager: PluginManager?
     @State private var showSettings = false
@@ -38,8 +37,7 @@ struct PopupView: View {
                         ForEach(sortedSessions) { session in
                             SessionCardView(
                                 session: session,
-                                showSourceBadge: hasMultipleSources,
-                                onReset: resetSession
+                                showSourceBadge: hasMultipleSources
                             )
                             .onTapGesture { focusSession(session) }
                         }

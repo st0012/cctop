@@ -209,7 +209,6 @@ private struct PanelContentView: View {
     var body: some View {
         PopupView(
             sessions: sessionManager.sessions,
-            resetSession: sessionManager.resetSession,
             updateAvailable: updateChecker.updateAvailable,
             pluginManager: pluginManager
         )
