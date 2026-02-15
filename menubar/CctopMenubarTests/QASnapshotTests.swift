@@ -72,6 +72,31 @@ final class QASnapshotTests: XCTestCase {
         try renderSnapshot(sessions: Session.qaFiveSessions, name: "10-five-sessions-dark", colorScheme: .dark)
     }
 
+    // MARK: - Update UI scenarios
+
+    func testSettingsUpdateAvailable() throws {
+        let updater = DisabledUpdater()
+        updater.pendingUpdateVersion = "0.7.0"
+        try renderSettingsSnapshot(updater: updater, name: "12-settings-update-available")
+    }
+
+    func testSettingsUpdateAvailableDark() throws {
+        let updater = DisabledUpdater()
+        updater.pendingUpdateVersion = "0.7.0"
+        try renderSettingsSnapshot(updater: updater, name: "13-settings-update-available-dark", colorScheme: .dark)
+    }
+
+    func testSettingsUpToDate() throws {
+        try renderSettingsSnapshot(updater: MockQAUpdater(), name: "14-settings-up-to-date")
+    }
+
+    func testSettingsDisabledDev() throws {
+        try renderSettingsSnapshot(
+            updater: DisabledUpdater(reason: .development),
+            name: "15-settings-disabled-dev"
+        )
+    }
+
     // MARK: - Live update simulation
 
     /// Simulates adding a 5th session to an existing 4-session view.
@@ -146,6 +171,37 @@ final class QASnapshotTests: XCTestCase {
         try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
     }
 
+    private func renderSettingsSnapshot(
+        updater: UpdaterBase,
+        name: String,
+        colorScheme: ColorScheme = .light
+    ) throws {
+        let view = SettingsSection(updater: updater, pluginManager: PluginManager())
+            .frame(width: 320)
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+            .environment(\.colorScheme, colorScheme)
+
+        let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 600),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = NSAppearance(named: appearance)
+
+        let hostingView = NSHostingView(rootView: view)
+        window.contentView = hostingView
+
+        let fittingSize = hostingView.fittingSize
+        window.setContentSize(fittingSize)
+        hostingView.frame = NSRect(origin: .zero, size: fittingSize)
+        hostingView.layoutSubtreeIfNeeded()
+
+        try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
+    }
+
     private func captureToFile(hostingView: NSHostingView<some View>, path: String) throws {
         guard let bitmapRep = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) else {
             XCTFail("Failed to create bitmap for \(path)")
@@ -161,4 +217,11 @@ final class QASnapshotTests: XCTestCase {
         try pngData.write(to: URL(fileURLWithPath: path))
         print("QA snapshot saved: \(path)")
     }
+}
+
+// MARK: - Mock Updater for QA
+
+@MainActor
+private class MockQAUpdater: UpdaterBase {
+    override var canCheckForUpdates: Bool { true }
 }
