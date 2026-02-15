@@ -21,6 +21,14 @@
       "description": "Focus the most urgent AI coding session",
       "mode": "no-view",
       "keywords": ["focus", "switch", "jump", "active", "session"]
+    },
+    {
+      "name": "menu-bar-status",
+      "title": "Session Status",
+      "description": "Monitor AI coding sessions from the menubar",
+      "mode": "menu-bar",
+      "interval": "10s",
+      "keywords": ["status", "monitor", "menubar", "cctop"]
     }
   ],
   "scripts": {
