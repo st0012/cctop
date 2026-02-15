@@ -68,13 +68,10 @@ if ! command -v generate_appcast >/dev/null; then
     exit 1
 fi
 
-# Determine version from tag or app bundle
-if [[ -z "$VERSION" ]]; then
-    VERSION="${SPARKLE_RELEASE_VERSION:-}"
-fi
-if [[ -z "$VERSION" && -n "${GITHUB_REF_NAME:-}" ]]; then
-    VERSION="${GITHUB_REF_NAME#v}"
-fi
+# Determine version: --version flag > SPARKLE_RELEASE_VERSION env > git tag
+VERSION="${VERSION:-${SPARKLE_RELEASE_VERSION:-}}"
+VERSION="${VERSION:-${GITHUB_REF_NAME:+${GITHUB_REF_NAME#v}}}"
+
 if [[ -z "$VERSION" ]]; then
     echo "Error: Could not determine version. Use --version or set SPARKLE_RELEASE_VERSION." >&2
     exit 1

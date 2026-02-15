@@ -8,7 +8,7 @@ import Security
 /// Homebrew installs, and unsigned builds. `SparkleUpdater` wraps SPUStandardUpdaterController
 /// when Sparkle is available.
 @MainActor
-class UpdaterBase: ObservableObject {
+class UpdaterBase: NSObject, ObservableObject {
     @Published var pendingUpdateVersion: String?
     @Published var automaticallyChecksForUpdates: Bool = true
     @Published var automaticallyDownloadsUpdates: Bool = true
@@ -29,7 +29,6 @@ final class DisabledUpdater: UpdaterBase {
         super.init()
     }
 
-    override var canCheckForUpdates: Bool { false }
     override var disabledReason: String? { reason }
 }
 
@@ -73,7 +72,6 @@ final class SparkleUpdater: UpdaterBase, @preconcurrency SPUUpdaterDelegate {
     }
 
     override var canCheckForUpdates: Bool { true }
-    override var disabledReason: String? { nil }
 
     override func checkForUpdates() {
         controller.checkForUpdates(nil)
@@ -94,12 +92,7 @@ final class SparkleUpdater: UpdaterBase, @preconcurrency SPUUpdaterDelegate {
         state: SPUUserUpdateState
     ) {
         Task { @MainActor in
-            switch choice {
-            case .install, .skip:
-                self.pendingUpdateVersion = nil
-            case .dismiss:
-                break
-            @unknown default:
+            if choice != .dismiss {
                 self.pendingUpdateVersion = nil
             }
         }
@@ -122,10 +115,8 @@ private func isDeveloperIDSigned(bundleURL: URL) -> Bool {
           let certs = info[kSecCodeInfoCertificates as String] as? [SecCertificate],
           let leaf = certs.first else { return false }
 
-    if let summary = SecCertificateCopySubjectSummary(leaf) as String? {
-        return summary.hasPrefix("Developer ID Application:")
-    }
-    return false
+    let summary = SecCertificateCopySubjectSummary(leaf) as String?
+    return summary?.hasPrefix("Developer ID Application:") == true
 }
 
 @MainActor

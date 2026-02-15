@@ -1,6 +1,6 @@
+import KeyboardShortcuts
 import ServiceManagement
 import SwiftUI
-import KeyboardShortcuts
 
 struct AmberSegmentedPicker<Value: Hashable>: View {
     let options: [(value: Value, label: String)]
@@ -41,34 +41,13 @@ struct SettingsSection: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let version = updater.pendingUpdateVersion {
-                Button {
-                    updater.checkForUpdates()
-                } label: {
-                    HStack {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .foregroundStyle(Color.amber)
-                        Text("Update available: v\(version)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Text("Install Update")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Color.amber)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-                Divider().padding(.horizontal, 14)
-            } else if let reason = updater.disabledReason {
-                homebrewOrDisabledSection(reason: reason)
-                Divider().padding(.horizontal, 14)
-            } else if updater.canCheckForUpdates {
-                updateControlsSection
-                Divider().padding(.horizontal, 14)
-            }
-            monitoredToolsSection
+            updateSection
+            MonitoredToolsView(
+                pluginManager: pluginManager,
+                justInstalled: $justInstalled,
+                installFailed: $installFailed,
+                removeHovered: $removeHovered
+            )
             Divider().padding(.horizontal, 14)
             VStack(alignment: .leading, spacing: 8) {
                 Text("Appearance")
@@ -145,6 +124,37 @@ struct SettingsSection: View {
                 .stroke(Color.settingsBorder, lineWidth: 1)
         )
         .padding(.horizontal, 8)
+    }
+
+    @ViewBuilder
+    private var updateSection: some View {
+        if let version = updater.pendingUpdateVersion {
+            Button {
+                updater.checkForUpdates()
+            } label: {
+                HStack {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(Color.amber)
+                    Text("Update available: v\(version)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text("Install Update")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.amber)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
+            .buttonStyle(.plain)
+            Divider().padding(.horizontal, 14)
+        } else if let reason = updater.disabledReason {
+            homebrewOrDisabledSection(reason: reason)
+            Divider().padding(.horizontal, 14)
+        } else if updater.canCheckForUpdates {
+            updateControlsSection
+            Divider().padding(.horizontal, 14)
+        }
     }
 
     private var updateControlsSection: some View {
@@ -226,14 +236,6 @@ struct SettingsSection: View {
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
-    private var monitoredToolsSection: some View {
-        MonitoredToolsView(
-            pluginManager: pluginManager,
-            justInstalled: $justInstalled,
-            installFailed: $installFailed,
-            removeHovered: $removeHovered
-        )
-    }
 }
 
 // MARK: - Monitored Tools

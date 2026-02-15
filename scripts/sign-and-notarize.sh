@@ -29,12 +29,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ -z "$APP_PATH" ]; then
+if [[ -z "$APP_PATH" ]]; then
     echo "Usage: $0 [--dry-run] <path-to-.app>"
     exit 1
 fi
 
-if [ ! -d "$APP_PATH" ]; then
+if [[ ! -d "$APP_PATH" ]]; then
     echo "Error: $APP_PATH does not exist or is not a directory"
     exit 1
 fi
@@ -44,7 +44,7 @@ APP_PATH="$(cd "$(dirname "$APP_PATH")" && pwd)/$(basename "$APP_PATH")"
 
 ENTITLEMENTS="$(cd "$(dirname "$0")/.." && pwd)/menubar/CctopMenubar/CctopMenubar.entitlements"
 
-if [ ! -f "$ENTITLEMENTS" ]; then
+if [[ ! -f "$ENTITLEMENTS" ]]; then
     echo "Error: Entitlements file not found at $ENTITLEMENTS"
     exit 1
 fi
@@ -73,7 +73,7 @@ discover_signable_items() {
     main_exec="$app/Contents/MacOS/$(defaults read "$app/Contents/Info.plist" CFBundleExecutable 2>/dev/null || basename "$app" .app)"
     while IFS= read -r -d '' item; do
         # Skip the main app executable -- signed with the app bundle at the end
-        [ "$item" = "$main_exec" ] && continue
+        [[ "$item" = "$main_exec" ]] && continue
         # Skip dylibs -- already signed in step 1
         [[ "$item" == *.dylib ]] && continue
         items+=("$item")
@@ -89,7 +89,7 @@ discover_signable_items() {
         -print0 2>/dev/null)
 
     # 4. Main executable
-    if [ -f "$main_exec" ]; then
+    if [[ -f "$main_exec" ]]; then
         items+=("$main_exec")
     fi
 
@@ -101,7 +101,7 @@ discover_signable_items() {
 
 SIGNABLE_ITEMS=$(discover_signable_items "$APP_PATH")
 
-if [ "$DRY_RUN" = true ]; then
+if [[ "$DRY_RUN" = true ]]; then
     echo "==> DRY RUN: would sign and notarize $APP_PATH"
     echo ""
     echo "Signing order:"
@@ -117,8 +117,11 @@ if [ "$DRY_RUN" = true ]; then
     echo "  APPLE_IDENTITY     = ${APPLE_IDENTITY:-(not set)}"
     echo "  APPLE_TEAM_ID      = ${APPLE_TEAM_ID:-(not set)}"
     echo "  APPLE_ID           = ${APPLE_ID:-(not set)}"
-    echo "  APPLE_APP_PASSWORD = ${APPLE_APP_PASSWORD:+(set)}"
-    [ -z "${APPLE_APP_PASSWORD:-}" ] && echo "  APPLE_APP_PASSWORD = (not set)"
+    if [[ -n "${APPLE_APP_PASSWORD:-}" ]]; then
+        echo "  APPLE_APP_PASSWORD = (set)"
+    else
+        echo "  APPLE_APP_PASSWORD = (not set)"
+    fi
     echo ""
     echo "Post-sign steps:"
     echo "  1. Create zip with ditto"
@@ -129,7 +132,7 @@ fi
 
 # Validate required env vars
 for var in APPLE_IDENTITY APPLE_TEAM_ID APPLE_ID APPLE_APP_PASSWORD; do
-    if [ -z "${!var:-}" ]; then
+    if [[ -z "${!var:-}" ]]; then
         echo "Error: $var is not set"
         exit 1
     fi
@@ -153,7 +156,7 @@ echo "==> Verifying signature..."
 codesign --verify --verbose=2 "$APP_PATH"
 spctl --assess --type execute --verbose=2 "$APP_PATH" || echo "  (spctl check may fail without notarization)"
 
-if [ "$SIGN_ONLY" = true ]; then
+if [[ "$SIGN_ONLY" = true ]]; then
     echo "==> Done! $APP_PATH is signed (notarization skipped)."
     exit 0
 fi
