@@ -75,13 +75,16 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
       program.includes("cursor") ||
       program.includes("windsurf")
     ) {
-      // VS Code / Cursor / Windsurf: use CLI to focus the project or workspace
-      const cli = program.includes("cursor")
-        ? "cursor"
+      // Use macOS `open -a` to focus the editor window.
+      // Raycast's sandbox doesn't have /usr/local/bin in PATH so CLI tools
+      // like `code` can't be found, but `open` is in /usr/bin/ and uses
+      // Launch Services to resolve the app.
+      const appName = program.includes("cursor")
+        ? "Cursor"
         : program.includes("windsurf")
-          ? "windsurf"
-          : "code";
-      execFileSync(cli, [target]);
+          ? "Windsurf"
+          : "Visual Studio Code";
+      execFileSync("open", ["-a", appName, target]);
     } else if (program.includes("iterm")) {
       // iTerm2: use AppleScript to find and focus the specific session
       const guid = extractITermGUID(session.terminal?.session_id);
@@ -106,10 +109,12 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
 
     await closeMainWindow();
     await popToRoot();
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     await showToast({
       style: Toast.Style.Failure,
       title: "Failed to focus session",
+      message: msg,
     });
   }
 }
