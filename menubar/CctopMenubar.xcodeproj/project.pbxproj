@@ -502,6 +502,7 @@
 				INFOPLIST_KEY_NSMainStoryboardFile = "";
 				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/st0012/cctop/master/appcast.xml";
 				INFOPLIST_KEY_SUPublicEDKey = "7Ts0HFX10tBXROh8uS9x2Gvuy+K5g3WT48FFYSIR51g=";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 0.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.st0012.CctopMenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -527,6 +528,7 @@
 				INFOPLIST_KEY_NSMainStoryboardFile = "";
 				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/st0012/cctop/master/appcast.xml";
 				INFOPLIST_KEY_SUPublicEDKey = "7Ts0HFX10tBXROh8uS9x2Gvuy+K5g3WT48FFYSIR51g=";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
 				MARKETING_VERSION = 0.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.st0012.CctopMenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
