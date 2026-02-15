@@ -211,6 +211,98 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(session.workspaceFile)
     }
 
+    // MARK: - Source field
+
+    func testDecodesOpenCodeSessionJSON() throws {
+        let json = """
+        {
+            "session_id": "oc-session-1",
+            "project_path": "/Users/dev/api-server",
+            "project_name": "api-server",
+            "branch": "main",
+            "status": "working",
+            "last_prompt": "Fix the timeout bug",
+            "last_activity": "2026-02-14T12:00:00.500Z",
+            "started_at": "2026-02-14T11:00:00Z",
+            "terminal": {"program": "iTerm2", "session_id": "w0t0p0:ABC-123", "tty": "/dev/ttys003"},
+            "pid": 54321,
+            "pid_start_time": null,
+            "last_tool": "Bash",
+            "last_tool_detail": "go test ./...",
+            "notification_message": null,
+            "session_name": null,
+            "workspace_file": null,
+            "source": "opencode"
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+
+        XCTAssertEqual(session.sessionId, "oc-session-1")
+        XCTAssertEqual(session.projectName, "api-server")
+        XCTAssertEqual(session.status, .working)
+        XCTAssertEqual(session.source, "opencode")
+        XCTAssertEqual(session.sourceLabel, "OC")
+        XCTAssertEqual(session.pid, 54321)
+        XCTAssertNil(session.pidStartTime)
+    }
+
+    func testDecodesWithoutSourceField() throws {
+        let json = """
+        {
+            "session_id": "cc-session",
+            "project_path": "/tmp",
+            "project_name": "test",
+            "branch": "main",
+            "status": "idle",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "Code"}
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertNil(session.source)
+        XCTAssertEqual(session.sourceLabel, "CC")
+    }
+
+    func testSourceLabelOpencode() {
+        let session = Session.mock(source: "opencode")
+        XCTAssertEqual(session.sourceLabel, "OC")
+    }
+
+    func testSourceLabelDefault() {
+        let session = Session.mock()
+        XCTAssertEqual(session.sourceLabel, "CC")
+    }
+
+    func testSourceLabelUnknownValue() {
+        let session = Session.mock(source: "aider")
+        XCTAssertEqual(session.sourceLabel, "CC")
+    }
+
+    func testSourceCarriedInWithSessionId() {
+        let session = Session.mock(source: "opencode")
+        let carried = session.withSessionId("new-id")
+        XCTAssertEqual(carried.source, "opencode")
+        XCTAssertEqual(carried.sessionId, "new-id")
+    }
+
+    // MARK: - Case-insensitive tool display
+
+    func testContextLineLowercaseToolName() {
+        let session = Session.mock(status: .working, lastTool: "bash", lastToolDetail: "go test ./...")
+        XCTAssertEqual(session.contextLine, "Running: go test ./...")
+    }
+
+    func testContextLineLowercaseEdit() {
+        let session = Session.mock(status: .working, lastTool: "edit", lastToolDetail: "/src/main.go")
+        XCTAssertEqual(session.contextLine, "Editing main.go")
+    }
+
+    func testContextLineLowercaseRead() {
+        let session = Session.mock(status: .working, lastTool: "read", lastToolDetail: "/src/config.ts")
+        XCTAssertEqual(session.contextLine, "Reading config.ts")
+    }
+
     func testOldJsonWithContextCompactedStillDecodes() throws {
         let json = """
         {

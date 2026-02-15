@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import KeyboardShortcuts
+import os.log
 import SwiftUI
 import UserNotifications
 
@@ -9,6 +10,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var panel: FloatingPanel!
     private var sessionManager: SessionManager!
     private var updateChecker: UpdateChecker!
+    private var pluginManager: PluginManager!
     private var cancellable: AnyCancellable?
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
@@ -20,10 +22,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         sessionManager = SessionManager()
         updateChecker = UpdateChecker()
+        pluginManager = PluginManager()
 
         setupStatusItem()
 
-        let contentView = PanelContentView(sessionManager: sessionManager, updateChecker: updateChecker)
+        let contentView = PanelContentView(sessionManager: sessionManager, updateChecker: updateChecker, pluginManager: pluginManager)
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
         hostingView.layer?.cornerRadius = 10
@@ -202,10 +205,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
     @ObservedObject var updateChecker: UpdateChecker
+    @ObservedObject var pluginManager: PluginManager
     var body: some View {
-        PopupView(sessions: sessionManager.sessions, resetSession: sessionManager.resetSession, updateAvailable: updateChecker.updateAvailable)
-            .frame(width: 320)
-            .background(Color.panelBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+        PopupView(
+            sessions: sessionManager.sessions,
+            resetSession: sessionManager.resetSession,
+            updateAvailable: updateChecker.updateAvailable,
+            pluginManager: pluginManager
+        )
+        .frame(width: 320)
+        .background(Color.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }

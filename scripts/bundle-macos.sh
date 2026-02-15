@@ -59,6 +59,10 @@ cp -R "$REPO_ROOT/menubar/build/Build/Products/Release/CctopMenubar.app" "$APP"
 # Copy cctop-hook into the app bundle
 cp "$REPO_ROOT/menubar/build/Build/Products/Release/cctop-hook" "$APP/Contents/MacOS/cctop-hook"
 
+# Copy opencode plugin into Resources
+mkdir -p "$APP/Contents/Resources"
+cp "$REPO_ROOT/plugins/opencode/plugin.js" "$APP/Contents/Resources/opencode-plugin.js"
+
 # Ad-hoc sign (innermost first — no --deep)
 echo "==> Signing app bundle..."
 

@@ -52,6 +52,10 @@ HOOK_MAIN="$REPO_ROOT/menubar/CctopMenubar/Hook/HookMain.swift"
 sed -i '' "s/static let version = \".*\"/static let version = \"$NEW_VERSION\"/" "$HOOK_MAIN"
 echo "  Updated HookMain.swift version"
 
+# 7. plugins/opencode/package.json
+sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$REPO_ROOT/plugins/opencode/package.json"
+echo "  Updated plugins/opencode/package.json"
+
 echo ""
 echo "Done! Version bumped to $NEW_VERSION in all files."
 echo "Verify with: grep -r '\"$NEW_VERSION\"' packaging/ plugins/ .claude-plugin/"

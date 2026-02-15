@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-cctop is a macOS menubar app for monitoring Claude Code sessions across workspaces. It tracks session status (idle, working, needs attention) via Claude Code hooks and allows jumping to sessions.
+cctop is a macOS menubar app for monitoring AI coding sessions across workspaces. It tracks session status (idle, working, needs attention) via tool-specific plugins and allows jumping to sessions. Works with Claude Code and opencode.
 
 ## MUST FOLLOW: Development Principles
 
@@ -34,6 +34,9 @@ cctop/
 │   ├── .claude-plugin/plugin.json
 │   ├── hooks/hooks.json
 │   └── skills/cctop-setup/SKILL.md
+├── plugins/opencode/  # opencode plugin (JS, runs in-process in Bun)
+│   ├── plugin.js      # Event handler, writes session JSON directly
+│   └── package.json   # Plugin manifest
 ├── scripts/
 │   └── bundle-macos.sh   # Build and bundle .app
 ├── packaging/
@@ -62,7 +65,7 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 
 **Visual verification:** Open the Xcode project and use SwiftUI Previews (Canvas) for instant visual feedback. All views have `#Preview` blocks with mock data.
 
-**Data flow:** The menubar app reads `~/.cctop/sessions/*.json` files written by `cctop-hook` (Swift CLI). Both are built from the same Xcode project with shared model code.
+**Data flow:** The menubar app reads `~/.cctop/sessions/*.json` files. These are written by `cctop-hook` (Swift CLI, for Claude Code) or the opencode JS plugin. Both Xcode targets share model code.
 
 **Key files:**
 - `menubar/CctopMenubar/AppDelegate.swift` — NSStatusItem + FloatingPanel management
@@ -76,17 +79,27 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 - `menubar/CctopMenubar/Hook/HookMain.swift` — CLI entry point (cctop-hook target only)
 - `menubar/CctopMenubar/Hook/HookHandler.swift` — Core hook logic (cctop-hook target only)
 - `menubar/CctopMenubar/Hook/SessionNameLookup.swift` — Session name lookup from transcript/index (cctop-hook target only)
+- `plugins/opencode/plugin.js` — opencode plugin (event handler, writes session JSON directly)
 
 ## Key Components
 
 ### Binaries
 - `CctopMenubar.app` - macOS menubar app (Swift/SwiftUI, built via Xcode)
 - `cctop-hook` - Hook handler called by Claude Code (Swift CLI, Xcode target in same project)
+- `plugins/opencode/plugin.js` - opencode plugin (JS, runs in-process in Bun, zero dependencies)
 
 ### Data Flow
+
+**Claude Code path:**
 1. Claude Code fires hooks (SessionStart, UserPromptSubmit, Stop, etc.)
-2. `cctop-hook` receives JSON via stdin, writes session files to `~/.cctop/sessions/`
-3. The menubar app (SessionManager file watcher) reads these files and displays live status
+2. `run-hook.sh` (shell shim) dispatches to `cctop-hook` (Swift CLI)
+3. `cctop-hook` writes session files to `~/.cctop/sessions/`
+
+**opencode path:**
+1. opencode fires plugin events (session.created, chat.message, tool.execute.before, etc.)
+2. `plugin.js` runs in-process and writes session files directly to `~/.cctop/sessions/`
+
+**Both paths converge:** The menubar app (SessionManager file watcher) reads `~/.cctop/sessions/*.json` and displays live status regardless of source. Sessions include a `source` field (`nil` for Claude Code, `"opencode"` for opencode).
 
 ## Development Commands
 
@@ -150,7 +163,28 @@ cat ~/.cctop/sessions/test123.json
 rm ~/.cctop/sessions/test123.json
 ```
 
+## Testing the opencode Plugin
+
+The opencode plugin (`plugins/opencode/plugin.js`) is installed via the menubar app when the user clicks "Install Plugin" in Settings > Monitored Tools or via the install banner that appears when opencode is detected (`~/.config/opencode/` exists). The bundled plugin is copied to `~/.config/opencode/plugins/cctop.js`.
+
+For local development, you can manually copy your modified plugin to override the installed version:
+
+```bash
+# Override the installed plugin with your local changes
+cp plugins/opencode/plugin.js ~/.config/opencode/plugins/cctop.js
+
+# Start an opencode session — a session file should appear
+ls ~/.cctop/sessions/
+
+# Check the session file includes source: "opencode"
+cat ~/.cctop/sessions/*.json | jq '.source'
+```
+
+Note: The app only installs the plugin when the user explicitly clicks "Install Plugin" — it will not overwrite your local changes automatically. However, if you click "Install Plugin" again from the UI, it will overwrite with the bundled version.
+
 ## Plugin Installation (Local Development)
+
+### Claude Code
 
 ```bash
 # Add the local marketplace
@@ -165,12 +199,23 @@ ls ~/.claude/plugins/cache/cctop/
 
 After installing, **restart Claude Code sessions** to pick up the hooks.
 
+### opencode
+
+The menubar app detects opencode when `~/.config/opencode/` exists and offers to install the plugin via the UI (Settings > Monitored Tools or the install banner). Click "Install Plugin", then restart opencode.
+
 ## Common Issues
 
-### Hooks not firing
+### Hooks not firing (Claude Code)
 - Check if plugin is installed: `claude plugin list`
 - Hooks only load at session start - restart the session
 - Check debug logs: `grep cctop ~/.claude/debug/<session-id>.txt`
+
+### Plugin not working (opencode)
+- The app detects opencode when `~/.config/opencode/` exists and offers to install via the UI
+- Install the plugin via Settings > Monitored Tools or the install banner
+- Check if plugin file exists: `ls ~/.config/opencode/plugins/cctop.js`
+- Restart opencode after installing the plugin
+- Check for session files: `ls ~/.cctop/sessions/`
 
 ### "command not found" errors
 - Hooks search for `cctop-hook` in `/Applications/cctop.app/Contents/MacOS/` and `~/Applications/cctop.app/Contents/MacOS/`
@@ -189,7 +234,9 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 
 ## Session Status Logic
 
-6-status model with forward-compatible decoding (unknown statuses map to `.needsAttention`). Transitions are centralized in `HookEvent.swift` with typed `HookEvent` enum and `Transition` struct.
+6-status model with forward-compatible decoding (unknown statuses map to `.needsAttention`). Transitions are centralized in `HookEvent.swift` (Claude Code) and `plugin.js` (opencode).
+
+### Claude Code Hook Events
 
 | Hook Event | Status |
 |------------|--------|
@@ -203,7 +250,28 @@ After installing, **restart Claude Code sessions** to pick up the hooks.
 | PermissionRequest | waiting_permission |
 | PreCompact | compacting |
 
-Note: Session files are keyed by PID (`{pid}.json`), not session_id. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse. SessionEnd hook is no longer used — dead sessions are detected via PID liveness + start time checking.
+### opencode Plugin Events
+
+| Plugin Event | Status |
+|------------|--------|
+| session.created | idle |
+| chat.message | working |
+| tool.execute.before | working (sets last_tool/last_tool_detail) |
+| tool.execute.after | working |
+| session.idle | waiting_input (opencode is always interactive) |
+| session.status (busy) | working |
+| session.status (retry) | needs_attention |
+| permission.ask | waiting_permission |
+| permission.replied | working |
+| session.error | needs_attention |
+| session.updated | (extracts session title) |
+| session.deleted | no-op (liveness check handles cleanup) |
+| experimental.session.compacting | compacting |
+| session.compacted | idle |
+
+### Session File Format
+
+Session files are keyed by PID (`{pid}.json`), not session_id. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse. Dead sessions are detected via PID liveness + start time checking. opencode sessions include `"source": "opencode"` in the JSON; Claude Code sessions omit the field (nil = Claude Code).
 
 ## Hook Delivery Debugging
 
@@ -265,6 +333,27 @@ grep 'SHIM' ~/.cctop/logs/<session-id>.log
 
 # Check pre-parse errors
 cat ~/.cctop/logs/_errors.log
+```
+
+## opencode Plugin Debugging
+
+The opencode plugin runs in-process (no SHIM/HOOK chain). Debugging is simpler:
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| No session file appears | Plugin not installed or not loaded | Install via Settings > Monitored Tools, verify `~/.config/opencode/plugins/cctop.js` exists, restart opencode |
+| Session file appears but status doesn't update | Plugin event handler error | Check opencode logs for JS errors |
+| Session stuck in waiting_permission | `permission.replied` event not handled | Update plugin to latest version |
+
+```bash
+# Check if the plugin is installed
+ls ~/.config/opencode/plugins/cctop.js
+
+# Check if session files are being written
+ls -lt ~/.cctop/sessions/
+
+# Verify the source field
+cat ~/.cctop/sessions/*.json | jq '{project: .project_name, status: .status, source: .source}'
 ```
 
 ## General Debugging Tips

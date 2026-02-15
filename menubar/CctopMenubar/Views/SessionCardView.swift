@@ -1,7 +1,14 @@
 import SwiftUI
 
+extension Session {
+    var sourceBadgeColor: Color {
+        source == "opencode" ? .blue : .amber
+    }
+}
+
 struct SessionCardView: View {
     let session: Session
+    var showSourceBadge = false
     var onReset: ((Session) -> Void)?
     @State private var isHovered = false
     @State private var resetHovered = false
@@ -24,6 +31,16 @@ struct SessionCardView: View {
                 Text(session.projectName)
                     .font(.system(size: 13))
                     .foregroundStyle(.primary)
+
+                if showSourceBadge {
+                    Text(session.sourceLabel)
+                        .font(.system(size: 9))
+                        .foregroundStyle(session.sourceBadgeColor)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(session.sourceBadgeColor.opacity(0.1))
+                        .clipShape(Capsule())
+                }
 
                 Spacer()
 
@@ -139,4 +156,18 @@ struct SessionCardView: View {
 #Preview("Named Session") {
     SessionCardView(session: .mock(sessionName: "refactor auth flow", status: .working, lastTool: "Edit", lastToolDetail: "/src/auth.ts"))
         .frame(width: 300).padding()
+}
+#Preview("Source Badge CC") {
+    SessionCardView(
+        session: .mock(status: .working, lastTool: "Edit", lastToolDetail: "/src/main.rs"),
+        showSourceBadge: true
+    )
+    .frame(width: 300).padding()
+}
+#Preview("Source Badge OC") {
+    SessionCardView(
+        session: .mock(status: .working, lastTool: "bash", lastToolDetail: "go test ./...", source: "opencode"),
+        showSourceBadge: true
+    )
+    .frame(width: 300).padding()
 }

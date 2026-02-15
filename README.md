@@ -3,18 +3,18 @@
 [![GitHub release](https://img.shields.io/github/v/release/st0012/cctop)](https://github.com/st0012/cctop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Know which Claude Code sessions need you — without switching tabs.**
+**Know which AI coding sessions need you in one place.**
 
-A macOS menubar app that shows the status of every Claude Code session at a glance — so you only switch when something actually needs you.
+A macOS menubar app that monitors your AI coding sessions at a glance — so you only switch when something actually needs you. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
 
 <p align="center">
-  <img src="docs/menubar-screenshot.png" alt="cctop menubar popup" width="380">
+  <img src="docs/menubar-screenshot.png" alt="cctop menubar popup" width="340">
 </p>
 
-<p align="center"><em>Monitoring 4 Claude Code sessions across projects.</em></p>
+<p align="center"><em>Monitoring Claude Code and opencode sessions side by side.</em></p>
 
 <p align="center">
-  <img src="docs/menubar-dark.png" alt="cctop status badges" width="340">
+  <img src="docs/menubar-dark.png" alt="cctop dark mode" width="340">
 </p>
 
 <p align="center"><em>Status badges show what's urgent — permission requests, waiting input, or still working.</em></p>
@@ -24,7 +24,7 @@ A macOS menubar app that shows the status of every Claude Code session at a glan
 - Lives in your menubar — one click or a keyboard shortcut away
 - Color-coded status badges: idle, working, waiting for input, waiting for permission, compacting
 - See what each session is doing: the current prompt, tool being used, or last activity
-- Click a session to jump to its VS Code or Cursor window
+- Click a session to jump to its VS Code/Cursor/iTerm window
 - Native macOS app — lightweight, always running, no Electron
 
 ## Installation
@@ -40,16 +40,9 @@ brew install --cask cctop
 
 Or [download the latest release](https://github.com/st0012/cctop/releases/latest) — the app is signed and notarized by Apple.
 
-### Step 2: Install the Claude Code plugin (required)
+### Step 2: Connect your tools
 
-The app needs this plugin to receive session events from Claude Code.
-
-```bash
-claude plugin marketplace add st0012/cctop
-claude plugin install cctop
-```
-
-Restart any running Claude Code sessions to activate (`/exit` then reopen). New sessions are tracked automatically — no per-project config needed.
+Follow the app's instructions to install Claude Code and/or opencode plugin.
 
 ## Privacy
 
@@ -71,11 +64,11 @@ cat ~/.cctop/sessions/*.json | python3 -m json.tool
 
 ## FAQ
 
-**Does cctop slow down Claude Code?**
-No. The hook runs as a separate process that writes a small JSON file and exits immediately. There is no measurable impact on Claude Code performance.
+**Does cctop slow down my coding tool?**
+No. The plugin writes a small JSON file on each event and returns immediately. There is no measurable impact on performance.
 
 **Do I need to configure anything per project?**
-No. Once the plugin is installed, all Claude Code sessions are automatically tracked. No per-project setup required.
+No. Once the plugin is installed, all sessions are automatically tracked. No per-project setup required.
 
 **Does it work with VS Code and Cursor?**
 Yes. Clicking a session card focuses the correct project window.
@@ -90,10 +83,19 @@ Yes. Clicking a session card raises the correct iTerm2 window, selects the tab, 
 It activates the app but cannot target a specific terminal tab. You'll need to find the right tab manually.
 
 **How does cctop name sessions?**
-By default, the project directory name (e.g. `/path/to/my-app` shows as "my-app"). If you rename a session with `/rename` in Claude Code, cctop picks that up too.
+By default, the project directory name (e.g. `/path/to/my-app` shows as "my-app"). In Claude Code, you can rename a session with `/rename` and cctop picks that up.
+
+**No sessions are showing up — what do I check?**
+First, make sure you restarted sessions after installing the plugin. Then check if session files exist: `ls ~/.cctop/sessions/`. If the directory is empty, the plugin isn't writing data — verify it's installed correctly (see Step 2). If files exist but the menubar shows nothing, try restarting the cctop app.
+
+**What happens if opencode (or Claude Code) crashes?**
+cctop detects dead sessions automatically. It checks whether each session's process is still running and removes stale entries. No manual cleanup needed.
+
+**Does the opencode plugin need Node.js or Bun installed separately?**
+No. The plugin runs inside opencode's built-in Bun runtime. You don't need to install anything beyond the plugin file itself.
 
 **Why does the app need to be in /Applications/?**
-The plugin looks for `cctop-hook` inside `/Applications/cctop.app`. Installing elsewhere breaks the hook path.
+The Claude Code plugin looks for `cctop-hook` inside `/Applications/cctop.app`. Installing elsewhere breaks the hook path. (The opencode plugin writes session files directly and does not need the app in a specific location.)
 
 ## Uninstall
 
@@ -105,6 +107,9 @@ rm -rf /Applications/cctop.app
 claude plugin remove cctop
 claude plugin marketplace remove cctop
 
+# Remove the opencode plugin
+rm ~/.config/opencode/plugins/cctop.js
+
 # Remove session data and config
 rm -rf ~/.cctop
 ```
@@ -114,25 +119,34 @@ If installed via Homebrew: `brew uninstall --cask cctop`
 <details>
 <summary>How it works</summary>
 
+Both tools write to the same session store — the menubar app doesn't care where the data comes from.
+
 ```
-┌─────────────┐    hook fires     ┌────────────┐    writes JSON    ┌───────────────────┐
-│ Claude Code │ ────────────────> │ cctop-hook │ ────────────────> │ ~/.cctop/sessions │
-│  (session)  │  SessionStart,    │   (CLI)    │   per-session     │   ├── abc.json    │
-│             │  Stop, PreTool,   │            │   state file      │   ├── def.json    │
-│             │  Notification,…   │            │                   │   └── ghi.json    │
-└─────────────┘                   └────────────┘                   └──────────┬────────┘
-                                                                              │ file watcher
-                                                                              ▼
-                                                                      ┌──────────────┐
-                                                                      │ Menubar app  │
-                                                                      │ (live status)│
-                                                                      └──────────────┘
+┌─────────────┐    hook fires     ┌────────────┐
+│ Claude Code │ ────────────────> │ cctop-hook │ ──┐
+│  (session)  │  SessionStart,    │  (Swift)   │   │  writes JSON
+│             │  Stop, PreTool,   │            │   │  per-session
+└─────────────┘  Notification,…   └────────────┘   │
+                                                   ▼
+                                           ┌───────────────────┐
+                                           │ ~/.cctop/sessions │
+                                           │   ├── 123.json    │
+                                           │   ├── 456.json    │
+                                           │   └── 789.json    │
+                                           └──────────┬────────┘
+┌─────────────┐   plugin event    ┌────────────┐  ▲   │
+│  opencode   │ ────────────────> │ JS plugin  │ ─┘   │ file watcher
+│  (session)  │  session.status,  │            │      ▼
+│             │  tool.execute,…   │            │  ┌──────────────┐
+└─────────────┘                   └────────────┘  │ Menubar app  │
+                                                  │ (live status)│
+                                                  └──────────────┘
 ```
 
-1. The cctop plugin registers hooks with Claude Code
-2. When session events fire (start, prompt, tool use, stop, notifications), Claude Code invokes `cctop-hook`
-3. `cctop-hook` writes/updates a JSON state file per session in `~/.cctop/sessions/`
-4. The menubar app watches this directory and displays live status for all sessions
+1. Each tool has its own plugin that translates events into session state
+2. **Claude Code**: hooks invoke `cctop-hook` (a Swift CLI), which writes JSON session files
+3. **opencode**: a JS plugin listens to events and writes the same JSON format directly
+4. Both write to `~/.cctop/sessions/` — the menubar app watches this directory and displays live status
 
 </details>
 
