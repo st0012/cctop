@@ -36,8 +36,9 @@ import { CctopSession } from "./types";
 
 /** Check if sessions come from multiple sources (CC + OC) */
 function hasMultipleSources(sessions: CctopSession[]): boolean {
-  const sources = new Set(sessions.map((s) => s.source ?? null));
-  return sources.size > 1;
+  if (sessions.length === 0) return false;
+  const firstSource = sessions[0].source ?? null;
+  return sessions.some((s) => (s.source ?? null) !== firstSource);
 }
 
 /** Whether to use sectioned display: >= 3 sessions AND >= 2 status groups */
@@ -310,10 +311,11 @@ export default function ShowSessions() {
   const attentionCount = allSessions.filter((s) =>
     needsAttention(s.status),
   ).length;
+  const sessionWord = allSessions.length === 1 ? "session" : "sessions";
   const navTitle =
     attentionCount > 0
       ? `${allSessions.length} sessions (${attentionCount} need attention)`
-      : `${allSessions.length} session${allSessions.length !== 1 ? "s" : ""}`;
+      : `${allSessions.length} ${sessionWord}`;
 
   const dirExists = existsSync(getSessionsDir());
 
@@ -370,17 +372,15 @@ export default function ShowSessions() {
         />
       )}
       {sectioned
-        ? groupSessions(filteredSessions).map(
-            ({ group, sessions: groupSessions }) => (
-              <List.Section
-                key={group}
-                title={group}
-                subtitle={`${groupSessions.length}`}
-              >
-                {groupSessions.map(renderItem)}
-              </List.Section>
-            ),
-          )
+        ? groupSessions(filteredSessions).map(({ group, sessions: items }) => (
+            <List.Section
+              key={group}
+              title={group}
+              subtitle={`${items.length}`}
+            >
+              {items.map(renderItem)}
+            </List.Section>
+          ))
         : filteredSessions.map(renderItem)}
     </List>
   );

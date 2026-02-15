@@ -75,15 +75,9 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
       program.includes("cursor") ||
       program.includes("windsurf")
     ) {
-      // Use macOS `open -a` to focus the editor window.
-      // Raycast's sandbox doesn't have /usr/local/bin in PATH so CLI tools
-      // like `code` can't be found, but `open` is in /usr/bin/ and uses
-      // Launch Services to resolve the app.
-      const appName = program.includes("cursor")
-        ? "Cursor"
-        : program.includes("windsurf")
-          ? "Windsurf"
-          : "Visual Studio Code";
+      let appName = "Visual Studio Code";
+      if (program.includes("cursor")) appName = "Cursor";
+      else if (program.includes("windsurf")) appName = "Windsurf";
       execFileSync("open", ["-a", appName, target]);
     } else if (program.includes("iterm")) {
       // iTerm2: use AppleScript to find and focus the specific session

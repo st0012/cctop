@@ -37,13 +37,12 @@ export function isAlive(pid: number): boolean {
 }
 
 /**
- * Forward-compatible status parsing matching SessionStatus.init(from:) in SessionStatus.swift.
- * Known statuses pass through. Unknown statuses containing "waiting" map to needs_attention,
- * all other unknown statuses map to working.
+ * Forward-compatible status parsing matching SessionStatus.init(from:).
+ * Known statuses pass through; unknown statuses fall back to needs_attention or working.
  */
 function parseStatus(raw: string): SessionStatus {
-  const known = KNOWN_STATUSES as readonly string[];
-  if (known.includes(raw)) return raw as SessionStatus;
+  if ((KNOWN_STATUSES as readonly string[]).includes(raw))
+    return raw as SessionStatus;
   return raw.includes("waiting") ? "needs_attention" : "working";
 }
 
@@ -128,22 +127,15 @@ export function sourceLabel(session: CctopSession): string {
 }
 
 /**
- * Extract the last path component from a file path.
- */
-function fileName(path: string): string {
-  return basename(path);
-}
-
-/**
- * Format tool display matching Session.swift formatToolDisplay (lines 308-322).
- * Case-insensitive tool name matching (opencode sends lowercase, Claude Code sends capitalized).
+ * Format tool display matching Session.swift formatToolDisplay.
+ * Case-insensitive matching (opencode sends lowercase, Claude Code sends capitalized).
  */
 export function formatToolDisplay(
   tool: string,
   detail?: string | null,
 ): string {
   if (!detail) return `${tool}...`;
-  const name = fileName(detail);
+  const name = basename(detail);
   switch (tool.toLowerCase()) {
     case "bash":
       return `Running: ${detail.substring(0, 30)}`;
@@ -168,16 +160,14 @@ export function formatToolDisplay(
   }
 }
 
-/**
- * Truncated last_prompt in quotes, matching Session.swift promptSnippet.
- */
+/** Truncated last_prompt in quotes, matching Session.swift promptSnippet. */
 function promptSnippet(session: CctopSession): string | null {
   if (!session.last_prompt) return null;
   return `"${session.last_prompt.substring(0, 36)}"`;
 }
 
 /**
- * Context line matching Session.swift contextLine (lines 288-302).
+ * Context line matching Session.swift contextLine.
  * Returns null for idle sessions.
  */
 export function contextLine(session: CctopSession): string | null {
@@ -201,9 +191,7 @@ export function contextLine(session: CctopSession): string | null {
   }
 }
 
-/**
- * Relative time string matching Session.swift relativeTime (lines 279-286).
- */
+/** Relative time string matching Session.swift relativeTime. */
 export function relativeTime(isoDate: string): string {
   const seconds = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
   if (isNaN(seconds)) return "unknown";
@@ -214,10 +202,7 @@ export function relativeTime(isoDate: string): string {
   return `${seconds}s ago`;
 }
 
-/**
- * Whether a session status needs user attention.
- * Matches SessionStatus.swift needsAttention (lines 16-20).
- */
+/** Whether a session status needs user attention. Matches SessionStatus.swift needsAttention. */
 export function needsAttention(status: SessionStatus): boolean {
   return (
     status === "waiting_permission" ||
