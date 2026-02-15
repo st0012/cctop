@@ -25,6 +25,8 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_16.3.app
 
       - name: Build and bundle
+        env:
+          SPARKLE_ED25519_PUBLIC_KEY: ${{ secrets.SPARKLE_ED25519_PUBLIC_KEY }}
         run: ./scripts/bundle-macos.sh --arch ${{ matrix.arch }}
 
       - name: Sign and notarize
@@ -150,6 +152,46 @@ jobs:
             artifacts/cctop-macOS-arm64-dmg/cctop-macOS-arm64.dmg
             artifacts/cctop-macOS-x86_64-dmg/cctop-macOS-x86_64.dmg
           body_path: ${{ runner.temp }}/release-body.md
+
+  update-appcast:
+    name: Update Sparkle Appcast
+    needs: release
+    runs-on: macos-15
+    if: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: artifacts
+
+      - name: Install Sparkle tools
+        run: brew install sparkle
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate appcast
+        env:
+          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+        run: |
+          ./scripts/generate-appcast.sh \
+            --version ${{ steps.version.outputs.version }} \
+            artifacts/cctop-macOS-arm64/cctop-macOS-arm64.zip \
+            artifacts/cctop-macOS-x86_64/cctop-macOS-x86_64.zip
+
+      - name: Commit and push appcast
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git diff --cached --quiet && echo "No changes to appcast.xml" && exit 0
+          git commit -m "Update appcast.xml for v${{ steps.version.outputs.version }}"
+          git push origin HEAD:master
 
   update-homebrew:
     name: Update Homebrew Tap

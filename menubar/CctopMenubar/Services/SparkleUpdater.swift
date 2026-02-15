@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Security
 
@@ -9,6 +10,8 @@ import Security
 @MainActor
 class UpdaterBase: ObservableObject {
     @Published var pendingUpdateVersion: String?
+    @Published var automaticallyChecksForUpdates: Bool = true
+    @Published var automaticallyDownloadsUpdates: Bool = true
 
     var canCheckForUpdates: Bool { false }
     var disabledReason: String? { nil }
@@ -41,6 +44,7 @@ final class SparkleUpdater: UpdaterBase, @preconcurrency SPUUpdaterDelegate {
         startingUpdater: false,
         updaterDelegate: self,
         userDriverDelegate: nil)
+    private var cancellables = Set<AnyCancellable>()
 
     override init() {
         super.init()
@@ -48,7 +52,24 @@ final class SparkleUpdater: UpdaterBase, @preconcurrency SPUUpdaterDelegate {
         let autoUpdate = (UserDefaults.standard.object(forKey: "autoUpdateEnabled") as? Bool) ?? true
         updater.automaticallyChecksForUpdates = autoUpdate
         updater.automaticallyDownloadsUpdates = autoUpdate
+        automaticallyChecksForUpdates = autoUpdate
+        automaticallyDownloadsUpdates = autoUpdate
         controller.startUpdater()
+
+        // Forward toggle changes to Sparkle's updater
+        $automaticallyChecksForUpdates
+            .dropFirst()
+            .sink { [weak self] newValue in
+                self?.controller.updater.automaticallyChecksForUpdates = newValue
+                UserDefaults.standard.set(newValue, forKey: "autoUpdateEnabled")
+            }
+            .store(in: &cancellables)
+        $automaticallyDownloadsUpdates
+            .dropFirst()
+            .sink { [weak self] newValue in
+                self?.controller.updater.automaticallyDownloadsUpdates = newValue
+            }
+            .store(in: &cancellables)
     }
 
     override var canCheckForUpdates: Bool { true }
@@ -116,7 +137,7 @@ func makeUpdater() -> UpdaterBase {
         return DisabledUpdater(reason: "Updates unavailable in development builds.")
     }
 
-    if InstallOrigin.isHomebrewCask(appBundleURL: bundleURL) {
+    if InstallOrigin.isHomebrewCask() {
         return DisabledUpdater(reason: "Updates managed by Homebrew.")
     }
 

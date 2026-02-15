@@ -27,6 +27,12 @@ BUILD_DIR="$REPO_ROOT/dist"
 
 XCODE_ARCHS="${ARCH:-$(uname -m)}"
 
+# Forward Sparkle public key to xcodebuild when available (CI sets this via secrets)
+SPARKLE_ARGS=()
+if [[ -n "${SPARKLE_ED25519_PUBLIC_KEY:-}" ]]; then
+    SPARKLE_ARGS+=("SPARKLE_ED25519_PUBLIC_KEY=$SPARKLE_ED25519_PUBLIC_KEY")
+fi
+
 if [ "$SKIP_BUILD" = false ]; then
     echo "==> Building CctopMenubar app..."
     xcodebuild build \
@@ -36,7 +42,8 @@ if [ "$SKIP_BUILD" = false ]; then
         -derivedDataPath "$REPO_ROOT/menubar/build/" \
         CODE_SIGN_IDENTITY="-" \
         ARCHS="$XCODE_ARCHS" \
-        ONLY_ACTIVE_ARCH=NO
+        ONLY_ACTIVE_ARCH=NO \
+        "${SPARKLE_ARGS[@]}"
 
     echo "==> Building cctop-hook CLI..."
     xcodebuild build \
@@ -66,11 +73,11 @@ cp "$REPO_ROOT/plugins/opencode/plugin.js" "$APP/Contents/Resources/opencode-plu
 # Ad-hoc sign (innermost first — no --deep)
 echo "==> Signing app bundle..."
 
-# Sign nested bundles/frameworks first
+# Sign nested bundles/frameworks first (includes Sparkle's XPC services and helper apps)
 while IFS= read -r -d '' nested; do
     echo "  Signing $(basename "$nested")..."
     codesign --force --sign - "$nested"
-done < <(find "$APP/Contents" -depth \( -name "*.bundle" -o -name "*.framework" -o -name "*.dylib" \) -print0)
+done < <(find "$APP/Contents" -depth \( -name "*.bundle" -o -name "*.framework" -o -name "*.xpc" -o -name "*.app" -o -name "*.appex" -o -name "*.dylib" \) -print0)
 
 # Sign cctop-hook
 echo "  Signing cctop-hook..."

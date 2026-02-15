@@ -490,6 +490,8 @@
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "cctop needs to control terminal apps to focus the correct window when you click a session.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = "";
+				INFOPLIST_KEY_SUFeedURL = "https://st0012.github.io/cctop/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "$(SPARKLE_ED25519_PUBLIC_KEY)";
 				MARKETING_VERSION = 0.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.st0012.CctopMenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -512,6 +514,8 @@
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "cctop needs to control terminal apps to focus the correct window when you click a session.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSMainStoryboardFile = "";
+				INFOPLIST_KEY_SUFeedURL = "https://st0012.github.io/cctop/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "$(SPARKLE_ED25519_PUBLIC_KEY)";
 				MARKETING_VERSION = 0.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.st0012.CctopMenubar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
