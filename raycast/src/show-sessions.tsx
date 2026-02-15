@@ -204,7 +204,7 @@ function SessionActions({
         shortcut={{ modifiers: ["cmd"], key: "c" }}
       />
       <Action.CopyToClipboard
-        title="Copy Session ID"
+        title="Copy Session Id"
         content={session.session_id}
         shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
       />
@@ -337,7 +337,7 @@ export default function ShowSessions() {
         !dirExists ? (
           <ActionPanel>
             <Action.OpenInBrowser
-              title="Cctop Setup Guide"
+              title="Open Setup Guide"
               url="https://github.com/st0012/cctop#readme"
             />
           </ActionPanel>
