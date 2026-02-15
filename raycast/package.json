@@ -19,7 +19,8 @@
   "scripts": {
     "build": "ray build",
     "dev": "ray develop",
-    "lint": "ray lint"
+    "lint": "ray lint",
+    "publish": "npx @raycast/api@latest publish"
   },
   "dependencies": {
     "@raycast/api": "^1.87.0",
