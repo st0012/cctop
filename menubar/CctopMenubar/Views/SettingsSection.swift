@@ -160,30 +160,29 @@ struct SettingsSection: View {
         }
     }
 
-    private var updateControlsSection: some View {
-        VStack(spacing: 0) {
-            Toggle(isOn: $updater.automaticallyChecksForUpdates) {
-                Text("Automatic Updates")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.textSecondary)
-            }
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
+    private var currentVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
 
+    private var updateControlsSection: some View {
+        HStack {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            Text("Up to date \u{2014} v\(currentVersion)")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.primary)
+            Spacer()
             Button {
                 updater.checkForUpdates()
             } label: {
-                Text("Check for Updates\u{2026}")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 8)
+                Text("Check for Updates")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.textSecondary)
             }
             .buttonStyle(.plain)
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
 
     private func disabledSection(reason: DisabledReason) -> some View {

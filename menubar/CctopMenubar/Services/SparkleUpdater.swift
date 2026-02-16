@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import Security
 
@@ -10,7 +9,6 @@ import Security
 @MainActor
 class UpdaterBase: NSObject, ObservableObject {
     @Published var pendingUpdateVersion: String?
-    @Published var automaticallyChecksForUpdates: Bool = true
 
     var canCheckForUpdates: Bool { false }
     var disabledReason: DisabledReason? { nil }
@@ -54,26 +52,13 @@ final class SparkleUpdater: UpdaterBase, @preconcurrency SPUUpdaterDelegate {
         startingUpdater: false,
         updaterDelegate: self,
         userDriverDelegate: nil)
-    private var cancellables = Set<AnyCancellable>()
 
     override init() {
         super.init()
         let updater = controller.updater
-        let autoUpdate = (UserDefaults.standard.object(forKey: "autoUpdateEnabled") as? Bool) ?? true
-        updater.automaticallyChecksForUpdates = autoUpdate
-        updater.automaticallyDownloadsUpdates = autoUpdate
-        automaticallyChecksForUpdates = autoUpdate
+        updater.automaticallyChecksForUpdates = true
+        updater.automaticallyDownloadsUpdates = true
         controller.startUpdater()
-
-        // Forward toggle changes to Sparkle's updater (syncs both check + download)
-        $automaticallyChecksForUpdates
-            .dropFirst()
-            .sink { [weak self] newValue in
-                self?.controller.updater.automaticallyChecksForUpdates = newValue
-                self?.controller.updater.automaticallyDownloadsUpdates = newValue
-                UserDefaults.standard.set(newValue, forKey: "autoUpdateEnabled")
-            }
-            .store(in: &cancellables)
     }
 
     override var canCheckForUpdates: Bool { true }
