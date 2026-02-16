@@ -1,7 +1,7 @@
 {
   "name": "cctop",
   "description": "Monitor and navigate Claude Code sessions across workspaces",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "author": {
     "name": "Stan Lo",
     "url": "https://github.com/st0012"
