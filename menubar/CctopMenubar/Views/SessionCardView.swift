@@ -8,18 +8,17 @@ extension Session {
 
 struct SessionCardView: View {
     let session: Session
+    /// 1-based index for Quick Jump mode (1-9). nil = normal mode (show status dot).
+    var jumpIndex: Int?
     var showSourceBadge = false
     @State private var isHovered = false
     @State private var pulsing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            // Row 1: status dot + project name + time + status badge
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(session.status.color)
-                    .frame(width: 9, height: 9)
-                    .opacity(session.status.needsAttention && !pulsing ? 0.6 : 1.0)
+            // Row 1: status indicator + project name + time + status badge
+            HStack(spacing: 5) {
+                statusIndicator
                     .accessibilityHidden(true)
 
                 Text(session.projectName)
@@ -98,8 +97,32 @@ struct SessionCardView: View {
         .onChange(of: session.status) { updatePulsing(for: $0) }
     }
 
+    @ViewBuilder
+    private var statusIndicator: some View {
+        ZStack {
+            if let idx = jumpIndex, idx <= 9 {
+                Circle()
+                    .fill(session.status.color)
+                    .frame(width: 16, height: 16)
+                Text("\(idx)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+            } else {
+                Circle()
+                    .fill(session.status.color)
+                    .frame(width: 9, height: 9)
+            }
+        }
+        .frame(width: 16, height: 16)
+        .opacity(session.status.needsAttention && !pulsing ? 0.6 : 1.0)
+    }
+
     private var cardAccessibilityLabel: String {
-        var parts = [session.projectName, "on branch", session.branch, session.status.accessibilityDescription]
+        var parts: [String] = []
+        if let idx = jumpIndex, idx <= 9 {
+            parts.append("Press \(idx) to jump to")
+        }
+        parts += [session.projectName, "on branch", session.branch, session.status.accessibilityDescription]
         if let context = session.contextLine {
             parts.append(context)
         }
@@ -148,6 +171,27 @@ struct SessionCardView: View {
     SessionCardView(
         session: .mock(status: .working, lastTool: "bash", lastToolDetail: "go test ./...", source: "opencode"),
         showSourceBadge: true
+    )
+    .frame(width: 300).padding()
+}
+#Preview("Jump Mode Badge") {
+    SessionCardView(
+        session: .mock(status: .working, lastTool: "Edit", lastToolDetail: "/src/auth.ts"),
+        jumpIndex: 3
+    )
+    .frame(width: 300).padding()
+}
+#Preview("Jump Mode Attention") {
+    SessionCardView(
+        session: .mock(status: .waitingPermission, notificationMessage: "Allow Bash: rm -rf"),
+        jumpIndex: 1
+    )
+    .frame(width: 300).padding()
+}
+#Preview("Jump Mode 10+") {
+    SessionCardView(
+        session: .mock(status: .idle),
+        jumpIndex: 10
     )
     .frame(width: 300).padding()
 }

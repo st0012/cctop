@@ -244,6 +244,12 @@ struct Session: Codable, Identifiable {
         return nil
     }
 
+    static func sorted(_ sessions: [Session]) -> [Session] {
+        sessions.sorted {
+            ($0.status.sortOrder, $1.lastActivity) < ($1.status.sortOrder, $0.lastActivity)
+        }
+    }
+
     static func extractProjectName(_ path: String) -> String {
         URL(fileURLWithPath: path).lastPathComponent
     }

@@ -76,6 +76,24 @@ struct SettingsSection: View {
 
             Divider().padding(.horizontal, 14)
 
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Quick Jump Shortcut")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.textSecondary)
+                    Spacer()
+                    KeyboardShortcuts.Recorder("", name: .quickJump)
+                }
+                Text("Focus the panel and jump to sessions by number.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 10)
+
+            Divider().padding(.horizontal, 14)
+
             Toggle(isOn: $launchAtLogin) {
                 Text("Launch at Login")
                     .font(.system(size: 11, weight: .semibold))
@@ -296,24 +314,36 @@ private struct MonitoredToolsView: View {
         HStack(spacing: 8) {
             toolLabel(name)
             Spacer()
-            if installed { connectedBadge } else {
-                Text("Not installed").font(.system(size: 10)).foregroundStyle(Color.textMuted)
+            if installed {
+                connectedBadge
+            } else {
+                Text("Not installed")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
             }
         }
     }
 
     private func toolLabel(_ name: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "terminal").font(.system(size: 12))
-                .foregroundStyle(Color.textSecondary).frame(width: 16, height: 16)
-            Text(name).font(.system(size: 12, weight: .medium)).foregroundStyle(.primary)
+            Image(systemName: "terminal")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.textSecondary)
+                .frame(width: 16, height: 16)
+            Text(name)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
         }
     }
 
     private var connectedBadge: some View {
         HStack(spacing: 4) {
-            Circle().fill(Color.statusGreen).frame(width: 6, height: 6)
-            Text("Connected").font(.system(size: 10)).foregroundStyle(Color.textMuted)
+            Circle()
+                .fill(Color.statusGreen)
+                .frame(width: 6, height: 6)
+            Text("Connected")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.textMuted)
         }
     }
 }
@@ -327,7 +357,9 @@ private struct MonitoredToolsView: View {
     cc: Bool = true, oc: Bool = false, ocConfig: Bool = false
 ) -> PluginManager {
     let pm = PluginManager()
-    pm.ccInstalled = cc; pm.ocInstalled = oc; pm.ocConfigExists = ocConfig
+    pm.ccInstalled = cc
+    pm.ocInstalled = oc
+    pm.ocConfigExists = ocConfig
     return pm
 }
 #Preview("Default") {

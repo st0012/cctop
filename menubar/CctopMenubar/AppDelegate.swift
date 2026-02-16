@@ -11,6 +11,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var sessionManager: SessionManager!
     private var updater: UpdaterBase!
     private var pluginManager: PluginManager!
+    private var jumpModeController = JumpModeController()
+    private var keyMonitor: Any?
     private var cancellable: AnyCancellable?
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
@@ -26,7 +28,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         setupStatusItem()
 
-        let contentView = PanelContentView(sessionManager: sessionManager, updater: updater, pluginManager: pluginManager)
+        let contentView = PanelContentView(
+            sessionManager: sessionManager,
+            updater: updater,
+            pluginManager: pluginManager,
+            jumpMode: jumpModeController
+        )
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
         hostingView.layer?.cornerRadius = 10
@@ -42,23 +49,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         panel.contentView = hostingView
 
         applyAppearance()
+        registerShortcuts()
+        observeSessionUpdates()
+    }
 
+    @MainActor private func registerShortcuts() {
         KeyboardShortcuts.onKeyUp(for: .togglePanel) { [weak self] in
             self?.togglePanel()
         }
-
+        KeyboardShortcuts.onKeyUp(for: .quickJump) { [weak self] in
+            self?.enterJumpMode()
+        }
         NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
-            object: nil,
-            queue: .main
+            object: nil, queue: .main
         ) { [weak self] _ in
             self?.applyAppearance()
         }
-
-        NotificationCenter.default.addObserver(forName: .settingsToggled, object: nil, queue: .main) { [weak self] _ in
+        NotificationCenter.default.addObserver(
+            forName: .settingsToggled, object: nil, queue: .main
+        ) { [weak self] _ in
             self?.resizePanel(animate: true)
         }
+    }
 
+    @MainActor private func observeSessionUpdates() {
         cancellable = sessionManager.$sessions
             .receive(on: RunLoop.main)
             .sink { [weak self] sessions in
@@ -88,6 +103,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @objc private func togglePanel() {
+        if jumpModeController.isActive {
+            exitJumpMode(restoreFocus: true)
+            return
+        }
         if panel.isVisible {
             panel.orderOut(nil)
         } else {
@@ -99,6 +118,74 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 self?.positionPanel()
             }
         }
+    }
+
+    @MainActor private func enterJumpMode() {
+        guard !jumpModeController.isActive else { return }
+
+        jumpModeController.previousApp = NSWorkspace.shared.frontmostApplication
+        jumpModeController.panelWasClosedBeforeJump = !panel.isVisible
+
+        if !panel.isVisible {
+            positionPanel()
+            panel.makeKeyAndOrderFront(nil)
+            DispatchQueue.main.async { [weak self] in
+                self?.positionPanel()
+            }
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKey()
+
+        jumpModeController.activate(sessions: sessionManager.sessions)
+
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.jumpModeController.isActive else { return event }
+            if event.keyCode == 53 { // Escape
+                DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
+                return nil
+            }
+            if let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
+                DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
+                return nil
+            }
+            // Any other key exits jump mode
+            DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
+            return nil
+        }
+
+        jumpModeController.startTimeout { [weak self] in
+            self?.exitJumpMode(restoreFocus: true)
+        }
+    }
+
+    private func exitJumpMode(restoreFocus: Bool) {
+        let previousApp = jumpModeController.previousApp
+        let panelWasClosed = jumpModeController.panelWasClosedBeforeJump
+
+        jumpModeController.deactivate()
+        jumpModeController.previousApp = nil
+        jumpModeController.panelWasClosedBeforeJump = false
+
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
+        }
+
+        if restoreFocus {
+            previousApp?.activate()
+            if panelWasClosed {
+                panel.orderOut(nil)
+            }
+        }
+        NSApp.deactivate()
+    }
+
+    @MainActor private func jumpToSession(index: Int) {
+        let frozen = jumpModeController.frozenSessions
+        guard index < frozen.count else { return }
+        focusTerminal(session: frozen[index])
+        exitJumpMode(restoreFocus: false)
     }
 
     private func applyAppearance() {
@@ -206,11 +293,13 @@ private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
+    @ObservedObject var jumpMode: JumpModeController
     var body: some View {
         PopupView(
             sessions: sessionManager.sessions,
             updater: updater,
-            pluginManager: pluginManager
+            pluginManager: pluginManager,
+            jumpMode: jumpMode
         )
         .frame(width: 320)
         .background(Color.panelBackground)
