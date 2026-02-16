@@ -176,6 +176,7 @@ struct Session: Codable, Identifiable {
         let tempURL = URL(fileURLWithPath: tempPath)
         let destURL = URL(fileURLWithPath: path)
         try data.write(to: tempURL)
+        try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: tempPath)
 
         // Atomic replace: rename(2) overwrites existing files on POSIX.
         // Foundation's moveItem does NOT, so use replaceItemAt or POSIX rename.
@@ -189,9 +190,10 @@ struct Session: Codable, Identifiable {
     // MARK: - Utilities
 
     static func sanitizeSessionId(raw: String) -> String {
-        raw.replacingOccurrences(of: "/", with: "")
-            .replacingOccurrences(of: "\\", with: "")
-            .replacingOccurrences(of: "..", with: "")
+        let filtered = String(raw.unicodeScalars.filter {
+            CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_"
+        })
+        return String(filtered.prefix(64))
     }
 
     /// Returns a copy with a new session_id (and optionally updated branch/terminal).
