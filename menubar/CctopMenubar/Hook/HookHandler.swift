@@ -173,11 +173,22 @@ enum HookHandler {
 
     static func captureTerminalInfo() -> TerminalInfo {
         let program = ProcessInfo.processInfo.environment["TERM_PROGRAM"] ?? ""
-        let sessionId = ProcessInfo.processInfo.environment["ITERM_SESSION_ID"]
+        let sessionId = sanitizeTerminalSessionId(
+            ProcessInfo.processInfo.environment["ITERM_SESSION_ID"]
             ?? ProcessInfo.processInfo.environment["KITTY_WINDOW_ID"]
+        )
         let tty = ProcessInfo.processInfo.environment["TTY"]
             ?? findTTY()
         return TerminalInfo(program: program, sessionId: sessionId, tty: tty)
+    }
+
+    /// Validate terminal session IDs to prevent injection via env vars.
+    /// Only allows alphanumeric, hyphens, colons, and periods (covers iTerm2 and Kitty formats).
+    private static func sanitizeTerminalSessionId(_ value: String?) -> String? {
+        guard let value, !value.isEmpty,
+              value.range(of: #"^[0-9a-zA-Z:.@_-]+$"#, options: .regularExpression) != nil
+        else { return nil }
+        return value
     }
 
     /// Walk up the process tree to find the first ancestor with a controlling terminal.

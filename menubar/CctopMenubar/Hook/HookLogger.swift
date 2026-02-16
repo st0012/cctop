@@ -42,15 +42,19 @@ enum HookLogger {
     }
 
     private static func appendLine(_ line: String, to path: String) {
+        let fm = FileManager.default
         let dir = (path as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try? fm.createDirectory(
+            atPath: dir, withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
 
         if let handle = FileHandle(forWritingAtPath: path) {
             handle.seekToEndOfFile()
             handle.write(Data(line.utf8))
             handle.closeFile()
         } else {
-            FileManager.default.createFile(atPath: path, contents: Data(line.utf8))
+            fm.createFile(atPath: path, contents: Data(line.utf8), attributes: [.posixPermissions: 0o600])
         }
     }
 

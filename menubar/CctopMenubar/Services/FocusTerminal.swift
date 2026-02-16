@@ -30,7 +30,9 @@ func extractITermGUID(from sessionId: String?) -> String? {
 }
 
 private func focusITerm2Session(sessionId: String?) -> Bool {
-    guard let guid = extractITermGUID(from: sessionId) else { return false }
+    guard let guid = extractITermGUID(from: sessionId),
+          guid.range(of: #"^[0-9a-fA-F-]+$"#, options: .regularExpression) != nil
+    else { return false }
 
     let script = """
     tell application "iTerm2"

@@ -177,7 +177,7 @@ final class HookEventTests: XCTestCase {
     }
 
     func testSanitizeRemovesDoubleDot() {
-        XCTAssertEqual(Session.sanitizeSessionId(raw: "../../.bashrc"), ".bashrc")
+        XCTAssertEqual(Session.sanitizeSessionId(raw: "../../.bashrc"), "bashrc")
     }
 
     func testSanitizePathTraversal() {
@@ -186,6 +186,11 @@ final class HookEventTests: XCTestCase {
 
     func testSanitizeDoubleDotOnly() {
         XCTAssertEqual(Session.sanitizeSessionId(raw: ".."), "")
+    }
+
+    func testSanitizeCapsLength() {
+        let long = String(repeating: "a", count: 100)
+        XCTAssertEqual(Session.sanitizeSessionId(raw: long).count, 64)
     }
 
     func testSanitizeNormalIdUnchanged() {

@@ -17,7 +17,10 @@ enum Config {
     private static func ensureDirectoryExists(_ path: String) {
         let fm = FileManager.default
         if !fm.fileExists(atPath: path) {
-            try? fm.createDirectory(atPath: path, withIntermediateDirectories: true)
+            try? fm.createDirectory(
+                atPath: path, withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
         }
     }
 }
