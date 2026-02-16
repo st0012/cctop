@@ -42,6 +42,7 @@
 		P10000050000000000000001 /* HookHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000060000000000000001 /* HookHandler.swift */; };
 		P10000070000000000000001 /* HookLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000080000000000000001 /* HookLogger.swift */; };
 		P10000090000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
+		JM0000010000000000000001 /* JumpModeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = JM0000020000000000000001 /* JumpModeController.swift */; };
 		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
 		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
 		SN0000010000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
@@ -97,6 +98,7 @@
 		P10000040000000000000001 /* HookInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookInput.swift; sourceTree = "<group>"; };
 		P10000060000000000000001 /* HookHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandler.swift; sourceTree = "<group>"; };
 		P10000080000000000000001 /* HookLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookLogger.swift; sourceTree = "<group>"; };
+		JM0000020000000000000001 /* JumpModeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JumpModeController.swift; sourceTree = "<group>"; };
 		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
 		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
 		SN0000020000000000000001 /* SessionNameLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookup.swift; sourceTree = "<group>"; };
@@ -150,6 +152,7 @@
 				E10000020000000000000001 /* FocusTerminal.swift */,
 				SP0000020000000000000001 /* SparkleUpdater.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
+				JM0000020000000000000001 /* JumpModeController.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -374,6 +377,7 @@
 				L10000010000000000000001 /* EmptyStateView.swift in Sources */,
 				SP0000010000000000000001 /* SparkleUpdater.swift in Sources */,
 				PM0000010000000000000001 /* PluginManager.swift in Sources */,
+				JM0000010000000000000001 /* JumpModeController.swift in Sources */,
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,
 				N10000050000000000000001 /* Config.swift in Sources */,

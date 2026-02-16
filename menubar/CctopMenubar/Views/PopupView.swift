@@ -1,3 +1,4 @@
+import KeyboardShortcuts
 import SwiftUI
 
 extension Notification.Name {
@@ -8,6 +9,7 @@ struct PopupView: View {
     let sessions: [Session]
     @ObservedObject var updater: UpdaterBase
     var pluginManager: PluginManager?
+    var jumpMode: JumpModeController?
     @State private var showSettings = false
     @State private var gearHovered = false
     @State private var ocBannerInstalled = false
@@ -34,12 +36,36 @@ struct PopupView: View {
                 }
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 4) {
-                        ForEach(sortedSessions) { session in
+                        ForEach(Array(sortedSessions.enumerated()), id: \.element.id) { index, session in
                             SessionCardView(
                                 session: session,
+                                jumpIndex: isJumpModeActive ? index + 1 : nil,
                                 showSourceBadge: hasMultipleSources
                             )
                             .onTapGesture { focusSession(session) }
+                            .contextMenu {
+                                Button {
+                                    focusSession(session)
+                                } label: {
+                                    Label("Jump to Terminal", systemImage: "terminal")
+                                }
+                                Button {
+                                    NSWorkspace.shared.selectFile(
+                                        nil,
+                                        inFileViewerRootedAtPath: session.projectPath
+                                    )
+                                } label: {
+                                    Label("Open in Finder", systemImage: "folder")
+                                }
+                                Button {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(
+                                        session.projectPath, forType: .string
+                                    )
+                                } label: {
+                                    Label("Copy Project Path", systemImage: "doc.on.doc")
+                                }
+                            }
                             .help("Click to jump to session")
                         }
                     }
@@ -58,6 +84,14 @@ struct PopupView: View {
             Divider()
             footerBar
         }
+        .onChange(of: isJumpModeActive) { active in
+            if active && showSettings {
+                withAnimation(.easeInOut(duration: 0.2)) { showSettings = false }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    NotificationCenter.default.post(name: .settingsToggled, object: nil)
+                }
+            }
+        }
     }
 
     private var footerBar: some View {
@@ -66,6 +100,12 @@ struct PopupView: View {
             Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                 .font(.system(size: 10))
                 .foregroundStyle(Color.textMuted)
+            if let shortcut = KeyboardShortcuts.getShortcut(for: .quickJump) {
+                Text("\(shortcut.description) for jump mode")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+                    .lineLimit(1)
+            }
             Spacer()
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() }
@@ -97,14 +137,19 @@ struct PopupView: View {
         .padding(.vertical, 6)
     }
 
+    private var isJumpModeActive: Bool {
+        jumpMode?.isActive ?? false
+    }
+
     private var hasMultipleSources: Bool {
         Set(sessions.map(\.sourceLabel)).count > 1
     }
 
     private var sortedSessions: [Session] {
-        sessions.sorted {
-            ($0.status.sortOrder, $1.lastActivity) < ($1.status.sortOrder, $0.lastActivity)
+        if isJumpModeActive, let frozen = jumpMode?.frozenSessions, !frozen.isEmpty {
+            return frozen
         }
+        return Session.sorted(sessions)
     }
 
     private func focusSession(_ session: Session) {
@@ -179,4 +224,11 @@ struct PopupView: View {
         pm.ocInstalled = false
         return pm
     }()).frame(width: 320)
+}
+#Preview("Jump Mode") {
+    let jm = JumpModeController()
+    jm.isActive = true
+    return PopupView(
+        sessions: Session.qaShowcase, updater: DisabledUpdater(), jumpMode: jm
+    ).frame(width: 320)
 }

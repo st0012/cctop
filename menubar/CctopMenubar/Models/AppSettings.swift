@@ -13,4 +13,5 @@ enum AppearanceMode: String, CaseIterable {
 
 extension KeyboardShortcuts.Name {
     static let togglePanel = Self("togglePanel")
+    static let quickJump = Self("quickJump")
 }
