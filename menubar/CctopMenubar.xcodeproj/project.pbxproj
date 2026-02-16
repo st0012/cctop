@@ -24,6 +24,7 @@
 		FK0000010000000000000001 /* ForkSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FK0000020000000000000001 /* ForkSessionTests.swift */; };
 		FT0000010000000000000001 /* WorkspaceFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000001 /* WorkspaceFileTests.swift */; };
 		FT0000010000000000000002 /* FocusTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000002 /* FocusTerminalTests.swift */; };
+		JMT000010000000000000001 /* JumpModeControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = JMT000020000000000000001 /* JumpModeControllerTests.swift */; };
 		G10000010000000000000001 /* FloatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000020000000000000001 /* FloatingPanel.swift */; };
 		G10000030000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000040000000000000001 /* AppDelegate.swift */; };
 		H10000010000000000000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000020000000000000001 /* AppSettings.swift */; };
@@ -82,6 +83,7 @@
 		FK0000020000000000000001 /* ForkSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForkSessionTests.swift; sourceTree = "<group>"; };
 		FT0000020000000000000001 /* WorkspaceFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceFileTests.swift; sourceTree = "<group>"; };
 		FT0000020000000000000002 /* FocusTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminalTests.swift; sourceTree = "<group>"; };
+		JMT000020000000000000001 /* JumpModeControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JumpModeControllerTests.swift; sourceTree = "<group>"; };
 		G10000020000000000000001 /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
 		G10000040000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		H10000020000000000000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -247,6 +249,7 @@
 				FK0000020000000000000001 /* ForkSessionTests.swift */,
 				FT0000020000000000000001 /* WorkspaceFileTests.swift */,
 				FT0000020000000000000002 /* FocusTerminalTests.swift */,
+				JMT000020000000000000001 /* JumpModeControllerTests.swift */,
 			);
 			path = CctopMenubarTests;
 			sourceTree = "<group>";
@@ -415,6 +418,7 @@
 				FK0000010000000000000001 /* ForkSessionTests.swift in Sources */,
 				FT0000010000000000000001 /* WorkspaceFileTests.swift in Sources */,
 				FT0000010000000000000002 /* FocusTerminalTests.swift in Sources */,
+				JMT000010000000000000001 /* JumpModeControllerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

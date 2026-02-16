@@ -172,11 +172,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             keyMonitor = nil
         }
 
+        if panelWasClosed {
+            panel.orderOut(nil)
+        }
         if restoreFocus {
             previousApp?.activate()
-            if panelWasClosed {
-                panel.orderOut(nil)
-            }
         }
         NSApp.deactivate()
     }
