@@ -6,19 +6,21 @@ func focusTerminal(session: Session) {
         return
     }
 
-    let kind = EditorKind.from(editorName: terminal.program)
+    let hostApp = HostApp.from(editorName: terminal.program)
 
-    if let cli = kind.cliCommand {
+    if let cli = hostApp.cliCommand {
         let target = session.workspaceFile ?? session.projectPath
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = [cli, target]
         try? process.run()
-    } else if kind == .iterm2 {
+    } else if hostApp == .iterm2 {
         if !focusITerm2Session(sessionId: terminal.sessionId) {
-            activateAppByName(terminal.program.lowercased())
+            if let name = hostApp.activationName { activateAppByName(name) }
         }
-    } else if !activateAppByName(terminal.program.lowercased()) {
+    } else if let name = hostApp.activationName, activateAppByName(name) {
+        // activated successfully
+    } else {
         NSWorkspace.shared.open(URL(fileURLWithPath: session.projectPath))
     }
 }
@@ -68,11 +70,11 @@ func openInEditor(project: RecentProject) {
         return
     }
 
-    let kind = EditorKind.from(editorName: editor)
+    let hostApp = HostApp.from(editorName: editor)
 
     // For code editors, prefer stored workspace file, fallback to dynamic lookup
     let target: String
-    if kind.usesWorkspaceFile {
+    if hostApp.usesWorkspaceFile {
         target = project.workspaceFile
             ?? Session.findWorkspaceFile(in: project.projectPath)
             ?? project.projectPath
@@ -81,7 +83,7 @@ func openInEditor(project: RecentProject) {
     }
 
     // Try bundle ID launch first
-    if let bundleID = kind.bundleID,
+    if let bundleID = hostApp.bundleID,
        let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
         NSWorkspace.shared.open(
             [URL(fileURLWithPath: target)],

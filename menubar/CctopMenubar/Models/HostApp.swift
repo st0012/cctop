@@ -1,7 +1,8 @@
 import Foundation
 
-/// Unified editor classification used by focusTerminal, openInEditor, and editorIcon.
-enum EditorKind {
+/// Classifies the application hosting a coding session (editor or terminal).
+/// Used by focusTerminal, openInEditor, and editorIcon.
+enum HostApp {
     case vscode
     case cursor
     case windsurf
@@ -11,8 +12,8 @@ enum EditorKind {
     case terminal
     case unknown
 
-    /// Match lowercased editor/program name to an EditorKind.
-    static func from(editorName: String?) -> EditorKind {
+    /// Match program name to a HostApp.
+    static func from(editorName: String?) -> HostApp {
         guard let name = editorName, !name.isEmpty else { return .unknown }
         let lower = name.lowercased()
 
@@ -40,6 +41,20 @@ enum EditorKind {
         }
     }
 
+    /// Lowercased name for matching against `NSRunningApplication.localizedName`.
+    var activationName: String? {
+        switch self {
+        case .vscode: return "code"
+        case .cursor: return "cursor"
+        case .windsurf: return "windsurf"
+        case .zed: return "zed"
+        case .iterm2: return "iterm2"
+        case .warp: return "warp"
+        case .terminal: return "terminal"
+        case .unknown: return nil
+        }
+    }
+
     var sfSymbol: String {
         switch self {
         case .vscode, .cursor, .windsurf, .zed:
@@ -49,7 +64,7 @@ enum EditorKind {
         }
     }
 
-    /// Whether this editor supports `.code-workspace` files.
+    /// Whether this app supports `.code-workspace` files.
     var usesWorkspaceFile: Bool {
         switch self {
         case .vscode, .cursor, .windsurf, .zed: return true
