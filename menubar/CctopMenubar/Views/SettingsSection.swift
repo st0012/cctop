@@ -178,9 +178,7 @@ struct SettingsSection: View {
         }
     }
 
-    private var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-    }
+    private var currentVersion: String { Bundle.main.appVersion }
 
     private var updateControlsSection: some View {
         HStack {

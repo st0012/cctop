@@ -10,7 +10,11 @@ enum PopupTab {
     case active, recent
 }
 
-private let settingsAnimationDuration: TimeInterval = 0.2
+private enum Overlay: Equatable {
+    case settings, about
+}
+
+private let overlayAnimationDuration: TimeInterval = 0.2
 
 struct PopupView: View {
     let sessions: [Session]
@@ -19,9 +23,10 @@ struct PopupView: View {
     var pluginManager: PluginManager?
     var jumpMode: JumpModeController?
     @State private var selectedTab: PopupTab = .active
-    @State private var showSettings = false
+    @State private var activeOverlay: Overlay?
     @State private var hideContent = false
     @State private var gearHovered = false
+    @State private var versionHovered = false
     @State private var ocBannerInstalled = false
     @AppStorage("ocBannerDismissed") private var ocBannerDismissed = false
 
@@ -42,48 +47,52 @@ struct PopupView: View {
             ZStack(alignment: .top) {
                 Group {
                     switch selectedTab {
-                    case .active:
-                        activeContent
-                    case .recent:
-                        recentContent
+                    case .active: activeContent
+                    case .recent: recentContent
                     }
                 }
                 .opacity(hideContent ? 0 : 1)
                 .animation(.none, value: hideContent)
-                if showSettings {
-                    VStack(spacing: 0) {
-                        SettingsSection(
-                            updater: updater,
-                            pluginManager: pluginManager ?? PluginManager()
-                        )
-                        .padding(.vertical, 8)
-                        Spacer(minLength: 0)
+                if let overlay = activeOverlay {
+                    overlayPanel {
+                        switch overlay {
+                        case .settings:
+                            SettingsSection(
+                                updater: updater,
+                                pluginManager: pluginManager ?? PluginManager()
+                            )
+                        case .about:
+                            AboutView()
+                        }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.panelBackground)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .top),
-                        removal: .modifier(
-                            active: RollUpEffect(progress: 0),
-                            identity: RollUpEffect(progress: 1)
-                        )
-                    ))
                 }
             }
             .clipped()
-            .animation(.easeInOut(duration: settingsAnimationDuration), value: showSettings)
+            .animation(.easeInOut(duration: overlayAnimationDuration), value: activeOverlay)
             Divider()
             footerBar
         }
         .onReceive(jumpMode?.$isActive.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { active in
             guard active else { return }
-            if selectedTab == .recent {
-                selectedTab = .active
-            }
-            if showSettings {
-                closeSettings(animated: false)
-            }
+            if selectedTab == .recent { selectedTab = .active }
+            if activeOverlay != nil { closeOverlay(animated: false) }
         }
+    }
+
+    private func overlayPanel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            content().padding(.vertical, 8)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.panelBackground)
+        .transition(.asymmetric(
+            insertion: .move(edge: .top),
+            removal: .modifier(
+                active: RollUpEffect(progress: 0),
+                identity: RollUpEffect(progress: 1)
+            )
+        ))
     }
 
     // MARK: - Tab picker
@@ -100,6 +109,7 @@ struct PopupView: View {
 
     private func tabButton(_ label: String, count: Int, tab: PopupTab) -> some View {
         TabButtonView(label: label, count: count, isSelected: selectedTab == tab) {
+            if activeOverlay != nil { closeOverlay(animated: true) }
             withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
             notifyLayoutChanged()
         }
@@ -203,11 +213,12 @@ struct PopupView: View {
     private var footerBar: some View {
         HStack {
             QuitButton()
-            Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
-                .font(.system(size: 10)).foregroundStyle(Color.textMuted)
+            versionButton
             if let shortcut = KeyboardShortcuts.getShortcut(for: .quickJump) {
                 Text("\(shortcut.description) for jump mode")
-                    .font(.system(size: 10)).foregroundStyle(Color.textMuted).lineLimit(1)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+                    .lineLimit(1)
             }
             Spacer()
             settingsGearButton
@@ -216,17 +227,31 @@ struct PopupView: View {
         .padding(.vertical, 6)
     }
 
+    private var versionButton: some View {
+        let isActive = activeOverlay == .about
+        let color: Color = isActive ? .amber : (versionHovered ? .primary : .textMuted)
+        return Button { toggleOverlay(.about) } label: {
+            Text("v\(Bundle.main.appVersion)")
+                .font(.system(size: 10))
+                .foregroundStyle(color)
+                .underline(versionHovered && !isActive)
+        }
+        .buttonStyle(.plain)
+        .onHover { versionHovered = $0 }
+    }
+
     private var settingsGearButton: some View {
-        Button {
-            toggleSettings()
-        } label: {
+        Button { toggleOverlay(.settings) } label: {
             Image(systemName: "gearshape")
                 .font(.system(size: 14))
-                .foregroundStyle(showSettings ? Color.amber : Color.secondary)
+                .foregroundStyle(activeOverlay == .settings ? Color.amber : Color.secondary)
                 .frame(width: 28, height: 28)
-                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(gearHovered ? 0.1 : 0)))
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.primary.opacity(gearHovered ? 0.1 : 0))
+                )
                 .overlay(alignment: .topTrailing) {
-                    if updater.pendingUpdateVersion != nil && !showSettings {
+                    if updater.pendingUpdateVersion != nil && activeOverlay != .settings {
                         Circle().fill(Color.amber).frame(width: 7, height: 7).offset(x: 2, y: -2)
                     }
                 }
@@ -235,8 +260,9 @@ struct PopupView: View {
         .onHover { gearHovered = $0 }
     }
 
-    // MARK: - Helpers
+}
 
+extension PopupView {
     private var isJumpModeActive: Bool { jumpMode?.isActive ?? false }
 
     private var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }
@@ -253,22 +279,22 @@ struct PopupView: View {
         NSApp.deactivate()
     }
 
-    private func toggleSettings() {
-        if showSettings {
-            closeSettings(animated: true)
+    private func toggleOverlay(_ overlay: Overlay) {
+        if activeOverlay == overlay {
+            closeOverlay(animated: true)
         } else {
+            activeOverlay = nil
             hideContent = true
-            showSettings = true
+            activeOverlay = overlay
             notifyLayoutChanged()
         }
     }
 
-    /// Close settings. When animated, content is revealed after the roll-up finishes.
-    private func closeSettings(animated: Bool) {
-        showSettings = false
+    private func closeOverlay(animated: Bool) {
+        activeOverlay = nil
         notifyLayoutChanged()
         if animated {
-            DispatchQueue.main.asyncAfter(deadline: .now() + settingsAnimationDuration) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + overlayAnimationDuration) {
                 hideContent = false
             }
         } else {
@@ -346,39 +372,28 @@ private struct TabButtonView: View {
     PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater()).frame(width: 320)
 }
 #Preview("Empty") {
-    PopupView(
-        sessions: [], updater: DisabledUpdater(), pluginManager: PluginManager()
-    ).frame(width: 320)
+    PopupView(sessions: [], updater: DisabledUpdater(), pluginManager: PluginManager()).frame(width: 320)
 }
 #Preview("With Tabs") {
     PopupView(
-        sessions: Session.mockSessions,
-        recentProjects: RecentProject.mockRecents,
-        updater: DisabledUpdater()
+        sessions: Session.mockSessions, recentProjects: RecentProject.mockRecents, updater: DisabledUpdater()
     ).frame(width: 320)
 }
 #Preview("Only Recents") {
     PopupView(
-        sessions: [],
-        recentProjects: RecentProject.mockRecents,
-        updater: DisabledUpdater(),
-        pluginManager: PluginManager()
+        sessions: [], recentProjects: RecentProject.mockRecents,
+        updater: DisabledUpdater(), pluginManager: PluginManager()
     ).frame(width: 320)
 }
 #Preview("Empty Recents Tab") {
     PopupView(
-        sessions: Session.mockSessions,
-        recentProjects: [RecentProject.mock()],
-        updater: DisabledUpdater()
+        sessions: Session.mockSessions, recentProjects: [RecentProject.mock()], updater: DisabledUpdater()
     ).frame(width: 320)
 }
 #Preview("Jump Mode") {
-    let jm = JumpModeController()
-    jm.isActive = true
+    let jm = JumpModeController(); jm.isActive = true
     return PopupView(
-        sessions: Session.qaShowcase,
-        recentProjects: RecentProject.mockRecents,
-        updater: DisabledUpdater(),
-        jumpMode: jm
+        sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
+        updater: DisabledUpdater(), jumpMode: jm
     ).frame(width: 320)
 }
