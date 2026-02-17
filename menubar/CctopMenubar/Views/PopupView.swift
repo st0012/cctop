@@ -10,6 +10,8 @@ enum PopupTab {
     case active, recent
 }
 
+private let settingsAnimationDuration: TimeInterval = 0.2
+
 struct PopupView: View {
     let sessions: [Session]
     var recentProjects: [RecentProject] = []
@@ -69,7 +71,7 @@ struct PopupView: View {
                 }
             }
             .clipped()
-            .animation(.easeInOut(duration: 0.2), value: showSettings)
+            .animation(.easeInOut(duration: settingsAnimationDuration), value: showSettings)
             Divider()
             footerBar
         }
@@ -181,9 +183,9 @@ struct PopupView: View {
     private func recentCard(_ project: RecentProject) -> some View {
         RecentProjectCardView(project: project)
             .contentShape(Rectangle())
-            .onTapGesture { openProject(project) }
+            .onTapGesture { openInEditor(project: project); NSApp.deactivate() }
             .contextMenu {
-                Button { openProject(project) } label: {
+                Button { openInEditor(project: project); NSApp.deactivate() } label: {
                     Label("Open in Editor", systemImage: "macwindow")
                 }
                 Button { openInFinder(path: project.projectPath) } label: {
@@ -251,11 +253,6 @@ struct PopupView: View {
         NSApp.deactivate()
     }
 
-    private func openProject(_ project: RecentProject) {
-        openInEditor(project: project)
-        NSApp.deactivate()
-    }
-
     private func toggleSettings() {
         if showSettings {
             closeSettings(animated: true)
@@ -266,13 +263,14 @@ struct PopupView: View {
         }
     }
 
-    /// Close the settings panel. When animated, the content is revealed after
-    /// the 0.2s roll-up animation finishes. Otherwise both states reset immediately.
+    /// Close settings. When animated, content is revealed after the roll-up finishes.
     private func closeSettings(animated: Bool) {
         showSettings = false
         notifyLayoutChanged()
         if animated {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { hideContent = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + settingsAnimationDuration) {
+                hideContent = false
+            }
         } else {
             hideContent = false
         }
