@@ -109,6 +109,7 @@ struct PopupView: View {
 
     private func tabButton(_ label: String, count: Int, tab: PopupTab) -> some View {
         TabButtonView(label: label, count: count, isSelected: selectedTab == tab) {
+            if activeOverlay != nil { closeOverlay(animated: true) }
             withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
             notifyLayoutChanged()
         }
