@@ -1,5 +1,18 @@
 import Foundation
 
+// MARK: - Shared date formatting
+
+extension Date {
+    var relativeDescription: String {
+        let seconds = Int(-timeIntervalSinceNow)
+        if seconds <= 0 { return "just now" }
+        if seconds >= 86400 { return "\(seconds / 86400)d ago" }
+        if seconds >= 3600 { return "\(seconds / 3600)h ago" }
+        if seconds >= 60 { return "\(seconds / 60)m ago" }
+        return "\(seconds)s ago"
+    }
+}
+
 extension JSONEncoder {
     static let sessionEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
@@ -68,6 +81,7 @@ struct Session: Codable, Identifiable {
     var sessionName: String?
     var workspaceFile: String?
     var source: String?
+    var endedAt: Date?
 
     var id: String { pid.map { String($0) } ?? sessionId }
 
@@ -95,6 +109,7 @@ struct Session: Codable, Identifiable {
         case sessionName = "session_name"
         case workspaceFile = "workspace_file"
         case source
+        case endedAt = "ended_at"
     }
 
     // MARK: - Constructors
@@ -117,7 +132,8 @@ struct Session: Codable, Identifiable {
         notificationMessage: String?,
         sessionName: String? = nil,
         workspaceFile: String? = nil,
-        source: String? = nil
+        source: String? = nil,
+        endedAt: Date? = nil
     ) {
         self.sessionId = sessionId
         self.projectPath = projectPath
@@ -136,6 +152,7 @@ struct Session: Codable, Identifiable {
         self.sessionName = sessionName
         self.workspaceFile = workspaceFile
         self.source = source
+        self.endedAt = endedAt
     }
 
     /// Convenience init for creating new sessions (used by cctop-hook).
@@ -157,6 +174,7 @@ struct Session: Codable, Identifiable {
         self.sessionName = nil
         self.workspaceFile = nil
         self.source = nil
+        self.endedAt = nil
     }
 
     // MARK: - File I/O
@@ -216,7 +234,8 @@ struct Session: Codable, Identifiable {
             notificationMessage: notificationMessage,
             sessionName: sessionName,
             workspaceFile: workspaceFile,
-            source: source
+            source: source,
+            endedAt: endedAt
         )
     }
 
@@ -297,13 +316,13 @@ struct Session: Codable, Identifiable {
         return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
     }
 
+    /// The best available end-of-session timestamp: `endedAt` if archived, otherwise `lastActivity`.
+    var effectiveEndDate: Date {
+        endedAt ?? lastActivity
+    }
+
     var relativeTime: String {
-        let seconds = Int(-lastActivity.timeIntervalSinceNow)
-        if seconds <= 0 { return "just now" }
-        if seconds >= 86400 { return "\(seconds / 86400)d ago" }
-        if seconds >= 3600 { return "\(seconds / 3600)h ago" }
-        if seconds >= 60 { return "\(seconds / 60)m ago" }
-        return "\(seconds)s ago"
+        lastActivity.relativeDescription
     }
 
     var contextLine: String? {

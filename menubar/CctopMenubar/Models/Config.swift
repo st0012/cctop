@@ -14,6 +14,13 @@ enum Config {
         return dir
     }
 
+    static func historyDir() -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let dir = (home as NSString).appendingPathComponent(".cctop/history")
+        ensureDirectoryExists(dir)
+        return dir
+    }
+
     private static func ensureDirectoryExists(_ path: String) {
         let fm = FileManager.default
         if !fm.fileExists(atPath: path) {

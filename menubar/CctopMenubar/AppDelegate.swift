@@ -11,6 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var sessionManager: SessionManager!
     private var updater: UpdaterBase!
     private var pluginManager: PluginManager!
+    private var historyManager: HistoryManager!
     private var jumpModeController = JumpModeController()
     private var keyMonitor: Any?
     private var cancellable: AnyCancellable?
@@ -22,7 +23,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         UNUserNotificationCenter.current().delegate = self
 
-        sessionManager = SessionManager()
+        historyManager = HistoryManager()
+        sessionManager = SessionManager(historyManager: historyManager)
         updater = makeUpdater()
         pluginManager = PluginManager()
 
@@ -30,6 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         let contentView = PanelContentView(
             sessionManager: sessionManager,
+            historyManager: historyManager,
             updater: updater,
             pluginManager: pluginManager,
             jumpMode: jumpModeController
@@ -291,12 +294,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
+    @ObservedObject var historyManager: HistoryManager
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @ObservedObject var jumpMode: JumpModeController
     var body: some View {
         PopupView(
             sessions: sessionManager.sessions,
+            recentProjects: historyManager.recentProjects,
             updater: updater,
             pluginManager: pluginManager,
             jumpMode: jumpMode
