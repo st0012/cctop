@@ -14,6 +14,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var historyManager: HistoryManager!
     private var jumpModeController = JumpModeController()
     private var keyMonitor: Any?
+    private var navKeyMonitor: Any?
+    private var previousApp: NSRunningApplication?
     private var cancellable: AnyCancellable?
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
@@ -112,9 +114,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
         if panel.isVisible {
             panel.orderOut(nil)
+            stopNavKeyMonitor()
+            previousApp?.activate()
+            previousApp = nil
         } else {
+            previousApp = NSWorkspace.shared.frontmostApplication
             positionPanel()
             panel.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            startNavKeyMonitor()
+            postNavAction(.reset)
             // Re-position after SwiftUI layout settles (fittingSize may
             // include hidden views on the first pass)
             DispatchQueue.main.async { [weak self] in
@@ -289,6 +298,44 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         } else {
             panel.setFrame(frame, display: true)
         }
+    }
+}
+
+// MARK: - Keyboard navigation
+
+private let navKeyMap: [UInt16: PanelNavAction] = [
+    125: .down,         // down arrow
+    126: .up,           // up arrow
+    36: .confirm,       // return
+    53: .escape,        // escape
+    48: .toggleTab,     // tab
+    123: .previousTab,  // left arrow
+    124: .nextTab       // right arrow
+]
+
+extension AppDelegate {
+    private func startNavKeyMonitor() {
+        guard navKeyMonitor == nil else { return }
+        navKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.panel.isVisible, !self.jumpModeController.isActive else { return event }
+            guard let action = navKeyMap[event.keyCode] else { return event }
+            self.postNavAction(action)
+            return nil
+        }
+    }
+
+    private func stopNavKeyMonitor() {
+        if let monitor = navKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            navKeyMonitor = nil
+        }
+    }
+
+    private func postNavAction(_ action: PanelNavAction) {
+        NotificationCenter.default.post(
+            name: .panelNavAction, object: nil,
+            userInfo: ["action": action]
+        )
     }
 }
 

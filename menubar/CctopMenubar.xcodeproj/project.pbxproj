@@ -18,6 +18,7 @@
 		D10000030000000000000001 /* HeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000040000000000000001 /* HeaderView.swift */; };
 		D10000050000000000000001 /* SessionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000060000000000000001 /* SessionCardView.swift */; };
 		D10000070000000000000001 /* PopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000080000000000000001 /* PopupView.swift */; };
+		PVH000010000000000000001 /* PopupViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = PVH000020000000000000001 /* PopupViewHelpers.swift */; };
 		D10000090000000000000001 /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000A000000000000001 /* QuitButton.swift */; };
 		E10000010000000000000001 /* FocusTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000001 /* FocusTerminal.swift */; };
 		EK0000010000000000000001 /* HostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EK0000020000000000000001 /* HostApp.swift */; };
@@ -86,6 +87,7 @@
 		D10000040000000000000001 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
 		D10000060000000000000001 /* SessionCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCardView.swift; sourceTree = "<group>"; };
 		D10000080000000000000001 /* PopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupView.swift; sourceTree = "<group>"; };
+		PVH000020000000000000001 /* PopupViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupViewHelpers.swift; sourceTree = "<group>"; };
 		E10000020000000000000001 /* FocusTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminal.swift; sourceTree = "<group>"; };
 		EK0000020000000000000001 /* HostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostApp.swift; sourceTree = "<group>"; };
 		F10000020000000000000001 /* Session+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Session+Mock.swift"; sourceTree = "<group>"; };
@@ -236,6 +238,7 @@
 				D10000040000000000000001 /* HeaderView.swift */,
 				D10000060000000000000001 /* SessionCardView.swift */,
 				D10000080000000000000001 /* PopupView.swift */,
+				PVH000020000000000000001 /* PopupViewHelpers.swift */,
 				D1000000A000000000000001 /* QuitButton.swift */,
 				J10000020000000000000001 /* SettingsSection.swift */,
 				L10000020000000000000001 /* EmptyStateView.swift */,
@@ -393,6 +396,7 @@
 				D10000030000000000000001 /* HeaderView.swift in Sources */,
 				D10000050000000000000001 /* SessionCardView.swift in Sources */,
 				D10000070000000000000001 /* PopupView.swift in Sources */,
+				PVH000010000000000000001 /* PopupViewHelpers.swift in Sources */,
 				D10000090000000000000001 /* QuitButton.swift in Sources */,
 				E10000010000000000000001 /* FocusTerminal.swift in Sources */,
 				F10000010000000000000001 /* Session+Mock.swift in Sources */,

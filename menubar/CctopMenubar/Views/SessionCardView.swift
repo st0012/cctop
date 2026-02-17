@@ -11,6 +11,7 @@ struct SessionCardView: View {
     /// 1-based index for Quick Jump mode (1-9). nil = normal mode (show status dot).
     var jumpIndex: Int?
     var showSourceBadge = false
+    var isSelected = false
     @State private var isHovered = false
     @State private var pulsing = false
 
@@ -83,12 +84,7 @@ struct SessionCardView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(isHovered ? Color.primary.opacity(0.06) : Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isHovered ? Color.primary.opacity(0.15) : Color.cardBorder, lineWidth: 1)
-        )
+        .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .accessibilityElement(children: .contain)

@@ -25,6 +25,7 @@ struct PopupView: View {
     @State private var selectedTab: PopupTab = .active
     @State private var activeOverlay: Overlay?
     @State private var hideContent = false
+    @State private var selectedIndex: Int?
     @State private var gearHovered = false
     @State private var versionHovered = false
     @State private var ocBannerInstalled = false
@@ -74,9 +75,16 @@ struct PopupView: View {
         }
         .onReceive(jumpMode?.$isActive.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { active in
             guard active else { return }
+            selectedIndex = nil
             if selectedTab == .recent { selectedTab = .active }
             if activeOverlay != nil { closeOverlay(animated: false) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .panelNavAction)) { notification in
+            guard activeOverlay == nil,
+                  let action = notification.userInfo?["action"] as? PanelNavAction else { return }
+            handleNavAction(action)
+        }
+        .onChange(of: selectedTab) { _ in selectedIndex = nil }
     }
 
     private func overlayPanel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
@@ -131,32 +139,43 @@ struct PopupView: View {
                         dismissed: $ocBannerDismissed
                     )
                 }
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 4) {
-                        ForEach(Array(sortedSessions.enumerated()), id: \.element.id) { index, session in
-                            SessionCardView(
-                                session: session,
-                                jumpIndex: isJumpModeActive ? index + 1 : nil,
-                                showSourceBadge: hasMultipleSources
-                            )
-                            .onTapGesture { focusSession(session) }
-                            .contextMenu {
-                                Button { focusSession(session) } label: {
-                                    Label("Jump to Terminal", systemImage: "terminal")
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(spacing: 4) {
+                            ForEach(Array(sortedSessions.enumerated()), id: \.element.id) { index, session in
+                                SessionCardView(
+                                    session: session,
+                                    jumpIndex: isJumpModeActive ? index + 1 : nil,
+                                    showSourceBadge: hasMultipleSources,
+                                    isSelected: selectedIndex == index
+                                )
+                                .id(session.id)
+                                .onTapGesture { focusSession(session) }
+                                .contextMenu {
+                                    Button { focusSession(session) } label: {
+                                        Label("Jump to Terminal", systemImage: "terminal")
+                                    }
+                                    Button { openInFinder(path: session.projectPath) } label: {
+                                        Label("Open in Finder", systemImage: "folder")
+                                    }
+                                    Button { copyPath(session.projectPath) } label: {
+                                        Label("Copy Project Path", systemImage: "doc.on.doc")
+                                    }
                                 }
-                                Button { openInFinder(path: session.projectPath) } label: {
-                                    Label("Open in Finder", systemImage: "folder")
-                                }
-                                Button { copyPath(session.projectPath) } label: {
-                                    Label("Copy Project Path", systemImage: "doc.on.doc")
-                                }
+                                .help("Click to jump to session")
                             }
-                            .help("Click to jump to session")
+                        }
+                        .padding(8)
+                    }
+                    .frame(maxHeight: 290)
+                    .onChange(of: selectedIndex) { newIndex in
+                        guard selectedTab == .active,
+                              let idx = newIndex, idx < sortedSessions.count else { return }
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo(sortedSessions[idx].id, anchor: .center)
                         }
                     }
-                    .padding(8)
                 }
-                .frame(maxHeight: 290)
             }
         }
     }
@@ -178,20 +197,29 @@ struct PopupView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
         } else {
-            ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 4) {
-                    ForEach(recentProjects) { project in
-                        recentCard(project)
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 4) {
+                        ForEach(Array(recentProjects.enumerated()), id: \.element.id) { index, project in
+                            recentCard(project, isSelected: selectedIndex == index)
+                        }
+                    }
+                    .padding(8)
+                }
+                .frame(maxHeight: 290)
+                .onChange(of: selectedIndex) { newIndex in
+                    guard selectedTab == .recent,
+                          let idx = newIndex, idx < recentProjects.count else { return }
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo(recentProjects[idx].id, anchor: .center)
                     }
                 }
-                .padding(8)
             }
-            .frame(maxHeight: 290)
         }
     }
 
-    private func recentCard(_ project: RecentProject) -> some View {
-        RecentProjectCardView(project: project)
+    private func recentCard(_ project: RecentProject, isSelected: Bool = false) -> some View {
+        RecentProjectCardView(project: project, isSelected: isSelected)
             .contentShape(Rectangle())
             .onTapGesture { openInEditor(project: project); NSApp.deactivate() }
             .contextMenu {
@@ -316,84 +344,53 @@ extension PopupView {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(path, forType: .string)
     }
-}
 
-private struct RollUpEffect: ViewModifier {
-    var progress: CGFloat
+    // MARK: - Keyboard navigation
 
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    func body(content: Content) -> some View {
-        content.mask {
-            Color.black.scaleEffect(y: progress, anchor: .top)
+    private func handleNavAction(_ action: PanelNavAction) {
+        switch action {
+        case .up: moveSelection(by: -1)
+        case .down: moveSelection(by: 1)
+        case .confirm: confirmSelection()
+        case .escape, .reset: selectedIndex = nil
+        case .toggleTab, .previousTab, .nextTab: switchTab(to: action)
         }
     }
-}
 
-private struct TabButtonView: View {
-    let label: String
-    let count: Int
-    let isSelected: Bool
-    let action: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Text(label)
-                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? Color.amber : Color.textMuted)
-                Text("\(count)")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(isSelected ? Color.amber : Color.textMuted)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(isSelected ? Color.amber.opacity(0.15) : Color.primary.opacity(0.06))
-                    .clipShape(Capsule())
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(isSelected || isHovered ? Color.primary.opacity(0.08) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+    private func moveSelection(by delta: Int) {
+        let count = selectedTab == .active ? sortedSessions.count : recentProjects.count
+        guard count > 0 else { return }
+        if let current = selectedIndex {
+            selectedIndex = min(max(0, current + delta), count - 1)
+        } else {
+            selectedIndex = delta > 0 ? 0 : count - 1
         }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
     }
-}
 
-#Preview("With sessions") {
-    PopupView(sessions: Session.mockSessions, updater: DisabledUpdater()).frame(width: 320)
-}
-#Preview("Mixed sources") {
-    PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater()).frame(width: 320)
-}
-#Preview("Empty") {
-    PopupView(sessions: [], updater: DisabledUpdater(), pluginManager: PluginManager()).frame(width: 320)
-}
-#Preview("With Tabs") {
-    PopupView(
-        sessions: Session.mockSessions, recentProjects: RecentProject.mockRecents, updater: DisabledUpdater()
-    ).frame(width: 320)
-}
-#Preview("Only Recents") {
-    PopupView(
-        sessions: [], recentProjects: RecentProject.mockRecents,
-        updater: DisabledUpdater(), pluginManager: PluginManager()
-    ).frame(width: 320)
-}
-#Preview("Empty Recents Tab") {
-    PopupView(
-        sessions: Session.mockSessions, recentProjects: [RecentProject.mock()], updater: DisabledUpdater()
-    ).frame(width: 320)
-}
-#Preview("Jump Mode") {
-    let jm = JumpModeController(); jm.isActive = true
-    return PopupView(
-        sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
-        updater: DisabledUpdater(), jumpMode: jm
-    ).frame(width: 320)
+    private func confirmSelection() {
+        guard let index = selectedIndex else { return }
+        switch selectedTab {
+        case .active:
+            guard index < sortedSessions.count else { return }
+            focusSession(sortedSessions[index])
+        case .recent:
+            guard index < recentProjects.count else { return }
+            openInEditor(project: recentProjects[index])
+            NSApp.deactivate()
+        }
+    }
+
+    private func switchTab(to action: PanelNavAction) {
+        guard showTabs else { return }
+        let newTab: PopupTab
+        switch action {
+        case .previousTab: newTab = .active
+        case .nextTab: newTab = .recent
+        default: newTab = selectedTab == .active ? .recent : .active
+        }
+        guard newTab != selectedTab else { return }
+        if activeOverlay != nil { closeOverlay(animated: true) }
+        withAnimation(.easeInOut(duration: 0.15)) { selectedTab = newTab }
+        notifyLayoutChanged()
+    }
 }
