@@ -378,6 +378,9 @@ extension PopupView {
             openInEditor(project: recentProjects[index])
             NSApp.deactivate()
         }
+        if isJumpModeActive {
+            NotificationCenter.default.post(name: .jumpModeDidConfirm, object: nil)
+        }
     }
 
     private func switchTab(to action: PanelNavAction) {

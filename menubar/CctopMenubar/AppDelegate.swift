@@ -76,6 +76,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         ) { [weak self] _ in
             self?.resizePanel(animate: true)
         }
+        NotificationCenter.default.addObserver(
+            forName: .jumpModeDidConfirm, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.exitJumpMode(restoreFocus: false)
+        }
     }
 
     @MainActor private func observeSessionUpdates() {
@@ -130,74 +135,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 self?.positionPanel()
             }
         }
-    }
-
-    @MainActor private func enterJumpMode() {
-        guard !jumpModeController.isActive else { return }
-
-        jumpModeController.previousApp = NSWorkspace.shared.frontmostApplication
-        jumpModeController.panelWasClosedBeforeJump = !panel.isVisible
-
-        if !panel.isVisible {
-            positionPanel()
-            panel.makeKeyAndOrderFront(nil)
-            DispatchQueue.main.async { [weak self] in
-                self?.positionPanel()
-            }
-        }
-
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKey()
-
-        jumpModeController.activate(sessions: sessionManager.sessions)
-
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.jumpModeController.isActive else { return event }
-            if event.keyCode == 53 { // Escape
-                DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
-                return nil
-            }
-            if let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
-                DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
-                return nil
-            }
-            // Any other key exits jump mode
-            DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
-            return nil
-        }
-
-        jumpModeController.startTimeout { [weak self] in
-            self?.exitJumpMode(restoreFocus: true)
-        }
-    }
-
-    private func exitJumpMode(restoreFocus: Bool) {
-        let previousApp = jumpModeController.previousApp
-        let panelWasClosed = jumpModeController.panelWasClosedBeforeJump
-
-        jumpModeController.deactivate()
-        jumpModeController.previousApp = nil
-        jumpModeController.panelWasClosedBeforeJump = false
-
-        if let monitor = keyMonitor {
-            NSEvent.removeMonitor(monitor)
-            keyMonitor = nil
-        }
-
-        if panelWasClosed {
-            panel.orderOut(nil)
-        }
-        if restoreFocus {
-            previousApp?.activate()
-        }
-        NSApp.deactivate()
-    }
-
-    @MainActor private func jumpToSession(index: Int) {
-        let frozen = jumpModeController.frozenSessions
-        guard index < frozen.count else { return }
-        focusTerminal(session: frozen[index])
-        exitJumpMode(restoreFocus: false)
     }
 
     private func applyAppearance() {
@@ -314,6 +251,86 @@ private let navKeyMap: [UInt16: PanelNavAction] = [
 ]
 
 extension AppDelegate {
+    @MainActor func enterJumpMode() {
+        guard !jumpModeController.isActive else { return }
+
+        jumpModeController.previousApp = NSWorkspace.shared.frontmostApplication
+        jumpModeController.panelWasClosedBeforeJump = !panel.isVisible
+
+        if !panel.isVisible {
+            positionPanel()
+            panel.makeKeyAndOrderFront(nil)
+            DispatchQueue.main.async { [weak self] in
+                self?.positionPanel()
+            }
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKey()
+
+        jumpModeController.activate(sessions: sessionManager.sessions)
+
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.jumpModeController.isActive else { return event }
+            if event.keyCode == 53 { // Escape
+                DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
+                return nil
+            }
+            if let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
+                DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
+                return nil
+            }
+            // Arrow keys navigate within jump mode
+            if event.keyCode == 125 || event.keyCode == 126 {
+                self.jumpModeController.cancelTimeout()
+                self.postNavAction(event.keyCode == 125 ? .down : .up)
+                return nil
+            }
+            // Enter confirms selection (exitJumpMode handled via notification)
+            if event.keyCode == 36 {
+                self.jumpModeController.cancelTimeout()
+                self.postNavAction(.confirm)
+                return nil
+            }
+            // Any other key exits jump mode
+            DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
+            return nil
+        }
+
+        jumpModeController.startTimeout { [weak self] in
+            self?.exitJumpMode(restoreFocus: true)
+        }
+    }
+
+    func exitJumpMode(restoreFocus: Bool) {
+        let previousApp = jumpModeController.previousApp
+        let panelWasClosed = jumpModeController.panelWasClosedBeforeJump
+
+        jumpModeController.deactivate()
+        jumpModeController.previousApp = nil
+        jumpModeController.panelWasClosedBeforeJump = false
+
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
+        }
+
+        if panelWasClosed {
+            panel.orderOut(nil)
+        }
+        if restoreFocus {
+            previousApp?.activate()
+        }
+        NSApp.deactivate()
+    }
+
+    @MainActor private func jumpToSession(index: Int) {
+        let frozen = jumpModeController.frozenSessions
+        guard index < frozen.count else { return }
+        focusTerminal(session: frozen[index])
+        exitJumpMode(restoreFocus: false)
+    }
+
     private func startNavKeyMonitor() {
         guard navKeyMonitor == nil else { return }
         navKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in

@@ -6,6 +6,7 @@ enum PanelNavAction {
 
 extension Notification.Name {
     static let panelNavAction = Notification.Name("panelNavAction")
+    static let jumpModeDidConfirm = Notification.Name("jumpModeDidConfirm")
 }
 
 // MARK: - Card selection style
