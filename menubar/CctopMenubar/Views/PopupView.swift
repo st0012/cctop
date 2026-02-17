@@ -377,7 +377,7 @@ extension PopupView {
             NSApp.deactivate()
         }
         if isJumpModeActive {
-            NotificationCenter.default.post(name: .jumpModeDidConfirm, object: nil)
+            jumpMode?.didConfirmSubject.send()
         }
     }
 

@@ -15,7 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var jumpModeController = JumpModeController()
     private var navKeyMonitor: Any?
     private var previousApp: NSRunningApplication?
-    private var cancellable: AnyCancellable?
+    private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -75,15 +75,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         ) { [weak self] _ in
             self?.resizePanel(animate: true)
         }
-        NotificationCenter.default.addObserver(
-            forName: .jumpModeDidConfirm, object: nil, queue: .main
-        ) { [weak self] _ in
-            self?.exitJumpMode(restoreFocus: false)
-        }
+        jumpModeController.didConfirmSubject
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.exitJumpMode(restoreFocus: false) }
+            .store(in: &cancellables)
     }
 
     @MainActor private func observeSessionUpdates() {
-        cancellable = sessionManager.$sessions
+        sessionManager.$sessions
             .receive(on: RunLoop.main)
             .sink { [weak self] sessions in
                 let count = sessions.filter { $0.status.needsAttention }.count
@@ -98,6 +97,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     }
                 }
             }
+            .store(in: &cancellables)
     }
 
     private func setupStatusItem() {
@@ -253,10 +253,9 @@ extension AppDelegate {
     @MainActor func enterJumpMode() {
         guard !jumpModeController.isActive else { return }
 
-        jumpModeController.previousApp = NSWorkspace.shared.frontmostApplication
-        jumpModeController.panelWasClosedBeforeJump = !panel.isVisible
+        let panelWasClosed = !panel.isVisible
 
-        if !panel.isVisible {
+        if panelWasClosed {
             positionPanel()
             panel.makeKeyAndOrderFront(nil)
             DispatchQueue.main.async { [weak self] in
@@ -268,7 +267,11 @@ extension AppDelegate {
         panel.makeKey()
         startNavKeyMonitor()
 
-        jumpModeController.activate(sessions: sessionManager.sessions)
+        jumpModeController.activate(
+            sessions: sessionManager.sessions,
+            previousApp: NSWorkspace.shared.frontmostApplication,
+            panelWasClosed: panelWasClosed
+        )
 
         jumpModeController.startTimeout { [weak self] in
             self?.exitJumpMode(restoreFocus: true)
@@ -276,19 +279,14 @@ extension AppDelegate {
     }
 
     func exitJumpMode(restoreFocus: Bool) {
-        let previousApp = jumpModeController.previousApp
-        let panelWasClosed = jumpModeController.panelWasClosedBeforeJump
+        let state = jumpModeController.deactivate()
 
-        jumpModeController.deactivate()
-        jumpModeController.previousApp = nil
-        jumpModeController.panelWasClosedBeforeJump = false
-
-        if panelWasClosed {
+        if state.panelWasClosed {
             panel.orderOut(nil)
             stopNavKeyMonitor()
         }
         if restoreFocus {
-            previousApp?.activate()
+            state.previousApp?.activate()
         }
         NSApp.deactivate()
     }

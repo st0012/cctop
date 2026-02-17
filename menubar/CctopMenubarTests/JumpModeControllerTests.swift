@@ -173,7 +173,7 @@ final class JumpModeControllerTests: XCTestCase {
     }
 
     func testPanelWasClosedBeforeJumpTracksState() {
-        sut.panelWasClosedBeforeJump = true
+        sut.activate(sessions: [], previousApp: nil, panelWasClosed: true)
         XCTAssertTrue(sut.panelWasClosedBeforeJump)
     }
 
@@ -186,21 +186,22 @@ final class JumpModeControllerTests: XCTestCase {
         ]
 
         // Activate
-        sut.previousApp = nil
-        sut.panelWasClosedBeforeJump = true
-        sut.activate(sessions: sessions)
+        sut.activate(sessions: sessions, previousApp: nil, panelWasClosed: true)
 
         XCTAssertTrue(sut.isActive)
         XCTAssertEqual(sut.frozenSessions.count, 2)
         XCTAssertTrue(sut.panelWasClosedBeforeJump)
 
-        // Deactivate
-        sut.deactivate()
+        // Deactivate resets all state
+        let state = sut.deactivate()
 
         XCTAssertFalse(sut.isActive)
         XCTAssertTrue(sut.frozenSessions.isEmpty)
-        // panelWasClosedBeforeJump is managed by AppDelegate, not by deactivate()
-        XCTAssertTrue(sut.panelWasClosedBeforeJump)
+        XCTAssertFalse(sut.panelWasClosedBeforeJump)
+        XCTAssertNil(sut.previousApp)
+        // Returned state preserves pre-deactivation values
+        XCTAssertTrue(state.panelWasClosed)
+        XCTAssertNil(state.previousApp)
     }
 
     func testMultipleActivateDeactivateCycles() {
