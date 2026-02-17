@@ -3,13 +3,10 @@ import SwiftUI
 struct AboutView: View {
     private let repoURL = "https://github.com/st0012/cctop"
 
-    private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-    }
+    private var version: String { Bundle.main.appVersion }
 
     var body: some View {
         VStack(spacing: 0) {
-            // App icon + identity
             VStack(spacing: 8) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
@@ -28,7 +25,6 @@ struct AboutView: View {
 
             Divider().padding(.horizontal, 14)
 
-            // Credits
             VStack(spacing: 4) {
                 HoverLinkButton(
                     label: "\u{00A9} 2025 Stan Lo",
@@ -44,20 +40,17 @@ struct AboutView: View {
 
             Divider().padding(.horizontal, 14)
 
-            // Links
             HStack(spacing: 16) {
                 linkButton("GitHub", url: repoURL)
                 linkButton("Report Issue", url: "\(repoURL)/issues")
             }
             .padding(.vertical, 10)
 
-            // Acknowledgments
             Text("Built with KeyboardShortcuts & Sparkle")
                 .font(.system(size: 9))
                 .foregroundStyle(Color.textMuted)
                 .padding(.bottom, 4)
 
-            // Privacy
             Text("No analytics \u{00B7} No telemetry")
                 .font(.system(size: 9))
                 .foregroundStyle(Color.textMuted)

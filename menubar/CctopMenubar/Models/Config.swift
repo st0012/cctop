@@ -1,5 +1,11 @@
 import Foundation
 
+extension Bundle {
+    var appVersion: String {
+        infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
+}
+
 enum Config {
     static func sessionsDir() -> String {
         if let override = ProcessInfo.processInfo.environment["CCTOP_SESSIONS_DIR"],

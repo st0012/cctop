@@ -53,16 +53,18 @@ struct PopupView: View {
                 }
                 .opacity(hideContent ? 0 : 1)
                 .animation(.none, value: hideContent)
-                if activeOverlay == .settings {
+                if let overlay = activeOverlay {
                     overlayPanel {
-                        SettingsSection(
-                            updater: updater,
-                            pluginManager: pluginManager ?? PluginManager()
-                        )
+                        switch overlay {
+                        case .settings:
+                            SettingsSection(
+                                updater: updater,
+                                pluginManager: pluginManager ?? PluginManager()
+                            )
+                        case .about:
+                            AboutView()
+                        }
                     }
-                }
-                if activeOverlay == .about {
-                    overlayPanel { AboutView() }
                 }
             }
             .clipped()
@@ -213,7 +215,9 @@ struct PopupView: View {
             versionButton
             if let shortcut = KeyboardShortcuts.getShortcut(for: .quickJump) {
                 Text("\(shortcut.description) for jump mode")
-                    .font(.system(size: 10)).foregroundStyle(Color.textMuted).lineLimit(1)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+                    .lineLimit(1)
             }
             Spacer()
             settingsGearButton
@@ -223,14 +227,13 @@ struct PopupView: View {
     }
 
     private var versionButton: some View {
-        Button { toggleOverlay(.about) } label: {
-            Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+        let isActive = activeOverlay == .about
+        let color: Color = isActive ? .amber : (versionHovered ? .primary : .textMuted)
+        return Button { toggleOverlay(.about) } label: {
+            Text("v\(Bundle.main.appVersion)")
                 .font(.system(size: 10))
-                .foregroundStyle(
-                    activeOverlay == .about ? Color.amber
-                        : (versionHovered ? .primary : Color.textMuted)
-                )
-                .underline(versionHovered && activeOverlay != .about)
+                .foregroundStyle(color)
+                .underline(versionHovered && !isActive)
         }
         .buttonStyle(.plain)
         .onHover { versionHovered = $0 }
@@ -258,26 +261,24 @@ struct PopupView: View {
 
 }
 
-// MARK: - Helpers
-
 extension PopupView {
-    fileprivate var isJumpModeActive: Bool { jumpMode?.isActive ?? false }
+    private var isJumpModeActive: Bool { jumpMode?.isActive ?? false }
 
-    fileprivate var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }
+    private var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }
 
-    fileprivate var sortedSessions: [Session] {
+    private var sortedSessions: [Session] {
         if isJumpModeActive, let frozen = jumpMode?.frozenSessions, !frozen.isEmpty {
             return frozen
         }
         return Session.sorted(sessions)
     }
 
-    fileprivate func focusSession(_ session: Session) {
+    private func focusSession(_ session: Session) {
         focusTerminal(session: session)
         NSApp.deactivate()
     }
 
-    fileprivate func toggleOverlay(_ overlay: Overlay) {
+    private func toggleOverlay(_ overlay: Overlay) {
         if activeOverlay == overlay {
             closeOverlay(animated: true)
         } else {
@@ -288,7 +289,7 @@ extension PopupView {
         }
     }
 
-    fileprivate func closeOverlay(animated: Bool) {
+    private func closeOverlay(animated: Bool) {
         activeOverlay = nil
         notifyLayoutChanged()
         if animated {
@@ -300,17 +301,17 @@ extension PopupView {
         }
     }
 
-    fileprivate func notifyLayoutChanged() {
+    private func notifyLayoutChanged() {
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: .layoutChanged, object: nil)
         }
     }
 
-    fileprivate func openInFinder(path: String) {
+    private func openInFinder(path: String) {
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
     }
 
-    fileprivate func copyPath(_ path: String) {
+    private func copyPath(_ path: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(path, forType: .string)
     }
