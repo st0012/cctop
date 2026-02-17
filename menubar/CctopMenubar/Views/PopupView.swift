@@ -3,7 +3,7 @@ import KeyboardShortcuts
 import SwiftUI
 
 extension Notification.Name {
-    static let settingsToggled = Notification.Name("settingsToggled")
+    static let layoutChanged = Notification.Name("layoutChanged")
 }
 
 enum PopupTab {
@@ -18,6 +18,7 @@ struct PopupView: View {
     var jumpMode: JumpModeController?
     @State private var selectedTab: PopupTab = .active
     @State private var showSettings = false
+    @State private var hideContent = false
     @State private var gearHovered = false
     @State private var ocBannerInstalled = false
     @AppStorage("ocBannerDismissed") private var ocBannerDismissed = false
@@ -36,20 +37,39 @@ struct PopupView: View {
                 tabPicker
                 Divider()
             }
-            switch selectedTab {
-            case .active:
-                activeContent
-            case .recent:
-                recentContent
+            ZStack(alignment: .top) {
+                Group {
+                    switch selectedTab {
+                    case .active:
+                        activeContent
+                    case .recent:
+                        recentContent
+                    }
+                }
+                .opacity(hideContent ? 0 : 1)
+                .animation(.none, value: hideContent)
+                if showSettings {
+                    VStack(spacing: 0) {
+                        SettingsSection(
+                            updater: updater,
+                            pluginManager: pluginManager ?? PluginManager()
+                        )
+                        .padding(.vertical, 8)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.panelBackground)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top),
+                        removal: .modifier(
+                            active: RollUpEffect(progress: 0),
+                            identity: RollUpEffect(progress: 1)
+                        )
+                    ))
+                }
             }
-            if showSettings {
-                Divider()
-                SettingsSection(
-                    updater: updater,
-                    pluginManager: pluginManager ?? PluginManager()
-                )
-                .padding(.vertical, 8)
-            }
+            .clipped()
+            .animation(.easeInOut(duration: 0.2), value: showSettings)
             Divider()
             footerBar
         }
@@ -59,8 +79,7 @@ struct PopupView: View {
                 selectedTab = .active
             }
             if showSettings {
-                withAnimation(.easeInOut(duration: 0.2)) { showSettings = false }
-                notifyLayoutChanged()
+                closeSettings(animated: false)
             }
         }
     }
@@ -94,7 +113,11 @@ struct PopupView: View {
                 }
             } else {
                 if showOcBanner {
-                    ocBanner
+                    OpenCodeBanner(
+                        pluginManager: pluginManager,
+                        installed: $ocBannerInstalled,
+                        dismissed: $ocBannerDismissed
+                    )
                 }
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 4) {
@@ -193,8 +216,7 @@ struct PopupView: View {
 
     private var settingsGearButton: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) { showSettings.toggle() }
-            notifyLayoutChanged()
+            toggleSettings()
         } label: {
             Image(systemName: "gearshape")
                 .font(.system(size: 14))
@@ -234,10 +256,31 @@ struct PopupView: View {
         NSApp.deactivate()
     }
 
-    /// Notify the panel to resize after a layout change (tab switch, settings toggle).
+    private func toggleSettings() {
+        if showSettings {
+            closeSettings(animated: true)
+        } else {
+            hideContent = true
+            showSettings = true
+            notifyLayoutChanged()
+        }
+    }
+
+    /// Close the settings panel. When animated, the content is revealed after
+    /// the 0.2s roll-up animation finishes. Otherwise both states reset immediately.
+    private func closeSettings(animated: Bool) {
+        showSettings = false
+        notifyLayoutChanged()
+        if animated {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { hideContent = false }
+        } else {
+            hideContent = false
+        }
+    }
+
     private func notifyLayoutChanged() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            NotificationCenter.default.post(name: .settingsToggled, object: nil)
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .layoutChanged, object: nil)
         }
     }
 
@@ -249,69 +292,20 @@ struct PopupView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(path, forType: .string)
     }
-
-    private var ocBanner: some View {
-        OpenCodeBanner(
-            pluginManager: pluginManager,
-            installed: $ocBannerInstalled,
-            dismissed: $ocBannerDismissed
-        )
-    }
 }
 
-private struct OpenCodeBanner: View {
-    var pluginManager: PluginManager?
-    @Binding var installed: Bool
-    @Binding var dismissed: Bool
-    @State private var installHovered = false
-    @State private var dismissHovered = false
+private struct RollUpEffect: ViewModifier {
+    var progress: CGFloat
 
-    var body: some View {
-        HStack(spacing: 4) {
-            if installed {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.green)
-                Text("Installed \u{2014} restart opencode to start tracking")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-            } else {
-                Text("Track opencode sessions too?")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-                Spacer()
-                Button {
-                    if pluginManager?.installOpenCodePlugin() == true {
-                        withAnimation { installed = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                            withAnimation { dismissed = true }
-                        }
-                    }
-                } label: {
-                    Text("Install")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Color.amber)
-                        .opacity(installHovered ? 1.0 : 0.8)
-                        .underline(installHovered)
-                }
-                .buttonStyle(.plain)
-                .onHover { installHovered = $0 }
-                Button {
-                    withAnimation { dismissed = true }
-                } label: {
-                    Text("Dismiss")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Color.textMuted)
-                        .opacity(dismissHovered ? 1.0 : 0.7)
-                        .underline(dismissHovered)
-                }
-                .buttonStyle(.plain)
-                .onHover { dismissHovered = $0 }
-            }
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content.mask {
+            Color.black.scaleEffect(y: progress, anchor: .top)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 5)
-        .background(Color.amber.opacity(0.05))
     }
 }
 
