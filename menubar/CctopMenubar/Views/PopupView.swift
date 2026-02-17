@@ -372,9 +372,7 @@ private struct TabButtonView: View {
     PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater()).frame(width: 320)
 }
 #Preview("Empty") {
-    PopupView(
-        sessions: [], updater: DisabledUpdater(), pluginManager: PluginManager()
-    ).frame(width: 320)
+    PopupView(sessions: [], updater: DisabledUpdater(), pluginManager: PluginManager()).frame(width: 320)
 }
 #Preview("With Tabs") {
     PopupView(
