@@ -3,6 +3,8 @@ import Combine
 
 class JumpModeController: ObservableObject {
     @Published var isActive = false
+    let didActivateSubject = PassthroughSubject<Void, Never>()
+    let navActionSubject = PassthroughSubject<PanelNavAction, Never>()
     /// Sorted session snapshot captured when jump mode activates.
     /// Prevents reordering while badges are visible.
     private(set) var frozenSessions: [Session] = []
@@ -13,6 +15,7 @@ class JumpModeController: ObservableObject {
     func activate(sessions: [Session]) {
         frozenSessions = Session.sorted(sessions)
         isActive = true
+        didActivateSubject.send()
     }
 
     func deactivate() {

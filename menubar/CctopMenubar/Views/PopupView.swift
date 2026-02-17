@@ -73,15 +73,13 @@ struct PopupView: View {
             Divider()
             footerBar
         }
-        .onReceive(jumpMode?.$isActive.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { active in
-            guard active else { return }
+        .onReceive(jumpMode?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
             if selectedTab == .recent { selectedTab = .active }
             if activeOverlay != nil { closeOverlay(animated: false) }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .panelNavAction)) { notification in
-            guard activeOverlay == nil,
-                  let action = notification.userInfo?["action"] as? PanelNavAction else { return }
+        .onReceive(jumpMode?.navActionSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { action in
+            guard activeOverlay == nil else { return }
             handleNavAction(action)
         }
         .onChange(of: selectedTab) { _ in selectedIndex = nil }

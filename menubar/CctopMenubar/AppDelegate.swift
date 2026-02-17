@@ -13,7 +13,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var pluginManager: PluginManager!
     private var historyManager: HistoryManager!
     private var jumpModeController = JumpModeController()
-    private var keyMonitor: Any?
     private var navKeyMonitor: Any?
     private var previousApp: NSRunningApplication?
     private var cancellable: AnyCancellable?
@@ -267,35 +266,9 @@ extension AppDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKey()
+        startNavKeyMonitor()
 
         jumpModeController.activate(sessions: sessionManager.sessions)
-
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.jumpModeController.isActive else { return event }
-            if event.keyCode == 53 { // Escape
-                DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
-                return nil
-            }
-            if let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
-                DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
-                return nil
-            }
-            // Arrow keys navigate within jump mode
-            if event.keyCode == 125 || event.keyCode == 126 {
-                self.jumpModeController.cancelTimeout()
-                self.postNavAction(event.keyCode == 125 ? .down : .up)
-                return nil
-            }
-            // Enter confirms selection (exitJumpMode handled via notification)
-            if event.keyCode == 36 {
-                self.jumpModeController.cancelTimeout()
-                self.postNavAction(.confirm)
-                return nil
-            }
-            // Any other key exits jump mode
-            DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
-            return nil
-        }
 
         jumpModeController.startTimeout { [weak self] in
             self?.exitJumpMode(restoreFocus: true)
@@ -310,13 +283,9 @@ extension AppDelegate {
         jumpModeController.previousApp = nil
         jumpModeController.panelWasClosedBeforeJump = false
 
-        if let monitor = keyMonitor {
-            NSEvent.removeMonitor(monitor)
-            keyMonitor = nil
-        }
-
         if panelWasClosed {
             panel.orderOut(nil)
+            stopNavKeyMonitor()
         }
         if restoreFocus {
             previousApp?.activate()
@@ -334,10 +303,36 @@ extension AppDelegate {
     private func startNavKeyMonitor() {
         guard navKeyMonitor == nil else { return }
         navKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.panel.isVisible, !self.jumpModeController.isActive else { return event }
-            guard let action = navKeyMap[event.keyCode] else { return event }
-            self.postNavAction(action)
-            return nil
+            guard let self, self.panel.isVisible else { return event }
+
+            let isJump = self.jumpModeController.isActive
+
+            // Jump mode: escape exits jump mode
+            if isJump && event.keyCode == 53 {
+                DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
+                return nil
+            }
+
+            // Jump mode: digit keys jump to session
+            if isJump, let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
+                DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
+                return nil
+            }
+
+            // Navigation keys shared by both modes
+            if let action = navKeyMap[event.keyCode] {
+                if isJump { self.jumpModeController.cancelTimeout() }
+                self.postNavAction(action)
+                return nil
+            }
+
+            // Jump mode: any other key exits
+            if isJump {
+                DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
+                return nil
+            }
+
+            return event
         }
     }
 
@@ -349,10 +344,7 @@ extension AppDelegate {
     }
 
     private func postNavAction(_ action: PanelNavAction) {
-        NotificationCenter.default.post(
-            name: .panelNavAction, object: nil,
-            userInfo: ["action": action]
-        )
+        jumpModeController.navActionSubject.send(action)
     }
 }
 
