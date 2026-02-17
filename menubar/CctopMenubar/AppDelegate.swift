@@ -70,7 +70,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             self?.applyAppearance()
         }
         NotificationCenter.default.addObserver(
-            forName: .settingsToggled, object: nil, queue: .main
+            forName: .layoutChanged, object: nil, queue: .main
         ) { [weak self] _ in
             self?.resizePanel(animate: true)
         }
