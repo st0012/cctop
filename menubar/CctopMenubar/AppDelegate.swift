@@ -12,9 +12,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var updater: UpdaterBase!
     private var pluginManager: PluginManager!
     private var historyManager: HistoryManager!
-    private var jumpModeController = JumpModeController()
-    private var keyMonitor: Any?
-    private var cancellable: AnyCancellable?
+    private var refocusController = RefocusController()
+    private var navKeyMonitor: Any?
+    private var previousApp: NSRunningApplication?
+    private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -35,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             historyManager: historyManager,
             updater: updater,
             pluginManager: pluginManager,
-            jumpMode: jumpModeController
+            refocus: refocusController
         )
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
@@ -60,8 +61,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         KeyboardShortcuts.onKeyUp(for: .togglePanel) { [weak self] in
             self?.togglePanel()
         }
-        KeyboardShortcuts.onKeyUp(for: .quickJump) { [weak self] in
-            self?.enterJumpMode()
+        KeyboardShortcuts.onKeyUp(for: .refocus) { [weak self] in
+            self?.startRefocus()
         }
         NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
@@ -74,10 +75,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         ) { [weak self] _ in
             self?.resizePanel(animate: true)
         }
+        refocusController.didConfirmSubject
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.endRefocus(restoreFocus: false) }
+            .store(in: &cancellables)
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.refocusController.isActive else { return }
+            self.endRefocus(restoreFocus: false)
+        }
     }
 
     @MainActor private func observeSessionUpdates() {
-        cancellable = sessionManager.$sessions
+        sessionManager.$sessions
             .receive(on: RunLoop.main)
             .sink { [weak self] sessions in
                 let count = sessions.filter { $0.status.needsAttention }.count
@@ -92,6 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     }
                 }
             }
+            .store(in: &cancellables)
     }
 
     private func setupStatusItem() {
@@ -106,89 +119,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @objc private func togglePanel() {
-        if jumpModeController.isActive {
-            exitJumpMode(restoreFocus: true)
+        if refocusController.isActive {
+            endRefocus(restoreFocus: true)
             return
         }
         if panel.isVisible {
             panel.orderOut(nil)
+            stopNavKeyMonitor()
+            previousApp?.activate()
+            previousApp = nil
         } else {
+            previousApp = NSWorkspace.shared.frontmostApplication
             positionPanel()
             panel.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            startNavKeyMonitor()
+            postNavAction(.reset)
             // Re-position after SwiftUI layout settles (fittingSize may
             // include hidden views on the first pass)
             DispatchQueue.main.async { [weak self] in
                 self?.positionPanel()
             }
         }
-    }
-
-    @MainActor private func enterJumpMode() {
-        guard !jumpModeController.isActive else { return }
-
-        jumpModeController.previousApp = NSWorkspace.shared.frontmostApplication
-        jumpModeController.panelWasClosedBeforeJump = !panel.isVisible
-
-        if !panel.isVisible {
-            positionPanel()
-            panel.makeKeyAndOrderFront(nil)
-            DispatchQueue.main.async { [weak self] in
-                self?.positionPanel()
-            }
-        }
-
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKey()
-
-        jumpModeController.activate(sessions: sessionManager.sessions)
-
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.jumpModeController.isActive else { return event }
-            if event.keyCode == 53 { // Escape
-                DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
-                return nil
-            }
-            if let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
-                DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
-                return nil
-            }
-            // Any other key exits jump mode
-            DispatchQueue.main.async { self.exitJumpMode(restoreFocus: true) }
-            return nil
-        }
-
-        jumpModeController.startTimeout { [weak self] in
-            self?.exitJumpMode(restoreFocus: true)
-        }
-    }
-
-    private func exitJumpMode(restoreFocus: Bool) {
-        let previousApp = jumpModeController.previousApp
-        let panelWasClosed = jumpModeController.panelWasClosedBeforeJump
-
-        jumpModeController.deactivate()
-        jumpModeController.previousApp = nil
-        jumpModeController.panelWasClosedBeforeJump = false
-
-        if let monitor = keyMonitor {
-            NSEvent.removeMonitor(monitor)
-            keyMonitor = nil
-        }
-
-        if panelWasClosed {
-            panel.orderOut(nil)
-        }
-        if restoreFocus {
-            previousApp?.activate()
-        }
-        NSApp.deactivate()
-    }
-
-    @MainActor private func jumpToSession(index: Int) {
-        let frozen = jumpModeController.frozenSessions
-        guard index < frozen.count else { return }
-        focusTerminal(session: frozen[index])
-        exitJumpMode(restoreFocus: false)
     }
 
     private func applyAppearance() {
@@ -292,19 +244,128 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 }
 
+// MARK: - Keyboard navigation
+
+private let navKeyMap: [UInt16: PanelNavAction] = [
+    125: .down,         // down arrow
+    126: .up,           // up arrow
+    36: .confirm,       // return
+    53: .escape,        // escape
+    48: .toggleTab,     // tab
+    123: .previousTab,  // left arrow
+    124: .nextTab       // right arrow
+]
+
+extension AppDelegate {
+    @MainActor func startRefocus() {
+        guard !refocusController.isActive else { return }
+
+        let panelWasClosed = !panel.isVisible
+
+        if panelWasClosed {
+            positionPanel()
+            panel.makeKeyAndOrderFront(nil)
+            DispatchQueue.main.async { [weak self] in
+                self?.positionPanel()
+            }
+        }
+
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKey()
+        startNavKeyMonitor()
+
+        refocusController.activate(
+            sessions: sessionManager.sessions,
+            previousApp: NSWorkspace.shared.frontmostApplication,
+            panelWasClosed: panelWasClosed
+        )
+
+        refocusController.startTimeout { [weak self] in
+            self?.endRefocus(restoreFocus: true)
+        }
+    }
+
+    func endRefocus(restoreFocus: Bool) {
+        let state = refocusController.deactivate()
+
+        if state.panelWasClosed {
+            panel.orderOut(nil)
+            stopNavKeyMonitor()
+        }
+        if restoreFocus {
+            state.previousApp?.activate()
+        }
+        NSApp.deactivate()
+    }
+
+    @MainActor private func jumpToSession(index: Int) {
+        let frozen = refocusController.frozenSessions
+        guard index < frozen.count else { return }
+        focusTerminal(session: frozen[index])
+        endRefocus(restoreFocus: false)
+    }
+
+    private func startNavKeyMonitor() {
+        guard navKeyMonitor == nil else { return }
+        navKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.panel.isVisible else { return event }
+
+            let isJump = self.refocusController.isActive
+
+            // Refocus: escape exits refocus
+            if isJump && event.keyCode == 53 {
+                DispatchQueue.main.async { self.endRefocus(restoreFocus: true) }
+                return nil
+            }
+
+            // Refocus: digit keys jump to session
+            if isJump, let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
+                DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
+                return nil
+            }
+
+            // Navigation keys shared by both modes
+            if let action = navKeyMap[event.keyCode] {
+                if isJump { self.refocusController.cancelTimeout() }
+                self.postNavAction(action)
+                return nil
+            }
+
+            // Refocus: any other key exits
+            if isJump {
+                DispatchQueue.main.async { self.endRefocus(restoreFocus: true) }
+                return nil
+            }
+
+            return event
+        }
+    }
+
+    private func stopNavKeyMonitor() {
+        if let monitor = navKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            navKeyMonitor = nil
+        }
+    }
+
+    private func postNavAction(_ action: PanelNavAction) {
+        refocusController.navActionSubject.send(action)
+    }
+}
+
 private struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
     @ObservedObject var historyManager: HistoryManager
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
-    @ObservedObject var jumpMode: JumpModeController
+    @ObservedObject var refocus: RefocusController
     var body: some View {
         PopupView(
             sessions: sessionManager.sessions,
             recentProjects: historyManager.recentProjects,
             updater: updater,
             pluginManager: pluginManager,
-            jumpMode: jumpMode
+            refocus: refocus
         )
         .frame(width: 320)
         .background(Color.panelBackground)

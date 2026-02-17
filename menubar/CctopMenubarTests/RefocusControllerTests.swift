@@ -1,12 +1,12 @@
 import XCTest
 @testable import CctopMenubar
 
-final class JumpModeControllerTests: XCTestCase {
-    private var sut: JumpModeController!
+final class RefocusControllerTests: XCTestCase {
+    private var sut: RefocusController!
 
     override func setUp() {
         super.setUp()
-        sut = JumpModeController()
+        sut = RefocusController()
     }
 
     override func tearDown() {
@@ -20,7 +20,7 @@ final class JumpModeControllerTests: XCTestCase {
         XCTAssertFalse(sut.isActive)
         XCTAssertTrue(sut.frozenSessions.isEmpty)
         XCTAssertNil(sut.previousApp)
-        XCTAssertFalse(sut.panelWasClosedBeforeJump)
+        XCTAssertFalse(sut.panelWasClosedBeforeRefocus)
     }
 
     // MARK: - Activate
@@ -168,13 +168,13 @@ final class JumpModeControllerTests: XCTestCase {
 
     // MARK: - Panel state tracking
 
-    func testPanelWasClosedBeforeJumpDefaultsFalse() {
-        XCTAssertFalse(sut.panelWasClosedBeforeJump)
+    func testPanelWasClosedBeforeRefocusDefaultsFalse() {
+        XCTAssertFalse(sut.panelWasClosedBeforeRefocus)
     }
 
-    func testPanelWasClosedBeforeJumpTracksState() {
-        sut.panelWasClosedBeforeJump = true
-        XCTAssertTrue(sut.panelWasClosedBeforeJump)
+    func testPanelWasClosedBeforeRefocusTracksState() {
+        sut.activate(sessions: [], previousApp: nil, panelWasClosed: true)
+        XCTAssertTrue(sut.panelWasClosedBeforeRefocus)
     }
 
     // MARK: - Activate → Deactivate cycle
@@ -186,21 +186,22 @@ final class JumpModeControllerTests: XCTestCase {
         ]
 
         // Activate
-        sut.previousApp = nil
-        sut.panelWasClosedBeforeJump = true
-        sut.activate(sessions: sessions)
+        sut.activate(sessions: sessions, previousApp: nil, panelWasClosed: true)
 
         XCTAssertTrue(sut.isActive)
         XCTAssertEqual(sut.frozenSessions.count, 2)
-        XCTAssertTrue(sut.panelWasClosedBeforeJump)
+        XCTAssertTrue(sut.panelWasClosedBeforeRefocus)
 
-        // Deactivate
-        sut.deactivate()
+        // Deactivate resets all state
+        let state = sut.deactivate()
 
         XCTAssertFalse(sut.isActive)
         XCTAssertTrue(sut.frozenSessions.isEmpty)
-        // panelWasClosedBeforeJump is managed by AppDelegate, not by deactivate()
-        XCTAssertTrue(sut.panelWasClosedBeforeJump)
+        XCTAssertFalse(sut.panelWasClosedBeforeRefocus)
+        XCTAssertNil(sut.previousApp)
+        // Returned state preserves pre-deactivation values
+        XCTAssertTrue(state.panelWasClosed)
+        XCTAssertNil(state.previousApp)
     }
 
     func testMultipleActivateDeactivateCycles() {

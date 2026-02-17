@@ -78,13 +78,13 @@ struct SettingsSection: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("Quick Jump Shortcut")
+                    Text("Refocus Shortcut")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.textSecondary)
                     Spacer()
-                    KeyboardShortcuts.Recorder("", name: .quickJump)
+                    KeyboardShortcuts.Recorder("", name: .refocus)
                 }
-                Text("Focus the panel and jump to sessions by number.")
+                Text("Bring up the panel and jump to sessions by number.")
                     .font(.system(size: 10))
                     .foregroundStyle(Color.textMuted)
             }

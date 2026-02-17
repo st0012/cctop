@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RecentProjectCardView: View {
     let project: RecentProject
+    var isSelected = false
     @State private var isHovered = false
 
     var body: some View {
@@ -41,12 +42,7 @@ struct RecentProjectCardView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(isHovered ? Color.primary.opacity(0.06) : Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isHovered ? Color.primary.opacity(0.15) : Color.cardBorder, lineWidth: 1)
-        )
+        .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered)
         .overlay(alignment: .leading) {
             RoundedRectangle(cornerRadius: 1)
                 .fill(Color.textMuted.opacity(0.3))

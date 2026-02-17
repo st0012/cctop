@@ -8,9 +8,10 @@ extension Session {
 
 struct SessionCardView: View {
     let session: Session
-    /// 1-based index for Quick Jump mode (1-9). nil = normal mode (show status dot).
-    var jumpIndex: Int?
+    /// 1-based index for refocus mode (1-9). nil = normal mode (show status dot).
+    var refocusIndex: Int?
     var showSourceBadge = false
+    var isSelected = false
     @State private var isHovered = false
     @State private var pulsing = false
 
@@ -83,12 +84,7 @@ struct SessionCardView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(isHovered ? Color.primary.opacity(0.06) : Color.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isHovered ? Color.primary.opacity(0.15) : Color.cardBorder, lineWidth: 1)
-        )
+        .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .accessibilityElement(children: .contain)
@@ -100,7 +96,7 @@ struct SessionCardView: View {
     @ViewBuilder
     private var statusIndicator: some View {
         ZStack {
-            if let idx = jumpIndex, idx <= 9 {
+            if let idx = refocusIndex, idx <= 9 {
                 Circle()
                     .fill(session.status.color)
                     .frame(width: 16, height: 16)
@@ -119,7 +115,7 @@ struct SessionCardView: View {
 
     private var cardAccessibilityLabel: String {
         var parts: [String] = []
-        if let idx = jumpIndex, idx <= 9 {
+        if let idx = refocusIndex, idx <= 9 {
             parts.append("Press \(idx) to jump to")
         }
         parts += [session.projectName, "on branch", session.branch, session.status.accessibilityDescription]
@@ -174,24 +170,24 @@ struct SessionCardView: View {
     )
     .frame(width: 300).padding()
 }
-#Preview("Jump Mode Badge") {
+#Preview("Refocus Badge") {
     SessionCardView(
         session: .mock(status: .working, lastTool: "Edit", lastToolDetail: "/src/auth.ts"),
-        jumpIndex: 3
+        refocusIndex: 3
     )
     .frame(width: 300).padding()
 }
-#Preview("Jump Mode Attention") {
+#Preview("Refocus Attention") {
     SessionCardView(
         session: .mock(status: .waitingPermission, notificationMessage: "Allow Bash: rm -rf"),
-        jumpIndex: 1
+        refocusIndex: 1
     )
     .frame(width: 300).padding()
 }
-#Preview("Jump Mode 10+") {
+#Preview("Refocus 10+") {
     SessionCardView(
         session: .mock(status: .idle),
-        jumpIndex: 10
+        refocusIndex: 10
     )
     .frame(width: 300).padding()
 }
