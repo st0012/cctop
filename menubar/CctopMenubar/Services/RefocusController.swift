@@ -1,16 +1,16 @@
 import AppKit
 import Combine
 
-class JumpModeController: ObservableObject {
+class RefocusController: ObservableObject {
     @Published var isActive = false
     let didActivateSubject = PassthroughSubject<Void, Never>()
     let didConfirmSubject = PassthroughSubject<Void, Never>()
     let navActionSubject = PassthroughSubject<PanelNavAction, Never>()
-    /// Sorted session snapshot captured when jump mode activates.
+    /// Sorted session snapshot captured when refocus activates.
     /// Prevents reordering while badges are visible.
     private(set) var frozenSessions: [Session] = []
     private(set) var previousApp: NSRunningApplication?
-    private(set) var panelWasClosedBeforeJump = false
+    private(set) var panelWasClosedBeforeRefocus = false
     private var timeoutWork: DispatchWorkItem?
 
     struct DeactivationState {
@@ -26,21 +26,21 @@ class JumpModeController: ObservableObject {
 
     func activate(sessions: [Session], previousApp: NSRunningApplication?, panelWasClosed: Bool) {
         self.previousApp = previousApp
-        self.panelWasClosedBeforeJump = panelWasClosed
+        self.panelWasClosedBeforeRefocus = panelWasClosed
         activate(sessions: sessions)
     }
 
-    /// Resets all jump mode state and returns the state needed for teardown.
+    /// Resets all refocus state and returns the state needed for teardown.
     @discardableResult
     func deactivate() -> DeactivationState {
         let state = DeactivationState(
             previousApp: previousApp,
-            panelWasClosed: panelWasClosedBeforeJump
+            panelWasClosed: panelWasClosedBeforeRefocus
         )
         isActive = false
         frozenSessions = []
         previousApp = nil
-        panelWasClosedBeforeJump = false
+        panelWasClosedBeforeRefocus = false
         cancelTimeout()
         return state
     }

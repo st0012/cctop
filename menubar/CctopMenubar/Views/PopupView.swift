@@ -21,7 +21,7 @@ struct PopupView: View {
     var recentProjects: [RecentProject] = []
     @ObservedObject var updater: UpdaterBase
     var pluginManager: PluginManager?
-    var jumpMode: JumpModeController?
+    var refocus: RefocusController?
     @State private var selectedTab: PopupTab = .active
     @State private var activeOverlay: Overlay?
     @State private var hideContent = false
@@ -73,12 +73,12 @@ struct PopupView: View {
             Divider()
             footerBar
         }
-        .onReceive(jumpMode?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
+        .onReceive(refocus?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
             if selectedTab == .recent { selectedTab = .active }
             if activeOverlay != nil { closeOverlay(animated: false) }
         }
-        .onReceive(jumpMode?.navActionSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { action in
+        .onReceive(refocus?.navActionSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { action in
             guard activeOverlay == nil else { return }
             handleNavAction(action)
         }
@@ -143,7 +143,7 @@ struct PopupView: View {
                             ForEach(Array(sortedSessions.enumerated()), id: \.element.id) { index, session in
                                 SessionCardView(
                                     session: session,
-                                    jumpIndex: isJumpModeActive ? index + 1 : nil,
+                                    refocusIndex: isRefocusActive ? index + 1 : nil,
                                     showSourceBadge: hasMultipleSources,
                                     isSelected: selectedIndex == index
                                 )
@@ -240,8 +240,8 @@ struct PopupView: View {
         HStack {
             QuitButton()
             versionButton
-            if let shortcut = KeyboardShortcuts.getShortcut(for: .quickJump) {
-                Text("\(shortcut.description) for jump mode")
+            if let shortcut = KeyboardShortcuts.getShortcut(for: .refocus) {
+                Text("\(shortcut.description) to refocus")
                     .font(.system(size: 10))
                     .foregroundStyle(Color.textMuted)
                     .lineLimit(1)
@@ -289,12 +289,12 @@ struct PopupView: View {
 }
 
 extension PopupView {
-    private var isJumpModeActive: Bool { jumpMode?.isActive ?? false }
+    private var isRefocusActive: Bool { refocus?.isActive ?? false }
 
     private var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }
 
     private var sortedSessions: [Session] {
-        if isJumpModeActive, let frozen = jumpMode?.frozenSessions, !frozen.isEmpty {
+        if isRefocusActive, let frozen = refocus?.frozenSessions, !frozen.isEmpty {
             return frozen
         }
         return Session.sorted(sessions)
@@ -376,8 +376,8 @@ extension PopupView {
             openInEditor(project: recentProjects[index])
             NSApp.deactivate()
         }
-        if isJumpModeActive {
-            jumpMode?.didConfirmSubject.send()
+        if isRefocusActive {
+            refocus?.didConfirmSubject.send()
         }
     }
 

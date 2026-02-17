@@ -27,7 +27,7 @@
 		FT0000010000000000000001 /* WorkspaceFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000001 /* WorkspaceFileTests.swift */; };
 		FT0000010000000000000002 /* FocusTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000002 /* FocusTerminalTests.swift */; };
 		HMT000010000000000000001 /* HistoryManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HMT000020000000000000001 /* HistoryManagerTests.swift */; };
-		JMT000010000000000000001 /* JumpModeControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = JMT000020000000000000001 /* JumpModeControllerTests.swift */; };
+		JMT000010000000000000001 /* RefocusControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = JMT000020000000000000001 /* RefocusControllerTests.swift */; };
 		G10000010000000000000001 /* FloatingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000020000000000000001 /* FloatingPanel.swift */; };
 		G10000030000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000040000000000000001 /* AppDelegate.swift */; };
 		H10000010000000000000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000020000000000000001 /* AppSettings.swift */; };
@@ -52,7 +52,7 @@
 		P10000070000000000000001 /* HookLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000080000000000000001 /* HookLogger.swift */; };
 		P10000090000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
 		HM0000010000000000000001 /* HistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = HM0000020000000000000001 /* HistoryManager.swift */; };
-		JM0000010000000000000001 /* JumpModeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = JM0000020000000000000001 /* JumpModeController.swift */; };
+		JM0000010000000000000001 /* RefocusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = JM0000020000000000000001 /* RefocusController.swift */; };
 		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
 		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
 		SN0000010000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
@@ -95,7 +95,7 @@
 		FT0000020000000000000001 /* WorkspaceFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceFileTests.swift; sourceTree = "<group>"; };
 		FT0000020000000000000002 /* FocusTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminalTests.swift; sourceTree = "<group>"; };
 		HMT000020000000000000001 /* HistoryManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManagerTests.swift; sourceTree = "<group>"; };
-		JMT000020000000000000001 /* JumpModeControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JumpModeControllerTests.swift; sourceTree = "<group>"; };
+		JMT000020000000000000001 /* RefocusControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefocusControllerTests.swift; sourceTree = "<group>"; };
 		G10000020000000000000001 /* FloatingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanel.swift; sourceTree = "<group>"; };
 		G10000040000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		H10000020000000000000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
@@ -118,7 +118,7 @@
 		P10000060000000000000001 /* HookHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandler.swift; sourceTree = "<group>"; };
 		P10000080000000000000001 /* HookLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookLogger.swift; sourceTree = "<group>"; };
 		HM0000020000000000000001 /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManager.swift; sourceTree = "<group>"; };
-		JM0000020000000000000001 /* JumpModeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JumpModeController.swift; sourceTree = "<group>"; };
+		JM0000020000000000000001 /* RefocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefocusController.swift; sourceTree = "<group>"; };
 		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
 		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
 		SN0000020000000000000001 /* SessionNameLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookup.swift; sourceTree = "<group>"; };
@@ -173,7 +173,7 @@
 				E10000020000000000000001 /* FocusTerminal.swift */,
 				SP0000020000000000000001 /* SparkleUpdater.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
-				JM0000020000000000000001 /* JumpModeController.swift */,
+				JM0000020000000000000001 /* RefocusController.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -275,7 +275,7 @@
 				FK0000020000000000000001 /* ForkSessionTests.swift */,
 				FT0000020000000000000001 /* WorkspaceFileTests.swift */,
 				FT0000020000000000000002 /* FocusTerminalTests.swift */,
-				JMT000020000000000000001 /* JumpModeControllerTests.swift */,
+				JMT000020000000000000001 /* RefocusControllerTests.swift */,
 				HMT000020000000000000001 /* HistoryManagerTests.swift */,
 			);
 			path = CctopMenubarTests;
@@ -409,7 +409,7 @@
 				SP0000010000000000000001 /* SparkleUpdater.swift in Sources */,
 				PM0000010000000000000001 /* PluginManager.swift in Sources */,
 				HM0000010000000000000001 /* HistoryManager.swift in Sources */,
-				JM0000010000000000000001 /* JumpModeController.swift in Sources */,
+				JM0000010000000000000001 /* RefocusController.swift in Sources */,
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,
 				N10000050000000000000001 /* Config.swift in Sources */,
@@ -453,7 +453,7 @@
 				FK0000010000000000000001 /* ForkSessionTests.swift in Sources */,
 				FT0000010000000000000001 /* WorkspaceFileTests.swift in Sources */,
 				FT0000010000000000000002 /* FocusTerminalTests.swift in Sources */,
-				JMT000010000000000000001 /* JumpModeControllerTests.swift in Sources */,
+				JMT000010000000000000001 /* RefocusControllerTests.swift in Sources */,
 				HMT000010000000000000001 /* HistoryManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

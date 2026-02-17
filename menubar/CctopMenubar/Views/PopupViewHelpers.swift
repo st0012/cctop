@@ -116,10 +116,10 @@ struct TabButtonView: View {
         sessions: Session.mockSessions, recentProjects: [RecentProject.mock()], updater: DisabledUpdater()
     ).frame(width: 320)
 }
-#Preview("Jump Mode") {
-    let jm = JumpModeController(); jm.isActive = true
+#Preview("Refocus") {
+    let rc = RefocusController(); rc.isActive = true
     return PopupView(
         sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
-        updater: DisabledUpdater(), jumpMode: jm
+        updater: DisabledUpdater(), refocus: rc
     ).frame(width: 320)
 }
