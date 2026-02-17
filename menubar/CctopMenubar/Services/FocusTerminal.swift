@@ -5,20 +5,20 @@ func focusTerminal(session: Session) {
         NSWorkspace.shared.open(URL(fileURLWithPath: session.projectPath))
         return
     }
-    let program = terminal.program.lowercased()
 
-    if program.contains("code") || program.contains("cursor") {
-        let cli = program.contains("cursor") ? "cursor" : "code"
+    let kind = EditorKind.from(editorName: terminal.program)
+
+    if let cli = kind.cliCommand {
         let target = session.workspaceFile ?? session.projectPath
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = [cli, target]
         try? process.run()
-    } else if program.contains("iterm") {
+    } else if kind == .iterm2 {
         if !focusITerm2Session(sessionId: terminal.sessionId) {
-            activateAppByName(program)
+            activateAppByName(terminal.program.lowercased())
         }
-    } else if !activateAppByName(program) {
+    } else if !activateAppByName(terminal.program.lowercased()) {
         NSWorkspace.shared.open(URL(fileURLWithPath: session.projectPath))
     }
 }
@@ -58,6 +58,47 @@ private func focusITerm2Session(sessionId: String?) -> Bool {
     var error: NSDictionary?
     NSAppleScript(source: script)?.executeAndReturnError(&error)
     return error == nil
+}
+
+// MARK: - Open recent project in editor
+
+func openInEditor(project: RecentProject) {
+    guard let editor = project.lastEditor, !editor.isEmpty else {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.projectPath)
+        return
+    }
+
+    let kind = EditorKind.from(editorName: editor)
+
+    // For code editors, prefer stored workspace file, fallback to dynamic lookup
+    let target: String
+    if kind.usesWorkspaceFile {
+        target = project.workspaceFile
+            ?? Session.findWorkspaceFile(in: project.projectPath)
+            ?? project.projectPath
+    } else {
+        target = project.projectPath
+    }
+
+    // Try bundle ID launch first
+    if let bundleID = kind.bundleID,
+       let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+        NSWorkspace.shared.open(
+            [URL(fileURLWithPath: target)],
+            withApplicationAt: appURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        )
+        return
+    }
+
+    // Fallback: try `open -a <editor> <path>`
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+    process.arguments = ["-a", editor, target]
+    if (try? process.run()) != nil { return }
+
+    // Final fallback: open in Finder
+    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.projectPath)
 }
 
 @discardableResult

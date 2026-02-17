@@ -8,12 +8,15 @@ private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "Ses
 class SessionManager: ObservableObject {
     @Published var sessions: [Session] = []
 
+    let historyManager: HistoryManager
+
     private let sessionsDir: URL
     private var source: DispatchSourceFileSystemObject?
     private var debounceTask: DispatchWorkItem?
     private var livenessTimer: Timer?
 
-    init() {
+    init(historyManager: HistoryManager) {
+        self.historyManager = historyManager
         self.sessionsDir = URL(fileURLWithPath: Config.sessionsDir())
         loadSessions()
         startWatching()
@@ -68,14 +71,25 @@ class SessionManager: ObservableObject {
                 sendNotification(for: session)
             }
         }
+        archiveAndRemoveDeadSessions(dead)
+        cleanupOldFormatFiles(jsonFiles)
+    }
+
+    private func archiveAndRemoveDeadSessions(_ dead: [(URL, Session)]) {
         for (url, session) in dead {
             let sid = session.sessionId
             let pid = session.pid.map(String.init) ?? "nil"
-            logger.error("removing dead session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
-            try? FileManager.default.removeItem(at: url)
+            logger.info("archiving dead session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
+            let archived = historyManager.archiveSession(session)
+            if archived {
+                try? FileManager.default.removeItem(at: url)
+            } else {
+                logger.warning("skipping removal of \(sid, privacy: .public) — archive failed")
+            }
         }
-
-        cleanupOldFormatFiles(jsonFiles)
+        historyManager.rebuildRecentProjects(
+            excludingActive: Set(sessions.map(\.projectPath))
+        )
     }
 
     // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
