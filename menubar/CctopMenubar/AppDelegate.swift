@@ -79,6 +79,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.endRefocus(restoreFocus: false) }
             .store(in: &cancellables)
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.refocusController.isActive else { return }
+            self.endRefocus(restoreFocus: false)
+        }
     }
 
     @MainActor private func observeSessionUpdates() {
