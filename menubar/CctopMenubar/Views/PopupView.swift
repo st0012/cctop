@@ -22,6 +22,7 @@ struct PopupView: View {
     @ObservedObject var updater: UpdaterBase
     var pluginManager: PluginManager?
     var refocus: RefocusController?
+    var initialTab: PopupTab = .active
     @State private var selectedTab: PopupTab = .active
     @State private var activeOverlay: Overlay?
     @State private var hideContent = false
@@ -83,6 +84,7 @@ struct PopupView: View {
             handleNavAction(action)
         }
         .onChange(of: selectedTab) { _ in selectedIndex = nil }
+        .onAppear { selectedTab = initialTab }
     }
 
     private func overlayPanel<Content: View>(@ViewBuilder content: () -> Content) -> some View {

@@ -8,24 +8,32 @@
 A macOS menubar app that monitors your AI coding sessions at a glance — so you only switch when something actually needs you. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
 
 <p align="center">
-  <img src="docs/menubar-screenshot.png" alt="cctop menubar popup" width="340">
+  <img src="docs/menubar-light.png" alt="cctop menubar popup (light mode)" width="340">
+  &nbsp;&nbsp;
+  <img src="docs/menubar-dark.png" alt="cctop menubar popup (dark mode)" width="340">
 </p>
 
-<p align="center"><em>Monitoring Claude Code and opencode sessions side by side.</em></p>
-
-<p align="center">
-  <img src="docs/menubar-dark.png" alt="cctop dark mode" width="340">
-</p>
-
-<p align="center"><em>Status badges show what's urgent — permission requests, waiting input, or still working.</em></p>
+<p align="center"><em>Monitoring Claude Code and opencode sessions side by side — light and dark mode.</em></p>
 
 ## Features
 
-- Lives in your menubar — one click or a keyboard shortcut away
-- Color-coded status badges: idle, working, waiting for input, waiting for permission, compacting
-- See what each session is doing: the current prompt, tool being used, or last activity
-- Click a session to jump to its VS Code/Cursor/iTerm window
-- Native macOS app — lightweight, always running, no Electron
+**At-a-glance status.** A floating menubar panel shows all active sessions with color-coded badges: idle, working, waiting for input, waiting for permission, compacting. See the current prompt or tool in use (e.g. "Editing auth.ts") without switching windows.
+
+**Jump directly to any session.** Click a session card to raise its VS Code, Cursor, or iTerm2 window — or stay on the keyboard. Arrow keys to browse, Enter to jump, Tab to switch tabs.
+
+**Refocus mode.** Hit a global hotkey to overlay numbered badges (1–9) on every session card, then press the number to jump instantly.
+
+<p align="center">
+  <img src="docs/menubar-refocus.png" alt="cctop refocus mode with numbered badges" width="340">
+</p>
+
+**Recent Projects.** A second tab keeps session history so you can reopen past projects easily.
+
+<p align="center">
+  <img src="docs/menubar-recent.png" alt="cctop recent projects tab" width="340">
+</p>
+
+Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
 
 ## Installation
 
