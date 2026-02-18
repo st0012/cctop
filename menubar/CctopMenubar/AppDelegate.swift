@@ -126,7 +126,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if panel.isVisible {
             panel.orderOut(nil)
             stopNavKeyMonitor()
-            previousApp?.activate()
+            if Self.shouldRestoreFocus(appIsActive: NSApp.isActive) {
+                previousApp?.activate()
+            }
             previousApp = nil
         } else {
             previousApp = NSWorkspace.shared.frontmostApplication
@@ -205,6 +207,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         } catch {
             // Non-fatal — hook can still be found via app bundle paths
         }
+    }
+
+    /// Whether to restore focus to the previously-active app when closing the panel.
+    /// When the user switches away while the panel is open, cctop is no longer active —
+    /// restoring would yank focus from wherever the user switched to.
+    static func shouldRestoreFocus(appIsActive: Bool) -> Bool {
+        appIsActive
     }
 
     private func positionPanel(animate: Bool = false) {
