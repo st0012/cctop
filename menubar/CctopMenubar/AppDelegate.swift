@@ -265,7 +265,9 @@ extension AppDelegate {
                 previousApp?.activate()
             case .captureApps:
                 previousApp = NSWorkspace.shared.frontmostApplication
-                lastExternalApp = previousApp
+                if let prev = previousApp, prev != NSRunningApplication.current {
+                    lastExternalApp = prev
+                }
             case .startRefocusMode(let panelWasClosed):
                 refocusController.activate(
                     sessions: sessionManager.sessions,

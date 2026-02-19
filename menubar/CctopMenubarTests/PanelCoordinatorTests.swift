@@ -188,6 +188,13 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertTrue(r.actions.contains(.refocusPanel))
     }
 
+    func testCompactBackgrounded_headerClick_expands() {
+        let r = handle(.headerClicked, mode: .compactBackgrounded, compact: true)
+        XCTAssertEqual(r.state.mode, .compactExpanded)
+        XCTAssertTrue(r.actions.contains(.activateApp))
+        XCTAssertTrue(r.actions.contains(.startNavKeyMonitor))
+    }
+
     func testCompactBackgrounded_appLostFocus_noOp() {
         let r = handle(.appLostFocus, mode: .compactBackgrounded, compact: true)
         XCTAssertEqual(r.state.mode, .compactBackgrounded)
@@ -254,7 +261,7 @@ final class PanelCoordinatorTests: XCTestCase {
         let r = handle(.menubarIconClicked(appIsActive: true), mode: .refocus(origin: refocusOpenNonCompact))
         XCTAssertEqual(r.state.mode, .normal)
         XCTAssertTrue(r.actions.contains(.endRefocusMode))
-        XCTAssertTrue(r.actions.contains(.restorePreviousApp))
+        XCTAssertTrue(r.actions.contains(.activateExternalApp))
         XCTAssertFalse(r.actions.contains(.hidePanel))
     }
 
@@ -262,27 +269,27 @@ final class PanelCoordinatorTests: XCTestCase {
         let r = handle(.escape, mode: .refocus(origin: refocusOpenNonCompact))
         XCTAssertEqual(r.state.mode, .normal)
         XCTAssertTrue(r.actions.contains(.endRefocusMode))
-        XCTAssertTrue(r.actions.contains(.restorePreviousApp))
+        XCTAssertTrue(r.actions.contains(.activateExternalApp))
     }
 
     func testRefocus_confirmed_endsWithoutRestore() {
         let r = handle(.refocusConfirmed, mode: .refocus(origin: refocusOpenNonCompact))
         XCTAssertEqual(r.state.mode, .normal)
         XCTAssertTrue(r.actions.contains(.endRefocusMode))
-        XCTAssertFalse(r.actions.contains(.restorePreviousApp))
+        XCTAssertFalse(r.actions.contains(.activateExternalApp))
     }
 
     func testRefocus_timedOut_endsAndRestores() {
         let r = handle(.refocusTimedOut, mode: .refocus(origin: refocusOpenNonCompact))
         XCTAssertEqual(r.state.mode, .normal)
-        XCTAssertTrue(r.actions.contains(.restorePreviousApp))
+        XCTAssertTrue(r.actions.contains(.activateExternalApp))
     }
 
     func testRefocus_appLostFocus_endsWithoutRestore() {
         let r = handle(.appLostFocus, mode: .refocus(origin: refocusOpenNonCompact))
         XCTAssertEqual(r.state.mode, .normal)
         XCTAssertTrue(r.actions.contains(.endRefocusMode))
-        XCTAssertFalse(r.actions.contains(.restorePreviousApp))
+        XCTAssertFalse(r.actions.contains(.activateExternalApp))
     }
 
     func testRefocus_navKey_forwards() {
@@ -294,7 +301,7 @@ final class PanelCoordinatorTests: XCTestCase {
         let r = handle(.unrecognizedKeyDuringRefocus, mode: .refocus(origin: refocusOpenNonCompact))
         XCTAssertEqual(r.state.mode, .normal)
         XCTAssertTrue(r.actions.contains(.endRefocusMode))
-        XCTAssertTrue(r.actions.contains(.restorePreviousApp))
+        XCTAssertTrue(r.actions.contains(.activateExternalApp))
     }
 
     // MARK: - Refocus (panel was closed)

@@ -217,6 +217,12 @@ struct PanelCoordinator {
         case (.compactBackgrounded, .appLostFocus):
             return Result(state: state, actions: [])
 
+        case (.compactBackgrounded, .headerClicked):
+            return Result(
+                state: PanelState(mode: .compactExpanded, compactPreference: state.compactPreference),
+                actions: [.activateApp, .startNavKeyMonitor]
+            )
+
         case (.compactBackgrounded, .escape):
             return Result(state: state, actions: [], eventConsumed: false)
 
@@ -329,9 +335,10 @@ struct PanelCoordinator {
             actions.append(.stopNavKeyMonitor)
         }
         if restoreFocus {
-            actions.append(.restorePreviousApp)
+            actions.append(.activateExternalApp)
+        } else {
+            actions.append(.deactivateApp)
         }
-        actions.append(.deactivateApp)
 
         let newMode: PanelMode
         if origin.panelWasClosed {

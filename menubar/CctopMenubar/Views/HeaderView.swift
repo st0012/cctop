@@ -26,7 +26,7 @@ struct HeaderView: View {
 
     var body: some View {
         let counts = statusCounts
-        HStack {
+        let content = HStack {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.amber)
                 .frame(width: 20, height: 20)
@@ -49,7 +49,12 @@ struct HeaderView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .contentShape(Rectangle())
-        .onTapGesture { onTap?() }
+
+        if let onTap {
+            Button(action: onTap) { content }.buttonStyle(.plain)
+        } else {
+            content
+        }
     }
 }
 

@@ -68,6 +68,7 @@
 		PT0000010000000000000001 /* PanelToggleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PT0000020000000000000001 /* PanelToggleTests.swift */; };
 		CMT000010000000000000001 /* CompactModeControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMT000020000000000000001 /* CompactModeControllerTests.swift */; };
 		PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PCT000020000000000000001 /* PanelCoordinatorTests.swift */; };
+		CST000010000000000000001 /* CompactModeScenarioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CST000020000000000000001 /* CompactModeScenarioTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -139,6 +140,7 @@
 		PT0000020000000000000001 /* PanelToggleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelToggleTests.swift; sourceTree = "<group>"; };
 		CMT000020000000000000001 /* CompactModeControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactModeControllerTests.swift; sourceTree = "<group>"; };
 		PCT000020000000000000001 /* PanelCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinatorTests.swift; sourceTree = "<group>"; };
+		CST000020000000000000001 /* CompactModeScenarioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactModeScenarioTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -292,6 +294,7 @@
 				PT0000020000000000000001 /* PanelToggleTests.swift */,
 				CMT000020000000000000001 /* CompactModeControllerTests.swift */,
 				PCT000020000000000000001 /* PanelCoordinatorTests.swift */,
+				CST000020000000000000001 /* CompactModeScenarioTests.swift */,
 			);
 			path = CctopMenubarTests;
 			sourceTree = "<group>";
@@ -475,6 +478,7 @@
 				PT0000010000000000000001 /* PanelToggleTests.swift in Sources */,
 				CMT000010000000000000001 /* CompactModeControllerTests.swift in Sources */,
 				PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */,
+				CST000010000000000000001 /* CompactModeScenarioTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
