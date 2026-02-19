@@ -81,7 +81,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             forName: .layoutChanged, object: nil, queue: .main
         ) { [weak self] _ in self?.resizePanel(animate: true) }
         NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+            forName: NSWorkspace.didDeactivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] notification in
             guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
                     as? NSRunningApplication,
@@ -142,6 +142,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             previousApp = nil
         } else {
             previousApp = NSWorkspace.shared.frontmostApplication
+            lastExternalApp = previousApp
             positionPanel()
             panel.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -191,10 +192,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     /// Whether to restore focus to the previously-active app when closing the panel.
     static func shouldRestoreFocus(appIsActive: Bool) -> Bool { appIsActive }
-
-    /// Whether Cmd+M should toggle compact mode. Disabled during refocus to avoid
-    /// leaving the panel in a broken state (refocus active + compact toggled).
-    static func shouldToggleCompact(isRefocusActive: Bool) -> Bool { !isRefocusActive }
 
     private func positionPanel(animate: Bool = false) {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
@@ -309,10 +306,14 @@ extension AppDelegate {
                 return nil
             }
 
-            // Cmd+M toggles compact mode (keyCode 46 = 'm'); skip during refocus
-            if Self.shouldToggleCompact(isRefocusActive: isJump)
-                && event.modifierFlags.contains(.command) && event.keyCode == 46 {
-                DispatchQueue.main.async { self.compactController.toggle() }
+            // Cmd+M toggles compact mode (keyCode 46 = 'm')
+            if event.modifierFlags.contains(.command) && event.keyCode == 46 {
+                DispatchQueue.main.async {
+                    if self.refocusController.isActive {
+                        self.refocusController.deactivate()
+                    }
+                    self.compactController.toggle()
+                }
                 return nil
             }
 

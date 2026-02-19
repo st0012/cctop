@@ -163,16 +163,6 @@ final class CompactModeControllerTests: XCTestCase {
         XCTAssertEqual(counts.attention, 0)
     }
 
-    // MARK: - Cmd+M guard during refocus
-
-    func testShouldToggleCompactWhenRefocusInactive() {
-        XCTAssertTrue(AppDelegate.shouldToggleCompact(isRefocusActive: false))
-    }
-
-    func testShouldNotToggleCompactDuringRefocus() {
-        XCTAssertFalse(AppDelegate.shouldToggleCompact(isRefocusActive: true))
-    }
-
     // MARK: - Regression: toggle while expanded disables compact mode entirely
 
     func testToggleWhileExpandedDisablesCompactMode() {

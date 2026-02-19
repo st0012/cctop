@@ -374,7 +374,7 @@ An amber underline appears under the "cctop" text in the header when `compactMod
 | Compact expanded | → Normal | no-op | → Focus previous app (collapses) | → Compact collapsed | → Refocus |
 
 Key behaviors:
-- **Cmd+M** always calls `toggle()`, which flips `compactMode` and resets `isExpanded` to false. From expanded state, Cmd+M goes to OFF (not back to collapsed).
+- **Cmd+M** always calls `toggle()`, which flips `compactMode` and resets `isExpanded` to false. Works in ANY state including during refocus (ends refocus first, then toggles). From expanded/peeking state, Cmd+M goes to OFF (not back to collapsed).
 - **Escape** in compact mode activates `lastExternalApp` and the panel stays visible. This differs from normal mode where Escape resets the selection.
 - **App loses focus** while expanded triggers auto-collapse back to header-only (`didResignActiveNotification` observer).
 - **Refocus shortcut** auto-expands if compact (`startRefocus` calls `expand()`), then re-collapses when refocus ends (`endRefocus` calls `collapse()`).
@@ -385,7 +385,7 @@ Key behaviors:
 
 Two separate mechanisms handle returning focus to the user's previous app:
 - `previousApp` — captured in `togglePanel()` when the panel opens. Used when the panel is closed via menubar icon click.
-- `lastExternalApp` — continuously tracked via `NSWorkspace.didActivateApplicationNotification`. Used when Escape is pressed in compact mode. These can point to different apps.
+- `lastExternalApp` — continuously tracked via `NSWorkspace.didDeactivateApplicationNotification` (captures the app being replaced). Also synced from `previousApp` when the panel opens. Used when Escape is pressed in compact mode. These can point to different apps.
 
 ### Keyboard Shortcuts (Panel)
 
