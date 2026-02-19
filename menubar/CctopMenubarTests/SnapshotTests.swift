@@ -25,6 +25,15 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-refocus.png")
     }
 
+    func testGenerateCompactScreenshot() throws {
+        let view = PopupView(
+            sessions: Session.qaShowcase, updater: DisabledUpdater(),
+            isCompact: true, isCompactModeEnabled: true
+        )
+        try renderScreenshot(view: view, colorScheme: .light, filename: "menubar-compact-light.png")
+        try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-compact-dark.png")
+    }
+
     func testGenerateRecentProjectsScreenshot() throws {
         let view = PopupView(
             sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,

@@ -123,3 +123,15 @@ struct TabButtonView: View {
         updater: DisabledUpdater(), refocus: rc
     ).frame(width: 320)
 }
+#Preview("Compact") {
+    PopupView(
+        sessions: Session.qaShowcase, updater: DisabledUpdater(),
+        isCompact: true, isCompactModeEnabled: true
+    ).frame(width: 320)
+}
+#Preview("Compact Expanded") {
+    PopupView(
+        sessions: Session.qaShowcase, updater: DisabledUpdater(),
+        isCompactModeEnabled: true
+    ).frame(width: 320)
+}
