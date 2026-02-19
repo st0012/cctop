@@ -4,6 +4,7 @@ import SwiftUI
 
 extension Notification.Name {
     static let layoutChanged = Notification.Name("layoutChanged")
+    static let panelHeaderClicked = Notification.Name("panelHeaderClicked")
 }
 
 enum PopupTab {
@@ -23,6 +24,9 @@ struct PopupView: View {
     var pluginManager: PluginManager?
     var refocus: RefocusController?
     var initialTab: PopupTab = .active
+    var isCompact = false
+    var isCompactModeEnabled = false
+    var onExpand: (() -> Void)?
     @State private var selectedTab: PopupTab = .active
     @State private var activeOverlay: Overlay?
     @State private var hideContent = false
@@ -40,39 +44,41 @@ struct PopupView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView(sessions: sessions)
-            Divider()
-            if showTabs {
-                tabPicker
+            HeaderView(sessions: sessions, onTap: isCompact ? onExpand : nil, isCompactMode: isCompactModeEnabled)
+            if !isCompact {
                 Divider()
-            }
-            ZStack(alignment: .top) {
-                Group {
-                    switch selectedTab {
-                    case .active: activeContent
-                    case .recent: recentContent
-                    }
+                if showTabs {
+                    tabPicker
+                    Divider()
                 }
-                .opacity(hideContent ? 0 : 1)
-                .animation(.none, value: hideContent)
-                if let overlay = activeOverlay {
-                    overlayPanel {
-                        switch overlay {
-                        case .settings:
-                            SettingsSection(
-                                updater: updater,
-                                pluginManager: pluginManager ?? PluginManager()
-                            )
-                        case .about:
-                            AboutView()
+                ZStack(alignment: .top) {
+                    Group {
+                        switch selectedTab {
+                        case .active: activeContent
+                        case .recent: recentContent
+                        }
+                    }
+                    .opacity(hideContent ? 0 : 1)
+                    .animation(.none, value: hideContent)
+                    if let overlay = activeOverlay {
+                        overlayPanel {
+                            switch overlay {
+                            case .settings:
+                                SettingsSection(
+                                    updater: updater,
+                                    pluginManager: pluginManager ?? PluginManager()
+                                )
+                            case .about:
+                                AboutView()
+                            }
                         }
                     }
                 }
+                .clipped()
+                .animation(.easeInOut(duration: overlayAnimationDuration), value: activeOverlay)
+                Divider()
+                footerBar
             }
-            .clipped()
-            .animation(.easeInOut(duration: overlayAnimationDuration), value: activeOverlay)
-            Divider()
-            footerBar
         }
         .onReceive(refocus?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
@@ -85,22 +91,6 @@ struct PopupView: View {
         }
         .onChange(of: selectedTab) { _ in selectedIndex = nil }
         .onAppear { selectedTab = initialTab }
-    }
-
-    private func overlayPanel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 0) {
-            content().padding(.vertical, 8)
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.panelBackground)
-        .transition(.asymmetric(
-            insertion: .move(edge: .top),
-            removal: .modifier(
-                active: RollUpEffect(progress: 0),
-                identity: RollUpEffect(progress: 1)
-            )
-        ))
     }
 
     // MARK: - Tab picker
@@ -236,9 +226,28 @@ struct PopupView: View {
             .help("Click to open in \(project.lastEditor ?? "editor")")
     }
 
-    // MARK: - Footer
+}
 
-    private var footerBar: some View {
+// MARK: - Overlay & Footer
+
+extension PopupView {
+    func overlayPanel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            content().padding(.vertical, 8)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.panelBackground)
+        .transition(.asymmetric(
+            insertion: .move(edge: .top),
+            removal: .modifier(
+                active: RollUpEffect(progress: 0),
+                identity: RollUpEffect(progress: 1)
+            )
+        ))
+    }
+
+    var footerBar: some View {
         HStack {
             QuitButton()
             versionButton
@@ -288,11 +297,9 @@ struct PopupView: View {
         .onHover { gearHovered = $0 }
     }
 
-}
+    // MARK: - Helpers
 
-extension PopupView {
     private var isRefocusActive: Bool { refocus?.isActive ?? false }
-
     private var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }
 
     private var sortedSessions: [Session] {
@@ -302,10 +309,7 @@ extension PopupView {
         return Session.sorted(sessions)
     }
 
-    private func focusSession(_ session: Session) {
-        focusTerminal(session: session)
-        NSApp.deactivate()
-    }
+    private func focusSession(_ session: Session) { focusTerminal(session: session); NSApp.deactivate() }
 
     private func toggleOverlay(_ overlay: Overlay) {
         if activeOverlay == overlay {
@@ -331,15 +335,9 @@ extension PopupView {
     }
 
     private func notifyLayoutChanged() {
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(name: .layoutChanged, object: nil)
-        }
+        DispatchQueue.main.async { NotificationCenter.default.post(name: .layoutChanged, object: nil) }
     }
-
-    private func openInFinder(path: String) {
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
-    }
-
+    private func openInFinder(path: String) { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path) }
     private func copyPath(_ path: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(path, forType: .string)

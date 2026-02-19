@@ -1,7 +1,6 @@
 import AppKit
 import Combine
 import KeyboardShortcuts
-import os.log
 import SwiftUI
 import UserNotifications
 
@@ -13,17 +12,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var pluginManager: PluginManager!
     private var historyManager: HistoryManager!
     private var refocusController = RefocusController()
+    private var compactController = CompactModeController()
     private var navKeyMonitor: Any?
     private var previousApp: NSRunningApplication?
+    private var lastExternalApp: NSRunningApplication?
+    private var panelMode: PanelMode = .hidden
     private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
         installHookBinaryIfNeeded()
-
         UNUserNotificationCenter.current().delegate = self
-
         historyManager = HistoryManager()
         sessionManager = SessionManager(historyManager: historyManager)
         updater = makeUpdater()
@@ -36,7 +36,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             historyManager: historyManager,
             updater: updater,
             pluginManager: pluginManager,
-            refocus: refocusController
+            refocus: refocusController,
+            compactController: compactController
         )
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
@@ -58,33 +59,46 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @MainActor private func registerShortcuts() {
-        KeyboardShortcuts.onKeyUp(for: .togglePanel) { [weak self] in
-            self?.togglePanel()
-        }
+        KeyboardShortcuts.onKeyUp(for: .togglePanel) { [weak self] in self?.togglePanel() }
         KeyboardShortcuts.onKeyUp(for: .refocus) { [weak self] in
-            self?.startRefocus()
-        }
-        NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: nil, queue: .main
-        ) { [weak self] _ in
-            self?.applyAppearance()
-        }
-        NotificationCenter.default.addObserver(
-            forName: .layoutChanged, object: nil, queue: .main
-        ) { [weak self] _ in
-            self?.resizePanel(animate: true)
+            self?.handleEvent(.refocusShortcut)
         }
         refocusController.didConfirmSubject
             .receive(on: RunLoop.main)
-            .sink { [weak self] in self?.endRefocus(restoreFocus: false) }
+            .sink { [weak self] in self?.handleEvent(.refocusConfirmed) }
             .store(in: &cancellables)
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
-            object: nil, queue: .main
+        compactController.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.resizePanel(animate: true) } }
+            .store(in: &cancellables)
+        registerObservers()
+    }
+
+    @MainActor private func registerObservers() {
+        let nc = NotificationCenter.default
+        nc.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.applyAppearance() }
+        nc.addObserver(
+            forName: .layoutChanged, object: nil, queue: .main
+        ) { [weak self] _ in self?.resizePanel(animate: true) }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didDeactivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication,
+                  app != NSRunningApplication.current else { return }
+            self?.lastExternalApp = app
+        }
+        nc.addObserver(
+            forName: .panelHeaderClicked, object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, self.refocusController.isActive else { return }
-            self.endRefocus(restoreFocus: false)
+            self?.handleEvent(.headerClicked)
+        }
+        nc.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.handleEvent(.appLostFocus)
         }
     }
 
@@ -118,31 +132,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
-    @objc private func togglePanel() {
-        if refocusController.isActive {
-            endRefocus(restoreFocus: true)
-            return
-        }
-        if panel.isVisible {
-            panel.orderOut(nil)
-            stopNavKeyMonitor()
-            if Self.shouldRestoreFocus(appIsActive: NSApp.isActive) {
-                previousApp?.activate()
-            }
-            previousApp = nil
-        } else {
-            previousApp = NSWorkspace.shared.frontmostApplication
-            positionPanel()
-            panel.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            startNavKeyMonitor()
-            postNavAction(.reset)
-            // Re-position after SwiftUI layout settles (fittingSize may
-            // include hidden views on the first pass)
-            DispatchQueue.main.async { [weak self] in
-                self?.positionPanel()
-            }
-        }
+    @MainActor @objc private func togglePanel() {
+        handleEvent(.menubarIconClicked(appIsActive: NSApp.isActive))
     }
 
     private func applyAppearance() {
@@ -179,56 +170,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound])
     }
 
-    /// Symlinks cctop-hook from the app bundle into ~/.cctop/bin/ so Claude Code hooks can find it.
-    /// run-hook.sh prefers ~/.cctop/bin/cctop-hook, then falls back to app bundle paths.
-    /// Re-creates the symlink on every launch so it stays current after upgrades.
-    private func installHookBinaryIfNeeded() {
-        let fm = FileManager.default
-        let home = fm.homeDirectoryForCurrentUser
-
-        guard let bundledHook = Bundle.main.url(forAuxiliaryExecutable: "cctop-hook") else { return }
-
-        let cctopBin = home.appendingPathComponent(".cctop/bin")
-        let symlinkPath = cctopBin.appendingPathComponent("cctop-hook")
-
-        // Skip if existing symlink already points to the current bundle
-        if let dest = try? fm.destinationOfSymbolicLink(atPath: symlinkPath.path),
-           URL(fileURLWithPath: dest) == bundledHook {
-            return
-        }
-
-        do {
-            try fm.createDirectory(at: cctopBin, withIntermediateDirectories: true)
-            // Remove stale/dangling symlink or file before creating new one
-            if (try? fm.attributesOfItem(atPath: symlinkPath.path)) != nil {
-                try fm.removeItem(at: symlinkPath)
-            }
-            try fm.createSymbolicLink(at: symlinkPath, withDestinationURL: bundledHook)
-        } catch {
-            // Non-fatal — hook can still be found via app bundle paths
-        }
-    }
-
-    /// Whether to restore focus to the previously-active app when closing the panel.
-    /// When the user switches away while the panel is open, cctop is no longer active —
-    /// restoring would yank focus from wherever the user switched to.
-    static func shouldRestoreFocus(appIsActive: Bool) -> Bool {
-        appIsActive
-    }
-
     private func positionPanel(animate: Bool = false) {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
         let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
         guard let (width, height) = panelFittingSize() else { return }
-
         let newFrame = NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4, width: width, height: height)
         setPanelFrame(newFrame, animate: animate)
     }
 
-    /// Resize the panel in place (keeps current x position, grows/shrinks from the top edge).
     private func resizePanel(animate: Bool = false) {
         guard let (width, height) = panelFittingSize() else { return }
-
         let oldFrame = panel.frame
         let newFrame = NSRect(x: oldFrame.midX - width / 2, y: oldFrame.maxY - height, width: width, height: height)
         setPanelFrame(newFrame, animate: animate)
@@ -253,7 +204,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 }
 
-// MARK: - Keyboard navigation
+// MARK: - PanelCoordinator dispatch
 
 private let navKeyMap: [UInt16: PanelNavAction] = [
     125: .down,         // down arrow
@@ -266,52 +217,77 @@ private let navKeyMap: [UInt16: PanelNavAction] = [
 ]
 
 extension AppDelegate {
-    @MainActor func startRefocus() {
-        guard !refocusController.isActive else { return }
-
-        let panelWasClosed = !panel.isVisible
-
-        if panelWasClosed {
-            positionPanel()
-            panel.makeKeyAndOrderFront(nil)
-            DispatchQueue.main.async { [weak self] in
-                self?.positionPanel()
-            }
-        }
-
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeKey()
-        startNavKeyMonitor()
-
-        refocusController.activate(
-            sessions: sessionManager.sessions,
-            previousApp: NSWorkspace.shared.frontmostApplication,
-            panelWasClosed: panelWasClosed
+    @MainActor @discardableResult
+    func handleEvent(_ event: PanelEvent) -> Bool {
+        let panelState = PanelState(
+            mode: panelMode,
+            compactPreference: compactController.compactMode
         )
-
-        refocusController.startTimeout { [weak self] in
-            self?.endRefocus(restoreFocus: true)
-        }
+        let result = PanelCoordinator.handle(event: event, state: panelState)
+        panelMode = result.state.mode
+        execute(result.actions)
+        compactController.compactMode = result.state.compactPreference
+        compactController.syncVisualState(panelMode)
+        return result.eventConsumed
     }
 
-    func endRefocus(restoreFocus: Bool) {
-        let state = refocusController.deactivate()
-
-        if state.panelWasClosed {
-            panel.orderOut(nil)
-            stopNavKeyMonitor()
+    // swiftlint:disable:next cyclomatic_complexity
+    @MainActor private func execute(_ actions: [PanelAction]) {
+        for action in actions {
+            switch action {
+            case .showPanel:
+                panel.makeKeyAndOrderFront(nil)
+                // Re-position after SwiftUI layout settles
+                DispatchQueue.main.async { [weak self] in
+                    self?.positionPanel()
+                }
+            case .hidePanel:
+                panel.orderOut(nil)
+                previousApp = nil
+            case .refocusPanel:
+                panel.makeKeyAndOrderFront(nil)
+            case .positionPanel:
+                positionPanel()
+            case .activateApp:
+                NSApp.activate(ignoringOtherApps: true)
+            case .deactivateApp:
+                NSApp.deactivate()
+            case .startNavKeyMonitor:
+                startNavKeyMonitor()
+            case .stopNavKeyMonitor:
+                stopNavKeyMonitor()
+            case .postNavAction(let navAction):
+                postNavAction(navAction)
+            case .activateExternalApp:
+                lastExternalApp?.activate()
+            case .restorePreviousApp:
+                previousApp?.activate()
+            case .captureApps:
+                previousApp = NSWorkspace.shared.frontmostApplication
+                if let prev = previousApp, prev != NSRunningApplication.current {
+                    lastExternalApp = prev
+                }
+            case .startRefocusMode(let panelWasClosed):
+                refocusController.activate(
+                    sessions: sessionManager.sessions,
+                    previousApp: NSWorkspace.shared.frontmostApplication,
+                    panelWasClosed: panelWasClosed
+                )
+                refocusController.startTimeout { [weak self] in
+                    self?.handleEvent(.refocusTimedOut)
+                }
+            case .endRefocusMode:
+                refocusController.deactivate()
+            case .startRefocusTimeout, .persistCompactMode:
+                break // Handled elsewhere: timeout inside startRefocusMode, persistence via @AppStorage
+            }
         }
-        if restoreFocus {
-            state.previousApp?.activate()
-        }
-        NSApp.deactivate()
     }
 
     @MainActor private func jumpToSession(index: Int) {
-        let frozen = refocusController.frozenSessions
-        guard index < frozen.count else { return }
-        focusTerminal(session: frozen[index])
-        endRefocus(restoreFocus: false)
+        guard index < refocusController.frozenSessions.count else { return }
+        focusTerminal(session: refocusController.frozenSessions[index])
+        handleEvent(.refocusConfirmed)
     }
 
     private func startNavKeyMonitor() {
@@ -319,30 +295,35 @@ extension AppDelegate {
         navKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.panel.isVisible else { return event }
 
-            let isJump = self.refocusController.isActive
-
-            // Refocus: escape exits refocus
-            if isJump && event.keyCode == 53 {
-                DispatchQueue.main.async { self.endRefocus(restoreFocus: true) }
-                return nil
-            }
-
             // Refocus: digit keys jump to session
-            if isJump, let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
+            if self.refocusController.isActive,
+               let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
                 DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
                 return nil
             }
 
-            // Navigation keys shared by both modes
-            if let action = navKeyMap[event.keyCode] {
-                if isJump { self.refocusController.cancelTimeout() }
-                self.postNavAction(action)
+            // Cmd+M toggles compact mode (keyCode 46 = 'm')
+            if event.modifierFlags.contains(.command) && event.keyCode == 46 {
+                DispatchQueue.main.async { self.handleEvent(.cmdM) }
                 return nil
             }
 
+            // Escape key
+            if event.keyCode == 53 {
+                let consumed = self.handleEvent(.escape)
+                return consumed ? nil : event
+            }
+
+            // Navigation keys
+            if let navAction = navKeyMap[event.keyCode] {
+                if self.refocusController.isActive { self.refocusController.cancelTimeout() }
+                let consumed = self.handleEvent(.navKey(navAction))
+                return consumed ? nil : event
+            }
+
             // Refocus: any other key exits
-            if isJump {
-                DispatchQueue.main.async { self.endRefocus(restoreFocus: true) }
+            if self.refocusController.isActive {
+                DispatchQueue.main.async { self.handleEvent(.unrecognizedKeyDuringRefocus) }
                 return nil
             }
 
@@ -361,23 +342,24 @@ extension AppDelegate {
         refocusController.navActionSubject.send(action)
     }
 }
+// MARK: - Hook binary installation
 
-private struct PanelContentView: View {
-    @ObservedObject var sessionManager: SessionManager
-    @ObservedObject var historyManager: HistoryManager
-    @ObservedObject var updater: UpdaterBase
-    @ObservedObject var pluginManager: PluginManager
-    @ObservedObject var refocus: RefocusController
-    var body: some View {
-        PopupView(
-            sessions: sessionManager.sessions,
-            recentProjects: historyManager.recentProjects,
-            updater: updater,
-            pluginManager: pluginManager,
-            refocus: refocus
-        )
-        .frame(width: 320)
-        .background(Color.panelBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+extension AppDelegate {
+    /// Symlinks cctop-hook from the app bundle into ~/.cctop/bin/ so hooks can find it.
+    func installHookBinaryIfNeeded() {
+        let fm = FileManager.default
+        let home = fm.homeDirectoryForCurrentUser
+        guard let bundledHook = Bundle.main.url(forAuxiliaryExecutable: "cctop-hook") else { return }
+        let cctopBin = home.appendingPathComponent(".cctop/bin")
+        let symlinkPath = cctopBin.appendingPathComponent("cctop-hook")
+        if let dest = try? fm.destinationOfSymbolicLink(atPath: symlinkPath.path),
+           URL(fileURLWithPath: dest) == bundledHook { return }
+        do {
+            try fm.createDirectory(at: cctopBin, withIntermediateDirectories: true)
+            if (try? fm.attributesOfItem(atPath: symlinkPath.path)) != nil {
+                try fm.removeItem(at: symlinkPath)
+            }
+            try fm.createSymbolicLink(at: symlinkPath, withDestinationURL: bundledHook)
+        } catch {}
     }
 }

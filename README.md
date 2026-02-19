@@ -33,6 +33,12 @@ A macOS menubar app that monitors your AI coding sessions at a glance — so you
   <img src="docs/menubar-recent.png" alt="cctop recent projects tab" width="340">
 </p>
 
+**Compact mode.** Press Cmd+M to collapse the panel to a slim header bar showing just the status counts. Press Cmd+M again to switch back. Click the header or use the refocus shortcut to temporarily expand, or press Escape to return focus to your previous app.
+
+<p align="center">
+  <img src="docs/menubar-compact-light.png" alt="cctop compact mode showing header-only view" width="340">
+</p>
+
 Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
 
 ## Installation
@@ -92,6 +98,9 @@ It activates the app but cannot target a specific terminal tab. You'll need to f
 
 **How does cctop name sessions?**
 By default, the project directory name (e.g. `/path/to/my-app` shows as "my-app"). In Claude Code, you can rename a session with `/rename` and cctop picks that up.
+
+**My panel shrank to just the header bar — how do I get it back?**
+You activated compact mode (Cmd+M). Press Cmd+M again to return to the normal view. You can also click the header to temporarily expand and see your sessions. An amber underline under "cctop" indicates compact mode is active.
 
 **No sessions are showing up — what do I check?**
 First, make sure you restarted sessions after installing the plugin. Then check if session files exist: `ls ~/.cctop/sessions/`. If the directory is empty, the plugin isn't writing data — verify it's installed correctly (see Step 2). If files exist but the menubar shows nothing, try restarting the cctop app.

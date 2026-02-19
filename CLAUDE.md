@@ -90,6 +90,7 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 - `menubar/CctopMenubar/Models/HookEvent.swift` — Hook event enum + transition logic (shared)
 - `menubar/CctopMenubar/Models/Config.swift` — JSON config, sessions dir (shared)
 - `menubar/CctopMenubar/Services/SessionManager.swift` — File watching + session loading
+- `menubar/CctopMenubar/Services/CompactModeController.swift` — Compact mode state machine
 - `menubar/CctopMenubar/Hook/HookMain.swift` — CLI entry point (cctop-hook target only)
 - `menubar/CctopMenubar/Hook/HookHandler.swift` — Core hook logic (cctop-hook target only)
 - `menubar/CctopMenubar/Hook/SessionNameLookup.swift` — Session name lookup from transcript/index (cctop-hook target only)
@@ -345,6 +346,66 @@ The menubar app detects opencode when `~/.config/opencode/` exists and offers to
 ### Session File Format
 
 Session files are keyed by PID (`{pid}.json`), not session_id. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse. Dead sessions are detected via PID liveness + start time checking. opencode sessions include `"source": "opencode"` in the JSON; Claude Code sessions omit the field (nil = Claude Code).
+
+## Compact Mode
+
+A panel layout mode that collapses the popup to just the header bar (~44px) showing status count chips. Toggled via **Cmd+M** when the panel is focused. Persisted across launches via `@AppStorage("compactMode")`.
+
+> **Note:** "Compact mode" (UI layout) and the "compacting" session status (context compaction) are unrelated concepts.
+
+### Architecture
+
+`CompactModeController` (ObservableObject) manages two state variables:
+- `compactMode` (Bool, persisted) — whether compact mode is enabled
+- `isExpanded` (Bool, transient) — whether the compact panel is temporarily expanded
+
+The derived property `isCompact = compactMode && !isExpanded` controls whether to render header-only.
+
+### Visual Indicator
+
+An amber underline appears under the "cctop" text in the header when `compactMode` is true. This stays visible even when temporarily expanded, so the user knows they're in compact mode.
+
+### State Transitions
+
+| State | Cmd+M | Click Header | Escape | App Loses Focus | Refocus Shortcut |
+|-------|-------|-------------|--------|-----------------|------------------|
+| Normal | → Compact collapsed | no-op | reset selection | panel stays | → Refocus |
+| Compact collapsed | → Normal | → Compact expanded | → Focus previous app | panel stays | → Compact expanded + Refocus |
+| Compact expanded | → Normal | no-op | → Focus previous app (collapses) | → Compact collapsed | → Refocus |
+
+Key behaviors:
+- **Cmd+M** always calls `toggle()`, which flips `compactMode` and resets `isExpanded` to false. Works in ANY state including during refocus (ends refocus first, then toggles). From expanded/peeking state, Cmd+M goes to OFF (not back to collapsed).
+- **Escape** in compact mode activates `lastExternalApp` and the panel stays visible. This differs from normal mode where Escape resets the selection.
+- **App loses focus** while expanded triggers auto-collapse back to header-only (`didResignActiveNotification` observer).
+- **Refocus shortcut** auto-expands if compact (`startRefocus` calls `expand()`), then re-collapses when refocus ends (`endRefocus` calls `collapse()`).
+- `collapse()` is idempotent by design — multiple callers may invoke it in the same event cycle.
+- **Nav keys** (arrows, Return, Tab) are blocked when compact and collapsed; they pass through to the system.
+
+### Focus Restoration
+
+Two separate mechanisms handle returning focus to the user's previous app:
+- `previousApp` — captured in `togglePanel()` when the panel opens. Used when the panel is closed via menubar icon click.
+- `lastExternalApp` — continuously tracked via `NSWorkspace.didDeactivateApplicationNotification` (captures the app being replaced). Also synced from `previousApp` when the panel opens. Used when Escape is pressed in compact mode. These can point to different apps.
+
+### Keyboard Shortcuts (Panel)
+
+| Shortcut | Context | Action |
+|----------|---------|--------|
+| Cmd+M | Panel focused | Toggle compact mode on/off |
+| Escape | Compact mode | Return focus to previous app (panel stays) |
+| Escape | Normal mode | Reset selection |
+| Escape | Refocus mode | Cancel refocus, restore focus |
+| Click header | Compact collapsed | Temporarily expand |
+| Up/Down arrows | Expanded or normal | Navigate sessions |
+| Return | Session selected | Jump to session terminal |
+| Tab | Expanded or normal | Toggle Active/Recent tab |
+| Left/Right arrows | Expanded or normal | Switch to Active/Recent tab |
+| 1-9 | Refocus mode | Jump to numbered session |
+
+### Key Files
+
+- `menubar/CctopMenubar/Services/CompactModeController.swift` — state machine (toggle, expand, collapse)
+- `menubar/CctopMenubar/AppDelegate.swift` — Cmd+M handler, Escape handler, nav key guard, lastExternalApp tracking, panel resize on state change
 
 ## Hook Delivery Debugging
 

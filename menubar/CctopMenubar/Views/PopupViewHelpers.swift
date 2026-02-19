@@ -89,6 +89,35 @@ struct TabButtonView: View {
     }
 }
 
+// MARK: - Panel content wrapper (used by AppDelegate)
+
+struct PanelContentView: View {
+    @ObservedObject var sessionManager: SessionManager
+    @ObservedObject var historyManager: HistoryManager
+    @ObservedObject var updater: UpdaterBase
+    @ObservedObject var pluginManager: PluginManager
+    @ObservedObject var refocus: RefocusController
+    @ObservedObject var compactController: CompactModeController
+
+    var body: some View {
+        PopupView(
+            sessions: sessionManager.sessions,
+            recentProjects: historyManager.recentProjects,
+            updater: updater,
+            pluginManager: pluginManager,
+            refocus: refocus,
+            isCompact: compactController.isCompact,
+            isCompactModeEnabled: compactController.compactMode,
+            onExpand: {
+                NotificationCenter.default.post(name: .panelHeaderClicked, object: nil)
+            }
+        )
+        .frame(width: 320)
+        .background(Color.panelBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
 // MARK: - PopupView Previews
 
 #Preview("With sessions") {
@@ -121,5 +150,17 @@ struct TabButtonView: View {
     return PopupView(
         sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
         updater: DisabledUpdater(), refocus: rc
+    ).frame(width: 320)
+}
+#Preview("Compact") {
+    PopupView(
+        sessions: Session.qaShowcase, updater: DisabledUpdater(),
+        isCompact: true, isCompactModeEnabled: true
+    ).frame(width: 320)
+}
+#Preview("Compact Expanded") {
+    PopupView(
+        sessions: Session.qaShowcase, updater: DisabledUpdater(),
+        isCompactModeEnabled: true
     ).frame(width: 320)
 }
