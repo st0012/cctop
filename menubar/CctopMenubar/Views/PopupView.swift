@@ -4,6 +4,7 @@ import SwiftUI
 
 extension Notification.Name {
     static let layoutChanged = Notification.Name("layoutChanged")
+    static let panelHeaderClicked = Notification.Name("panelHeaderClicked")
 }
 
 enum PopupTab {

@@ -11,21 +11,19 @@ class CompactModeController: ObservableObject {
     /// Whether the panel should show compact (header-only) content.
     var isCompact: Bool { compactMode && !isExpanded }
 
-    /// Toggle between compact and normal mode. Persisted via @AppStorage.
-    func toggle() {
-        compactMode.toggle()
-        isExpanded = false
-    }
-
-    /// Temporarily expand the compact panel to show full content.
-    func expand() {
-        guard compactMode, !isExpanded else { return }
-        isExpanded = true
-    }
-
-    /// Collapse back to compact (if compact mode is on and currently expanded).
-    func collapse() {
-        guard compactMode, isExpanded else { return }
-        isExpanded = false
+    /// Sync only the visual expansion state from a `PanelMode`.
+    /// The `compactMode` preference is set separately by `handleEvent`.
+    func syncVisualState(_ mode: PanelMode) {
+        let newExpanded: Bool = {
+            switch mode {
+            case .compactExpanded:
+                return true
+            case .refocus(let origin) where origin.wasCompact:
+                return true
+            default:
+                return false
+            }
+        }()
+        isExpanded = newExpanded
     }
 }

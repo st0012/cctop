@@ -24,73 +24,6 @@ final class CompactModeControllerTests: XCTestCase {
         XCTAssertFalse(sut.isCompact)
     }
 
-    // MARK: - Toggle
-
-    func testToggleEnablesCompactMode() {
-        sut.toggle()
-        XCTAssertTrue(sut.compactMode)
-        XCTAssertTrue(sut.isCompact)
-    }
-
-    func testToggleResetsExpanded() {
-        sut.compactMode = true
-        sut.isExpanded = true
-        sut.toggle() // toggles OFF
-        XCTAssertFalse(sut.compactMode)
-        XCTAssertFalse(sut.isExpanded)
-    }
-
-    func testToggleOnWhileExpandedCollapsesFirst() {
-        sut.isExpanded = true
-        sut.toggle()
-        XCTAssertTrue(sut.compactMode)
-        XCTAssertFalse(sut.isExpanded)
-        XCTAssertTrue(sut.isCompact)
-    }
-
-    // MARK: - Expand
-
-    func testExpandWhenCompact() {
-        sut.compactMode = true
-        sut.expand()
-        XCTAssertTrue(sut.isExpanded)
-        XCTAssertFalse(sut.isCompact)
-    }
-
-    func testExpandWhenNotCompactIsNoOp() {
-        sut.expand()
-        XCTAssertFalse(sut.isExpanded)
-    }
-
-    func testExpandWhenAlreadyExpandedIsNoOp() {
-        sut.compactMode = true
-        sut.isExpanded = true
-        sut.expand()
-        XCTAssertTrue(sut.isExpanded)
-    }
-
-    // MARK: - Collapse
-
-    func testCollapseWhenExpanded() {
-        sut.compactMode = true
-        sut.isExpanded = true
-        sut.collapse()
-        XCTAssertFalse(sut.isExpanded)
-        XCTAssertTrue(sut.isCompact)
-    }
-
-    func testCollapseWhenNotExpandedIsNoOp() {
-        sut.compactMode = true
-        sut.collapse()
-        XCTAssertFalse(sut.isExpanded)
-    }
-
-    func testCollapseWhenNotCompactIsNoOp() {
-        sut.isExpanded = false
-        sut.collapse()
-        XCTAssertFalse(sut.isExpanded)
-    }
-
     // MARK: - isCompact derived property
 
     func testIsCompactTrueOnlyWhenCompactAndNotExpanded() {
@@ -99,23 +32,6 @@ final class CompactModeControllerTests: XCTestCase {
         XCTAssertTrue(sut.isCompact)
         sut.isExpanded = true
         XCTAssertFalse(sut.isCompact)
-    }
-
-    // MARK: - Full cycle
-
-    func testFullToggleExpandCollapseCycle() {
-        sut.toggle()
-        XCTAssertTrue(sut.isCompact)
-
-        sut.expand()
-        XCTAssertFalse(sut.isCompact)
-
-        sut.collapse()
-        XCTAssertTrue(sut.isCompact)
-
-        sut.toggle()
-        XCTAssertFalse(sut.isCompact)
-        XCTAssertFalse(sut.compactMode)
     }
 
     // MARK: - HeaderView statusCounts
@@ -163,16 +79,51 @@ final class CompactModeControllerTests: XCTestCase {
         XCTAssertEqual(counts.attention, 0)
     }
 
-    // MARK: - Regression: toggle while expanded disables compact mode entirely
+    // MARK: - syncVisualState
 
-    func testToggleWhileExpandedDisablesCompactMode() {
-        let ctrl = CompactModeController()
-        ctrl.compactMode = true
-        ctrl.expand()
-        XCTAssertTrue(ctrl.isExpanded)
-        ctrl.toggle()
-        XCTAssertFalse(ctrl.compactMode)
-        XCTAssertFalse(ctrl.isExpanded)
-        XCTAssertFalse(ctrl.isCompact)
+    func testSyncVisualStateHidden() {
+        sut.isExpanded = true
+        sut.syncVisualState(.hidden)
+        XCTAssertFalse(sut.isExpanded)
+    }
+
+    func testSyncVisualStateNormal() {
+        sut.isExpanded = true
+        sut.syncVisualState(.normal)
+        XCTAssertFalse(sut.isExpanded)
+    }
+
+    func testSyncVisualStateCompactCollapsed() {
+        sut.compactMode = true
+        sut.syncVisualState(.compactCollapsed)
+        XCTAssertFalse(sut.isExpanded)
+        XCTAssertTrue(sut.isCompact)
+    }
+
+    func testSyncVisualStateCompactExpanded() {
+        sut.compactMode = true
+        sut.syncVisualState(.compactExpanded)
+        XCTAssertTrue(sut.isExpanded)
+        XCTAssertFalse(sut.isCompact)
+    }
+
+    func testSyncVisualStateRefocusWasCompact() {
+        sut.compactMode = true
+        let origin = RefocusOrigin(panelWasClosed: false, wasCompact: true)
+        sut.syncVisualState(.refocus(origin: origin))
+        XCTAssertTrue(sut.isExpanded)
+    }
+
+    func testSyncVisualStateRefocusWasNotCompact() {
+        sut.isExpanded = true
+        let origin = RefocusOrigin(panelWasClosed: false, wasCompact: false)
+        sut.syncVisualState(.refocus(origin: origin))
+        XCTAssertFalse(sut.isExpanded)
+    }
+
+    func testSyncVisualStateDoesNotTouchCompactMode() {
+        sut.compactMode = true
+        sut.syncVisualState(.hidden)
+        XCTAssertTrue(sut.compactMode, "syncVisualState should not change compactMode")
     }
 }
