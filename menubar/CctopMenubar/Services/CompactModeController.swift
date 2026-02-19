@@ -11,19 +11,14 @@ class CompactModeController: ObservableObject {
     /// Whether the panel should show compact (header-only) content.
     var isCompact: Bool { compactMode && !isExpanded }
 
-    /// Sync only the visual expansion state from a `PanelMode`.
-    /// The `compactMode` preference is set separately by `handleEvent`.
     func syncVisualState(_ mode: PanelMode) {
-        let newExpanded: Bool = {
-            switch mode {
-            case .compactExpanded:
-                return true
-            case .refocus(let origin) where origin.wasCompact:
-                return true
-            default:
-                return false
-            }
-        }()
-        isExpanded = newExpanded
+        switch mode {
+        case .compactExpanded:
+            isExpanded = true
+        case .refocus(let origin) where origin.wasCompact:
+            isExpanded = true
+        default:
+            isExpanded = false
+        }
     }
 }

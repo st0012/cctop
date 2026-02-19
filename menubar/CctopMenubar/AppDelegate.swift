@@ -15,7 +15,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var compactController = CompactModeController()
     private var navKeyMonitor: Any?
     private var previousApp: NSRunningApplication?
-    /// Last non-cctop app that was active (for restoring focus in compact mode).
     private var lastExternalApp: NSRunningApplication?
     private var panelMode: PanelMode = .hidden
     private var cancellables: Set<AnyCancellable> = []
@@ -279,10 +278,8 @@ extension AppDelegate {
                 }
             case .endRefocusMode:
                 refocusController.deactivate()
-            case .startRefocusTimeout:
-                break // Timeout is started inside startRefocusMode
-            case .persistCompactMode:
-                break // syncFromMode handles persistence via @AppStorage
+            case .startRefocusTimeout, .persistCompactMode:
+                break // Handled elsewhere: timeout inside startRefocusMode, persistence via @AppStorage
             }
         }
     }

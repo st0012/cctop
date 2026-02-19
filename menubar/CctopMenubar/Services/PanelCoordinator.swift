@@ -183,9 +183,6 @@ struct PanelCoordinator {
                 actions: [.activateApp, .startRefocusMode(panelWasClosed: false), .startRefocusTimeout]
             )
 
-        case (.compactCollapsed, .navKey):
-            return Result(state: state, actions: [], eventConsumed: false)
-
         case (.compactCollapsed, _):
             return Result(state: state, actions: [], eventConsumed: false)
 
