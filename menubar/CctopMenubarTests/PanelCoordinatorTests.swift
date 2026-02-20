@@ -162,11 +162,11 @@ final class PanelCoordinatorTests: XCTestCase {
 
     // MARK: - Compact Backgrounded
 
-    func testCompactBackgrounded_menubarClick_refocuses() {
+    func testCompactBackgrounded_menubarClick_hides() {
         let r = handle(.menubarIconClicked(appIsActive: false), mode: .compactBackgrounded, compact: true)
-        XCTAssertEqual(r.state.mode, .compactCollapsed)
-        XCTAssertTrue(r.actions.contains(.refocusPanel))
-        XCTAssertTrue(r.actions.contains(.startNavKeyMonitor))
+        XCTAssertEqual(r.state.mode, .hidden)
+        XCTAssertTrue(r.actions.contains(.hidePanel))
+        XCTAssertTrue(r.actions.contains(.stopNavKeyMonitor))
     }
 
     func testCompactBackgrounded_cmdM_disablesAndRefocuses() {
@@ -321,6 +321,13 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertTrue(r.actions.contains(.hidePanel))
     }
 
+    func testRefocus_panelClosed_appLostFocus_hidesPanel() {
+        let r = handle(.appLostFocus, mode: .refocus(origin: refocusPanelWasClosed))
+        XCTAssertEqual(r.state.mode, .hidden)
+        XCTAssertTrue(r.actions.contains(.hidePanel))
+        XCTAssertTrue(r.actions.contains(.stopNavKeyMonitor))
+    }
+
     // MARK: - Refocus (was compact)
 
     private let refocusWasCompact = RefocusOrigin(panelWasClosed: false, wasCompact: true)
@@ -337,15 +344,14 @@ final class PanelCoordinatorTests: XCTestCase {
 
     // MARK: - Regression: Cmd+M during refocus
 
-    func testCmdM_duringRefocus_panelWasClosed_hidesPanel() {
+    func testCmdM_duringRefocus_panelWasClosed_keepsPanel() {
         let origin = RefocusOrigin(panelWasClosed: true, wasCompact: false)
         let state = S(mode: .refocus(origin: origin), compactPreference: false)
         let r = PanelCoordinator.handle(event: .cmdM, state: state)
         XCTAssertTrue(r.actions.contains(.endRefocusMode))
-        XCTAssertTrue(r.actions.contains(.hidePanel))
-        XCTAssertTrue(r.actions.contains(.stopNavKeyMonitor))
+        XCTAssertFalse(r.actions.contains(.hidePanel))
         XCTAssertTrue(r.actions.contains(.persistCompactMode(true)))
-        XCTAssertEqual(r.state.mode, .hidden)
+        XCTAssertEqual(r.state.mode, .compactCollapsed)
         XCTAssertTrue(r.state.compactPreference)
     }
 

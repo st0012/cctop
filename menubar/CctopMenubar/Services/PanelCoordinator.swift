@@ -190,8 +190,8 @@ struct PanelCoordinator {
 
         case (.compactBackgrounded, .menubarIconClicked):
             return Result(
-                state: PanelState(mode: .compactCollapsed, compactPreference: state.compactPreference),
-                actions: [.refocusPanel, .startNavKeyMonitor]
+                state: PanelState(mode: .hidden, compactPreference: state.compactPreference),
+                actions: [.hidePanel, .stopNavKeyMonitor]
             )
 
         case (.compactBackgrounded, .cmdM):
@@ -278,22 +278,12 @@ struct PanelCoordinator {
         case (.refocus, .menubarIconClicked):
             return endRefocusResult(state: state, restoreFocus: true)
 
-        case (.refocus(let origin), .cmdM):
+        case (.refocus, .cmdM):
             let newCompact = !state.compactPreference
-            var actions: [PanelAction] = [.endRefocusMode, .persistCompactMode(newCompact)]
-            if origin.panelWasClosed {
-                actions.append(.hidePanel)
-                actions.append(.stopNavKeyMonitor)
-            }
-            let newMode: PanelMode
-            if origin.panelWasClosed {
-                newMode = .hidden
-            } else {
-                newMode = newCompact ? .compactCollapsed : .normal
-            }
+            let newMode: PanelMode = newCompact ? .compactCollapsed : .normal
             return Result(
                 state: PanelState(mode: newMode, compactPreference: newCompact),
-                actions: actions
+                actions: [.endRefocusMode, .persistCompactMode(newCompact)]
             )
 
         case (.refocus, .escape):
