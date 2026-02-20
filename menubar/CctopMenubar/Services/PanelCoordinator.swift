@@ -317,6 +317,10 @@ struct PanelCoordinator {
         }
 
         var actions: [PanelAction] = [.endRefocusMode]
+        if origin.panelWasClosed {
+            actions.append(.hidePanel)
+            actions.append(.stopNavKeyMonitor)
+        }
         if restoreFocus {
             actions.append(.activateExternalApp)
         } else {
@@ -324,7 +328,9 @@ struct PanelCoordinator {
         }
 
         let newMode: PanelMode
-        if origin.wasCompact {
+        if origin.panelWasClosed {
+            newMode = .hidden
+        } else if origin.wasCompact {
             newMode = .compactCollapsed
         } else {
             newMode = .normal

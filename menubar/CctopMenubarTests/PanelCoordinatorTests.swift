@@ -308,34 +308,24 @@ final class PanelCoordinatorTests: XCTestCase {
 
     private let refocusPanelWasClosed = RefocusOrigin(panelWasClosed: true, wasCompact: false)
 
-    func testRefocus_panelClosed_escape_keepsPanel() {
+    func testRefocus_panelClosed_escape_hidesPanel() {
         let r = handle(.escape, mode: .refocus(origin: refocusPanelWasClosed))
-        XCTAssertEqual(r.state.mode, .normal)
-        XCTAssertFalse(r.actions.contains(.hidePanel))
-        XCTAssertTrue(r.actions.contains(.activateExternalApp))
+        XCTAssertEqual(r.state.mode, .hidden)
+        XCTAssertTrue(r.actions.contains(.hidePanel))
+        XCTAssertTrue(r.actions.contains(.stopNavKeyMonitor))
     }
 
-    func testRefocus_panelClosed_confirmed_keepsPanel() {
+    func testRefocus_panelClosed_confirmed_hidesPanel() {
         let r = handle(.refocusConfirmed, mode: .refocus(origin: refocusPanelWasClosed))
-        XCTAssertEqual(r.state.mode, .normal)
-        XCTAssertFalse(r.actions.contains(.hidePanel))
+        XCTAssertEqual(r.state.mode, .hidden)
+        XCTAssertTrue(r.actions.contains(.hidePanel))
     }
 
-    // MARK: - Refocus (panel was closed, compact on)
-
-    private let refocusPanelClosedCompact = RefocusOrigin(panelWasClosed: true, wasCompact: true)
-
-    func testRefocus_panelClosedCompact_confirmed_keepsCompact() {
-        let r = handle(.refocusConfirmed, mode: .refocus(origin: refocusPanelClosedCompact), compact: true)
-        XCTAssertEqual(r.state.mode, .compactCollapsed)
-        XCTAssertFalse(r.actions.contains(.hidePanel))
-    }
-
-    func testRefocus_panelClosedCompact_escape_keepsCompact() {
-        let r = handle(.escape, mode: .refocus(origin: refocusPanelClosedCompact), compact: true)
-        XCTAssertEqual(r.state.mode, .compactCollapsed)
-        XCTAssertFalse(r.actions.contains(.hidePanel))
-        XCTAssertTrue(r.actions.contains(.activateExternalApp))
+    func testRefocus_panelClosed_appLostFocus_hidesPanel() {
+        let r = handle(.appLostFocus, mode: .refocus(origin: refocusPanelWasClosed))
+        XCTAssertEqual(r.state.mode, .hidden)
+        XCTAssertTrue(r.actions.contains(.hidePanel))
+        XCTAssertTrue(r.actions.contains(.stopNavKeyMonitor))
     }
 
     // MARK: - Refocus (was compact)
