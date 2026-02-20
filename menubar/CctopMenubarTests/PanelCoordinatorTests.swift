@@ -162,11 +162,11 @@ final class PanelCoordinatorTests: XCTestCase {
 
     // MARK: - Compact Backgrounded
 
-    func testCompactBackgrounded_menubarClick_refocuses() {
+    func testCompactBackgrounded_menubarClick_hides() {
         let r = handle(.menubarIconClicked(appIsActive: false), mode: .compactBackgrounded, compact: true)
-        XCTAssertEqual(r.state.mode, .compactCollapsed)
-        XCTAssertTrue(r.actions.contains(.refocusPanel))
-        XCTAssertTrue(r.actions.contains(.startNavKeyMonitor))
+        XCTAssertEqual(r.state.mode, .hidden)
+        XCTAssertTrue(r.actions.contains(.hidePanel))
+        XCTAssertTrue(r.actions.contains(.stopNavKeyMonitor))
     }
 
     func testCompactBackgrounded_cmdM_disablesAndRefocuses() {
@@ -308,17 +308,34 @@ final class PanelCoordinatorTests: XCTestCase {
 
     private let refocusPanelWasClosed = RefocusOrigin(panelWasClosed: true, wasCompact: false)
 
-    func testRefocus_panelClosed_escape_hidesPanel() {
+    func testRefocus_panelClosed_escape_keepsPanel() {
         let r = handle(.escape, mode: .refocus(origin: refocusPanelWasClosed))
-        XCTAssertEqual(r.state.mode, .hidden)
-        XCTAssertTrue(r.actions.contains(.hidePanel))
-        XCTAssertTrue(r.actions.contains(.stopNavKeyMonitor))
+        XCTAssertEqual(r.state.mode, .normal)
+        XCTAssertFalse(r.actions.contains(.hidePanel))
+        XCTAssertTrue(r.actions.contains(.activateExternalApp))
     }
 
-    func testRefocus_panelClosed_confirmed_hidesPanel() {
+    func testRefocus_panelClosed_confirmed_keepsPanel() {
         let r = handle(.refocusConfirmed, mode: .refocus(origin: refocusPanelWasClosed))
-        XCTAssertEqual(r.state.mode, .hidden)
-        XCTAssertTrue(r.actions.contains(.hidePanel))
+        XCTAssertEqual(r.state.mode, .normal)
+        XCTAssertFalse(r.actions.contains(.hidePanel))
+    }
+
+    // MARK: - Refocus (panel was closed, compact on)
+
+    private let refocusPanelClosedCompact = RefocusOrigin(panelWasClosed: true, wasCompact: true)
+
+    func testRefocus_panelClosedCompact_confirmed_keepsCompact() {
+        let r = handle(.refocusConfirmed, mode: .refocus(origin: refocusPanelClosedCompact), compact: true)
+        XCTAssertEqual(r.state.mode, .compactCollapsed)
+        XCTAssertFalse(r.actions.contains(.hidePanel))
+    }
+
+    func testRefocus_panelClosedCompact_escape_keepsCompact() {
+        let r = handle(.escape, mode: .refocus(origin: refocusPanelClosedCompact), compact: true)
+        XCTAssertEqual(r.state.mode, .compactCollapsed)
+        XCTAssertFalse(r.actions.contains(.hidePanel))
+        XCTAssertTrue(r.actions.contains(.activateExternalApp))
     }
 
     // MARK: - Refocus (was compact)
@@ -337,15 +354,14 @@ final class PanelCoordinatorTests: XCTestCase {
 
     // MARK: - Regression: Cmd+M during refocus
 
-    func testCmdM_duringRefocus_panelWasClosed_hidesPanel() {
+    func testCmdM_duringRefocus_panelWasClosed_keepsPanel() {
         let origin = RefocusOrigin(panelWasClosed: true, wasCompact: false)
         let state = S(mode: .refocus(origin: origin), compactPreference: false)
         let r = PanelCoordinator.handle(event: .cmdM, state: state)
         XCTAssertTrue(r.actions.contains(.endRefocusMode))
-        XCTAssertTrue(r.actions.contains(.hidePanel))
-        XCTAssertTrue(r.actions.contains(.stopNavKeyMonitor))
+        XCTAssertFalse(r.actions.contains(.hidePanel))
         XCTAssertTrue(r.actions.contains(.persistCompactMode(true)))
-        XCTAssertEqual(r.state.mode, .hidden)
+        XCTAssertEqual(r.state.mode, .compactCollapsed)
         XCTAssertTrue(r.state.compactPreference)
     }
 
