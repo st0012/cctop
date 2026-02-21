@@ -190,8 +190,8 @@ final class CompactModeScenarioTests: XCTestCase {
         send(.cmdM)
 
         send(.escape)
-        XCTAssertEqual(state.mode, .compactBackgrounded,
-                       "Panel should be backgrounded, not hidden")
+        XCTAssertEqual(state.mode, .compactInactive,
+                       "Panel should be inactive, not hidden")
         XCTAssertTrue(compact.isCompact, "Should still show compact header")
     }
 
@@ -281,12 +281,12 @@ final class CompactModeScenarioTests: XCTestCase {
                        "Fresh launch should open in compact mode")
     }
 
-    /// PR: Refocus from backgrounded compact → Escape collapses back
-    func testCompactBackgrounded_refocus_escape_collapses() {
+    /// PR: Refocus from inactive compact → Escape collapses back
+    func testCompactInactive_refocus_escape_collapses() {
         send(.menubarIconClicked(appIsActive: false))
         send(.cmdM)
-        send(.escape) // → backgrounded
-        XCTAssertEqual(state.mode, .compactBackgrounded)
+        send(.escape) // → inactive
+        XCTAssertEqual(state.mode, .compactInactive)
 
         send(.refocusShortcut)
         if case .refocus(let origin) = state.mode {
@@ -301,16 +301,16 @@ final class CompactModeScenarioTests: XCTestCase {
         XCTAssertTrue(compact.isCompact, "Collapses back after refocus")
     }
 
-    /// Regression: clicking header while backgrounded should expand
-    func testCompactBackgrounded_headerClick_expands() {
+    /// Regression: clicking header while inactive should expand
+    func testCompactInactive_headerClick_expands() {
         send(.menubarIconClicked(appIsActive: false))
         send(.cmdM)
-        send(.escape) // → backgrounded
-        XCTAssertEqual(state.mode, .compactBackgrounded)
+        send(.escape) // → inactive
+        XCTAssertEqual(state.mode, .compactInactive)
 
         send(.headerClicked)
         XCTAssertEqual(state.mode, .compactExpanded,
-                       "Header click while backgrounded should expand")
+                       "Header click while inactive should expand")
         XCTAssertFalse(compact.isCompact, "Should show full view")
         XCTAssertTrue(compact.compactMode, "Preference stays ON")
     }

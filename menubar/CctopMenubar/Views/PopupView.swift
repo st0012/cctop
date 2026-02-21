@@ -251,12 +251,10 @@ extension PopupView {
         HStack {
             QuitButton()
             versionButton
-            if let shortcut = KeyboardShortcuts.getShortcut(for: .refocus) {
-                Text("\(shortcut.description) to refocus")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-                    .lineLimit(1)
-            }
+            footerShortcutHints
+                .font(.system(size: 10))
+                .foregroundStyle(Color.textMuted)
+                .lineLimit(1)
             Spacer()
             settingsGearButton
         }
@@ -299,6 +297,11 @@ extension PopupView {
 
     // MARK: - Helpers
 
+    @ViewBuilder private var footerShortcutHints: some View {
+        if let sc = KeyboardShortcuts.getShortcut(for: .refocus) {
+            Text("\(sc.description) refocus \u{00B7} \u{2318}M compact")
+        } else { Text("\u{2318}M compact") }
+    }
     private var isRefocusActive: Bool { refocus?.isActive ?? false }
     private var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }
 

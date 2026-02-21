@@ -2,11 +2,14 @@ import Foundation
 
 // MARK: - Panel state types
 
+/// Panel modes model the distinct behavioral states of the floating panel.
+/// Compact mode provides a persistent status bar for when the menubar icon
+/// is hidden behind the camera island (notch) on MacBook laptops.
 enum PanelMode: Equatable {
     case hidden
     case normal
     case compactCollapsed
-    case compactBackgrounded
+    case compactInactive       // compact header visible, app not focused
     case compactExpanded
     case refocus(origin: RefocusOrigin)
 }
@@ -38,20 +41,18 @@ enum PanelEvent {
 
 enum PanelAction: Equatable {
     case showPanel
-    case hidePanel
+    case dismissPanel          // hides panel + stops nav key monitor
     case refocusPanel
     case positionPanel
     case activateApp
     case deactivateApp
     case startNavKeyMonitor
-    case stopNavKeyMonitor
     case postNavAction(PanelNavAction)
     case activateExternalApp
     case restorePreviousApp
     case captureApps
     case startRefocusMode(panelWasClosed: Bool)
     case endRefocusMode
-    case startRefocusTimeout
     case persistCompactMode(Bool)
 }
 
@@ -92,7 +93,7 @@ struct PanelCoordinator {
             return Result(
                 state: PanelState(mode: mode, compactPreference: state.compactPreference),
                 actions: [.positionPanel, .showPanel, .activateApp, .startNavKeyMonitor,
-                          .startRefocusMode(panelWasClosed: true), .startRefocusTimeout]
+                          .startRefocusMode(panelWasClosed: true)]
             )
 
         case (.hidden, _):
@@ -101,7 +102,7 @@ struct PanelCoordinator {
         // MARK: normal
 
         case (.normal, .menubarIconClicked(let appIsActive)):
-            var actions: [PanelAction] = [.hidePanel, .stopNavKeyMonitor]
+            var actions: [PanelAction] = [.dismissPanel]
             if appIsActive { actions.append(.restorePreviousApp) }
             return Result(
                 state: PanelState(mode: .hidden, compactPreference: state.compactPreference),
@@ -127,7 +128,7 @@ struct PanelCoordinator {
             ))
             return Result(
                 state: PanelState(mode: mode, compactPreference: state.compactPreference),
-                actions: [.activateApp, .startRefocusMode(panelWasClosed: false), .startRefocusTimeout]
+                actions: [.activateApp, .startRefocusMode(panelWasClosed: false)]
             )
 
         case (.normal, .navKey(let action)):
@@ -142,7 +143,7 @@ struct PanelCoordinator {
         // MARK: compactCollapsed
 
         case (.compactCollapsed, .menubarIconClicked(let appIsActive)):
-            var actions: [PanelAction] = [.hidePanel, .stopNavKeyMonitor]
+            var actions: [PanelAction] = [.dismissPanel]
             if appIsActive { actions.append(.restorePreviousApp) }
             return Result(
                 state: PanelState(mode: .hidden, compactPreference: state.compactPreference),
@@ -157,7 +158,7 @@ struct PanelCoordinator {
 
         case (.compactCollapsed, .escape):
             return Result(
-                state: PanelState(mode: .compactBackgrounded, compactPreference: state.compactPreference),
+                state: PanelState(mode: .compactInactive, compactPreference: state.compactPreference),
                 actions: [.activateExternalApp]
             )
 
@@ -169,7 +170,7 @@ struct PanelCoordinator {
 
         case (.compactCollapsed, .appLostFocus):
             return Result(
-                state: PanelState(mode: .compactBackgrounded, compactPreference: state.compactPreference),
+                state: PanelState(mode: .compactInactive, compactPreference: state.compactPreference),
                 actions: []
             )
 
@@ -180,27 +181,27 @@ struct PanelCoordinator {
             ))
             return Result(
                 state: PanelState(mode: mode, compactPreference: state.compactPreference),
-                actions: [.activateApp, .startRefocusMode(panelWasClosed: false), .startRefocusTimeout]
+                actions: [.activateApp, .startRefocusMode(panelWasClosed: false)]
             )
 
         case (.compactCollapsed, _):
             return Result(state: state, actions: [], eventConsumed: false)
 
-        // MARK: compactBackgrounded
+        // MARK: compactInactive
 
-        case (.compactBackgrounded, .menubarIconClicked):
+        case (.compactInactive, .menubarIconClicked):
             return Result(
                 state: PanelState(mode: .hidden, compactPreference: state.compactPreference),
-                actions: [.hidePanel, .stopNavKeyMonitor]
+                actions: [.dismissPanel]
             )
 
-        case (.compactBackgrounded, .cmdM):
+        case (.compactInactive, .cmdM):
             return Result(
                 state: PanelState(mode: .normal, compactPreference: false),
                 actions: [.persistCompactMode(false), .refocusPanel, .startNavKeyMonitor]
             )
 
-        case (.compactBackgrounded, .refocusShortcut):
+        case (.compactInactive, .refocusShortcut):
             let mode: PanelMode = .refocus(origin: RefocusOrigin(
                 panelWasClosed: false,
                 wasCompact: true
@@ -208,28 +209,28 @@ struct PanelCoordinator {
             return Result(
                 state: PanelState(mode: mode, compactPreference: state.compactPreference),
                 actions: [.activateApp, .refocusPanel, .startNavKeyMonitor,
-                          .startRefocusMode(panelWasClosed: false), .startRefocusTimeout]
+                          .startRefocusMode(panelWasClosed: false)]
             )
 
-        case (.compactBackgrounded, .appLostFocus):
+        case (.compactInactive, .appLostFocus):
             return Result(state: state, actions: [])
 
-        case (.compactBackgrounded, .headerClicked):
+        case (.compactInactive, .headerClicked):
             return Result(
                 state: PanelState(mode: .compactExpanded, compactPreference: state.compactPreference),
                 actions: [.activateApp, .startNavKeyMonitor]
             )
 
-        case (.compactBackgrounded, .escape):
+        case (.compactInactive, .escape):
             return Result(state: state, actions: [], eventConsumed: false)
 
-        case (.compactBackgrounded, _):
+        case (.compactInactive, _):
             return Result(state: state, actions: [], eventConsumed: false)
 
         // MARK: compactExpanded
 
         case (.compactExpanded, .menubarIconClicked(let appIsActive)):
-            var actions: [PanelAction] = [.hidePanel, .stopNavKeyMonitor]
+            var actions: [PanelAction] = [.dismissPanel]
             if appIsActive { actions.append(.restorePreviousApp) }
             return Result(
                 state: PanelState(mode: .hidden, compactPreference: state.compactPreference),
@@ -244,7 +245,7 @@ struct PanelCoordinator {
 
         case (.compactExpanded, .escape):
             return Result(
-                state: PanelState(mode: .compactBackgrounded, compactPreference: state.compactPreference),
+                state: PanelState(mode: .compactInactive, compactPreference: state.compactPreference),
                 actions: [.activateExternalApp]
             )
 
@@ -264,7 +265,7 @@ struct PanelCoordinator {
             ))
             return Result(
                 state: PanelState(mode: mode, compactPreference: state.compactPreference),
-                actions: [.activateApp, .startRefocusMode(panelWasClosed: false), .startRefocusTimeout]
+                actions: [.activateApp, .startRefocusMode(panelWasClosed: false)]
             )
 
         case (.compactExpanded, .navKey(let action)):
@@ -318,8 +319,7 @@ struct PanelCoordinator {
 
         var actions: [PanelAction] = [.endRefocusMode]
         if origin.panelWasClosed {
-            actions.append(.hidePanel)
-            actions.append(.stopNavKeyMonitor)
+            actions.append(.dismissPanel)
         }
         if restoreFocus {
             actions.append(.activateExternalApp)
