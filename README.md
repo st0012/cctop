@@ -3,9 +3,9 @@
 [![GitHub release](https://img.shields.io/github/v/release/st0012/cctop?v=1)](https://github.com/st0012/cctop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Know which AI coding sessions need you in one place.**
+**A keyboard-first menubar app to monitor and jump between Claude Code and opencode sessions — minimum setup required.**
 
-A macOS menubar app that monitors your AI coding sessions at a glance — so you only switch when something actually needs you. Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
+Works with your existing editor and terminal. No IDE needed, no workflow changes — just install the app, connect your tools, and every session shows up in a floating panel you can navigate with your keyboard.
 
 <p align="center">
   <img src="docs/menubar-light.png" alt="cctop menubar popup (light mode)" width="340">
