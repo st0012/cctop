@@ -190,18 +190,20 @@ struct Session: Codable, Identifiable {
         try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
         let data = try JSONEncoder.sessionEncoder.encode(self)
-        let tempPath = path + ".tmp"
+        // Use hook process PID for unique temp file — prevents race when concurrent hooks write simultaneously
+        let tempPath = path + ".\(ProcessInfo.processInfo.processIdentifier).tmp"
         let tempURL = URL(fileURLWithPath: tempPath)
-        let destURL = URL(fileURLWithPath: path)
         try data.write(to: tempURL)
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: tempPath)
 
         // Atomic replace: rename(2) overwrites existing files on POSIX.
-        // Foundation's moveItem does NOT, so use replaceItemAt or POSIX rename.
-        if rename(tempPath, path) != 0 {
-            // Fallback: remove + move
-            try? fm.removeItem(at: destURL)
-            try fm.moveItem(at: tempURL, to: destURL)
+        // No fallback — rename in the same directory always succeeds on macOS/APFS.
+        // A remove+move fallback risks deleting the session file if the .tmp is already gone.
+        guard rename(tempPath, path) == 0 else {
+            let err = errno
+            try? fm.removeItem(atPath: tempPath)
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
+                          userInfo: [NSLocalizedDescriptionKey: "rename(\(tempPath), \(path)) failed: \(err)"])
         }
     }
 
