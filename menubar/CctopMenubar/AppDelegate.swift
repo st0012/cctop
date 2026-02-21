@@ -241,9 +241,10 @@ extension AppDelegate {
                 DispatchQueue.main.async { [weak self] in
                     self?.positionPanel()
                 }
-            case .hidePanel:
+            case .dismissPanel:
                 panel.orderOut(nil)
                 previousApp = nil
+                stopNavKeyMonitor()
             case .refocusPanel:
                 panel.makeKeyAndOrderFront(nil)
             case .positionPanel:
@@ -254,8 +255,6 @@ extension AppDelegate {
                 NSApp.deactivate()
             case .startNavKeyMonitor:
                 startNavKeyMonitor()
-            case .stopNavKeyMonitor:
-                stopNavKeyMonitor()
             case .postNavAction(let navAction):
                 postNavAction(navAction)
             case .activateExternalApp:
@@ -278,8 +277,8 @@ extension AppDelegate {
                 }
             case .endRefocusMode:
                 refocusController.deactivate()
-            case .startRefocusTimeout, .persistCompactMode:
-                break // Handled elsewhere: timeout inside startRefocusMode, persistence via @AppStorage
+            case .persistCompactMode:
+                break // Handled elsewhere: persistence via @AppStorage
             }
         }
     }
