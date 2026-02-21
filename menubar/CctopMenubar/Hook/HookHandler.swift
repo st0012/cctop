@@ -35,7 +35,12 @@ enum HookHandler {
             session.status = newStatus
         }
 
-        session.lastActivity = Date()
+        // Skip lastActivity update for late notificationPermission — the PermissionRequest
+        // already set it, and we need the original timestamp for child-process-start-time
+        // comparison in the menubar app.
+        if event != .notificationPermission {
+            session.lastActivity = Date()
+        }
         session.branch = branch
         session.terminal = terminal
         if event == .sessionStart || event == .userPromptSubmit {
@@ -91,15 +96,20 @@ enum HookHandler {
                 return tool
             }
             session.notificationMessage = msg
-            session.lastTool = nil
-            session.lastToolDetail = nil
+            // Keep lastTool/lastToolDetail from the preceding PreToolUse — when the
+            // delayed Notification transitions to .working, the card can show what tool is running.
 
-        case .notificationIdle, .notificationPermission, .notificationOther:
+        case .notificationIdle, .notificationOther:
             session.lastTool = nil
             session.lastToolDetail = nil
             if let msg = input.message {
                 session.notificationMessage = msg
             }
+
+        case .notificationPermission:
+            // PermissionRequest already handles side effects (clears tool state, sets notificationMessage).
+            // The Notification fires ~6s later and would clobber parallel tool state.
+            break
 
         case .stop:
             clearToolState(&session)

@@ -42,9 +42,11 @@ enum Transition {
         case .sessionStart, .stop: return .idle
         case .userPromptSubmit, .preToolUse, .postToolUse: return .working
         case .notificationIdle: return .waitingInput
-        case .notificationPermission, .permissionRequest: return .waitingPermission
+        case .permissionRequest: return .waitingPermission
         case .preCompact: return .compacting
-        case .notificationOther, .sessionEnd, .unknown: return nil
+        // notificationPermission: PermissionRequest already sets waitingPermission immediately.
+        // The Notification fires ~6s later and would race with PostToolUse if the user allows quickly.
+        case .notificationPermission, .notificationOther, .sessionEnd, .unknown: return nil
         }
     }
 }

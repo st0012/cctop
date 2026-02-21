@@ -1,3 +1,4 @@
+import Darwin.libproc
 import Foundation
 import UserNotifications
 import os.log
@@ -58,7 +59,9 @@ class SessionManager: ObservableObject {
         let dead = allDecoded.filter { !$0.1.isAlive }
         logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead")
         let oldCount = sessions.count
-        sessions = alive.map(\.1)
+        sessions = alive.map(\.1).map { session in
+            adjustPermissionStatus(session)
+        }
         if sessions.count != oldCount {
             logger.info("loadSessions: session count changed \(oldCount) -> \(self.sessions.count)")
         }
@@ -103,6 +106,44 @@ class SessionManager: ObservableObject {
                 try? FileManager.default.removeItem(at: url)
             }
         }
+    }
+
+    /// If a session is in `waiting_permission` but has a child process that started
+    /// AFTER the permission was requested, the user has granted permission and a tool
+    /// is running. Adjust the in-memory status to `working` so the UI reflects reality.
+    /// The session file on disk is NOT modified.
+    ///
+    /// This distinguishes tool subprocesses from long-lived children like MCP servers
+    /// by comparing each child's start time against `lastActivity` (set when
+    /// PermissionRequest fired).
+    private func adjustPermissionStatus(_ session: Session) -> Session {
+        guard session.status == .waitingPermission,
+              let pid = session.pid else {
+            return session
+        }
+
+        // Small tolerance for clock/serialization jitter; MCP servers started minutes+ before.
+        let cutoff = session.lastActivity.timeIntervalSince1970 - 1.0
+        for childPid in listChildPids(pid: pid) {
+            if let startTime = Session.processStartTime(pid: UInt32(childPid)),
+               startTime > cutoff {
+                var adjusted = session
+                adjusted.status = .working
+                return adjusted
+            }
+        }
+        return session
+    }
+
+    /// Returns the direct child PIDs of the given process.
+    private func listChildPids(pid: UInt32) -> [pid_t] {
+        let size = proc_listchildpids(pid_t(pid), nil, 0)
+        guard size > 0 else { return [] }
+        let count = Int(size) / MemoryLayout<pid_t>.size
+        var pids = [pid_t](repeating: 0, count: count)
+        let actual = proc_listchildpids(pid_t(pid), &pids, size)
+        let actualCount = Int(actual) / MemoryLayout<pid_t>.size
+        return Array(pids.prefix(actualCount))
     }
 
     static func requestNotificationPermission() {
