@@ -8,6 +8,10 @@
 Works with your existing editor and terminal. No IDE needed, no workflow changes — just install the app, connect your tools, and every session shows up in a floating panel you can navigate with your keyboard.
 
 <p align="center">
+  <img src="docs/cctop-8.0-demo.gif" alt="cctop demo — refocus, permission approval, history tab, opencode support" width="680">
+</p>
+
+<p align="center">
   <img src="docs/menubar-light.png" alt="cctop menubar popup (light mode)" width="340">
   &nbsp;&nbsp;
   <img src="docs/menubar-dark.png" alt="cctop menubar popup (dark mode)" width="340">
