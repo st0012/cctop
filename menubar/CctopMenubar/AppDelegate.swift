@@ -17,6 +17,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var previousApp: NSRunningApplication?
     private var lastExternalApp: NSRunningApplication?
     private var panelMode: PanelMode = .hidden
+    private var screenChangeWork: DispatchWorkItem?
+    private var suppressResize = false
     private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
@@ -100,6 +102,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         ) { [weak self] _ in
             self?.handleEvent(.appLostFocus)
         }
+        nc.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.handleScreenChange()
+        }
     }
 
     @MainActor private func observeSessionUpdates() {
@@ -178,7 +185,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         setPanelFrame(newFrame, animate: animate)
     }
 
+    @MainActor private func handleScreenChange() {
+        screenChangeWork?.cancel()
+        suppressResize = true
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.suppressResize = false
+            guard self.panel.isVisible else { return }
+            self.positionPanel(animate: false)
+        }
+        screenChangeWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
     private func resizePanel(animate: Bool = false) {
+        guard !suppressResize else { return }
         guard let (width, height) = panelFittingSize() else { return }
         let oldFrame = panel.frame
         let newFrame = NSRect(x: oldFrame.midX - width / 2, y: oldFrame.maxY - height, width: width, height: height)
