@@ -85,6 +85,7 @@ struct TabButtonView: View {
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .onHover { isHovered = $0 }
     }
 }
