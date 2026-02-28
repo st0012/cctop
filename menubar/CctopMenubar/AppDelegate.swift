@@ -98,6 +98,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             self?.handleEvent(.headerClicked)
         }
         nc.addObserver(
+            forName: .sessionJumped, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.handleEvent(.menubarIconClicked(appIsActive: true))
+        }
+        nc.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.handleEvent(.appLostFocus)
