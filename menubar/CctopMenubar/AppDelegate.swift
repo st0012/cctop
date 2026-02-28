@@ -286,6 +286,14 @@ extension AppDelegate {
                 previousApp = NSWorkspace.shared.frontmostApplication
                 if let prev = previousApp, prev != NSRunningApplication.current {
                     lastExternalApp = prev
+                    let bundleID = prev.bundleIdentifier ?? ""
+                    DispatchQueue.main.async {
+                        NotificationCenter.default.post(
+                            name: .panelOpened,
+                            object: nil,
+                            userInfo: ["bundleID": bundleID]
+                        )
+                    }
                 }
             case .startRefocusMode(let panelWasClosed):
                 refocusController.activate(

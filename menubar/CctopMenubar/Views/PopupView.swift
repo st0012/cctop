@@ -5,6 +5,7 @@ import SwiftUI
 extension Notification.Name {
     static let layoutChanged = Notification.Name("layoutChanged")
     static let panelHeaderClicked = Notification.Name("panelHeaderClicked")
+    static let panelOpened = Notification.Name("panelOpened")
 }
 
 enum PopupTab {
@@ -91,6 +92,17 @@ struct PopupView: View {
         }
         .onChange(of: selectedTab) { _ in selectedIndex = nil }
         .onAppear { selectedTab = initialTab }
+        .onReceive(NotificationCenter.default.publisher(for: .panelOpened)) { notification in
+            guard selectedTab == .active else { return }
+            guard let bundleID = notification.userInfo?["bundleID"] as? String else { return }
+            if let idx = sortedSessions.firstIndex(where: { session in
+                guard let program = session.terminal?.program, !program.isEmpty else { return false }
+                let hostApp = HostApp.from(editorName: program)
+                return hostApp.bundleID == bundleID || program == bundleID
+            }) {
+                selectedIndex = idx
+            }
+        }
     }
 
     // MARK: - Tab picker
