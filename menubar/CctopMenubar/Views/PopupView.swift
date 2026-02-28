@@ -362,7 +362,7 @@ extension PopupView {
         let count = selectedTab == .active ? sortedSessions.count : recentProjects.count
         guard count > 0 else { return }
         if let current = selectedIndex {
-            selectedIndex = min(max(0, current + delta), count - 1)
+            selectedIndex = (current + delta + count) % count
         } else {
             selectedIndex = delta > 0 ? 0 : count - 1
         }
