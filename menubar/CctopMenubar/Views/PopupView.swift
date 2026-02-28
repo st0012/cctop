@@ -5,6 +5,7 @@ import SwiftUI
 extension Notification.Name {
     static let layoutChanged = Notification.Name("layoutChanged")
     static let panelHeaderClicked = Notification.Name("panelHeaderClicked")
+    static let sessionJumped = Notification.Name("sessionJumped")
 }
 
 enum PopupTab {
@@ -312,7 +313,10 @@ extension PopupView {
         return Session.sorted(sessions)
     }
 
-    private func focusSession(_ session: Session) { focusTerminal(session: session); NSApp.deactivate() }
+    private func focusSession(_ session: Session) {
+        focusTerminal(session: session)
+        NotificationCenter.default.post(name: .sessionJumped, object: nil)
+    }
 
     private func toggleOverlay(_ overlay: Overlay) {
         if activeOverlay == overlay {
