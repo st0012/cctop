@@ -18,6 +18,11 @@ func focusTerminal(session: Session) {
         if !focusITerm2Session(sessionId: terminal.sessionId) {
             if let name = hostApp.activationName { activateAppByName(name) }
         }
+    } else if hostApp == .jetbrains {
+        // terminal.program contains the bundle ID (e.g., "com.jetbrains.WebStorm")
+        if !activateAppByBundleID(terminal.program) {
+            NSWorkspace.shared.open(URL(fileURLWithPath: session.projectPath))
+        }
     } else if let name = hostApp.activationName, activateAppByName(name) {
         // activated successfully
     } else {
@@ -101,6 +106,17 @@ func openInEditor(project: RecentProject) {
 
     // Final fallback: open in Finder
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.projectPath)
+}
+
+@discardableResult
+private func activateAppByBundleID(_ bundleID: String) -> Bool {
+    guard let app = NSWorkspace.shared.runningApplications.first(where: {
+        $0.bundleIdentifier == bundleID
+    }) else {
+        return false
+    }
+    app.activate()
+    return true
 }
 
 @discardableResult

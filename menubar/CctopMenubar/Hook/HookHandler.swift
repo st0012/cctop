@@ -182,7 +182,11 @@ enum HookHandler {
     }
 
     static func captureTerminalInfo() -> TerminalInfo {
-        let program = ProcessInfo.processInfo.environment["TERM_PROGRAM"] ?? ""
+        var program = ProcessInfo.processInfo.environment["TERM_PROGRAM"] ?? ""
+        // JetBrains IDEs don't set TERM_PROGRAM; fall back to __CFBundleIdentifier
+        if program.isEmpty {
+            program = ProcessInfo.processInfo.environment["__CFBundleIdentifier"] ?? ""
+        }
         let sessionId = sanitizeTerminalSessionId(
             ProcessInfo.processInfo.environment["ITERM_SESSION_ID"]
             ?? ProcessInfo.processInfo.environment["KITTY_WINDOW_ID"]

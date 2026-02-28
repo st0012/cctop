@@ -10,6 +10,7 @@ enum HostApp {
     case iterm2
     case warp
     case terminal
+    case jetbrains
     case unknown
 
     /// Match program name to a HostApp.
@@ -24,6 +25,7 @@ enum HostApp {
         if lower.contains("code") { return .vscode }
         if lower.contains("iterm") { return .iterm2 }
         if lower.contains("warp") { return .warp }
+        if lower.contains("jetbrains") { return .jetbrains }
         if lower.contains("terminal") { return .terminal }
         return .unknown
     }
@@ -37,6 +39,7 @@ enum HostApp {
         case .iterm2: return "com.googlecode.iterm2"
         case .warp: return "dev.warp.Warp-Stable"
         case .terminal: return "com.apple.Terminal"
+        case .jetbrains: return nil  // varies per IDE; handled via terminal.program
         case .unknown: return nil
         }
     }
@@ -51,6 +54,7 @@ enum HostApp {
         case .iterm2: return "iterm2"
         case .warp: return "warp"
         case .terminal: return "terminal"
+        case .jetbrains: return nil  // activated by bundle ID in focusTerminal
         case .unknown: return nil
         }
     }
@@ -59,7 +63,7 @@ enum HostApp {
         switch self {
         case .vscode, .cursor, .windsurf, .zed:
             return "chevron.left.forwardslash.chevron.right"
-        case .iterm2, .warp, .terminal, .unknown:
+        case .iterm2, .warp, .terminal, .jetbrains, .unknown:
             return "terminal"
         }
     }
@@ -68,7 +72,7 @@ enum HostApp {
     var usesWorkspaceFile: Bool {
         switch self {
         case .vscode, .cursor, .windsurf, .zed: return true
-        case .iterm2, .warp, .terminal, .unknown: return false
+        case .iterm2, .warp, .terminal, .jetbrains, .unknown: return false
         }
     }
 
