@@ -61,6 +61,7 @@ export function getTerminalLabel(session: CctopSession): string {
   if (program.includes("code")) return "VS Code";
   if (program.includes("iterm")) return "iTerm2";
   if (program.includes("warp")) return "Warp";
+  if (program.includes("ghostty")) return "Ghostty";
   if (program.includes("terminal")) return "Terminal";
   if (session.terminal?.program) return session.terminal.program;
   return "Finder";
@@ -94,6 +95,8 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
       }
     } else if (program.includes("warp")) {
       execFileSync("open", ["-a", "Warp"]);
+    } else if (program.includes("ghostty")) {
+      execFileSync("open", ["-a", "Ghostty"]);
     } else if (session.terminal?.program) {
       // Generic terminal: try activating the app by name first (matches Swift's activateAppByName)
       try {
