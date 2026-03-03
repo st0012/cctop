@@ -20,6 +20,8 @@ func focusTerminal(session: Session) {
         }
     } else if let name = hostApp.activationName, activateAppByName(name) {
         // activated successfully
+    } else if let bundleID = hostApp.bundleID, activateAppByBundleID(bundleID) {
+        // activated by bundle ID
     } else {
         NSWorkspace.shared.open(URL(fileURLWithPath: session.projectPath))
     }
@@ -101,6 +103,17 @@ func openInEditor(project: RecentProject) {
 
     // Final fallback: open in Finder
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.projectPath)
+}
+
+@discardableResult
+private func activateAppByBundleID(_ bundleID: String) -> Bool {
+    guard let app = NSWorkspace.shared.runningApplications.first(where: {
+        $0.bundleIdentifier == bundleID
+    }) else {
+        return false
+    }
+    app.activate()
+    return true
 }
 
 @discardableResult
