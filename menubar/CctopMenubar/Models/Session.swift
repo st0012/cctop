@@ -304,6 +304,13 @@ struct Session: Codable, Identifiable {
             }
         }
 
+        // Suspended check: if the process was stopped (Ctrl+Z), it will never
+        // fire hooks again unless resumed. Treat as dead so it gets cleaned up.
+        // SSTOP = 4 in sys/proc.h
+        if info.kp_proc.p_stat == 4 {
+            return false
+        }
+
         // Orphan check: if parent is launchd (PPID=1), the terminal/IDE that
         // spawned this session has died. The process is alive but unreachable.
         if info.kp_eproc.e_ppid == 1 {
