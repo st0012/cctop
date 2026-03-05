@@ -91,6 +91,7 @@ struct Session: Codable, Identifiable {
     var lastToolDetail: String?
     var notificationMessage: String?
     var sessionName: String?
+    var transcriptPath: String?
     var workspaceFile: String?
     var source: String?
     var endedAt: Date?
@@ -124,6 +125,7 @@ struct Session: Codable, Identifiable {
         case lastToolDetail = "last_tool_detail"
         case notificationMessage = "notification_message"
         case sessionName = "session_name"
+        case transcriptPath = "transcript_path"
         case workspaceFile = "workspace_file"
         case source
         case endedAt = "ended_at"
@@ -149,6 +151,7 @@ struct Session: Codable, Identifiable {
         lastToolDetail: String?,
         notificationMessage: String?,
         sessionName: String? = nil,
+        transcriptPath: String? = nil,
         workspaceFile: String? = nil,
         source: String? = nil,
         endedAt: Date? = nil,
@@ -169,6 +172,7 @@ struct Session: Codable, Identifiable {
         self.lastToolDetail = lastToolDetail
         self.notificationMessage = notificationMessage
         self.sessionName = sessionName
+        self.transcriptPath = transcriptPath
         self.workspaceFile = workspaceFile
         self.source = source
         self.endedAt = endedAt
@@ -192,6 +196,7 @@ struct Session: Codable, Identifiable {
         self.lastToolDetail = nil
         self.notificationMessage = nil
         self.sessionName = nil
+        self.transcriptPath = nil
         self.workspaceFile = nil
         self.source = nil
         self.endedAt = nil
@@ -256,6 +261,7 @@ struct Session: Codable, Identifiable {
             lastToolDetail: lastToolDetail,
             notificationMessage: notificationMessage,
             sessionName: sessionName,
+            transcriptPath: transcriptPath,
             workspaceFile: workspaceFile,
             source: source,
             endedAt: endedAt,

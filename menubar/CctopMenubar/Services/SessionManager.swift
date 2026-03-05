@@ -10,6 +10,7 @@ class SessionManager: ObservableObject {
     @Published var sessions: [Session] = []
 
     let historyManager: HistoryManager
+    private let enricher = SessionEnricher()
 
     private let sessionsDir: URL
     private var source: DispatchSourceFileSystemObject?
@@ -59,9 +60,13 @@ class SessionManager: ObservableObject {
         let dead = allDecoded.filter { !$0.1.isAlive }
         logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead")
         let oldCount = sessions.count
-        sessions = alive.map(\.1).map { session in
-            adjustDisplayStatus(session)
-        }
+
+        invalidateCachesOnTransitions(alive: alive, oldStatuses: oldStatuses)
+        sessions = alive.map(\.1).map { enrichAndAdjust($0) }
+        enricher.pruneCache(
+            activeSessionIds: Set(sessions.map(\.sessionId)),
+            activeProjectPaths: Set(sessions.map(\.projectPath))
+        )
         if sessions.count != oldCount {
             logger.info("loadSessions: session count changed \(oldCount) -> \(self.sessions.count)")
         }
@@ -107,6 +112,32 @@ class SessionManager: ObservableObject {
                 try? FileManager.default.removeItem(at: url)
             }
         }
+    }
+
+    /// Invalidate session name cache when a session transitions to working
+    /// (user sent a new prompt, session name may change).
+    private func invalidateCachesOnTransitions(
+        alive: [(URL, Session)],
+        oldStatuses: [String: SessionStatus]
+    ) {
+        for (_, session) in alive {
+            guard let old = oldStatuses[session.id] else { continue }
+            // User sent a new prompt → session name may change
+            if old != .working, session.status == .working {
+                enricher.invalidateSessionName(session.sessionId)
+            }
+            // Stopped working → may have switched branches
+            if old == .working, session.status != .working {
+                enricher.invalidateBranch(projectPath: session.projectPath)
+            }
+        }
+    }
+
+    /// Apply display-side status adjustments and enrich with branch/session name.
+    private func enrichAndAdjust(_ session: Session) -> Session {
+        var result = adjustDisplayStatus(session)
+        enricher.enrich(&result)
+        return result
     }
 
     /// Apply display-side status adjustments. The session file on disk is NOT modified.

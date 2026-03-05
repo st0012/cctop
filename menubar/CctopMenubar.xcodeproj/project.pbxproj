@@ -57,6 +57,7 @@
 		PC0000010000000000000001 /* PanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = PC0000020000000000000001 /* PanelCoordinator.swift */; };
 		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
 		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
+		SE0000010000000000000001 /* SessionEnricher.swift in Sources */ = {isa = PBXBuildFile; fileRef = SE0000020000000000000001 /* SessionEnricher.swift */; };
 		SN0000010000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
 		SN0000030000000000000001 /* SessionNameLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000040000000000000001 /* SessionNameLookupTests.swift */; };
 		SN0000050000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
@@ -136,6 +137,7 @@
 		PC0000020000000000000001 /* PanelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinator.swift; sourceTree = "<group>"; };
 		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
 		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
+		SE0000020000000000000001 /* SessionEnricher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionEnricher.swift; sourceTree = "<group>"; };
 		SN0000020000000000000001 /* SessionNameLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookup.swift; sourceTree = "<group>"; };
 		SN0000040000000000000001 /* SessionNameLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookupTests.swift; sourceTree = "<group>"; };
 		SP0000020000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
@@ -202,6 +204,7 @@
 				JM0000020000000000000001 /* RefocusController.swift */,
 				PC0000020000000000000001 /* PanelCoordinator.swift */,
 				NSC000020000000000000001 /* NotchStatusController.swift */,
+				SE0000020000000000000001 /* SessionEnricher.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -461,6 +464,7 @@
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,
 				N10000050000000000000001 /* Config.swift in Sources */,
+				SE0000010000000000000001 /* SessionEnricher.swift in Sources */,
 				SN0000050000000000000001 /* SessionNameLookup.swift in Sources */,
 				RP0000010000000000000001 /* RecentProject.swift in Sources */,
 				RV0000010000000000000001 /* RecentProjectCardView.swift in Sources */,

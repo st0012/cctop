@@ -20,7 +20,6 @@ enum HookHandler {
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(pid).json")
 
-        let branch = getCurrentBranch(cwd: input.cwd)
         let terminal = captureTerminalInfo()
         let startTime = Session.processStartTime(pid: pid)
 
@@ -29,7 +28,7 @@ enum HookHandler {
         // firing simultaneously) race: both read the old file, apply changes
         // independently, and the last writer wins — clobbering the first writer's changes.
         try withSessionLock(sessionPath: sessionPath) {
-            let freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
+            let freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: "unknown", terminal: terminal)
             var session = loadOrCreateSession(
                 path: sessionPath, event: event, startTime: startTime, fresh: freshSession
             )
@@ -37,7 +36,7 @@ enum HookHandler {
             session.pid = pid
             session.pidStartTime = startTime
 
-            let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
+            let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, terminal: terminal)
             applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
 
             let suffix = newStatus == nil ? " (preserved)" : ""
@@ -83,7 +82,7 @@ enum HookHandler {
     /// Apply status transition and update session metadata. Returns (oldStatus, newStatus).
     private static func applyTransition(
         _ session: inout Session, event: HookEvent, input: HookInput,
-        branch: String, terminal: TerminalInfo
+        terminal: TerminalInfo
     ) -> (String, SessionStatus?) {
         let oldStatus = session.status.rawValue
         let newStatus = Transition.forEvent(session.status, event: event)
@@ -92,12 +91,9 @@ enum HookHandler {
         // already set it, and we need the original timestamp for child-process-start-time
         // comparison in the menubar app.
         if event != .notificationPermission { session.lastActivity = Date() }
-        session.branch = branch
         session.terminal = terminal
         if event == .sessionStart || event == .userPromptSubmit {
-            session.sessionName = SessionNameLookup.lookupSessionName(
-                transcriptPath: input.transcriptPath, sessionId: input.sessionId
-            )
+            session.transcriptPath = input.transcriptPath
         }
         return (oldStatus, newStatus)
     }
@@ -346,31 +342,6 @@ func withSessionLock(sessionPath: String, body: () throws -> Void) throws {
     }
     defer { flock(fd, LOCK_UN) }
     try body()
-}
-
-// MARK: - Git Branch
-
-func getCurrentBranch(cwd: String) -> String {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-    process.arguments = ["branch", "--show-current"]
-    process.currentDirectoryURL = URL(fileURLWithPath: cwd)
-
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = FileHandle.nullDevice
-
-    do {
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return "unknown" }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let branch = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return branch.isEmpty ? "unknown" : branch
-    } catch {
-        return "unknown"
-    }
 }
 
 // MARK: - Tool Detail Extraction
