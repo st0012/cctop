@@ -21,6 +21,10 @@ final class HookEventTests: XCTestCase {
         XCTAssertEqual(HookEvent.parse(hookName: "PostToolUse", notificationType: nil), .postToolUse)
     }
 
+    func testParsePostToolUseFailure() {
+        XCTAssertEqual(HookEvent.parse(hookName: "PostToolUseFailure", notificationType: nil), .postToolUseFailure)
+    }
+
     func testParseStop() {
         XCTAssertEqual(HookEvent.parse(hookName: "Stop", notificationType: nil), .stop)
     }
@@ -45,6 +49,10 @@ final class HookEventTests: XCTestCase {
         XCTAssertEqual(HookEvent.parse(hookName: "Notification", notificationType: "idle_prompt"), .notificationIdle)
     }
 
+    func testParseNotificationElicitationDialog() {
+        XCTAssertEqual(HookEvent.parse(hookName: "Notification", notificationType: "elicitation_dialog"), .notificationIdle)
+    }
+
     func testParseNotificationPermissionPrompt() {
         XCTAssertEqual(HookEvent.parse(hookName: "Notification", notificationType: "permission_prompt"), .notificationPermission)
     }
@@ -57,12 +65,15 @@ final class HookEventTests: XCTestCase {
         XCTAssertEqual(HookEvent.parse(hookName: "Notification", notificationType: "future_type"), .notificationOther)
     }
 
-    // MARK: - Transition.forEvent() — Stop always idles
+    // MARK: - Transition.forEvent() — Stop always waits for input
 
-    func testStopAlwaysTransitionsToIdle() {
+    func testStopAlwaysTransitionsToWaitingInput() {
         let allStatuses: [SessionStatus] = [.idle, .working, .compacting, .waitingPermission, .waitingInput, .needsAttention]
         for status in allStatuses {
-            XCTAssertEqual(Transition.forEvent(status, event: .stop), .idle, "Stop from \(status) should -> idle")
+            XCTAssertEqual(
+                Transition.forEvent(status, event: .stop), .waitingInput,
+                "Stop from \(status) should -> waitingInput"
+            )
         }
     }
 
@@ -89,6 +100,11 @@ final class HookEventTests: XCTestCase {
 
     func testPostToolUseTransitionsToWorking() {
         XCTAssertEqual(Transition.forEvent(.working, event: .postToolUse), .working)
+    }
+
+    func testPostToolUseFailureTransitionsToWorking() {
+        XCTAssertEqual(Transition.forEvent(.working, event: .postToolUseFailure), .working)
+        XCTAssertEqual(Transition.forEvent(.idle, event: .postToolUseFailure), .working)
     }
 
     // MARK: - Transition.forEvent() — Notification transitions
@@ -135,7 +151,7 @@ final class HookEventTests: XCTestCase {
     func testAllTransitionsExhaustive() {
         let allStatuses: [SessionStatus] = [.idle, .working, .compacting, .waitingPermission, .waitingInput, .needsAttention]
         let allEvents: [HookEvent] = [
-            .sessionStart, .userPromptSubmit, .preToolUse, .postToolUse,
+            .sessionStart, .userPromptSubmit, .preToolUse, .postToolUse, .postToolUseFailure,
             .stop, .notificationIdle, .notificationPermission, .notificationOther,
             .permissionRequest, .preCompact, .sessionEnd, .unknown
         ]
@@ -150,13 +166,14 @@ final class HookEventTests: XCTestCase {
 
         // Verify expected transition counts:
         // Events that always transition (non-nil): sessionStart, userPromptSubmit, preToolUse,
-        //   postToolUse, stop, notificationIdle, permissionRequest, preCompact
+        //   postToolUse, postToolUseFailure, stop, notificationIdle, permissionRequest, preCompact
         // Events that always preserve (nil): notificationPermission, notificationOther, sessionEnd, unknown
         for status in allStatuses {
             XCTAssertNotNil(Transition.forEvent(status, event: .sessionStart))
             XCTAssertNotNil(Transition.forEvent(status, event: .userPromptSubmit))
             XCTAssertNotNil(Transition.forEvent(status, event: .preToolUse))
             XCTAssertNotNil(Transition.forEvent(status, event: .postToolUse))
+            XCTAssertNotNil(Transition.forEvent(status, event: .postToolUseFailure))
             XCTAssertNotNil(Transition.forEvent(status, event: .stop))
             XCTAssertNotNil(Transition.forEvent(status, event: .notificationIdle))
             XCTAssertNotNil(Transition.forEvent(status, event: .permissionRequest))

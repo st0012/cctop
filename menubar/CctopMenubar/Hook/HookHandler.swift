@@ -1,14 +1,18 @@
 import Foundation
 
+private let maxToolDetailLen = 120
+
 enum HookHandler {
-    private static let maxToolDetailLen = 120
     // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
     private static let noPIDMaxAge: TimeInterval = 300
 
     static func handleHook(hookName: String, input: HookInput) throws {
         let event = HookEvent.parse(hookName: hookName, notificationType: input.notificationType)
 
-        if event == .sessionEnd { return }
+        if event == .sessionEnd {
+            handleSessionEnd(hookName: hookName, input: input)
+            return
+        }
 
         let sessionsDir = Config.sessionsDir()
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
@@ -28,36 +32,14 @@ enum HookHandler {
         session.pid = pid
         session.pidStartTime = startTime
 
-        let oldStatus = session.status.rawValue
-        let newStatus = Transition.forEvent(session.status, event: event)
-
-        if let newStatus {
-            session.status = newStatus
-        }
-
-        // Skip lastActivity update for late notificationPermission — the PermissionRequest
-        // already set it, and we need the original timestamp for child-process-start-time
-        // comparison in the menubar app.
-        if event != .notificationPermission {
-            session.lastActivity = Date()
-        }
-        session.branch = branch
-        session.terminal = terminal
-        if event == .sessionStart || event == .userPromptSubmit {
-            session.sessionName = SessionNameLookup.lookupSessionName(transcriptPath: input.transcriptPath, sessionId: input.sessionId)
-        }
-
+        let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
         applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
 
         let suffix = newStatus == nil ? " (preserved)" : ""
-        let transition = "\(oldStatus) -> \(session.status.rawValue)\(suffix)"
         HookLogger.appendHookLog(
-            sessionId: safeId,
-            event: hookName,
-            label: label,
-            transition: transition
+            sessionId: safeId, event: hookName, label: label,
+            transition: "\(oldStatus) -> \(session.status.rawValue)\(suffix)"
         )
-
         try session.writeToFile(path: sessionPath)
     }
 
@@ -65,6 +47,28 @@ enum HookHandler {
         session.lastTool = nil
         session.lastToolDetail = nil
         session.notificationMessage = nil
+    }
+
+    /// Apply status transition and update session metadata. Returns (oldStatus, newStatus).
+    private static func applyTransition(
+        _ session: inout Session, event: HookEvent, input: HookInput,
+        branch: String, terminal: TerminalInfo
+    ) -> (String, SessionStatus?) {
+        let oldStatus = session.status.rawValue
+        let newStatus = Transition.forEvent(session.status, event: event)
+        if let newStatus { session.status = newStatus }
+        // Skip lastActivity update for late notificationPermission — the PermissionRequest
+        // already set it, and we need the original timestamp for child-process-start-time
+        // comparison in the menubar app.
+        if event != .notificationPermission { session.lastActivity = Date() }
+        session.branch = branch
+        session.terminal = terminal
+        if event == .sessionStart || event == .userPromptSubmit {
+            session.sessionName = SessionNameLookup.lookupSessionName(
+                transcriptPath: input.transcriptPath, sessionId: input.sessionId
+            )
+        }
+        return (oldStatus, newStatus)
     }
 
     private static func applySideEffects(
@@ -113,6 +117,11 @@ enum HookHandler {
 
         case .stop:
             clearToolState(&session)
+
+        case .postToolUseFailure:
+            if let error = input.error {
+                session.notificationMessage = error
+            }
 
         case .preCompact, .postToolUse, .sessionEnd, .unknown:
             break
@@ -221,28 +230,6 @@ enum HookHandler {
         return "/dev/" + String(cString: name)
     }
 
-    static func extractToolDetail(toolName: String, toolInput: [String: String]?) -> String? {
-        guard let toolInput else { return nil }
-
-        let field: String
-        switch toolName.lowercased() {
-        case "bash": field = "command"
-        case "edit", "write", "read": field = "file_path"
-        case "grep", "glob": field = "pattern"
-        case "webfetch": field = "url"
-        case "websearch": field = "query"
-        case "task": field = "description"
-        default: return nil
-        }
-
-        guard let value = toolInput[field], !value.isEmpty else { return nil }
-
-        if value.count > maxToolDetailLen {
-            return String(value.prefix(maxToolDetailLen - 3)) + "..."
-        }
-        return value
-    }
-
     static func getCurrentBranch(cwd: String) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
@@ -266,6 +253,16 @@ enum HookHandler {
     }
 
     // MARK: - Cleanup
+
+    private static func handleSessionEnd(hookName: String, input: HookInput) {
+        let sessionsDir = Config.sessionsDir()
+        let pid = getParentPID()
+        let safeId = Session.sanitizeSessionId(raw: input.sessionId)
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(pid).json")
+        let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
+        HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
+        removeSession(at: sessionPath, sessionId: safeId)
+    }
 
     static func cleanupSessionsForProject(sessionsDir: String, projectPath: String, currentPid: UInt32?) {
         forEachSession(in: sessionsDir) { path, session in
@@ -311,4 +308,28 @@ enum HookHandler {
     private static func isPIDAlive(_ pid: UInt32) -> Bool {
         kill(Int32(pid), 0) == 0 || errno == EPERM
     }
+}
+
+// MARK: - Tool Detail Extraction
+
+func extractToolDetail(toolName: String, toolInput: [String: String]?) -> String? {
+    guard let toolInput else { return nil }
+
+    let field: String
+    switch toolName.lowercased() {
+    case "bash": field = "command"
+    case "edit", "write", "read": field = "file_path"
+    case "grep", "glob": field = "pattern"
+    case "webfetch": field = "url"
+    case "websearch": field = "query"
+    case "task": field = "description"
+    default: return nil
+    }
+
+    guard let value = toolInput[field], !value.isEmpty else { return nil }
+
+    if value.count > maxToolDetailLen {
+        return String(value.prefix(maxToolDetailLen - 3)) + "..."
+    }
+    return value
 }

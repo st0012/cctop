@@ -13,6 +13,10 @@ struct HookInput: Codable {
     var message: String?
     var title: String?
     var trigger: String?
+    var error: String?
+    /// Whether Stop was triggered by user interrupt (Ctrl+C). Reserved for future use:
+    /// could distinguish idle (interrupted) from waitingInput (normal completion).
+    var isInterrupt: Bool?
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
@@ -24,7 +28,8 @@ struct HookInput: Codable {
         case toolName = "tool_name"
         case toolInput = "tool_input"
         case notificationType = "notification_type"
-        case message, title, trigger
+        case message, title, trigger, error
+        case isInterrupt = "is_interrupt"
     }
 
     init(from decoder: Decoder) throws {
@@ -40,6 +45,8 @@ struct HookInput: Codable {
         message = try container.decodeIfPresent(String.self, forKey: .message)
         title = try container.decodeIfPresent(String.self, forKey: .title)
         trigger = try container.decodeIfPresent(String.self, forKey: .trigger)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+        isInterrupt = try container.decodeIfPresent(Bool.self, forKey: .isInterrupt)
 
         if container.contains(.toolInput) {
             let rawDict = try? container.decode([String: ToolInputValue].self, forKey: .toolInput)

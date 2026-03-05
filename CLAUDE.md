@@ -314,15 +314,18 @@ The menubar app detects opencode when `~/.config/opencode/` exists and offers to
 
 | Hook Event | Status |
 |------------|--------|
-| SessionStart | idle (also stores PID for liveness detection) |
+| SessionStart (startup\|resume\|clear\|compact) | idle (also stores PID for liveness detection) |
 | UserPromptSubmit | working |
 | PreToolUse | working (sets last_tool/last_tool_detail) |
 | PostToolUse | working |
-| Stop | idle |
+| PostToolUseFailure | working (stores error in notification_message) |
+| Stop | waiting_input |
 | Notification (idle_prompt) | waiting_input |
+| Notification (elicitation_dialog) | waiting_input |
 | Notification (permission_prompt) | waiting_permission |
 | PermissionRequest | waiting_permission |
 | PreCompact | compacting |
+| SessionEnd | (removes session file immediately) |
 
 ### opencode Plugin Events
 

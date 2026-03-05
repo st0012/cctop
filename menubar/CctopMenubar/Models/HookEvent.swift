@@ -5,6 +5,7 @@ enum HookEvent: Equatable {
     case userPromptSubmit
     case preToolUse
     case postToolUse
+    case postToolUseFailure
     case stop
     case notificationIdle
     case notificationPermission
@@ -20,10 +21,11 @@ enum HookEvent: Equatable {
         case "UserPromptSubmit": return .userPromptSubmit
         case "PreToolUse": return .preToolUse
         case "PostToolUse": return .postToolUse
+        case "PostToolUseFailure": return .postToolUseFailure
         case "Stop": return .stop
         case "Notification":
             switch notificationType {
-            case "idle_prompt": return .notificationIdle
+            case "idle_prompt", "elicitation_dialog": return .notificationIdle
             case "permission_prompt": return .notificationPermission
             default: return .notificationOther
             }
@@ -39,8 +41,9 @@ enum Transition {
     /// Returns nil to mean "preserve current status".
     static func forEvent(_ current: SessionStatus, event: HookEvent) -> SessionStatus? {
         switch event {
-        case .sessionStart, .stop: return .idle
-        case .userPromptSubmit, .preToolUse, .postToolUse: return .working
+        case .sessionStart: return .idle
+        case .stop: return .waitingInput
+        case .userPromptSubmit, .preToolUse, .postToolUse, .postToolUseFailure: return .working
         case .notificationIdle: return .waitingInput
         case .permissionRequest: return .waitingPermission
         case .preCompact: return .compacting
