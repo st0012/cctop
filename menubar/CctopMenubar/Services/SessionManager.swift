@@ -60,7 +60,7 @@ class SessionManager: ObservableObject {
         logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead")
         let oldCount = sessions.count
         sessions = alive.map(\.1).map { session in
-            adjustPermissionStatus(session)
+            adjustDisplayStatus(session)
         }
         if sessions.count != oldCount {
             logger.info("loadSessions: session count changed \(oldCount) -> \(self.sessions.count)")
@@ -106,6 +106,27 @@ class SessionManager: ObservableObject {
                 try? FileManager.default.removeItem(at: url)
             }
         }
+    }
+
+    /// Apply display-side status adjustments. The session file on disk is NOT modified.
+    private func adjustDisplayStatus(_ session: Session) -> Session {
+        var result = adjustPermissionStatus(session)
+        result = Self.adjustIdleTimeout(result)
+        return result
+    }
+
+    private static let idleTimeoutSeconds: TimeInterval = 3600 // 60 minutes
+
+    /// If a session has been in `waitingInput` for over 60 minutes, treat it as
+    /// `idle` for display. The user likely walked away.
+    private static func adjustIdleTimeout(_ session: Session) -> Session {
+        guard session.status == .waitingInput,
+              -session.lastActivity.timeIntervalSinceNow > Self.idleTimeoutSeconds else {
+            return session
+        }
+        var adjusted = session
+        adjusted.status = .idle
+        return adjusted
     }
 
     /// If a session is in `waiting_permission` but has a child process that started
