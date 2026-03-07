@@ -56,6 +56,7 @@
 		JM0000010000000000000001 /* RefocusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = JM0000020000000000000001 /* RefocusController.swift */; };
 		CM0000010000000000000001 /* CompactModeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CM0000020000000000000001 /* CompactModeController.swift */; };
 		PC0000010000000000000001 /* PanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = PC0000020000000000000001 /* PanelCoordinator.swift */; };
+		PG0000010000000000000001 /* PanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = PG0000020000000000000001 /* PanelGeometry.swift */; };
 		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
 		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
 		SN0000010000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
@@ -69,6 +70,7 @@
 		PT0000010000000000000001 /* PanelToggleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PT0000020000000000000001 /* PanelToggleTests.swift */; };
 		CMT000010000000000000001 /* CompactModeControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMT000020000000000000001 /* CompactModeControllerTests.swift */; };
 		PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PCT000020000000000000001 /* PanelCoordinatorTests.swift */; };
+		PGT000010000000000000001 /* PanelGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PGT000020000000000000001 /* PanelGeometryTests.swift */; };
 		CST000010000000000000001 /* CompactModeScenarioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CST000020000000000000001 /* CompactModeScenarioTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -129,6 +131,7 @@
 		JM0000020000000000000001 /* RefocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefocusController.swift; sourceTree = "<group>"; };
 		CM0000020000000000000001 /* CompactModeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactModeController.swift; sourceTree = "<group>"; };
 		PC0000020000000000000001 /* PanelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinator.swift; sourceTree = "<group>"; };
+		PG0000020000000000000001 /* PanelGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelGeometry.swift; sourceTree = "<group>"; };
 		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
 		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
 		SN0000020000000000000001 /* SessionNameLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookup.swift; sourceTree = "<group>"; };
@@ -142,6 +145,7 @@
 		PT0000020000000000000001 /* PanelToggleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelToggleTests.swift; sourceTree = "<group>"; };
 		CMT000020000000000000001 /* CompactModeControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactModeControllerTests.swift; sourceTree = "<group>"; };
 		PCT000020000000000000001 /* PanelCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinatorTests.swift; sourceTree = "<group>"; };
+		PGT000020000000000000001 /* PanelGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelGeometryTests.swift; sourceTree = "<group>"; };
 		CST000020000000000000001 /* CompactModeScenarioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactModeScenarioTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -190,6 +194,7 @@
 				JM0000020000000000000001 /* RefocusController.swift */,
 				CM0000020000000000000001 /* CompactModeController.swift */,
 				PC0000020000000000000001 /* PanelCoordinator.swift */,
+				PG0000020000000000000001 /* PanelGeometry.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -297,6 +302,7 @@
 				PT0000020000000000000001 /* PanelToggleTests.swift */,
 				CMT000020000000000000001 /* CompactModeControllerTests.swift */,
 				PCT000020000000000000001 /* PanelCoordinatorTests.swift */,
+				PGT000020000000000000001 /* PanelGeometryTests.swift */,
 				CST000020000000000000001 /* CompactModeScenarioTests.swift */,
 			);
 			path = CctopMenubarTests;
@@ -433,6 +439,7 @@
 				JM0000010000000000000001 /* RefocusController.swift in Sources */,
 				CM0000010000000000000001 /* CompactModeController.swift in Sources */,
 				PC0000010000000000000001 /* PanelCoordinator.swift in Sources */,
+				PG0000010000000000000001 /* PanelGeometry.swift in Sources */,
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,
 				N10000050000000000000001 /* Config.swift in Sources */,
@@ -482,6 +489,7 @@
 				PT0000010000000000000001 /* PanelToggleTests.swift in Sources */,
 				CMT000010000000000000001 /* CompactModeControllerTests.swift in Sources */,
 				PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */,
+				PGT000010000000000000001 /* PanelGeometryTests.swift in Sources */,
 				CST000010000000000000001 /* CompactModeScenarioTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

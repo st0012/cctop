@@ -4,48 +4,34 @@ struct SmartBarView: View {
     let sessions: [Session]
     var onTap: (() -> Void)?
 
-    private var counts: (permission: Int, attention: Int, working: Int, idle: Int) {
-        HeaderView.statusCounts(for: sessions)
-    }
-
-    private var needsAttention: Bool {
-        counts.permission > 0 || counts.attention > 0
-    }
-
     var body: some View {
-        let content = HStack(spacing: 8) {
+        let counts = HeaderView.statusCounts(for: sessions)
+        let needsAttention = counts.permission > 0 || counts.attention > 0
+        let content = HStack(spacing: 3) {
             // Logo
-            RoundedRectangle(cornerRadius: 5)
+            RoundedRectangle(cornerRadius: 3)
                 .fill(Color.amber.opacity(needsAttention ? 1.0 : 0.5))
-                .frame(width: 16, height: 16)
+                .frame(width: 10, height: 10)
                 .overlay(
                     Text("C")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 7, weight: .bold))
                         .foregroundStyle(.white)
                 )
+                .padding(.trailing, 2)
 
-            if counts.permission > 0 {
-                miniChip(count: counts.permission, color: .red)
-            }
-            if counts.attention > 0 {
-                miniChip(count: counts.attention, color: Color.amber)
-            }
-            if counts.working > 0 {
-                miniChip(count: counts.working, color: Color.statusGreen)
-            }
-            if counts.idle > 0 {
-                Text("+\(counts.idle)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.secondary.opacity(0.6))
-            }
+            microNum(counts.permission, color: .red)
+            microNum(counts.attention, color: Color.amber)
+            microNum(counts.working, color: Color.statusGreen)
+            microNum(counts.idle, color: Color.secondary)
 
             // Disclosure chevron
             Image(systemName: "chevron.down")
-                .font(.system(size: 8, weight: .medium))
+                .font(.system(size: 6, weight: .medium))
                 .foregroundStyle(Color.secondary.opacity(0.4))
+                .padding(.leading, 2)
         }
-        .padding(.horizontal, 12)
-        .frame(height: 32)
+        .padding(.horizontal, 7)
+        .frame(height: 16)
         .fixedSize(horizontal: true, vertical: false)
         .contentShape(Rectangle())
 
@@ -56,17 +42,13 @@ struct SmartBarView: View {
         }
     }
 
-    private func miniChip(count: Int, color: Color) -> some View {
-        HStack(spacing: 3) {
-            Circle().fill(color).frame(width: 5, height: 5)
-            Text("\(count)")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(color)
-        }
-        .padding(.horizontal, 5)
-        .padding(.vertical, 2)
-        .background(color.opacity(0.12))
-        .clipShape(Capsule())
+    private func microNum(_ count: Int, color: Color) -> some View {
+        Text("\(count)")
+            .font(.system(size: 8, weight: .semibold))
+            .foregroundStyle(color.opacity(count > 0 ? 1.0 : 0.25))
+            .frame(minWidth: 12, minHeight: 11)
+            .background(color.opacity(count > 0 ? 0.12 : 0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 3))
     }
 }
 
@@ -77,7 +59,7 @@ struct TranslucentPill<Content: View>: View {
 
     var body: some View {
         content()
-            .background(.ultraThinMaterial)
+            .background(.ultraThinMaterial.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
     }

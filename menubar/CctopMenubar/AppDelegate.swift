@@ -71,7 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             .store(in: &cancellables)
         compactController.objectWillChange
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in DispatchQueue.main.async { self?.resizePanel(animate: true) } }
+            .sink { [weak self] _ in DispatchQueue.main.async { self?.positionPanel(animate: true) } }
             .store(in: &cancellables)
         registerObservers()
     }
@@ -179,9 +179,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     private func positionPanel(animate: Bool = false) {
         guard let button = statusItem.button, let buttonWindow = button.window else { return }
-        let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        let iconFrame = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
         guard let (width, height) = panelFittingSize() else { return }
-        let newFrame = NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4, width: width, height: height)
+        let newFrame = PanelGeometry.frameUnderIcon(
+            iconFrame: iconFrame, panelSize: NSSize(width: width, height: height))
         setPanelFrame(newFrame, animate: animate)
     }
 
@@ -201,16 +202,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private func resizePanel(animate: Bool = false) {
         guard !suppressResize else { return }
         guard let (width, height) = panelFittingSize() else { return }
-        guard let button = statusItem.button, let buttonWindow = button.window else {
-            // Fallback: preserve old midX (can happen during startup)
-            let old = panel.frame
-            setPanelFrame(NSRect(x: old.midX - width / 2, y: old.maxY - height, width: width, height: height),
-                          animate: animate)
-            return
-        }
-        let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
-        let newFrame = NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4,
-                              width: width, height: height)
+        let newFrame = PanelGeometry.frameResizedInPlace(
+            oldFrame: panel.frame, newSize: NSSize(width: width, height: height))
         setPanelFrame(newFrame, animate: animate)
     }
 
