@@ -100,21 +100,32 @@ struct PanelContentView: View {
     @ObservedObject var compactController: CompactModeController
 
     var body: some View {
-        PopupView(
-            sessions: sessionManager.sessions,
-            recentProjects: historyManager.recentProjects,
-            updater: updater,
-            pluginManager: pluginManager,
-            refocus: refocus,
-            isCompact: compactController.isCompact,
-            isCompactModeEnabled: compactController.compactMode,
-            onExpand: {
-                NotificationCenter.default.post(name: .panelHeaderClicked, object: nil)
+        if compactController.isCompact {
+            TranslucentPill {
+                SmartBarView(
+                    sessions: sessionManager.sessions,
+                    onTap: {
+                        NotificationCenter.default.post(name: .panelHeaderClicked, object: nil)
+                    }
+                )
             }
-        )
-        .frame(width: 320)
-        .background(Color.panelBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        } else {
+            PopupView(
+                sessions: sessionManager.sessions,
+                recentProjects: historyManager.recentProjects,
+                updater: updater,
+                pluginManager: pluginManager,
+                refocus: refocus,
+                isCompact: false,
+                isCompactModeEnabled: compactController.compactMode,
+                onExpand: {
+                    NotificationCenter.default.post(name: .panelHeaderClicked, object: nil)
+                }
+            )
+            .frame(width: 320)
+            .background(Color.panelBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
     }
 }
 
