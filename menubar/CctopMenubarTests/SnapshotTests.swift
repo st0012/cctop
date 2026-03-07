@@ -26,10 +26,9 @@ final class SnapshotTests: XCTestCase {
     }
 
     func testGenerateCompactScreenshot() throws {
-        let view = PopupView(
-            sessions: Session.qaShowcase, updater: DisabledUpdater(),
-            isCompact: true, isCompactModeEnabled: true
-        )
+        let view = TranslucentPill {
+            SmartBarView(sessions: Session.qaShowcase)
+        }
         try renderScreenshot(view: view, colorScheme: .light, filename: "menubar-compact-light.png")
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-compact-dark.png")
     }
@@ -42,20 +41,113 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-recent.png")
     }
 
-    private func renderScreenshot(view: some View, colorScheme: ColorScheme, filename: String) throws {
+    // MARK: - Compact Mode Mockups
+
+    func testGenerateCompactMockups() throws {
+        let showcase = Session.qaShowcase
+        let allClear: [Session] = [
+            .mock(status: .working, lastTool: "Edit"),
+            .mock(status: .working, lastTool: "Bash"),
+            .mock(status: .idle),
+            .mock(status: .idle),
+        ]
+        let singleAlert: [Session] = [
+            .mock(status: .waitingPermission),
+            .mock(status: .working, lastTool: "Edit"),
+            .mock(status: .working, lastTool: "Bash"),
+        ]
+
+        let bg = desktopGradient
+
+        // Concept A: Dot Strip (narrow + translucent)
+        let dotStripView = VStack(alignment: .leading, spacing: 16) {
+            mockupLabel("CONCEPT A: DOT STRIP (28px, narrow)")
+            mockupRow("All Clear") { TranslucentPill { DotStripView(sessions: allClear) } }
+            mockupRow("Needs Attention") { TranslucentPill { DotStripView(sessions: showcase) } }
+            mockupRow("Single Alert") { TranslucentPill { DotStripView(sessions: singleAlert) } }
+        }
+        .padding(20)
+        .background(bg)
+
+        try renderScreenshot(view: dotStripView, colorScheme: .dark, filename: "mockup-dotstrip-dark.png", width: 360)
+
+        // Concept B: Smart Bar (narrow + translucent)
+        let smartBarView = VStack(alignment: .leading, spacing: 16) {
+            mockupLabel("CONCEPT B: SMART BAR (32px, narrow)")
+            mockupRow("All Clear") { TranslucentPill { SmartBarView(sessions: allClear) } }
+            mockupRow("Needs Attention") { TranslucentPill { SmartBarView(sessions: showcase) } }
+            mockupRow("Single Alert") { TranslucentPill { SmartBarView(sessions: singleAlert) } }
+        }
+        .padding(20)
+        .background(bg)
+
+        try renderScreenshot(view: smartBarView, colorScheme: .dark, filename: "mockup-smartbar-dark.png", width: 360)
+
+        // Side-by-side comparison
+        let comparison = VStack(alignment: .leading, spacing: 16) {
+            mockupLabel("CURRENT (44px, 320px wide)")
+            TranslucentPill {
+                HeaderView(sessions: showcase, isCompactMode: true)
+            }
+            .frame(width: 320)
+
+            mockupLabel("CONCEPT A: DOT STRIP (28px, narrow)")
+            TranslucentPill { DotStripView(sessions: showcase) }
+
+            mockupLabel("CONCEPT B: SMART BAR (32px, narrow)")
+            TranslucentPill { SmartBarView(sessions: showcase) }
+        }
+        .padding(20)
+        .background(bg)
+
+        try renderScreenshot(view: comparison, colorScheme: .dark, filename: "mockup-comparison-dark.png", width: 360)
+    }
+
+    private func mockupLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(.white.opacity(0.7))
+    }
+
+    private func mockupRow<Content: View>(
+        _ title: String, @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 9))
+                .foregroundStyle(.white.opacity(0.4))
+            content()
+        }
+    }
+
+    private var desktopGradient: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.15, green: 0.12, blue: 0.25),
+                Color(red: 0.1, green: 0.18, blue: 0.28),
+                Color(red: 0.12, green: 0.15, blue: 0.22),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private func renderScreenshot(
+        view: some View, colorScheme: ColorScheme, filename: String, width: CGFloat = 320
+    ) throws {
         let docsDir = ProcessInfo.processInfo.environment["SRCROOT"]
             .map { $0 + "/../docs" } ?? "/tmp"
         let outputPath = "\(docsDir)/\(filename)"
 
         let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
         let styled = view
-            .frame(width: 320)
+            .frame(width: width)
             .background(Color(NSColor.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .environment(\.colorScheme, colorScheme)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: width, height: 500),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
