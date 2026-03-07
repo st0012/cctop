@@ -77,12 +77,9 @@ struct TranslucentPill<Content: View>: View {
 
     var body: some View {
         content()
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(white: 0.15, opacity: 0.55))
-            )
+            .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 10))
-            .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+            .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
     }
 }
 
