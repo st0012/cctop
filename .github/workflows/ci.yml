@@ -27,9 +27,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: menubar/build/
-          key: deriveddata-${{ runner.os }}-${{ hashFiles('menubar/CctopMenubar.xcodeproj/**') }}
+          key: deriveddata-${{ runner.os }}-xcode16.3-${{ hashFiles('menubar/CctopMenubar.xcodeproj/**') }}
           restore-keys: |
-            deriveddata-${{ runner.os }}-
+            deriveddata-${{ runner.os }}-xcode16.3-
       - name: Build menubar app
         run: xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
       - name: Build cctop-hook CLI
