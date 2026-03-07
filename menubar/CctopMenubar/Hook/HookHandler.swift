@@ -24,23 +24,29 @@ enum HookHandler {
         let terminal = captureTerminalInfo()
         let startTime = Session.processStartTime(pid: pid)
 
-        let freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
-        var session = loadOrCreateSession(
-            path: sessionPath, event: event, startTime: startTime, fresh: freshSession
-        )
+        // Lock the session file for the entire read-modify-write cycle.
+        // Without this, concurrent hook processes (e.g. PreToolUse + PostToolUse
+        // firing simultaneously) race: both read the old file, apply changes
+        // independently, and the last writer wins — clobbering the first writer's changes.
+        try withSessionLock(sessionPath: sessionPath) {
+            let freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
+            var session = loadOrCreateSession(
+                path: sessionPath, event: event, startTime: startTime, fresh: freshSession
+            )
 
-        session.pid = pid
-        session.pidStartTime = startTime
+            session.pid = pid
+            session.pidStartTime = startTime
 
-        let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
-        applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
+            let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
+            applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
 
-        let suffix = newStatus == nil ? " (preserved)" : ""
-        HookLogger.appendHookLog(
-            sessionId: safeId, event: hookName, label: label,
-            transition: "\(oldStatus) -> \(session.status.rawValue)\(suffix)"
-        )
-        try session.writeToFile(path: sessionPath)
+            let suffix = newStatus == nil ? " (preserved)" : ""
+            HookLogger.appendHookLog(
+                sessionId: safeId, event: hookName, label: label,
+                transition: "\(oldStatus) -> \(session.status.rawValue)\(suffix)"
+            )
+            try session.writeToFile(path: sessionPath)
+        }
     }
 
     private static func clearToolState(_ session: inout Session) {
@@ -308,6 +314,29 @@ enum HookHandler {
     private static func isPIDAlive(_ pid: UInt32) -> Bool {
         kill(Int32(pid), 0) == 0 || errno == EPERM
     }
+}
+
+// MARK: - Session File Locking
+
+/// Acquire an exclusive flock on a `.lock` file alongside the session file.
+/// This serializes concurrent hook processes operating on the same session,
+/// preventing read-modify-write races when multiple hooks fire simultaneously.
+func withSessionLock(sessionPath: String, body: () throws -> Void) throws {
+    let lockPath = sessionPath + ".lock"
+    let fd = open(lockPath, O_CREAT | O_WRONLY, 0o600)
+    guard fd >= 0 else {
+        // If we can't create the lock file, proceed without locking
+        // (better to risk a race than to drop the event entirely)
+        try body()
+        return
+    }
+    defer { close(fd) }
+    guard flock(fd, LOCK_EX) == 0 else {
+        try body()
+        return
+    }
+    defer { flock(fd, LOCK_UN) }
+    try body()
 }
 
 // MARK: - Tool Detail Extraction
