@@ -327,19 +327,23 @@ enum HookHandler {
 /// Acquire an exclusive flock on a `.lock` file alongside the session file.
 /// This serializes concurrent hook processes operating on the same session,
 /// preventing read-modify-write races when multiple hooks fire simultaneously.
-/// If the lock cannot be acquired, proceeds without locking (better to risk
-/// a race than to drop the event entirely).
 func withSessionLock(sessionPath: String, body: () throws -> Void) throws {
     let lockPath = sessionPath + ".lock"
-    var locked = false
     let fd = open(lockPath, O_CREAT | O_WRONLY, 0o600)
-    if fd >= 0 && flock(fd, LOCK_EX) == 0 { locked = true }
-    defer {
-        if fd >= 0 {
-            if locked { flock(fd, LOCK_UN) }
-            close(fd)
-        }
+    guard fd >= 0 else {
+        let err = errno
+        HookLogger.logError("withSessionLock: open(\(lockPath)) failed: \(err)")
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
+                      userInfo: [NSLocalizedDescriptionKey: "Failed to open lock file: \(lockPath)"])
     }
+    defer { close(fd) }
+    guard flock(fd, LOCK_EX) == 0 else {
+        let err = errno
+        HookLogger.logError("withSessionLock: flock(\(lockPath)) failed: \(err)")
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
+                      userInfo: [NSLocalizedDescriptionKey: "Failed to acquire lock: \(lockPath)"])
+    }
+    defer { flock(fd, LOCK_UN) }
     try body()
 }
 
