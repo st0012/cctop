@@ -201,15 +201,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private func resizePanel(animate: Bool = false) {
         guard !suppressResize else { return }
         guard let (width, height) = panelFittingSize() else { return }
-        let oldFrame = panel.frame
-        let newFrame = NSRect(x: oldFrame.midX - width / 2, y: oldFrame.maxY - height, width: width, height: height)
+        guard let button = statusItem.button, let buttonWindow = button.window else {
+            // Fallback: preserve old midX (can happen during startup)
+            let old = panel.frame
+            setPanelFrame(NSRect(x: old.midX - width / 2, y: old.maxY - height, width: width, height: height),
+                          animate: animate)
+            return
+        }
+        let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        let newFrame = NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4,
+                              width: width, height: height)
         setPanelFrame(newFrame, animate: animate)
     }
 
     private func panelFittingSize() -> (width: CGFloat, height: CGFloat)? {
         panel.contentView?.layout()
         guard let fittingSize = panel.contentView?.fittingSize else { return nil }
-        return (max(fittingSize.width, 320), min(fittingSize.height, 600))
+        let minWidth: CGFloat = compactController.isCompact ? 0 : 320
+        return (max(fittingSize.width, minWidth), min(fittingSize.height, 600))
     }
 
     private func setPanelFrame(_ frame: NSRect, animate: Bool) {
