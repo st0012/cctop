@@ -47,6 +47,12 @@ enum HookHandler {
             )
             try session.writeToFile(path: sessionPath)
         }
+
+        // Cleanup runs outside the lock — it scans all session files and makes
+        // sysctl calls per file, which would unnecessarily hold the lock.
+        if event == .sessionStart {
+            cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: pid)
+        }
     }
 
     private static func clearToolState(_ session: inout Session) {
@@ -85,7 +91,6 @@ enum HookHandler {
         case .sessionStart:
             clearToolState(&session)
             session.workspaceFile = Session.findWorkspaceFile(in: input.cwd)
-            cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: session.pid)
 
         case .userPromptSubmit:
             clearToolState(&session)
@@ -308,6 +313,7 @@ enum HookHandler {
 
     private static func removeSession(at path: String, sessionId: String) {
         try? FileManager.default.removeItem(atPath: path)
+        try? FileManager.default.removeItem(atPath: path + ".lock")
         HookLogger.cleanupSessionLog(sessionId: sessionId)
     }
 
@@ -321,21 +327,19 @@ enum HookHandler {
 /// Acquire an exclusive flock on a `.lock` file alongside the session file.
 /// This serializes concurrent hook processes operating on the same session,
 /// preventing read-modify-write races when multiple hooks fire simultaneously.
+/// If the lock cannot be acquired, proceeds without locking (better to risk
+/// a race than to drop the event entirely).
 func withSessionLock(sessionPath: String, body: () throws -> Void) throws {
     let lockPath = sessionPath + ".lock"
+    var locked = false
     let fd = open(lockPath, O_CREAT | O_WRONLY, 0o600)
-    guard fd >= 0 else {
-        // If we can't create the lock file, proceed without locking
-        // (better to risk a race than to drop the event entirely)
-        try body()
-        return
+    if fd >= 0 && flock(fd, LOCK_EX) == 0 { locked = true }
+    defer {
+        if fd >= 0 {
+            if locked { flock(fd, LOCK_UN) }
+            close(fd)
+        }
     }
-    defer { close(fd) }
-    guard flock(fd, LOCK_EX) == 0 else {
-        try body()
-        return
-    }
-    defer { flock(fd, LOCK_UN) }
     try body()
 }
 

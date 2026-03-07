@@ -86,6 +86,7 @@ class SessionManager: ObservableObject {
             let archived = historyManager.archiveSession(session)
             if archived {
                 try? FileManager.default.removeItem(at: url)
+                try? FileManager.default.removeItem(at: url.appendingPathExtension("lock"))
             } else {
                 logger.warning("skipping removal of \(sid, privacy: .public) — archive failed")
             }
