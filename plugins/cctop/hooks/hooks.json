@@ -64,6 +64,22 @@
         "async": true
       }]
     }],
+    "SubagentStart": [{
+      "matcher": ".*",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SubagentStart",
+        "async": true
+      }]
+    }],
+    "SubagentStop": [{
+      "matcher": ".*",
+      "hooks": [{
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SubagentStop",
+        "async": true
+      }]
+    }],
     "PreCompact": [{
       "matcher": ".*",
       "hooks": [{

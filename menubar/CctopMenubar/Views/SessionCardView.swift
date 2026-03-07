@@ -26,6 +26,17 @@ struct SessionCardView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(.primary)
 
+                if session.subagentCount > 0 {
+                    let count = session.subagentCount
+                    Text("\(count) agent\(count == 1 ? "" : "s")")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.purple)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.purple.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+
                 if showSourceBadge {
                     Text(session.sourceLabel)
                         .font(.system(size: 9))
@@ -119,6 +130,9 @@ struct SessionCardView: View {
             parts.append("Press \(idx) to jump to")
         }
         parts += [session.projectName, "on branch", session.branch, session.status.accessibilityDescription]
+        if session.subagentCount > 0 {
+            parts.append("\(session.subagentCount) active subagent\(session.subagentCount == 1 ? "" : "s")")
+        }
         if let context = session.contextLine {
             parts.append(context)
         }
@@ -188,6 +202,28 @@ struct SessionCardView: View {
     SessionCardView(
         session: .mock(status: .idle),
         refocusIndex: 10
+    )
+    .frame(width: 300).padding()
+}
+#Preview("1 Subagent") {
+    SessionCardView(
+        session: .mock(
+            status: .working, lastTool: "Edit", lastToolDetail: "/src/main.rs",
+            activeSubagents: [SubagentInfo(agentId: "a1", agentType: "Explore", startedAt: Date())]
+        )
+    )
+    .frame(width: 300).padding()
+}
+#Preview("3 Subagents") {
+    SessionCardView(
+        session: .mock(
+            status: .working, lastTool: "Agent", lastToolDetail: "Research API endpoints",
+            activeSubagents: [
+                SubagentInfo(agentId: "a1", agentType: "Explore", startedAt: Date()),
+                SubagentInfo(agentId: "a2", agentType: "Explore", startedAt: Date()),
+                SubagentInfo(agentId: "a3", agentType: "Plan", startedAt: Date()),
+            ]
+        )
     )
     .frame(width: 300).padding()
 }

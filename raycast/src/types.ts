@@ -18,6 +18,12 @@ export interface TerminalInfo {
   tty?: string | null;
 }
 
+export interface SubagentInfo {
+  agent_id: string;
+  agent_type: string;
+  started_at: string; // ISO 8601
+}
+
 export interface CctopSession {
   session_id: string;
   project_path: string;
@@ -36,6 +42,7 @@ export interface CctopSession {
   session_name?: string | null;
   workspace_file?: string | null;
   source?: string | null; // "opencode" or null/undefined for Claude Code
+  active_subagents?: SubagentInfo[] | null;
 }
 
 /**

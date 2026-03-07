@@ -25,7 +25,7 @@ enum HookHandler {
         let startTime = Session.processStartTime(pid: pid)
 
         // Lock the session file for the entire read-modify-write cycle.
-        // Without this, concurrent hook processes (e.g. PreToolUse + PostToolUse
+        // Without this, concurrent hook processes (e.g. SubagentStart + PreToolUse
         // firing simultaneously) race: both read the old file, apply changes
         // independently, and the last writer wins — clobbering the first writer's changes.
         try withSessionLock(sessionPath: sessionPath) {
@@ -61,6 +61,25 @@ enum HookHandler {
         session.notificationMessage = nil
     }
 
+    private static func applySubagentEvent(event: HookEvent, session: inout Session, input: HookInput) {
+        switch event {
+        case .subagentStart:
+            guard let agentId = input.agentId, let agentType = input.agentType else { return }
+            if session.activeSubagents == nil { session.activeSubagents = [] }
+            if !session.activeSubagents!.contains(where: { $0.agentId == agentId }) {
+                session.activeSubagents!.append(
+                    SubagentInfo(agentId: agentId, agentType: agentType, startedAt: Date())
+                )
+            }
+        case .subagentStop:
+            if let agentId = input.agentId {
+                session.activeSubagents?.removeAll { $0.agentId == agentId }
+            }
+        default:
+            break
+        }
+    }
+
     /// Apply status transition and update session metadata. Returns (oldStatus, newStatus).
     private static func applyTransition(
         _ session: inout Session, event: HookEvent, input: HookInput,
@@ -90,6 +109,7 @@ enum HookHandler {
         switch event {
         case .sessionStart:
             clearToolState(&session)
+            session.activeSubagents = []
             session.workspaceFile = Session.findWorkspaceFile(in: input.cwd)
 
         case .userPromptSubmit:
@@ -133,6 +153,9 @@ enum HookHandler {
             if let error = input.error {
                 session.notificationMessage = error
             }
+
+        case .subagentStart, .subagentStop:
+            applySubagentEvent(event: event, session: &session, input: input)
 
         case .preCompact, .postToolUse, .sessionEnd, .unknown:
             break
@@ -241,28 +264,6 @@ enum HookHandler {
         return "/dev/" + String(cString: name)
     }
 
-    static func getCurrentBranch(cwd: String) -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["branch", "--show-current"]
-        process.currentDirectoryURL = URL(fileURLWithPath: cwd)
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return "unknown" }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let branch = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            return branch.isEmpty ? "unknown" : branch
-        } catch {
-            return "unknown"
-        }
-    }
-
     // MARK: - Cleanup
 
     private static func handleSessionEnd(hookName: String, input: HookInput) {
@@ -347,6 +348,31 @@ func withSessionLock(sessionPath: String, body: () throws -> Void) throws {
     try body()
 }
 
+// MARK: - Git Branch
+
+func getCurrentBranch(cwd: String) -> String {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+    process.arguments = ["branch", "--show-current"]
+    process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = FileHandle.nullDevice
+
+    do {
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return "unknown" }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let branch = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return branch.isEmpty ? "unknown" : branch
+    } catch {
+        return "unknown"
+    }
+}
+
 // MARK: - Tool Detail Extraction
 
 func extractToolDetail(toolName: String, toolInput: [String: String]?) -> String? {
@@ -359,7 +385,7 @@ func extractToolDetail(toolName: String, toolInput: [String: String]?) -> String
     case "grep", "glob": field = "pattern"
     case "webfetch": field = "url"
     case "websearch": field = "query"
-    case "task": field = "description"
+    case "task", "agent": field = "description"
     default: return nil
     }
 

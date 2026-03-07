@@ -14,7 +14,8 @@ extension Session {
         lastToolDetail: String? = nil,
         notificationMessage: String? = nil,
         terminal: TerminalInfo? = TerminalInfo(program: "Code", sessionId: nil, tty: nil),
-        source: String? = nil
+        source: String? = nil,
+        activeSubagents: [SubagentInfo]? = nil
     ) -> Session {
         var session = Session(
             sessionId: id,
@@ -31,7 +32,8 @@ extension Session {
             lastTool: lastTool,
             lastToolDetail: lastToolDetail,
             notificationMessage: notificationMessage,
-            source: source
+            source: source,
+            activeSubagents: activeSubagents
         )
         session.sessionName = sessionName
         return session
@@ -142,7 +144,12 @@ extension Session {
         .mock(id: "2", project: "my-app", branch: "feature/auth",
               sessionName: "refactor auth flow",
               status: .working, lastTool: "Edit",
-              lastToolDetail: "/src/auth.ts"),
+              lastToolDetail: "/src/auth.ts",
+              activeSubagents: [
+                  SubagentInfo(agentId: "a1", agentType: "Explore", startedAt: Date()),
+                  SubagentInfo(agentId: "a2", agentType: "Explore", startedAt: Date()),
+                  SubagentInfo(agentId: "a3", agentType: "Plan", startedAt: Date()),
+              ]),
         .mock(id: "3", project: "api-server", branch: "fix/timeout",
               status: .working, lastTool: "bash",
               lastToolDetail: "go test ./...",

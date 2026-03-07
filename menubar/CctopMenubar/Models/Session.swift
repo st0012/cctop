@@ -63,6 +63,18 @@ struct TerminalInfo: Codable {
     }
 }
 
+struct SubagentInfo: Codable {
+    let agentId: String
+    let agentType: String
+    let startedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case agentId = "agent_id"
+        case agentType = "agent_type"
+        case startedAt = "started_at"
+    }
+}
+
 struct Session: Codable, Identifiable {
     let sessionId: String
     let projectPath: String
@@ -82,6 +94,7 @@ struct Session: Codable, Identifiable {
     var workspaceFile: String?
     var source: String?
     var endedAt: Date?
+    var activeSubagents: [SubagentInfo]?
 
     var id: String { pid.map { String($0) } ?? sessionId }
 
@@ -91,6 +104,10 @@ struct Session: Codable, Identifiable {
 
     var sourceLabel: String {
         source == "opencode" ? "OC" : "CC"
+    }
+
+    var subagentCount: Int {
+        activeSubagents?.count ?? 0
     }
 
     enum CodingKeys: String, CodingKey {
@@ -110,6 +127,7 @@ struct Session: Codable, Identifiable {
         case workspaceFile = "workspace_file"
         case source
         case endedAt = "ended_at"
+        case activeSubagents = "active_subagents"
     }
 
     // MARK: - Constructors
@@ -133,7 +151,8 @@ struct Session: Codable, Identifiable {
         sessionName: String? = nil,
         workspaceFile: String? = nil,
         source: String? = nil,
-        endedAt: Date? = nil
+        endedAt: Date? = nil,
+        activeSubagents: [SubagentInfo]? = nil
     ) {
         self.sessionId = sessionId
         self.projectPath = projectPath
@@ -153,6 +172,7 @@ struct Session: Codable, Identifiable {
         self.workspaceFile = workspaceFile
         self.source = source
         self.endedAt = endedAt
+        self.activeSubagents = activeSubagents
     }
 
     /// Convenience init for creating new sessions (used by cctop-hook).
@@ -175,6 +195,7 @@ struct Session: Codable, Identifiable {
         self.workspaceFile = nil
         self.source = nil
         self.endedAt = nil
+        self.activeSubagents = nil
     }
 
     // MARK: - File I/O
@@ -237,7 +258,8 @@ struct Session: Codable, Identifiable {
             sessionName: sessionName,
             workspaceFile: workspaceFile,
             source: source,
-            endedAt: endedAt
+            endedAt: endedAt,
+            activeSubagents: activeSubagents
         )
     }
 
@@ -275,54 +297,6 @@ struct Session: Codable, Identifiable {
 
     static func extractProjectName(_ path: String) -> String {
         URL(fileURLWithPath: path).lastPathComponent
-    }
-
-    static func processInfo(pid: UInt32) -> kinfo_proc? {
-        var info = kinfo_proc()
-        var size = MemoryLayout<kinfo_proc>.size
-        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, Int32(pid)]
-        let result = sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0)
-        guard result == 0, size > 0 else { return nil }
-        return info
-    }
-
-    static func processStartTime(pid: UInt32) -> TimeInterval? {
-        guard let info = processInfo(pid: pid) else { return nil }
-        return startTime(from: info)
-    }
-
-    var isAlive: Bool {
-        guard let pid else { return false }
-        guard kill(Int32(pid), 0) == 0 || errno == EPERM else { return false }
-        guard let info = Self.processInfo(pid: pid) else { return false }
-
-        // Check PID reuse: if we recorded a start time, verify it still matches
-        if let stored = pidStartTime {
-            let current = Self.startTime(from: info)
-            if abs(stored - current) > 1.0 {
-                return false
-            }
-        }
-
-        // Suspended check: if the process was stopped (Ctrl+Z), it will never
-        // fire hooks again unless resumed. Treat as dead so it gets cleaned up.
-        // SSTOP = 4 in sys/proc.h
-        if info.kp_proc.p_stat == 4 {
-            return false
-        }
-
-        // Orphan check: if parent is launchd (PPID=1), the terminal/IDE that
-        // spawned this session has died. The process is alive but unreachable.
-        if info.kp_eproc.e_ppid == 1 {
-            return false
-        }
-
-        return true
-    }
-
-    private static func startTime(from info: kinfo_proc) -> TimeInterval {
-        let tv = info.kp_proc.p_starttime
-        return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
     }
 
     /// The best available end-of-session timestamp: `endedAt` if archived, otherwise `lastActivity`.
@@ -367,7 +341,48 @@ struct Session: Codable, Identifiable {
         case "webfetch": return "Fetching: \(detail.prefix(30))"
         case "websearch": return "Searching: \(detail.prefix(30))"
         case "task": return "Task: \(detail.prefix(30))"
+        case "agent": return "Spawning: \(detail.prefix(30))"
         default: return "\(tool): \(detail.prefix(30))"
         }
+    }
+}
+
+// MARK: - Process Liveness
+
+extension Session {
+    static func processInfo(pid: UInt32) -> kinfo_proc? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.size
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, Int32(pid)]
+        let result = sysctl(&mib, UInt32(mib.count), &info, &size, nil, 0)
+        guard result == 0, size > 0 else { return nil }
+        return info
+    }
+
+    static func processStartTime(pid: UInt32) -> TimeInterval? {
+        guard let info = processInfo(pid: pid) else { return nil }
+        return startTime(from: info)
+    }
+
+    var isAlive: Bool {
+        guard let pid else { return false }
+        guard kill(Int32(pid), 0) == 0 || errno == EPERM else { return false }
+        guard let info = Self.processInfo(pid: pid) else { return false }
+
+        if let stored = pidStartTime {
+            let current = Self.startTime(from: info)
+            if abs(stored - current) > 1.0 { return false }
+        }
+
+        // Suspended (Ctrl+Z) or orphaned (PPID=1) processes are unreachable
+        if info.kp_proc.p_stat == 4 { return false }
+        if info.kp_eproc.e_ppid == 1 { return false }
+
+        return true
+    }
+
+    private static func startTime(from info: kinfo_proc) -> TimeInterval {
+        let tv = info.kp_proc.p_starttime
+        return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
     }
 }

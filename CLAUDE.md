@@ -324,6 +324,8 @@ The menubar app detects opencode when `~/.config/opencode/` exists and offers to
 | Notification (elicitation_dialog) | waiting_input |
 | Notification (permission_prompt) | waiting_permission |
 | PermissionRequest | waiting_permission |
+| SubagentStart | (no status change — adds to active_subagents) |
+| SubagentStop | (no status change — removes from active_subagents) |
 | PreCompact | compacting |
 | SessionEnd | (removes session file immediately) |
 
@@ -349,6 +351,8 @@ The menubar app detects opencode when `~/.config/opencode/` exists and offers to
 ### Session File Format
 
 Session files are keyed by PID (`{pid}.json`), not session_id. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse. Dead sessions are detected via PID liveness + start time checking. opencode sessions include `"source": "opencode"` in the JSON; Claude Code sessions omit the field (nil = Claude Code).
+
+The `active_subagents` field tracks currently running subagents (Agent tool). It's `nil` for sessions that haven't reported subagent events (old plugin), `[]` when no subagents are active, or an array of `{agent_id, agent_type, started_at}` objects. The menubar app shows a purple badge (e.g. "2 agents") when the count is > 0.
 
 ## Compact Mode
 
