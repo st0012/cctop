@@ -37,6 +37,8 @@
 		L10000010000000000000001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L10000020000000000000001 /* EmptyStateView.swift */; };
 		N10000010000000000000001 /* SessionStatus+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000020000000000000001 /* SessionStatus+UI.swift */; };
 		AB0000010000000000000001 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000020000000000000001 /* AboutView.swift */; };
+		MK0000010000000000000001 /* CompactMockups.swift in Sources */ = {isa = PBXBuildFile; fileRef = MK0000020000000000000001 /* CompactMockups.swift */; };
+		SB0000010000000000000001 /* SmartBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SB0000020000000000000001 /* SmartBarView.swift */; };
 		OB0000010000000000000001 /* OpenCodeBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = OB0000020000000000000001 /* OpenCodeBanner.swift */; };
 		RP0000010000000000000001 /* RecentProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = RP0000020000000000000001 /* RecentProject.swift */; };
 		RPM000010000000000000001 /* RecentProject+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = RPM000020000000000000001 /* RecentProject+Mock.swift */; };
@@ -112,6 +114,8 @@
 		M10000010000000000000001 /* CctopMenubar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CctopMenubar.entitlements; sourceTree = "<group>"; };
 		N10000020000000000000001 /* SessionStatus+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionStatus+UI.swift"; sourceTree = "<group>"; };
 		AB0000020000000000000001 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		MK0000020000000000000001 /* CompactMockups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactMockups.swift; sourceTree = "<group>"; };
+		SB0000020000000000000001 /* SmartBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartBarView.swift; sourceTree = "<group>"; };
 		OB0000020000000000000001 /* OpenCodeBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeBanner.swift; sourceTree = "<group>"; };
 		RP0000020000000000000001 /* RecentProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentProject.swift; sourceTree = "<group>"; };
 		RPM000020000000000000001 /* RecentProject+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecentProject+Mock.swift"; sourceTree = "<group>"; };
@@ -260,6 +264,8 @@
 				RV0000020000000000000001 /* RecentProjectCardView.swift */,
 				OB0000020000000000000001 /* OpenCodeBanner.swift */,
 				AB0000020000000000000001 /* AboutView.swift */,
+				MK0000020000000000000001 /* CompactMockups.swift */,
+				SB0000020000000000000001 /* SmartBarView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -438,6 +444,8 @@
 				RV0000010000000000000001 /* RecentProjectCardView.swift in Sources */,
 				OB0000010000000000000001 /* OpenCodeBanner.swift in Sources */,
 				AB0000010000000000000001 /* AboutView.swift in Sources */,
+				MK0000010000000000000001 /* CompactMockups.swift in Sources */,
+				SB0000010000000000000001 /* SmartBarView.swift in Sources */,
 				EK0000010000000000000001 /* HostApp.swift in Sources */,
 				RPM000010000000000000001 /* RecentProject+Mock.swift in Sources */,
 			);
