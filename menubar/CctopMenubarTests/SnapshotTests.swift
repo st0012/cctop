@@ -33,20 +33,22 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-recent.png")
     }
 
-    private func renderScreenshot(view: some View, colorScheme: ColorScheme, filename: String) throws {
+    private func renderScreenshot(
+        view: some View, colorScheme: ColorScheme, filename: String, width: CGFloat = 320
+    ) throws {
         let docsDir = ProcessInfo.processInfo.environment["SRCROOT"]
             .map { $0 + "/../docs" } ?? "/tmp"
         let outputPath = "\(docsDir)/\(filename)"
 
         let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
         let styled = view
-            .frame(width: 320)
+            .frame(width: width)
             .background(Color(NSColor.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .environment(\.colorScheme, colorScheme)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: width, height: 500),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false

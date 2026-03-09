@@ -42,6 +42,10 @@ Works with your existing editor and terminal. No IDE needed, no workflow changes
 - **Attention tint:** When any session needs your input, the icon shifts to terracotta — visible even in your peripheral vision.
 - **Notch-aware:** On MacBooks where the notch hides the menubar icon, a small status pill appears next to the camera so you always have a signal.
 
+<p align="center">
+  <img src="docs/status-icon.png" alt="Status icon states: all healthy, needs attention, and notch pill" width="680">
+</p>
+
 Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
 
 ## Installation
