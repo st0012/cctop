@@ -62,6 +62,14 @@ enum MenubarIconRenderer {
         return image
     }
 
+    private static let brandOrange = NSColor(
+        red: 217 / 255, green: 119 / 255, blue: 87 / 255, alpha: 1
+    )
+
+    private static func iconTintColor(for counts: Counts) -> NSColor {
+        counts.needsAction > 0 ? brandOrange : .labelColor
+    }
+
     private static func drawNarrowLayout(
         baseIcon: NSImage, size: NSSize, counts: Counts
     ) {
@@ -71,7 +79,7 @@ enum MenubarIconRenderer {
             height: size.height - narrowBarHeight - 2
         )
         baseIcon.draw(in: iconRect)
-        NSColor.labelColor.set()
+        iconTintColor(for: counts).set()
         iconRect.fill(using: .sourceAtop)
 
         let barWidth = size.width - narrowBarInset * 2
@@ -91,7 +99,7 @@ enum MenubarIconRenderer {
             width: wideIconWidth, height: wideIconWidth
         )
         baseIcon.draw(in: iconRect)
-        NSColor.labelColor.set()
+        iconTintColor(for: counts).set()
         iconRect.fill(using: .sourceAtop)
 
         // Status bar to the right of the icon
