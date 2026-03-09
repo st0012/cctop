@@ -166,13 +166,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     /// Show notch panel when the menubar icon is hidden behind the notch.
     @MainActor private func updateNotchVisibility(immediate: Bool = false) {
         notchVisibilityWork?.cancel()
-        guard NSScreen.builtin?.hasPhysicalNotch == true, !panel.isVisible else {
+        guard NSScreen.builtin?.hasPhysicalNotch == true else {
             notchController.tearDown(); return
         }
         let counts = lastRenderedCounts ?? StatusCounts(permission: 0, attention: 0, working: 0, idle: 0)
         let show: () -> Void = { [weak self] in
             guard let self, let screen = NSScreen.builtin, screen.hasPhysicalNotch,
-                  self.isStatusItemOccluded, !self.panel.isVisible else {
+                  self.isStatusItemOccluded else {
                 self?.notchController.tearDown(); return
             }
             self.notchController.showOnScreen(screen, counts: counts)
@@ -311,7 +311,6 @@ extension AppDelegate {
             switch action {
             case .showPanel:
                 notchVisibilityWork?.cancel()
-                notchController.tearDown()
                 panel.makeKeyAndOrderFront(nil)
                 // Re-position after SwiftUI layout settles
                 DispatchQueue.main.async { [weak self] in
