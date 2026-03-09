@@ -28,7 +28,7 @@ class NotchStatusController {
 
         if let panel {
             panel.setFrame(frame, display: true)
-            panel.orderFrontRegardless()
+            if !panel.isVisible { panel.orderFrontRegardless() }
             return
         }
 

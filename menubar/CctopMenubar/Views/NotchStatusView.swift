@@ -26,6 +26,18 @@ struct NotchStatusView: View {
         .padding(.vertical, 4)
         .background(Color.black.opacity(0.8))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityDescription)
+    }
+
+    private var accessibilityDescription: String {
+        guard total > 0 else { return "cctop, no sessions" }
+        var parts: [String] = []
+        if permission > 0 { parts.append("\(permission) need permission") }
+        if attention > 0 { parts.append("\(attention) need attention") }
+        if working > 0 { parts.append("\(working) working") }
+        if idle > 0 { parts.append("\(idle) idle") }
+        return "cctop, " + parts.joined(separator: ", ")
     }
 }
 
@@ -33,9 +45,7 @@ private struct GridIcon: View {
     let highlighted: Bool
 
     private var tint: Color {
-        highlighted
-            ? Color(red: 217 / 255, green: 119 / 255, blue: 87 / 255)
-            : .white
+        highlighted ? StatusColors.accent.color : .white
     }
 
     var body: some View {

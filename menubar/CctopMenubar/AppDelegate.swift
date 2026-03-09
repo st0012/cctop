@@ -5,6 +5,7 @@ import KeyboardShortcuts
 import SwiftUI
 import UserNotifications
 
+// swiftlint:disable:next type_body_length
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private var panel: FloatingPanel!
@@ -120,11 +121,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 )
                 self.updateNotchVisibility()
 
-                let attentionCount = counts.permission + counts.attention
-                let label = attentionCount > 0
-                    ? "cctop, \(attentionCount) session\(attentionCount == 1 ? "" : "s") need attention"
-                    : "cctop, \(sessions.count) session\(sessions.count == 1 ? "" : "s")"
-                self.statusItem.button?.setAccessibilityLabel(label)
+                self.statusItem.button?.setAccessibilityLabel(
+                    self.statusAccessibilityLabel(counts: counts, total: sessions.count)
+                )
 
                 if self.panel.isVisible == true {
                     DispatchQueue.main.async { [weak self] in
@@ -143,6 +142,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             working: working, idle: idle,
             wide: true
         )
+    }
+
+    private func statusAccessibilityLabel(
+        counts: (permission: Int, attention: Int, working: Int, idle: Int),
+        total: Int
+    ) -> String {
+        guard total > 0 else { return "cctop, no sessions" }
+        var parts: [String] = []
+        if counts.permission > 0 { parts.append("\(counts.permission) need permission") }
+        if counts.attention > 0 { parts.append("\(counts.attention) need attention") }
+        if counts.working > 0 { parts.append("\(counts.working) working") }
+        if counts.idle > 0 { parts.append("\(counts.idle) idle") }
+        return "cctop, " + parts.joined(separator: ", ")
     }
 
     private func setupStatusItem() {

@@ -62,12 +62,8 @@ enum MenubarIconRenderer {
         return image
     }
 
-    private static let brandOrange = NSColor(
-        red: 217 / 255, green: 119 / 255, blue: 87 / 255, alpha: 1
-    )
-
     private static func iconTintColor(for counts: Counts) -> NSColor {
-        counts.needsAction > 0 ? brandOrange : .labelColor
+        counts.needsAction > 0 ? StatusColors.accent.nsColor : .labelColor
     }
 
     private static func drawNarrowLayout(
