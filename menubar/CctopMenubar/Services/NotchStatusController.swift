@@ -5,7 +5,7 @@ import SwiftUI
 /// next to the camera notch on built-in displays. No-op on non-notch Macs.
 class NotchStatusController {
     private static let pillWidth: CGFloat = 70
-    private static let pillHeight: CGFloat = 26
+    private static let pillHeight: CGFloat = 20
     /// How far the pill overlaps the notch edge, anchoring it visually.
     private static let notchOverlap: CGFloat = 9
 
@@ -40,7 +40,7 @@ class NotchStatusController {
 
         let statusView = NotchStatusView(counts: counts)
         let hosting = NSHostingView(rootView: statusView)
-        hosting.translatesAutoresizingMaskIntoConstraints = false
+        hosting.autoresizingMask = [.width, .height]
 
         let newPanel = NotchStatusPanel(
             contentRect: .zero, styleMask: [],

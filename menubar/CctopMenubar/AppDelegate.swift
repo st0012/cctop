@@ -100,6 +100,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         ) { [weak self] _ in
             self?.handleScreenChange()
         }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.updateNotchVisibility()
+        }
         nc.addObserver(
             forName: .notchPillClicked, object: nil, queue: .main
         ) { [weak self] _ in
@@ -151,49 +156,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     /// Whether the status item is hidden behind the notch.
-    /// Visible items are within the right-of-notch area; hidden ones are not.
     private var isStatusItemOccluded: Bool {
         guard let screen = NSScreen.builtin, screen.hasPhysicalNotch else { return false }
         guard let window = statusItem.button?.window, window.frame.width > 0 else { return true }
-        // The visible right-of-notch area starts at (screen.maxX - rightAreaWidth)
-        let rightAreaWidth = screen.auxiliaryTopRightArea?.width ?? 0
-        let visibleMinX = screen.frame.maxX - rightAreaWidth
-        // Item is occluded if its leading edge is left of the visible area
+        let visibleMinX = screen.frame.maxX - (screen.auxiliaryTopRightArea?.width ?? 0)
         return window.frame.minX < visibleMinX
     }
 
-    /// Show notch panel only when the menubar icon is hidden behind the notch.
-    @MainActor private func updateNotchVisibility() {
+    /// Show notch panel when the menubar icon is hidden behind the notch.
+    @MainActor private func updateNotchVisibility(immediate: Bool = false) {
         notchVisibilityWork?.cancel()
         guard NSScreen.builtin?.hasPhysicalNotch == true, !panel.isVisible else {
-            notchController.tearDown()
-            return
+            notchController.tearDown(); return
         }
-        // Delay — macOS repositions status items asynchronously.
-        // Capture counts now; re-read screen inside the closure.
-        let counts = notchController.lastCounts
-        let work = DispatchWorkItem { [weak self] in
-            guard let self,
-                  let screen = NSScreen.builtin, screen.hasPhysicalNotch,
+        let counts = lastRenderedCounts ?? StatusCounts(permission: 0, attention: 0, working: 0, idle: 0)
+        let show: () -> Void = { [weak self] in
+            guard let self, let screen = NSScreen.builtin, screen.hasPhysicalNotch,
                   self.isStatusItemOccluded, !self.panel.isVisible else {
-                self?.notchController.tearDown()
-                return
+                self?.notchController.tearDown(); return
             }
             self.notchController.showOnScreen(screen, counts: counts)
         }
+        guard !immediate else { show(); return }
+        let work = DispatchWorkItem(block: show)
         notchVisibilityWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
     private func applyAppearance() {
-        let mode = AppearanceMode(rawValue: appearanceMode) ?? .system
-        switch mode {
-        case .system:
-            panel?.appearance = nil
-        case .light:
-            panel?.appearance = NSAppearance(named: .aqua)
-        case .dark:
-            panel?.appearance = NSAppearance(named: .darkAqua)
+        switch AppearanceMode(rawValue: appearanceMode) ?? .system {
+        case .system: panel?.appearance = nil
+        case .light: panel?.appearance = NSAppearance(named: .aqua)
+        case .dark: panel?.appearance = NSAppearance(named: .darkAqua)
         }
     }
 
@@ -252,12 +246,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.suppressResize = false
-
             let counts = StatusCounts(sessions: self.sessionManager.sessions)
             self.lastRenderedCounts = counts
             self.renderStatusIcon(counts)
+            self.notchController.update(counts: counts)
             self.updateNotchVisibility()
-
             guard self.panel.isVisible else { return }
             self.positionPanel(animate: false)
         }
@@ -317,6 +310,7 @@ extension AppDelegate {
         for action in actions {
             switch action {
             case .showPanel:
+                notchVisibilityWork?.cancel()
                 notchController.tearDown()
                 panel.makeKeyAndOrderFront(nil)
                 // Re-position after SwiftUI layout settles
@@ -327,7 +321,7 @@ extension AppDelegate {
                 panel.orderOut(nil)
                 previousApp = nil
                 stopNavKeyMonitor()
-                updateNotchVisibility()
+                updateNotchVisibility(immediate: true)
             case .refocusPanel:
                 panel.makeKeyAndOrderFront(nil)
             case .positionPanel:

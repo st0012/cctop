@@ -53,12 +53,12 @@ enum MenubarIconRenderer {
         NSGraphicsContext.current?.saveGraphicsState()
         path.addClip()
 
-        let segments = counts.barSegments
+        let segments = counts.barSegments(forWidth: Double(barRect.width))
         var xPos = barRect.minX
         for (index, seg) in segments.enumerated() {
             // Last segment fills to the right edge to avoid float rounding gaps
             let segWidth = index == segments.count - 1
-                ? barRect.maxX - xPos
+                ? max(0, barRect.maxX - xPos)
                 : barRect.width * seg.proportion
             seg.color.nsColor.setFill()
             NSRect(

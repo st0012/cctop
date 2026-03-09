@@ -6,17 +6,20 @@ struct NotchStatusView: View {
     var body: some View {
         HStack(spacing: 4) {
             GridIcon(highlighted: counts.needsAction > 0)
-                .frame(width: 10, height: 10)
+                .frame(width: 11, height: 11)
 
             if counts.total > 0 {
                 StatusBar(counts: counts)
-                    .frame(width: 36, height: 6)
+                    .frame(width: 36, height: 5)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-        .background(Color.black.opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.leading, 5)
+        .padding(.trailing, 2)
+        .padding(.top, 4)
+        .padding(.bottom, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.black.opacity(0.90))
+        .clipShape(NotchTabShape(radius: 6))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(counts.accessibilityLabel)
     }
@@ -52,7 +55,7 @@ private struct StatusBar: View {
 
     var body: some View {
         GeometryReader { geo in
-            let segments = counts.barSegments
+            let segments = counts.barSegments(forWidth: Double(geo.size.width))
             HStack(spacing: 0) {
                 ForEach(
                     Array(segments.enumerated()), id: \.offset
@@ -67,6 +70,26 @@ private struct StatusBar: View {
             }
         }
         .clipShape(Capsule())
+    }
+}
+
+/// Notch tab shape: flat top and right edge (meets the notch), rounded bottom-left corner only.
+private struct NotchTabShape: Shape {
+    var radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+        path.addArc(
+            tangent1End: CGPoint(x: rect.minX, y: rect.maxY),
+            tangent2End: CGPoint(x: rect.minX, y: rect.maxY - radius),
+            radius: radius
+        )
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -90,6 +113,18 @@ private struct StatusBar: View {
 
 #Preview("All idle") {
     NotchStatusView(counts: StatusCounts(permission: 0, attention: 0, working: 0, idle: 3))
+        .padding()
+        .background(Color.black)
+}
+
+#Preview("1 attention in 10 (min width)") {
+    NotchStatusView(counts: StatusCounts(permission: 0, attention: 1, working: 7, idle: 2))
+        .padding()
+        .background(Color.black)
+}
+
+#Preview("1 permission in 20 (extreme squeeze)") {
+    NotchStatusView(counts: StatusCounts(permission: 1, attention: 0, working: 19, idle: 0))
         .padding()
         .background(Color.black)
 }
