@@ -159,6 +159,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var isStatusItemOccluded: Bool {
         guard let screen = NSScreen.builtin, screen.hasPhysicalNotch else { return false }
         guard let window = statusItem.button?.window, window.frame.width > 0 else { return true }
+
+        // macOS may keep the window but stop rendering it when space is tight
+        if !window.occlusionState.contains(.visible) { return true }
+
         let visibleMinX = screen.frame.maxX - (screen.auxiliaryTopRightArea?.width ?? 0)
         return window.frame.minX < visibleMinX
     }
