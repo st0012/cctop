@@ -222,10 +222,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     private func positionPanel(animate: Bool = false) {
-        guard let button = statusItem.button, let buttonWindow = button.window else { return }
-        let screenRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
         guard let (width, height) = panelFittingSize() else { return }
-        let newFrame = NSRect(x: screenRect.midX - width / 2, y: screenRect.minY - height - 4, width: width, height: height)
+
+        // Use the notch pill position when the menubar icon is hidden behind the notch
+        let anchorRect: NSRect
+        if let pillFrame = notchController.pillFrame {
+            anchorRect = pillFrame
+        } else if let button = statusItem.button, let buttonWindow = button.window {
+            anchorRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        } else {
+            return
+        }
+
+        var panelX = anchorRect.midX - width / 2
+        // Clamp to the screen that contains the anchor (pill or menubar icon)
+        let anchorScreen = NSScreen.screens.first { $0.frame.contains(anchorRect.origin) }
+        if let visibleFrame = (anchorScreen ?? NSScreen.main)?.visibleFrame {
+            panelX = max(visibleFrame.minX + 4, min(panelX, visibleFrame.maxX - width - 4))
+        }
+
+        let newFrame = NSRect(
+            x: panelX, y: anchorRect.minY - height - 4,
+            width: width, height: height
+        )
         setPanelFrame(newFrame, animate: animate)
     }
 

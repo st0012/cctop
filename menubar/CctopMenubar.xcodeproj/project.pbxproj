@@ -74,6 +74,7 @@
 		STC000010000000000000001 /* StatusColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = STC000020000000000000001 /* StatusColors.swift */; };
 		MRT000010000000000000001 /* MenubarIconRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MRT000020000000000000001 /* MenubarIconRendererTests.swift */; };
 		SCT000010000000000000001 /* StatusCountsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCT000020000000000000001 /* StatusCountsTests.swift */; };
+		HVT000010000000000000001 /* HeaderViewStatusCountsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HVT000020000000000000001 /* HeaderViewStatusCountsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -151,6 +152,7 @@
 		STC000020000000000000001 /* StatusColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusColors.swift; sourceTree = "<group>"; };
 		MRT000020000000000000001 /* MenubarIconRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarIconRendererTests.swift; sourceTree = "<group>"; };
 		SCT000020000000000000001 /* StatusCountsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCountsTests.swift; sourceTree = "<group>"; };
+		HVT000020000000000000001 /* HeaderViewStatusCountsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderViewStatusCountsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -310,6 +312,7 @@
 				PCT000020000000000000001 /* PanelCoordinatorTests.swift */,
 				MRT000020000000000000001 /* MenubarIconRendererTests.swift */,
 				SCT000020000000000000001 /* StatusCountsTests.swift */,
+				HVT000020000000000000001 /* HeaderViewStatusCountsTests.swift */,
 			);
 			path = CctopMenubarTests;
 			sourceTree = "<group>";
@@ -507,6 +510,7 @@
 				PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */,
 				MRT000010000000000000001 /* MenubarIconRendererTests.swift in Sources */,
 				SCT000010000000000000001 /* StatusCountsTests.swift in Sources */,
+				HVT000010000000000000001 /* HeaderViewStatusCountsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

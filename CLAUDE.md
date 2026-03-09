@@ -361,7 +361,7 @@ The `active_subagents` field tracks currently running subagents (Agent tool). It
 
 ## Notch Status View
 
-On MacBook laptops with a camera notch, the menubar icon is often hidden behind the notch. The notch status view solves this by displaying a small black pill next to the camera notch showing a grid icon + proportional status bar.
+On MacBook laptops with a camera notch, the menubar icon is often hidden behind the notch. The notch status view solves this by displaying a small black pill next to the camera notch showing a grid icon + proportional status bar. Clicking the pill toggles the main panel (same as clicking the menubar icon). The panel positions itself under whichever anchor is visible (pill or menubar icon) and clamps to screen bounds.
 
 ### Auto-Detection
 
@@ -373,7 +373,7 @@ On MacBook laptops with a camera notch, the menubar icon is often hidden behind 
 ### Key Files
 
 - `menubar/CctopMenubar/Extensions/NSScreen+Notch.swift` — Notch detection (`hasPhysicalNotch`, `notchSize`, `isBuiltinDisplay`)
-- `menubar/CctopMenubar/Views/NotchStatusPanel.swift` — Borderless, non-activating NSPanel (ignores mouse events)
+- `menubar/CctopMenubar/Views/NotchStatusPanel.swift` — Borderless, non-activating NSPanel (clickable, toggles main panel)
 - `menubar/CctopMenubar/Views/NotchStatusView.swift` — SwiftUI pill with grid icon + proportional status bar
 - `menubar/CctopMenubar/Services/NotchStatusController.swift` — Panel lifecycle (`showOnScreen`, `update`, `tearDown`)
 - `menubar/CctopMenubar/Views/MenubarIconRenderer.swift` — Renders narrow (18px) or wide (44px) menubar icon

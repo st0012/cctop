@@ -10,6 +10,9 @@ class NotchStatusController {
     /// Last counts passed to `update()`, used when creating the panel in `showOnScreen()`.
     private var lastCounts = StatusCounts(permission: 0, attention: 0, working: 0, idle: 0)
 
+    /// The pill's current frame in screen coordinates, if visible.
+    var pillFrame: NSRect? { panel?.isVisible == true ? panel?.frame : nil }
+
     init() {}
 
     /// Show the notch panel on the given screen. Idempotent — reuses existing panel.
