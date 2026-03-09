@@ -22,6 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var notchVisibilityWork: DispatchWorkItem?
     private var suppressResize = false
     private var lastRenderedCounts: StatusCounts?
+    private var hasNotch = false
     private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
@@ -35,6 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         pluginManager = PluginManager()
 
         setupStatusItem()
+        hasNotch = NSScreen.builtin?.hasPhysicalNotch == true
 
         let contentView = PanelContentView(
             sessionManager: sessionManager,
@@ -170,12 +172,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     /// Show notch panel when the menubar icon is hidden behind the notch.
     @MainActor private func updateNotchVisibility(immediate: Bool = false) {
         notchVisibilityWork?.cancel()
-        guard NSScreen.builtin?.hasPhysicalNotch == true else {
+        guard hasNotch else {
             notchController.tearDown(); return
         }
         let counts = lastRenderedCounts ?? .zero
         let show: () -> Void = { [weak self] in
-            guard let self, let screen = NSScreen.builtin, screen.hasPhysicalNotch,
+            guard let self, self.hasNotch, let screen = NSScreen.builtin,
                   self.isStatusItemOccluded else {
                 self?.notchController.tearDown(); return
             }
@@ -250,6 +252,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.suppressResize = false
+            self.hasNotch = NSScreen.builtin?.hasPhysicalNotch == true
             self.refreshStatusDisplay(counts: StatusCounts(sessions: self.sessionManager.sessions))
             guard self.panel.isVisible else { return }
             self.positionPanel(animate: false)

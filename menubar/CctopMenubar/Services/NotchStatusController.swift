@@ -25,14 +25,16 @@ class NotchStatusController {
     func showOnScreen(_ screen: NSScreen, counts: StatusCounts) {
         guard screen.hasPhysicalNotch else { return }
 
-        lastCounts = counts
         let notchSize = screen.notchSize
         let xPos = screen.frame.midX - notchSize.width / 2 - Self.pillWidth + Self.notchOverlap
         let yPos = screen.frame.maxY - Self.pillHeight
         let frame = NSRect(x: xPos, y: yPos, width: Self.pillWidth, height: Self.pillHeight)
 
         if let panel {
-            hostingView?.rootView = NotchStatusView(counts: counts)
+            if counts != lastCounts {
+                hostingView?.rootView = NotchStatusView(counts: counts)
+                lastCounts = counts
+            }
             panel.setFrame(frame, display: true)
             if !panel.isVisible { panel.orderFrontRegardless() }
             return
@@ -52,6 +54,7 @@ class NotchStatusController {
 
         self.panel = newPanel
         self.hostingView = hosting
+        lastCounts = counts
     }
 
     /// Update the status display. No-op if the panel hasn't been created yet.
