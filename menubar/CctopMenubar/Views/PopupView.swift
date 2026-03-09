@@ -4,7 +4,6 @@ import SwiftUI
 
 extension Notification.Name {
     static let layoutChanged = Notification.Name("layoutChanged")
-    static let panelHeaderClicked = Notification.Name("panelHeaderClicked")
 }
 
 enum PopupTab {
@@ -24,9 +23,6 @@ struct PopupView: View {
     var pluginManager: PluginManager?
     var refocus: RefocusController?
     var initialTab: PopupTab = .active
-    var isCompact = false
-    var isCompactModeEnabled = false
-    var onExpand: (() -> Void)?
     @State private var selectedTab: PopupTab = .active
     @State private var activeOverlay: Overlay?
     @State private var hideContent = false
@@ -44,41 +40,39 @@ struct PopupView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView(sessions: sessions, onTap: isCompact ? onExpand : nil, isCompactMode: isCompactModeEnabled)
-            if !isCompact {
+            HeaderView(sessions: sessions)
+            Divider()
+            if showTabs {
+                tabPicker
                 Divider()
-                if showTabs {
-                    tabPicker
-                    Divider()
-                }
-                ZStack(alignment: .top) {
-                    Group {
-                        switch selectedTab {
-                        case .active: activeContent
-                        case .recent: recentContent
-                        }
-                    }
-                    .opacity(hideContent ? 0 : 1)
-                    .animation(.none, value: hideContent)
-                    if let overlay = activeOverlay {
-                        overlayPanel {
-                            switch overlay {
-                            case .settings:
-                                SettingsSection(
-                                    updater: updater,
-                                    pluginManager: pluginManager ?? PluginManager()
-                                )
-                            case .about:
-                                AboutView()
-                            }
-                        }
-                    }
-                }
-                .clipped()
-                .animation(.easeInOut(duration: overlayAnimationDuration), value: activeOverlay)
-                Divider()
-                footerBar
             }
+            ZStack(alignment: .top) {
+                Group {
+                    switch selectedTab {
+                    case .active: activeContent
+                    case .recent: recentContent
+                    }
+                }
+                .opacity(hideContent ? 0 : 1)
+                .animation(.none, value: hideContent)
+                if let overlay = activeOverlay {
+                    overlayPanel {
+                        switch overlay {
+                        case .settings:
+                            SettingsSection(
+                                updater: updater,
+                                pluginManager: pluginManager ?? PluginManager()
+                            )
+                        case .about:
+                            AboutView()
+                        }
+                    }
+                }
+            }
+            .clipped()
+            .animation(.easeInOut(duration: overlayAnimationDuration), value: activeOverlay)
+            Divider()
+            footerBar
         }
         .onReceive(refocus?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
@@ -299,8 +293,8 @@ extension PopupView {
 
     @ViewBuilder private var footerShortcutHints: some View {
         if let sc = KeyboardShortcuts.getShortcut(for: .refocus) {
-            Text("\(sc.description) refocus \u{00B7} \u{2318}M compact")
-        } else { Text("\u{2318}M compact") }
+            Text("\(sc.description) refocus")
+        } else { EmptyView() }
     }
     private var isRefocusActive: Bool { refocus?.isActive ?? false }
     private var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }

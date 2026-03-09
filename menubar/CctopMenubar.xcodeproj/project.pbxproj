@@ -37,6 +37,7 @@
 		L10000010000000000000001 /* EmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = L10000020000000000000001 /* EmptyStateView.swift */; };
 		N10000010000000000000001 /* SessionStatus+UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000020000000000000001 /* SessionStatus+UI.swift */; };
 		AB0000010000000000000001 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000020000000000000001 /* AboutView.swift */; };
+		MIR000010000000000000001 /* MenubarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = MIR000020000000000000001 /* MenubarIconRenderer.swift */; };
 		OB0000010000000000000001 /* OpenCodeBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = OB0000020000000000000001 /* OpenCodeBanner.swift */; };
 		RP0000010000000000000001 /* RecentProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = RP0000020000000000000001 /* RecentProject.swift */; };
 		RPM000010000000000000001 /* RecentProject+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = RPM000020000000000000001 /* RecentProject+Mock.swift */; };
@@ -53,7 +54,6 @@
 		P10000090000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
 		HM0000010000000000000001 /* HistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = HM0000020000000000000001 /* HistoryManager.swift */; };
 		JM0000010000000000000001 /* RefocusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = JM0000020000000000000001 /* RefocusController.swift */; };
-		CM0000010000000000000001 /* CompactModeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CM0000020000000000000001 /* CompactModeController.swift */; };
 		PC0000010000000000000001 /* PanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = PC0000020000000000000001 /* PanelCoordinator.swift */; };
 		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
 		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
@@ -66,9 +66,12 @@
 		T10000050000000000000002 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000060000000000000002 /* SnapshotTests.swift */; };
 		T10000070000000000000002 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000080000000000000002 /* AppSettingsTests.swift */; };
 		PT0000010000000000000001 /* PanelToggleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PT0000020000000000000001 /* PanelToggleTests.swift */; };
-		CMT000010000000000000001 /* CompactModeControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CMT000020000000000000001 /* CompactModeControllerTests.swift */; };
 		PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PCT000020000000000000001 /* PanelCoordinatorTests.swift */; };
-		CST000010000000000000001 /* CompactModeScenarioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CST000020000000000000001 /* CompactModeScenarioTests.swift */; };
+		NSN000010000000000000001 /* NSScreen+Notch.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSN000020000000000000001 /* NSScreen+Notch.swift */; };
+		NSP000010000000000000001 /* NotchStatusPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSP000020000000000000001 /* NotchStatusPanel.swift */; };
+		NSV000010000000000000001 /* NotchStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSV000020000000000000001 /* NotchStatusView.swift */; };
+		NSC000010000000000000001 /* NotchStatusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSC000020000000000000001 /* NotchStatusController.swift */; };
+		STC000010000000000000001 /* StatusColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = STC000020000000000000001 /* StatusColors.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -112,6 +115,7 @@
 		M10000010000000000000001 /* CctopMenubar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CctopMenubar.entitlements; sourceTree = "<group>"; };
 		N10000020000000000000001 /* SessionStatus+UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionStatus+UI.swift"; sourceTree = "<group>"; };
 		AB0000020000000000000001 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		MIR000020000000000000001 /* MenubarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarIconRenderer.swift; sourceTree = "<group>"; };
 		OB0000020000000000000001 /* OpenCodeBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeBanner.swift; sourceTree = "<group>"; };
 		RP0000020000000000000001 /* RecentProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentProject.swift; sourceTree = "<group>"; };
 		RPM000020000000000000001 /* RecentProject+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecentProject+Mock.swift"; sourceTree = "<group>"; };
@@ -125,7 +129,6 @@
 		P10000080000000000000001 /* HookLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookLogger.swift; sourceTree = "<group>"; };
 		HM0000020000000000000001 /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManager.swift; sourceTree = "<group>"; };
 		JM0000020000000000000001 /* RefocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefocusController.swift; sourceTree = "<group>"; };
-		CM0000020000000000000001 /* CompactModeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactModeController.swift; sourceTree = "<group>"; };
 		PC0000020000000000000001 /* PanelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinator.swift; sourceTree = "<group>"; };
 		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
 		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
@@ -138,9 +141,12 @@
 		T10000060000000000000002 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotTests.swift; sourceTree = "<group>"; };
 		T10000080000000000000002 /* AppSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsTests.swift; sourceTree = "<group>"; };
 		PT0000020000000000000001 /* PanelToggleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelToggleTests.swift; sourceTree = "<group>"; };
-		CMT000020000000000000001 /* CompactModeControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactModeControllerTests.swift; sourceTree = "<group>"; };
 		PCT000020000000000000001 /* PanelCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinatorTests.swift; sourceTree = "<group>"; };
-		CST000020000000000000001 /* CompactModeScenarioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactModeScenarioTests.swift; sourceTree = "<group>"; };
+		NSN000020000000000000001 /* NSScreen+Notch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSScreen+Notch.swift"; sourceTree = "<group>"; };
+		NSP000020000000000000001 /* NotchStatusPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchStatusPanel.swift; sourceTree = "<group>"; };
+		NSV000020000000000000001 /* NotchStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchStatusView.swift; sourceTree = "<group>"; };
+		NSC000020000000000000001 /* NotchStatusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchStatusController.swift; sourceTree = "<group>"; };
+		STC000020000000000000001 /* StatusColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusColors.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -186,8 +192,8 @@
 				SP0000020000000000000001 /* SparkleUpdater.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
 				JM0000020000000000000001 /* RefocusController.swift */,
-				CM0000020000000000000001 /* CompactModeController.swift */,
 				PC0000020000000000000001 /* PanelCoordinator.swift */,
+				NSC000020000000000000001 /* NotchStatusController.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -214,6 +220,7 @@
 				A10000090000000000000001 /* Views */,
 				A1000000A000000000000001 /* Services */,
 				P1000000F000000000000001 /* Hook */,
+				EXT000010000000000000001 /* Extensions */,
 			);
 			path = CctopMenubar;
 			sourceTree = "<group>";
@@ -241,6 +248,7 @@
 				RP0000020000000000000001 /* RecentProject.swift */,
 				RPM000020000000000000001 /* RecentProject+Mock.swift */,
 				EK0000020000000000000001 /* HostApp.swift */,
+				STC000020000000000000001 /* StatusColors.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -260,6 +268,9 @@
 				RV0000020000000000000001 /* RecentProjectCardView.swift */,
 				OB0000020000000000000001 /* OpenCodeBanner.swift */,
 				AB0000020000000000000001 /* AboutView.swift */,
+				MIR000020000000000000001 /* MenubarIconRenderer.swift */,
+				NSP000020000000000000001 /* NotchStatusPanel.swift */,
+				NSV000020000000000000001 /* NotchStatusView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -292,11 +303,17 @@
 				JMT000020000000000000001 /* RefocusControllerTests.swift */,
 				HMT000020000000000000001 /* HistoryManagerTests.swift */,
 				PT0000020000000000000001 /* PanelToggleTests.swift */,
-				CMT000020000000000000001 /* CompactModeControllerTests.swift */,
 				PCT000020000000000000001 /* PanelCoordinatorTests.swift */,
-				CST000020000000000000001 /* CompactModeScenarioTests.swift */,
 			);
 			path = CctopMenubarTests;
+			sourceTree = "<group>";
+		};
+		EXT000010000000000000001 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				NSN000020000000000000001 /* NSScreen+Notch.swift */,
+			);
+			path = Extensions;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -428,7 +445,6 @@
 				PM0000010000000000000001 /* PluginManager.swift in Sources */,
 				HM0000010000000000000001 /* HistoryManager.swift in Sources */,
 				JM0000010000000000000001 /* RefocusController.swift in Sources */,
-				CM0000010000000000000001 /* CompactModeController.swift in Sources */,
 				PC0000010000000000000001 /* PanelCoordinator.swift in Sources */,
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,
@@ -438,8 +454,14 @@
 				RV0000010000000000000001 /* RecentProjectCardView.swift in Sources */,
 				OB0000010000000000000001 /* OpenCodeBanner.swift in Sources */,
 				AB0000010000000000000001 /* AboutView.swift in Sources */,
+				MIR000010000000000000001 /* MenubarIconRenderer.swift in Sources */,
 				EK0000010000000000000001 /* HostApp.swift in Sources */,
 				RPM000010000000000000001 /* RecentProject+Mock.swift in Sources */,
+				NSN000010000000000000001 /* NSScreen+Notch.swift in Sources */,
+				NSP000010000000000000001 /* NotchStatusPanel.swift in Sources */,
+				NSV000010000000000000001 /* NotchStatusView.swift in Sources */,
+				NSC000010000000000000001 /* NotchStatusController.swift in Sources */,
+				STC000010000000000000001 /* StatusColors.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -476,9 +498,7 @@
 				JMT000010000000000000001 /* RefocusControllerTests.swift in Sources */,
 				HMT000010000000000000001 /* HistoryManagerTests.swift in Sources */,
 				PT0000010000000000000001 /* PanelToggleTests.swift in Sources */,
-				CMT000010000000000000001 /* CompactModeControllerTests.swift in Sources */,
 				PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */,
-				CST000010000000000000001 /* CompactModeScenarioTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

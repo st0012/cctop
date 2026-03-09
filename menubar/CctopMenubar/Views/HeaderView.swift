@@ -2,8 +2,6 @@ import SwiftUI
 
 struct HeaderView: View {
     let sessions: [Session]
-    var onTap: (() -> Void)?
-    var isCompactMode = false
 
     static func statusCounts(
         for sessions: [Session]
@@ -26,20 +24,13 @@ struct HeaderView: View {
 
     var body: some View {
         let counts = statusCounts
-        let content = HStack {
+
+        HStack {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.amber)
                 .frame(width: 20, height: 20)
                 .overlay(Text("C").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))
             Text("cctop").font(.system(size: 14, weight: .semibold))
-                .overlay(alignment: .bottom) {
-                    if isCompactMode {
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(Color.amber)
-                            .frame(height: 2)
-                            .offset(y: 3)
-                    }
-                }
             Spacer()
             StatusChip(count: counts.permission, color: .red, categoryLabel: "need permission")
             StatusChip(count: counts.attention, color: Color.amber, categoryLabel: "need attention")
@@ -49,21 +40,9 @@ struct HeaderView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .contentShape(Rectangle())
-
-        if let onTap {
-            Button(action: onTap) { content }.buttonStyle(.plain)
-        } else {
-            content
-        }
     }
 }
 
 #Preview("Normal") {
     HeaderView(sessions: Session.qaShowcase).frame(width: 320).padding()
-}
-#Preview("Compact Mode") {
-    HeaderView(sessions: Session.qaShowcase, isCompactMode: true).frame(width: 320).padding()
-}
-#Preview("Compact Tappable") {
-    HeaderView(sessions: Session.qaShowcase, onTap: {}, isCompactMode: true).frame(width: 320).padding()
 }

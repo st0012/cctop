@@ -97,7 +97,6 @@ struct PanelContentView: View {
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @ObservedObject var refocus: RefocusController
-    @ObservedObject var compactController: CompactModeController
 
     var body: some View {
         PopupView(
@@ -105,12 +104,7 @@ struct PanelContentView: View {
             recentProjects: historyManager.recentProjects,
             updater: updater,
             pluginManager: pluginManager,
-            refocus: refocus,
-            isCompact: compactController.isCompact,
-            isCompactModeEnabled: compactController.compactMode,
-            onExpand: {
-                NotificationCenter.default.post(name: .panelHeaderClicked, object: nil)
-            }
+            refocus: refocus
         )
         .frame(width: 320)
         .background(Color.panelBackground)
@@ -150,17 +144,5 @@ struct PanelContentView: View {
     return PopupView(
         sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
         updater: DisabledUpdater(), refocus: rc
-    ).frame(width: 320)
-}
-#Preview("Compact") {
-    PopupView(
-        sessions: Session.qaShowcase, updater: DisabledUpdater(),
-        isCompact: true, isCompactModeEnabled: true
-    ).frame(width: 320)
-}
-#Preview("Compact Expanded") {
-    PopupView(
-        sessions: Session.qaShowcase, updater: DisabledUpdater(),
-        isCompactModeEnabled: true
     ).frame(width: 320)
 }
