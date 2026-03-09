@@ -93,8 +93,9 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 - `menubar/CctopMenubar/Services/NotchStatusController.swift` — Notch status panel lifecycle
 - `menubar/CctopMenubar/Views/NotchStatusPanel.swift` — NSPanel for notch area display
 - `menubar/CctopMenubar/Views/NotchStatusView.swift` — SwiftUI view for notch status pill
-- `menubar/CctopMenubar/Views/MenubarIconRenderer.swift` — Menubar icon with status bar (narrow/wide)
-- `menubar/CctopMenubar/Models/StatusColors.swift` — Shared status bar colors (permission/attention/working/idle)
+- `menubar/CctopMenubar/Views/MenubarIconRenderer.swift` — Menubar icon with proportional status bar
+- `menubar/CctopMenubar/Models/StatusCounts.swift` — Aggregated session counts, bar segments, accessibility labels
+- `menubar/CctopMenubar/Models/StatusColors.swift` — Shared status bar colors (RGBColor with NSColor + SwiftUI Color)
 - `menubar/CctopMenubar/Extensions/NSScreen+Notch.swift` — Notch detection extension
 - `menubar/CctopMenubar/Hook/HookMain.swift` — CLI entry point (cctop-hook target only)
 - `menubar/CctopMenubar/Hook/HookHandler.swift` — Core hook logic (cctop-hook target only)
@@ -365,8 +366,8 @@ On MacBook laptops with a camera notch, the menubar icon is often hidden behind 
 
 ### Auto-Detection
 
-- **Notch Mac (built-in display):** Shows NotchStatusPanel next to the notch; menubar icon uses narrow (18px) rendering
-- **Non-notch / external display:** Hides notch panel; menubar icon uses wide (~44px) rendering with icon + side bar
+- **Notch Mac (built-in display):** Shows clickable NotchStatusPanel next to the notch when the menubar icon is occluded
+- **Non-notch / external display:** Hides notch panel; menubar icon (44px) is always visible
 - Detection uses `NSScreen.builtin?.hasPhysicalNotch` (checks `safeAreaInsets.top > 0`)
 - Display changes (clamshell mode, external monitor connect/disconnect) handled via `NSApplication.didChangeScreenParametersNotification`
 
@@ -376,7 +377,7 @@ On MacBook laptops with a camera notch, the menubar icon is often hidden behind 
 - `menubar/CctopMenubar/Views/NotchStatusPanel.swift` — Borderless, non-activating NSPanel (clickable, toggles main panel)
 - `menubar/CctopMenubar/Views/NotchStatusView.swift` — SwiftUI pill with grid icon + proportional status bar
 - `menubar/CctopMenubar/Services/NotchStatusController.swift` — Panel lifecycle (`showOnScreen`, `update`, `tearDown`)
-- `menubar/CctopMenubar/Views/MenubarIconRenderer.swift` — Renders narrow (18px) or wide (44px) menubar icon
+- `menubar/CctopMenubar/Views/MenubarIconRenderer.swift` — Renders 44px menubar icon (16px icon + 22px status bar)
 
 ### Keyboard Shortcuts (Panel)
 
