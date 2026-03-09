@@ -10,7 +10,7 @@ struct NotchStatusView: View {
 
             if counts.total > 0 {
                 StatusBar(counts: counts)
-                    .frame(width: 36, height: 5)
+                    .frame(width: 36, height: 6)
             }
         }
         .padding(.horizontal, 6)
@@ -41,7 +41,7 @@ private struct GridIcon: View {
                 RoundedRectangle(cornerRadius: 0.5)
                     .fill(tint.opacity(0.50))
                 RoundedRectangle(cornerRadius: 0.5)
-                    .fill(tint.opacity(0.30))
+                    .fill(tint.opacity(0.45))
             }
         }
     }
@@ -50,30 +50,19 @@ private struct GridIcon: View {
 private struct StatusBar: View {
     let counts: StatusCounts
 
-    private var segments: [(Double, Color)] {
-        var segs: [(Double, Color)] = []
-        if counts.needsAction > 0 {
-            let color = counts.permission > 0
-                ? StatusColors.permission.color
-                : StatusColors.attention.color
-            segs.append((Double(counts.needsAction) / Double(counts.total), color))
-        }
-        if counts.working > 0 {
-            segs.append((Double(counts.working) / Double(counts.total), StatusColors.working.color))
-        }
-        if counts.idle > 0 {
-            segs.append((Double(counts.idle) / Double(counts.total), StatusColors.idle.color))
-        }
-        return segs
-    }
-
     var body: some View {
         GeometryReader { geo in
+            let segments = counts.barSegments
             HStack(spacing: 0) {
                 ForEach(
                     Array(segments.enumerated()), id: \.offset
-                ) { _, seg in
-                    seg.1.frame(width: geo.size.width * seg.0)
+                ) { index, seg in
+                    if index == segments.count - 1 {
+                        // Last segment fills remaining space to avoid float rounding gaps
+                        seg.color.color
+                    } else {
+                        seg.color.color.frame(width: geo.size.width * seg.proportion)
+                    }
                 }
             }
         }
@@ -82,19 +71,31 @@ private struct StatusBar: View {
 }
 
 #Preview("Mixed") {
-    NotchStatusView(counts: StatusCounts(permission: 1, attention: 1, working: 2, idle: 0))
+    NotchStatusView(counts: StatusCounts(permission: 1, attention: 1, working: 2, idle: 1))
         .padding()
-        .background(Color.gray)
+        .background(Color.black)
+}
+
+#Preview("Needs permission") {
+    NotchStatusView(counts: StatusCounts(permission: 2, attention: 0, working: 1, idle: 0))
+        .padding()
+        .background(Color.black)
+}
+
+#Preview("All working") {
+    NotchStatusView(counts: StatusCounts(permission: 0, attention: 0, working: 4, idle: 0))
+        .padding()
+        .background(Color.black)
 }
 
 #Preview("All idle") {
     NotchStatusView(counts: StatusCounts(permission: 0, attention: 0, working: 0, idle: 3))
         .padding()
-        .background(Color.gray)
+        .background(Color.black)
 }
 
 #Preview("No sessions") {
     NotchStatusView(counts: StatusCounts(permission: 0, attention: 0, working: 0, idle: 0))
         .padding()
-        .background(Color.gray)
+        .background(Color.black)
 }

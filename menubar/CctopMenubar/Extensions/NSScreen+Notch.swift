@@ -17,7 +17,7 @@ extension NSScreen {
         CGDisplayIsBuiltin(displayID) != 0
     }
 
-    /// The pixel size of the notch cutout.
+    /// The size of the notch cutout in points.
     var notchSize: CGSize {
         guard hasPhysicalNotch else { return .zero }
         let leftWidth = auxiliaryTopLeftArea?.width ?? 0
@@ -31,5 +31,4 @@ extension NSScreen {
     static var builtin: NSScreen? {
         screens.first { $0.isBuiltinDisplay }
     }
-
 }
