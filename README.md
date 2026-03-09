@@ -37,7 +37,10 @@ Works with your existing editor and terminal. No IDE needed, no workflow changes
   <img src="docs/menubar-recent.png" alt="cctop recent projects tab" width="340">
 </p>
 
-**Smart status icon.** The menubar icon includes a proportional status bar — green for working, amber for attention, red for permissions. When sessions need your input, the icon lights up in the signature terracotta. On MacBooks with a notch, a status pill appears next to the camera when the icon gets hidden.
+**Smart status icon.** See session health without opening the panel:
+- **Status bar:** A proportional bar next to the icon shows green (working), amber (needs input), red (permission pending), or gray (idle).
+- **Attention tint:** When any session needs your input, the icon shifts to terracotta — visible even in your peripheral vision.
+- **Notch-aware:** On MacBooks where the notch hides the menubar icon, a small status pill appears next to the camera so you always have a signal.
 
 Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
 

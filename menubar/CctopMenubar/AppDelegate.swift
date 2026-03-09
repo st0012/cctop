@@ -179,6 +179,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             notchController.tearDown()
             return
         }
+        // Hide when panel is open — user already has full UI
+        guard !panel.isVisible else {
+            notchController.tearDown()
+            return
+        }
         // Delay check — macOS repositions status items asynchronously
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }

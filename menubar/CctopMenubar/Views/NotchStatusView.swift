@@ -7,11 +7,11 @@ struct NotchStatusView: View {
     let idle: Int
 
     private var total: Int { permission + attention + working + idle }
+    private var needsAction: Bool { permission + attention > 0 }
 
     var body: some View {
         HStack(spacing: 4) {
-            // Grid icon (matches MenubarIcon asset style)
-            GridIcon()
+            GridIcon(highlighted: needsAction)
                 .frame(width: 10, height: 10)
 
             if total > 0 {
@@ -24,25 +24,33 @@ struct NotchStatusView: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
-        .background(Color.black)
+        .background(Color.black.opacity(0.8))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
 private struct GridIcon: View {
+    let highlighted: Bool
+
+    private var tint: Color {
+        highlighted
+            ? Color(red: 217 / 255, green: 119 / 255, blue: 87 / 255)
+            : .white
+    }
+
     var body: some View {
         VStack(spacing: 1.5) {
             HStack(spacing: 1.5) {
                 RoundedRectangle(cornerRadius: 0.5)
-                    .fill(Color.white.opacity(0.85))
+                    .fill(tint.opacity(0.85))
                 RoundedRectangle(cornerRadius: 0.5)
-                    .fill(Color.white.opacity(0.85))
+                    .fill(tint.opacity(0.85))
             }
             HStack(spacing: 1.5) {
                 RoundedRectangle(cornerRadius: 0.5)
-                    .fill(Color.white.opacity(0.50))
+                    .fill(tint.opacity(0.50))
                 RoundedRectangle(cornerRadius: 0.5)
-                    .fill(Color.white.opacity(0.30))
+                    .fill(tint.opacity(0.30))
             }
         }
     }
