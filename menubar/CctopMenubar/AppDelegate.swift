@@ -120,11 +120,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 let counts = StatusCounts(sessions: sessions)
 
                 if counts != self.lastRenderedCounts {
-                    self.lastRenderedCounts = counts
-                    self.renderStatusIcon(counts)
-                    self.notchController.update(counts: counts)
-                    self.updateNotchVisibility()
-                    self.statusItem.button?.setAccessibilityLabel(counts.accessibilityLabel)
+                    self.refreshStatusDisplay(counts: counts)
                 }
 
                 if self.panel.isVisible == true {
@@ -136,8 +132,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             .store(in: &cancellables)
     }
 
-    private func renderStatusIcon(_ counts: StatusCounts) {
+    @MainActor private func refreshStatusDisplay(counts: StatusCounts) {
+        lastRenderedCounts = counts
         statusItem.button?.image = MenubarIconRenderer.render(counts: counts)
+        notchController.update(counts: counts)
+        updateNotchVisibility()
+        statusItem.button?.setAccessibilityLabel(counts.accessibilityLabel)
     }
 
     private func setupStatusItem() {
@@ -169,7 +169,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard NSScreen.builtin?.hasPhysicalNotch == true else {
             notchController.tearDown(); return
         }
-        let counts = lastRenderedCounts ?? StatusCounts(permission: 0, attention: 0, working: 0, idle: 0)
+        let counts = lastRenderedCounts ?? .zero
         let show: () -> Void = { [weak self] in
             guard let self, let screen = NSScreen.builtin, screen.hasPhysicalNotch,
                   self.isStatusItemOccluded else {
@@ -246,11 +246,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.suppressResize = false
-            let counts = StatusCounts(sessions: self.sessionManager.sessions)
-            self.lastRenderedCounts = counts
-            self.renderStatusIcon(counts)
-            self.notchController.update(counts: counts)
-            self.updateNotchVisibility()
+            self.refreshStatusDisplay(counts: StatusCounts(sessions: self.sessionManager.sessions))
             guard self.panel.isVisible else { return }
             self.positionPanel(animate: false)
         }

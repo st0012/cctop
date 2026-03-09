@@ -8,7 +8,7 @@ enum StatusColors {
     static let working = RGBColor(red: 0.13, green: 0.77, blue: 0.37)
     static let idle = RGBColor(red: 0.60, green: 0.63, blue: 0.67)
     /// Brand terracotta — used to tint icons when sessions need attention.
-    static let accent = RGBColor(red: 217 / 255, green: 119 / 255, blue: 87 / 255)
+    static let accent = attention
 
     struct RGBColor: Hashable {
         let red: Double

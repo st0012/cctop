@@ -5,6 +5,8 @@ struct StatusCounts: Equatable {
     let working: Int
     let idle: Int
 
+    static let zero = StatusCounts(permission: 0, attention: 0, working: 0, idle: 0)
+
     init(permission: Int, attention: Int, working: Int, idle: Int) {
         self.permission = permission
         self.attention = attention

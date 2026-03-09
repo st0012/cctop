@@ -13,7 +13,7 @@ class NotchStatusController {
     private var hostingView: NSHostingView<NotchStatusView>?
 
     /// Last counts received, used when creating or updating the panel.
-    private(set) var lastCounts = StatusCounts(permission: 0, attention: 0, working: 0, idle: 0)
+    private(set) var lastCounts = StatusCounts.zero
 
     /// The pill's current frame in screen coordinates, if visible.
     var pillFrame: NSRect? {
