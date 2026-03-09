@@ -5,7 +5,6 @@ import KeyboardShortcuts
 import SwiftUI
 import UserNotifications
 
-// swiftlint:disable:next type_body_length
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private var panel: FloatingPanel!
@@ -100,6 +99,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         ) { [weak self] _ in
             self?.handleScreenChange()
         }
+        nc.addObserver(
+            forName: .notchPillClicked, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.togglePanel()
+        }
     }
 
     @MainActor private func observeSessionUpdates() {
@@ -109,21 +113,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 guard let self else { return }
                 let counts = HeaderView.statusCounts(for: sessions)
 
-                self.renderStatusIcon(
-                    permission: counts.permission, attention: counts.attention,
-                    working: counts.working, idle: counts.idle
-                )
-
-                // Update notch status counts + show/hide based on menubar icon visibility
-                self.notchController.update(
-                    permission: counts.permission, attention: counts.attention,
-                    working: counts.working, idle: counts.idle
-                )
+                self.renderStatusIcon(counts)
+                self.notchController.update(counts: counts)
                 self.updateNotchVisibility()
-
-                self.statusItem.button?.setAccessibilityLabel(
-                    self.statusAccessibilityLabel(counts: counts, total: sessions.count)
-                )
+                self.statusItem.button?.setAccessibilityLabel(counts.accessibilityLabel)
 
                 if self.panel.isVisible == true {
                     DispatchQueue.main.async { [weak self] in
@@ -134,27 +127,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             .store(in: &cancellables)
     }
 
-    private func renderStatusIcon(
-        permission: Int, attention: Int, working: Int, idle: Int
-    ) {
+    private func renderStatusIcon(_ counts: StatusCounts) {
         statusItem.button?.image = MenubarIconRenderer.render(
-            permission: permission, attention: attention,
-            working: working, idle: idle,
+            permission: counts.permission, attention: counts.attention,
+            working: counts.working, idle: counts.idle,
             wide: true
         )
-    }
-
-    private func statusAccessibilityLabel(
-        counts: (permission: Int, attention: Int, working: Int, idle: Int),
-        total: Int
-    ) -> String {
-        guard total > 0 else { return "cctop, no sessions" }
-        var parts: [String] = []
-        if counts.permission > 0 { parts.append("\(counts.permission) need permission") }
-        if counts.attention > 0 { parts.append("\(counts.attention) need attention") }
-        if counts.working > 0 { parts.append("\(counts.working) working") }
-        if counts.idle > 0 { parts.append("\(counts.idle) idle") }
-        return "cctop, " + parts.joined(separator: ", ")
     }
 
     private func setupStatusItem() {
@@ -259,10 +237,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             self.suppressResize = false
 
             let counts = HeaderView.statusCounts(for: self.sessionManager.sessions)
-            self.renderStatusIcon(
-                permission: counts.permission, attention: counts.attention,
-                working: counts.working, idle: counts.idle
-            )
+            self.renderStatusIcon(counts)
             self.updateNotchVisibility()
 
             guard self.panel.isVisible else { return }

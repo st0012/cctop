@@ -72,6 +72,8 @@
 		NSV000010000000000000001 /* NotchStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSV000020000000000000001 /* NotchStatusView.swift */; };
 		NSC000010000000000000001 /* NotchStatusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSC000020000000000000001 /* NotchStatusController.swift */; };
 		STC000010000000000000001 /* StatusColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = STC000020000000000000001 /* StatusColors.swift */; };
+		MRT000010000000000000001 /* MenubarIconRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MRT000020000000000000001 /* MenubarIconRendererTests.swift */; };
+		SCT000010000000000000001 /* StatusCountsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCT000020000000000000001 /* StatusCountsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -147,6 +149,8 @@
 		NSV000020000000000000001 /* NotchStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchStatusView.swift; sourceTree = "<group>"; };
 		NSC000020000000000000001 /* NotchStatusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchStatusController.swift; sourceTree = "<group>"; };
 		STC000020000000000000001 /* StatusColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusColors.swift; sourceTree = "<group>"; };
+		MRT000020000000000000001 /* MenubarIconRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarIconRendererTests.swift; sourceTree = "<group>"; };
+		SCT000020000000000000001 /* StatusCountsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCountsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -304,6 +308,8 @@
 				HMT000020000000000000001 /* HistoryManagerTests.swift */,
 				PT0000020000000000000001 /* PanelToggleTests.swift */,
 				PCT000020000000000000001 /* PanelCoordinatorTests.swift */,
+				MRT000020000000000000001 /* MenubarIconRendererTests.swift */,
+				SCT000020000000000000001 /* StatusCountsTests.swift */,
 			);
 			path = CctopMenubarTests;
 			sourceTree = "<group>";
@@ -499,6 +505,8 @@
 				HMT000010000000000000001 /* HistoryManagerTests.swift in Sources */,
 				PT0000010000000000000001 /* PanelToggleTests.swift in Sources */,
 				PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */,
+				MRT000010000000000000001 /* MenubarIconRendererTests.swift in Sources */,
+				SCT000010000000000000001 /* StatusCountsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

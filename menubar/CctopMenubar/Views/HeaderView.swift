@@ -3,9 +3,7 @@ import SwiftUI
 struct HeaderView: View {
     let sessions: [Session]
 
-    static func statusCounts(
-        for sessions: [Session]
-    ) -> (permission: Int, attention: Int, working: Int, idle: Int) {
+    static func statusCounts(for sessions: [Session]) -> StatusCounts {
         var permission = 0, attention = 0, working = 0, idle = 0
         for session in sessions {
             switch session.status {
@@ -15,10 +13,13 @@ struct HeaderView: View {
             case .waitingInput, .needsAttention: attention += 1
             }
         }
-        return (permission, attention, working, idle)
+        return StatusCounts(
+            permission: permission, attention: attention,
+            working: working, idle: idle
+        )
     }
 
-    private var statusCounts: (permission: Int, attention: Int, working: Int, idle: Int) {
+    private var statusCounts: StatusCounts {
         Self.statusCounts(for: sessions)
     }
 

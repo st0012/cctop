@@ -7,11 +7,8 @@ class NotchStatusController {
     private var panel: NotchStatusPanel?
     private var hostingView: NSHostingView<NotchStatusView>?
 
-    /// Current status counts -- updated by AppDelegate's session observer.
-    var permission = 0
-    var attention = 0
-    var working = 0
-    var idle = 0
+    /// Last counts passed to `update()`, used when creating the panel in `showOnScreen()`.
+    private var lastCounts = StatusCounts(permission: 0, attention: 0, working: 0, idle: 0)
 
     init() {}
 
@@ -22,6 +19,7 @@ class NotchStatusController {
         let notchSize = screen.notchSize
         let pillWidth: CGFloat = 70
         let pillHeight: CGFloat = 26
+        // Align pill to the left edge of the notch with a small overlap
         let xPos = screen.frame.midX - notchSize.width / 2 - pillWidth + 9
         let yPos = screen.frame.maxY - pillHeight
         let frame = NSRect(x: xPos, y: yPos, width: pillWidth, height: pillHeight)
@@ -32,10 +30,7 @@ class NotchStatusController {
             return
         }
 
-        let statusView = NotchStatusView(
-            permission: permission, attention: attention,
-            working: working, idle: idle
-        )
+        let statusView = NotchStatusView(counts: lastCounts)
         let hosting = NSHostingView(rootView: statusView)
         hosting.translatesAutoresizingMaskIntoConstraints = false
 
@@ -52,24 +47,14 @@ class NotchStatusController {
     }
 
     /// Update the status display.
-    func update(
-        permission: Int, attention: Int,
-        working: Int, idle: Int
-    ) {
-        self.permission = permission
-        self.attention = attention
-        self.working = working
-        self.idle = idle
-
-        let statusView = NotchStatusView(
-            permission: permission, attention: attention,
-            working: working, idle: idle
-        )
-        hostingView?.rootView = statusView
+    func update(counts: StatusCounts) {
+        lastCounts = counts
+        hostingView?.rootView = NotchStatusView(counts: counts)
     }
 
     /// Remove the notch panel.
     func tearDown() {
+        panel?.contentView = nil
         panel?.orderOut(nil)
         panel = nil
         hostingView = nil

@@ -14,19 +14,9 @@ enum MenubarIconRenderer {
     private static let wideBarHeight: CGFloat = 5
     private static let wideBarY: CGFloat = 6.5  // vertically centered
 
-    /// Bundles status counts to reduce parameter passing.
-    private struct Counts {
-        let permission: Int
-        let attention: Int
-        let working: Int
-        let idle: Int
-        var total: Int { permission + attention + working + idle }
-        var needsAction: Int { permission + attention }
-    }
-
     /// Renders the menubar icon with status bar.
-    /// - Parameter wide: If true, renders icon + side bar (~40px).
-    ///   If false, renders icon with bar underneath (18px).
+    /// - Parameter wide: If true, renders icon + side bar (44px).
+    ///   If false, renders icon with bar underneath (18px, for notch displays).
     static func render(
         permission: Int, attention: Int, working: Int, idle: Int,
         wide: Bool = false
@@ -35,7 +25,7 @@ enum MenubarIconRenderer {
             return NSImage()
         }
 
-        let counts = Counts(
+        let counts = StatusCounts(
             permission: permission, attention: attention,
             working: working, idle: idle
         )
@@ -62,12 +52,12 @@ enum MenubarIconRenderer {
         return image
     }
 
-    private static func iconTintColor(for counts: Counts) -> NSColor {
+    private static func iconTintColor(for counts: StatusCounts) -> NSColor {
         counts.needsAction > 0 ? StatusColors.accent.nsColor : .labelColor
     }
 
     private static func drawNarrowLayout(
-        baseIcon: NSImage, size: NSSize, counts: Counts
+        baseIcon: NSImage, size: NSSize, counts: StatusCounts
     ) {
         let iconRect = NSRect(
             x: 0, y: narrowBarHeight + 2,
@@ -87,7 +77,7 @@ enum MenubarIconRenderer {
     }
 
     private static func drawWideLayout(
-        baseIcon: NSImage, size: NSSize, counts: Counts
+        baseIcon: NSImage, size: NSSize, counts: StatusCounts
     ) {
         // Icon on the left, full height
         let iconRect = NSRect(
@@ -107,7 +97,7 @@ enum MenubarIconRenderer {
     }
 
     private static func drawSegmentedBar(
-        in barRect: NSRect, counts: Counts
+        in barRect: NSRect, counts: StatusCounts
     ) {
         let path = NSBezierPath(
             roundedRect: barRect,

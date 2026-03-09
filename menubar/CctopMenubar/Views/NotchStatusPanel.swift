@@ -1,7 +1,7 @@
 import AppKit
 
 /// A borderless, non-activating panel for displaying status in the notch area.
-/// Always ignores mouse events -- purely a read-only status display.
+/// Clicking the pill posts a notification that AppDelegate uses to toggle the main panel.
 class NotchStatusPanel: NSPanel {
     override init(
         contentRect: NSRect,
@@ -20,7 +20,6 @@ class NotchStatusPanel: NSPanel {
             .fullScreenAuxiliary, .stationary,
             .canJoinAllSpaces, .ignoresCycle
         ]
-        ignoresMouseEvents = true
         isMovable = false
         hasShadow = false
         isOpaque = false
@@ -31,4 +30,12 @@ class NotchStatusPanel: NSPanel {
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    override func mouseDown(with event: NSEvent) {
+        NotificationCenter.default.post(name: .notchPillClicked, object: nil)
+    }
+}
+
+extension Notification.Name {
+    static let notchPillClicked = Notification.Name("notchPillClicked")
 }

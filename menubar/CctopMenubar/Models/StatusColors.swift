@@ -1,6 +1,28 @@
 import AppKit
 import SwiftUI
 
+/// Aggregated session status counts used by the menubar icon, notch pill, and accessibility labels.
+struct StatusCounts {
+    let permission: Int
+    let attention: Int
+    let working: Int
+    let idle: Int
+
+    var total: Int { permission + attention + working + idle }
+    var needsAction: Int { permission + attention }
+
+    /// Human-readable summary for VoiceOver / accessibility labels.
+    var accessibilityLabel: String {
+        guard total > 0 else { return "cctop, no sessions" }
+        var parts: [String] = []
+        if permission > 0 { parts.append("\(permission) need permission") }
+        if attention > 0 { parts.append("\(attention) need attention") }
+        if working > 0 { parts.append("\(working) working") }
+        if idle > 0 { parts.append("\(idle) idle") }
+        return "cctop, " + parts.joined(separator: ", ")
+    }
+}
+
 /// Shared status bar colors used by both the menubar icon renderer and the notch status view.
 enum StatusColors {
     static let permission = RGBColor(red: 0.94, green: 0.27, blue: 0.27)
