@@ -4,16 +4,14 @@
       "matcher": "startup|resume|clear|compact",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SessionStart",
-        "async": true
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SessionStart"
       }]
     }],
     "UserPromptSubmit": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh UserPromptSubmit",
-        "async": true
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh UserPromptSubmit"
       }]
     }],
     "PreToolUse": [{
@@ -44,55 +42,48 @@
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh Stop",
-        "async": true
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh Stop"
       }]
     }],
     "Notification": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh Notification",
-        "async": true
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh Notification"
       }]
     }],
     "PermissionRequest": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh PermissionRequest",
-        "async": true
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh PermissionRequest"
       }]
     }],
     "SubagentStart": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SubagentStart",
-        "async": true
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SubagentStart"
       }]
     }],
     "SubagentStop": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SubagentStop",
-        "async": true
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SubagentStop"
       }]
     }],
     "PreCompact": [{
       "matcher": ".*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh PreCompact",
-        "async": true
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh PreCompact"
       }]
     }],
     "SessionEnd": [{
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SessionEnd",
-        "async": true
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh SessionEnd"
       }]
     }]
   }
