@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/user/cctop/hook-input.schema.json",
+  "title": "Claude Code Hook Input",
+  "description": "JSON payload delivered to Claude Code hooks via stdin.",
+  "type": "object",
+  "required": ["session_id", "cwd", "hook_event_name"],
+  "properties": {
+    "session_id":      { "type": "string", "description": "Unique session identifier" },
+    "cwd":             { "type": "string", "description": "Working directory of the session" },
+    "hook_event_name": {
+      "type": "string",
+      "enum": [
+        "SessionStart",
+        "SessionEnd",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "Stop",
+        "PreCompact",
+        "Notification",
+        "PermissionRequest",
+        "SubagentStart",
+        "SubagentStop"
+      ],
+      "description": "The hook event that triggered this payload"
+    },
+    "transcript_path":  { "type": "string" },
+    "permission_mode":  { "type": "string" },
+    "prompt":           { "type": "string" },
+    "tool_name":        { "type": "string" },
+    "tool_input":       { "type": "object", "description": "Tool input dict (values may be any JSON type)" },
+    "notification_type": { "type": "string" },
+    "message":          { "type": "string" },
+    "title":            { "type": "string" },
+    "trigger":          { "type": "string" },
+    "error":            { "type": "string" },
+    "is_interrupt":     { "type": "boolean" },
+    "agent_id":         { "type": "string" },
+    "agent_type":       { "type": "string" }
+  },
+  "additionalProperties": true
+}
