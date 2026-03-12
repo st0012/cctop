@@ -1,0 +1,7 @@
+{
+  "session_id": "test-session-001",
+  "cwd": "/tmp/test-project",
+  "hook_event_name": "SubagentStop",
+  "agent_id": "agent-abc-123",
+  "agent_type": "general-purpose"
+}

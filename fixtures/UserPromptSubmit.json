@@ -1,0 +1,6 @@
+{
+  "session_id": "test-session-001",
+  "cwd": "/tmp/test-project",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "Fix the login bug"
+}

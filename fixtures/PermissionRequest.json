@@ -1,0 +1,8 @@
+{
+  "session_id": "test-session-001",
+  "cwd": "/tmp/test-project",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {"command": "rm -rf /tmp/old"},
+  "title": "Allow Bash: rm -rf /tmp/old"
+}
