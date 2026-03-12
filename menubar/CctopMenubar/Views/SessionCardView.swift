@@ -28,7 +28,8 @@ struct SessionCardView: View {
                     Text(session.projectName)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(
-                            session.status == .idle ? Color.textMuted : .primary
+                            session.status == .idle
+                                ? Color.textDimmed : Color.textPrimary
                         )
 
                     if session.subagentCount > 0 {
@@ -51,12 +52,13 @@ struct SessionCardView: View {
                 HStack(spacing: 5) {
                     Text(session.branch)
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(Color.textMuted)
+                        .foregroundStyle(Color.textSecondary)
+                        .lineLimit(1)
 
                     if let name = session.sessionName {
                         Text("/")
                             .font(.system(size: 10))
-                            .foregroundStyle(Color.textMuted.opacity(0.4))
+                            .foregroundStyle(Color.textMuted.opacity(0.6))
                         Text(name)
                             .font(.system(size: 11))
                             .foregroundStyle(Color.textSecondary)
@@ -64,7 +66,7 @@ struct SessionCardView: View {
                     } else if let context = session.contextLine {
                         Text("/")
                             .font(.system(size: 10))
-                            .foregroundStyle(Color.textMuted.opacity(0.4))
+                            .foregroundStyle(Color.textMuted.opacity(0.6))
                         Text(context)
                             .font(.system(size: 11))
                             .foregroundStyle(Color.textSecondary)
@@ -86,7 +88,7 @@ struct SessionCardView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 9)
         .cardSelectionStyle(
-            isSelected: isSelected, isHovered: isHovered, cornerRadius: 6
+            isSelected: isSelected, isHovered: isHovered, cornerRadius: 0
         )
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
@@ -144,10 +146,10 @@ struct SessionCardView: View {
 
     private var statusLabelColor: Color {
         switch session.status {
-        case .waitingPermission: return .red
+        case .waitingPermission: return Color.amber
         case .waitingInput, .needsAttention: return Color.amber
-        case .working, .compacting: return Color.textMuted
-        case .idle: return Color.textMuted.opacity(0.6)
+        case .working, .compacting: return Color.textSecondary
+        case .idle: return Color.textMuted
         }
     }
 

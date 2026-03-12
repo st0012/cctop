@@ -18,14 +18,14 @@ struct CardSelectionStyle: ViewModifier {
     }
 
     private var backgroundColor: Color {
-        if isSelected { return Color.primary.opacity(0.06) }
-        if isHovered { return Color.primary.opacity(0.04) }
+        if isSelected { return Color.primary.opacity(0.12) }
+        if isHovered { return Color.primary.opacity(0.07) }
         return .clear
     }
 }
 
 extension View {
-    func cardSelectionStyle(isSelected: Bool, isHovered: Bool, cornerRadius: CGFloat = 10) -> some View {
+    func cardSelectionStyle(isSelected: Bool, isHovered: Bool, cornerRadius: CGFloat = 6) -> some View {
         modifier(CardSelectionStyle(isSelected: isSelected, isHovered: isHovered, cornerRadius: cornerRadius))
     }
 }
@@ -59,18 +59,18 @@ struct TabButtonView: View {
             HStack(spacing: 4) {
                 Text(label)
                     .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? .primary : Color.textMuted)
+                    .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
                 Text("\(count)")
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(isSelected ? .primary : Color.textMuted)
+                    .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
-                    .background(isSelected ? Color.primary.opacity(0.1) : Color.primary.opacity(0.04))
-                    .clipShape(Capsule())
+                    .background(isSelected ? Color.primary.opacity(0.12) : Color.primary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(isSelected || isHovered ? Color.primary.opacity(0.08) : Color.clear)
+            .background(isSelected || isHovered ? Color.primary.opacity(0.1) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }

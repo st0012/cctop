@@ -6,25 +6,82 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
     let options: [(value: Value, label: String)]
     @Binding var selection: Value
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 2) {
             ForEach(options.indices, id: \.self) { index in
-                let option = options[index]
-                let isSelected = selection == option.value
-                Button {
-                    withAnimation(.easeOut(duration: 0.15)) { selection = option.value }
-                } label: {
-                    Text(option.label)
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(maxWidth: .infinity).padding(.vertical, 5)
-                        .foregroundStyle(isSelected ? Color.segmentActiveText : Color.segmentText)
-                        .background(RoundedRectangle(cornerRadius: 5)
-                            .fill(isSelected ? Color.primary.opacity(0.1) : Color.clear))
-                        .contentShape(Rectangle())
-                }.buttonStyle(.plain)
+                SegmentButton(
+                    label: options[index].label,
+                    isSelected: selection == options[index].value
+                ) {
+                    withAnimation(.easeOut(duration: 0.15)) { selection = options[index].value }
+                }
             }
         }
         .padding(2).background(Color.segmentBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+}
+
+private struct SegmentButton: View {
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .foregroundStyle(foregroundColor)
+                .background(RoundedRectangle(cornerRadius: 3)
+                    .fill(backgroundColor))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var foregroundColor: Color {
+        if isSelected { return Color.segmentActiveText }
+        if isHovered { return Color.segmentActiveText.opacity(0.7) }
+        return Color.segmentText
+    }
+
+    private var backgroundColor: Color {
+        if isSelected { return Color.primary.opacity(0.1) }
+        if isHovered { return Color.primary.opacity(0.05) }
+        return .clear
+    }
+}
+
+struct ShortcutBadge: View {
+    let name: KeyboardShortcuts.Name
+    @State private var showRecorder = false
+    @State private var isHovered = false
+
+    var body: some View {
+        Button { showRecorder.toggle() } label: {
+            if let shortcut = KeyboardShortcuts.getShortcut(for: name) {
+                Text(shortcut.description)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(isHovered ? Color.segmentActiveText : Color.textSecondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(isHovered ? 0.12 : 0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+            } else {
+                Text("Record Shortcut")
+                    .font(.system(size: 10))
+                    .foregroundStyle(isHovered ? Color.textPrimary : Color.textMuted)
+            }
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .popover(isPresented: $showRecorder) {
+            KeyboardShortcuts.Recorder("", name: name)
+                .padding(8)
+        }
     }
 }
 
@@ -52,51 +109,51 @@ struct SettingsSection: View {
             Divider().padding(.horizontal, 8)
 
             sectionHeader("Appearance")
-            AmberSegmentedPicker(
-                options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) },
-                selection: $appearanceMode
-            )
-            .padding(.horizontal, 14)
-            .padding(.bottom, 10)
+            settingsRow("Theme") {
+                AmberSegmentedPicker(
+                    options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) },
+                    selection: $appearanceMode
+                )
+            }
             Divider().padding(.horizontal, 8)
 
             sectionHeader("Shortcuts")
             settingsRow("Toggle Panel") {
-                KeyboardShortcuts.Recorder("", name: .togglePanel)
+                ShortcutBadge(name: .togglePanel)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                settingsRow("Navigate") {
-                    KeyboardShortcuts.Recorder("", name: .navigate)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Navigate")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.textPrimary)
+                    Text("Jump to sessions by number")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.textMuted)
                 }
-                Text("Jump to sessions by number")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 6)
+                Spacer()
+                ShortcutBadge(name: .navigate)
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
             Divider().padding(.horizontal, 8)
 
             sectionHeader("General")
-            Toggle(isOn: $launchAtLogin) {
-                Text("Launch at Login")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary.opacity(0.75))
+            settingsRow("Launch at Login") {
+                Toggle("", isOn: $launchAtLogin)
+                    .toggleStyle(.switch).controlSize(.mini)
+                    .labelsHidden()
             }
-            .toggleStyle(.switch).controlSize(.mini)
-            .padding(.horizontal, 14).padding(.vertical, 7)
             .onChange(of: launchAtLogin) { newValue in
                 do {
                     if newValue { try SMAppService.mainApp.register()
                     } else { try SMAppService.mainApp.unregister() }
                 } catch { launchAtLogin = SMAppService.mainApp.status == .enabled }
             }
-            Toggle(isOn: $notificationsEnabled) {
-                Text("Notifications")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary.opacity(0.75))
+            settingsRow("Notifications") {
+                Toggle("", isOn: $notificationsEnabled)
+                    .toggleStyle(.switch).controlSize(.mini)
+                    .labelsHidden()
             }
-            .toggleStyle(.switch).controlSize(.mini)
-            .padding(.horizontal, 14).padding(.vertical, 7)
             .onChange(of: notificationsEnabled) { newValue in
                 if newValue { SessionManager.requestNotificationPermission() }
             }
@@ -107,20 +164,20 @@ struct SettingsSection: View {
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(Color.textMuted)
+            .foregroundStyle(Color.textSecondary)
             .textCase(.uppercase)
             .tracking(0.8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
             .padding(.top, 10)
-            .padding(.bottom, 4)
+            .padding(.bottom, 6)
     }
 
     private func settingsRow<Content: View>(_ label: String, @ViewBuilder trailing: () -> Content) -> some View {
         HStack {
             Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary.opacity(0.75))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.textPrimary)
             Spacer()
             trailing()
         }
@@ -135,31 +192,29 @@ struct SettingsSection: View {
                 updater.checkForUpdates()
             } label: {
                 HStack {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .foregroundStyle(Color.amber)
-                    Text("Update available: v\(version)")
+                    Text("v\(version) available")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.textPrimary)
                     Spacer()
-                    Text("Install v\(version)")
-                        .font(.system(size: 10, weight: .medium))
+                    Text("Update")
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(Color.amber)
-                        .clipShape(Capsule())
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
             }
             .buttonStyle(.plain)
-            Divider().padding(.horizontal, 14)
+            Divider().padding(.horizontal, 8)
         } else if let reason = updater.disabledReason {
             disabledSection(reason: reason)
-            Divider().padding(.horizontal, 14)
+            Divider().padding(.horizontal, 8)
         } else if updater.canCheckForUpdates {
             updateControlsSection
-            Divider().padding(.horizontal, 14)
+            Divider().padding(.horizontal, 8)
         }
     }
 
@@ -171,7 +226,7 @@ struct SettingsSection: View {
                 .foregroundStyle(.green)
             Text("Up to date \u{2014} v\(currentVersion)")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.textPrimary)
             Spacer()
             Button {
                 updater.checkForUpdates()
@@ -205,14 +260,14 @@ private struct MonitoredToolsView: View {
     @Binding var removeHovered: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
             toolRow(name: "Claude Code", installed: pluginManager.ccInstalled)
             if pluginManager.ocConfigExists {
                 openCodeRow
             }
         }
         .padding(.horizontal, 14)
-        .padding(.bottom, 10)
+        .padding(.bottom, 8)
     }
 
     private var openCodeRow: some View {
@@ -231,7 +286,7 @@ private struct MonitoredToolsView: View {
                     } label: {
                         Text("Remove")
                             .font(.system(size: 10))
-                            .foregroundStyle(removeHovered ? Color.primary : Color.textMuted)
+                            .foregroundStyle(removeHovered ? Color.textPrimary : Color.textMuted)
                     }
                     .buttonStyle(.plain)
                     .onHover { removeHovered = $0 }
@@ -239,6 +294,7 @@ private struct MonitoredToolsView: View {
                     installPluginButton
                 }
             }
+            .padding(.vertical, 7)
             if justInstalled {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark")
@@ -301,25 +357,20 @@ private struct MonitoredToolsView: View {
                     .foregroundStyle(Color.textMuted)
             }
         }
+        .padding(.vertical, 7)
     }
 
     private func toolLabel(_ name: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "terminal")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.textSecondary)
-                .frame(width: 16, height: 16)
-            Text(name)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
-        }
+        Text(name)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color.textPrimary)
     }
 
     private var connectedBadge: some View {
         HStack(spacing: 4) {
             Circle()
                 .fill(Color.statusGreen)
-                .frame(width: 6, height: 6)
+                .frame(width: 5, height: 5)
             Text("Connected")
                 .font(.system(size: 10))
                 .foregroundStyle(Color.textMuted)

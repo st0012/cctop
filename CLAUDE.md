@@ -96,6 +96,7 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 - `menubar/CctopMenubar/Views/MenubarIconRenderer.swift` — Menubar icon with proportional status bar
 - `menubar/CctopMenubar/Models/StatusCounts.swift` — Aggregated session counts, bar segments, accessibility labels
 - `menubar/CctopMenubar/Models/StatusColors.swift` — Shared status bar colors (RGBColor with NSColor + SwiftUI Color)
+- `menubar/CctopMenubar/Models/Color+Theme.swift` — Theme-aware color tokens (textPrimary, textSecondary, textMuted, amber, etc.)
 - `menubar/CctopMenubar/Extensions/NSScreen+Notch.swift` — Notch detection extension
 - `menubar/CctopMenubar/Hook/HookMain.swift` — CLI entry point (cctop-hook target only)
 - `menubar/CctopMenubar/Hook/HookHandler.swift` — Core hook logic (cctop-hook target only)
@@ -586,3 +587,28 @@ Learned from development. The menubar app is pure Swift with two Xcode targets s
 - Hook/ files are cctop-hook only, Views/Services are menubar only — good split for parallel work
 - `raycast/` is independent of the Swift code — changes there don't affect menubar/cctop-hook builds
 - If the session JSON format changes (Models/Session.swift), update `raycast/src/types.ts` to match
+
+## Design Context
+
+### Users
+Developers monitoring multiple AI coding sessions (Claude Code, opencode) across workspaces. They glance at cctop in their periphery — it should convey status at a glance without demanding attention. The job: know which sessions need action, jump to them fast, then get back to work.
+
+### Brand Personality
+**Calm, precise, utilitarian.** cctop is a well-made instrument — no fuss, just works. But the craft shows in the details: the neutral color palette, the considered spacing, the keyboard-first interactions. It should feel like a quality indie Mac app, not a generic system utility.
+
+### Aesthetic Direction
+- **Visual tone:** Understated and neutral. A red accent (#ff6b6b dark / #d03830 light) provides identity without being loud. Neutral grays for text hierarchy (no warm/cool tinting). Dark mode is the primary context (developers), light mode should feel equally considered.
+- **Color system:** "Apple Native" (Option C) — named tokens in `Color+Theme.swift`: `textPrimary` (#f0f0f0/#1a1a1a), `textSecondary` (#9e9e9e/#666), `textMuted` (#666/#999), `amber` (the red accent), `panelBackground` (#1e1e1e/#fff). Light mode values are intentionally darker than typical to maintain contrast at small font sizes (10-11px).
+- **References:** Linear and Raycast (fast, keyboard-first, opinionated); Things 3 and Bear (indie Mac warmth, understated elegance, attention to detail).
+- **Anti-references:** Electron-feeling apps with web-like UI. Overly branded dashboards. Anything that looks like a monitoring tool from an ops context (Grafana, Datadog). Generic system preferences.
+- **Theme:** Both light and dark, fully theme-aware. All colors defined with explicit light/dark variants in `Color+Theme.swift`. Status bar colors (RGB) are appearance-independent.
+- **Corner radius system:** 4 for small inline elements (chips, badges), 6 for controls (tabs, session cards), 10 for panels.
+- **Font size system:** 11px medium for settings labels, 10px for secondary text (badges, hints, section headers). Session cards use 12-13px for primary content.
+
+### Design Principles
+1. **Glanceable over interactive.** Status should be understood in under a second. Minimize cognitive load — color + text pairing, proportional status bars, spatial consistency.
+2. **Native over novel.** Use San Francisco, standard macOS patterns, system-level behaviors (NSPanel, NSStatusItem). It should feel like part of the OS, not a foreign app.
+3. **Craft in the details.** Joy comes from noticing care — the neutral palette, the smooth keyboard navigation, the proportional status bar segments. Never flashy, always considered.
+4. **Function earns its pixels.** Every element must justify its space. No decorative chrome, no padding for padding's sake. Dense but not cramped — utilitarian density with breathing room.
+5. **Keyboard-first, mouse-friendly.** Navigate mode (1-9 keys), arrow keys, Tab switching — power users never touch the trackpad. But hover states and click targets are equally polished.
+6. **Prototype in HTML first.** Design changes are prototyped as self-contained HTML files (saved to `/tmp/`), reviewed in browser, then implemented in Swift with exact matching values. This prevents drift between design intent and implementation.

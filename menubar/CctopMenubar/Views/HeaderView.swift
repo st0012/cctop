@@ -6,12 +6,13 @@ struct HeaderView: View {
     var body: some View {
         let counts = StatusCounts(sessions: sessions)
 
-        HStack {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.amber)
-                .frame(width: 18, height: 18)
-                .overlay(Text("C").font(.system(size: 10, weight: .bold)).foregroundStyle(.white))
-            Text("cctop").font(.system(size: 13, weight: .semibold))
+        HStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(headerBarColor(counts: counts))
+                .frame(width: 3, height: 14)
+            Text("cctop")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.textPrimary)
             Spacer()
             StatusChip(count: counts.permission, color: .red, categoryLabel: "need permission")
             StatusChip(count: counts.attention, color: Color.amber, categoryLabel: "need attention")
@@ -21,6 +22,15 @@ struct HeaderView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .contentShape(Rectangle())
+    }
+    private func headerBarColor(counts: StatusCounts) -> Color {
+        if counts.permission > 0 || counts.attention > 0 {
+            return Color.amber
+        }
+        if counts.working > 0 {
+            return Color.statusGreen.opacity(0.5)
+        }
+        return Color.textMuted
     }
 }
 

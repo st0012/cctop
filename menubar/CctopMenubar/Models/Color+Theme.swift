@@ -2,11 +2,11 @@ import AppKit
 import SwiftUI
 
 extension Color {
-    /// Red accent — the primary brand color. Dark: #ec5e5e, Light: #d04040
+    /// Red accent — the primary brand color. Dark: #ff6b6b, Light: #d03830
     static let amber = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(red: 236 / 255, green: 94 / 255, blue: 94 / 255, alpha: 1)
-            : NSColor(red: 208 / 255, green: 64 / 255, blue: 64 / 255, alpha: 1)
+            ? NSColor(red: 255 / 255, green: 107 / 255, blue: 107 / 255, alpha: 1)
+            : NSColor(red: 208 / 255, green: 56 / 255, blue: 48 / 255, alpha: 1)
     })
 
     /// Segmented control background. Dark: white 0.06, Light: black 0.04
@@ -16,38 +16,38 @@ extension Color {
             : NSColor(white: 0, alpha: 0.04)
     })
 
-    /// Segmented control inactive text. Dark: white 0.25, Light: black 0.3
+    /// Segmented control inactive text. Dark: #777, Light: #777
     static let segmentText = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 1, alpha: 0.25)
-            : NSColor(white: 0, alpha: 0.3)
+            ? NSColor(white: 0x77 / 255.0, alpha: 1)
+            : NSColor(white: 0x77 / 255.0, alpha: 1)
     })
 
-    /// Active segment text. Dark: white 0.8, Light: black 0.7
+    /// Active segment text. Dark: #f0f0f0, Light: #1a1a1a
     static let segmentActiveText = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 1, alpha: 0.8)
-            : NSColor(white: 0, alpha: 0.7)
+            ? NSColor(white: 0xf0 / 255.0, alpha: 1)
+            : NSColor(white: 0x1a / 255.0, alpha: 1)
     })
 
-    /// Settings section background — matches cardBackground (to be removed in Task 5)
+    /// Settings section background (unused in current design, kept for compat)
     static let settingsBackground = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(white: 1, alpha: 0.04)
             : NSColor(white: 0, alpha: 0.02)
     })
 
-    /// Settings section border — matches cardBorder (to be removed in Task 5)
+    /// Settings section border (unused in current design, kept for compat)
     static let settingsBorder = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(white: 1, alpha: 0.04)
             : NSColor(white: 0, alpha: 0.04)
     })
 
-    /// Panel background. Dark: #111111, Light: #ffffff
+    /// Panel background. Dark: #1e1e1e, Light: #ffffff
     static let panelBackground = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(red: 17 / 255, green: 17 / 255, blue: 17 / 255, alpha: 1)
+            ? NSColor(white: 0x1e / 255.0, alpha: 1)
             : NSColor.white
     })
 
@@ -72,17 +72,27 @@ extension Color {
             : NSColor(red: 52 / 255, green: 199 / 255, blue: 89 / 255, alpha: 1)
     })
 
-    /// Secondary text — context lines, labels. Dark: white 0.22, Light: black 0.25
+    /// Secondary text — branch, meta, working status. Dark: #9e9e9e, Light: #666666
     static let textSecondary = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 1, alpha: 0.22)
-            : NSColor(white: 0, alpha: 0.25)
+            ? NSColor(white: 0x9e / 255.0, alpha: 1)
+            : NSColor(white: 0x66 / 255.0, alpha: 1)
     })
 
-    /// Muted text — timestamps, versions, branch names. Dark: white 0.15, Light: black 0.2
+    /// Muted text — timestamps, idle status, footer. Dark: #666666, Light: #999999
     static let textMuted = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 1, alpha: 0.15)
-            : NSColor(white: 0, alpha: 0.2)
+            ? NSColor(white: 0x66 / 255.0, alpha: 1)
+            : NSColor(white: 0x99 / 255.0, alpha: 1)
+    })
+
+    /// Dimmed primary — idle project names. Dark: #888888, Light: #888888
+    static let textDimmed = Color(nsColor: NSColor(white: 0x88 / 255.0, alpha: 1))
+
+    /// Primary text. Dark: #f0f0f0, Light: #1a1a1a
+    static let textPrimary = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(white: 0xf0 / 255.0, alpha: 1)
+            : NSColor(white: 0x1a / 255.0, alpha: 1)
     })
 }

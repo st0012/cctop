@@ -15,7 +15,7 @@ struct RecentProjectCardView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(project.projectName)
                     .font(.system(size: 12))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.textPrimary)
 
                 HStack(spacing: 5) {
                     Text(project.lastBranch)
@@ -42,7 +42,7 @@ struct RecentProjectCardView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered)
+        .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered, cornerRadius: 0)
         .overlay(alignment: .leading) {
             RoundedRectangle(cornerRadius: 1)
                 .fill(Color.textMuted.opacity(0.3))

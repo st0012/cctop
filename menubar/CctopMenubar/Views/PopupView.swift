@@ -128,7 +128,7 @@ struct PopupView: View {
                     ScrollView(showsIndicators: false) {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(sortedSessions.enumerated()), id: \.element.id) { index, session in
-                                if index > 0 {
+                                if index > 0 && selectedIndex != index && selectedIndex != index - 1 {
                                     Divider()
                                         .padding(.horizontal, 16)
                                 }
@@ -190,7 +190,7 @@ struct PopupView: View {
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(recentProjects.enumerated()), id: \.element.id) { index, project in
-                            if index > 0 {
+                            if index > 0 && selectedIndex != index && selectedIndex != index - 1 {
                                 Divider()
                                     .padding(.horizontal, 16)
                             }

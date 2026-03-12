@@ -14,8 +14,7 @@ struct StatusChip: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(color.opacity(0.1))
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(color.opacity(0.25), lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(count) \(categoryLabel)")
         }
