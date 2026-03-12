@@ -1,16 +1,16 @@
 import AppKit
 import Combine
 
-class RefocusController: ObservableObject {
+class NavigateController: ObservableObject {
     @Published var isActive = false
     let didActivateSubject = PassthroughSubject<Void, Never>()
     let didConfirmSubject = PassthroughSubject<Void, Never>()
     let navActionSubject = PassthroughSubject<PanelNavAction, Never>()
-    /// Sorted session snapshot captured when refocus activates.
+    /// Sorted session snapshot captured when navigate activates.
     /// Prevents reordering while badges are visible.
     private(set) var frozenSessions: [Session] = []
     private(set) var previousApp: NSRunningApplication?
-    private(set) var panelWasClosedBeforeRefocus = false
+    private(set) var panelWasClosedBeforeNavigate = false
     private var timeoutWork: DispatchWorkItem?
 
     struct DeactivationState {
@@ -26,21 +26,21 @@ class RefocusController: ObservableObject {
 
     func activate(sessions: [Session], previousApp: NSRunningApplication?, panelWasClosed: Bool) {
         self.previousApp = previousApp
-        self.panelWasClosedBeforeRefocus = panelWasClosed
+        self.panelWasClosedBeforeNavigate = panelWasClosed
         activate(sessions: sessions)
     }
 
-    /// Resets all refocus state and returns the state needed for teardown.
+    /// Resets all navigate state and returns the state needed for teardown.
     @discardableResult
     func deactivate() -> DeactivationState {
         let state = DeactivationState(
             previousApp: previousApp,
-            panelWasClosed: panelWasClosedBeforeRefocus
+            panelWasClosed: panelWasClosedBeforeNavigate
         )
         isActive = false
         frozenSessions = []
         previousApp = nil
-        panelWasClosedBeforeRefocus = false
+        panelWasClosedBeforeNavigate = false
         cancelTimeout()
         return state
     }

@@ -12,7 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var updater: UpdaterBase!
     private var pluginManager: PluginManager!
     private var historyManager: HistoryManager!
-    private var refocusController = RefocusController()
+    private var navigateController = NavigateController()
     private var notchController = NotchStatusController()
     private var navKeyMonitor: Any?
     private var previousApp: NSRunningApplication?
@@ -43,7 +43,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             historyManager: historyManager,
             updater: updater,
             pluginManager: pluginManager,
-            refocus: refocusController
+            navigate: navigateController
         )
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
@@ -66,12 +66,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     @MainActor private func registerShortcuts() {
         KeyboardShortcuts.onKeyUp(for: .togglePanel) { [weak self] in self?.togglePanel() }
-        KeyboardShortcuts.onKeyUp(for: .refocus) { [weak self] in
-            self?.handleEvent(.refocusShortcut)
+        KeyboardShortcuts.onKeyUp(for: .navigate) { [weak self] in
+            self?.handleEvent(.navigateShortcut)
         }
-        refocusController.didConfirmSubject
+        navigateController.didConfirmSubject
             .receive(on: RunLoop.main)
-            .sink { [weak self] in self?.handleEvent(.refocusConfirmed) }
+            .sink { [weak self] in self?.handleEvent(.navigateConfirmed) }
             .store(in: &cancellables)
         registerObservers()
     }
@@ -324,7 +324,7 @@ extension AppDelegate {
                 previousApp = nil
                 stopNavKeyMonitor()
                 updateNotchVisibility(immediate: true)
-            case .refocusPanel:
+            case .navigatePanel:
                 panel.makeKeyAndOrderFront(nil)
             case .positionPanel:
                 positionPanel()
@@ -345,25 +345,25 @@ extension AppDelegate {
                 if let prev = previousApp, prev != NSRunningApplication.current {
                     lastExternalApp = prev
                 }
-            case .startRefocusMode(let panelWasClosed):
-                refocusController.activate(
+            case .startNavigateMode(let panelWasClosed):
+                navigateController.activate(
                     sessions: sessionManager.sessions,
                     previousApp: NSWorkspace.shared.frontmostApplication,
                     panelWasClosed: panelWasClosed
                 )
-                refocusController.startTimeout { [weak self] in
-                    self?.handleEvent(.refocusTimedOut)
+                navigateController.startTimeout { [weak self] in
+                    self?.handleEvent(.navigateTimedOut)
                 }
-            case .endRefocusMode:
-                refocusController.deactivate()
+            case .endNavigateMode:
+                navigateController.deactivate()
             }
         }
     }
 
     @MainActor private func jumpToSession(index: Int) {
-        guard index < refocusController.frozenSessions.count else { return }
-        focusTerminal(session: refocusController.frozenSessions[index])
-        handleEvent(.refocusConfirmed)
+        guard index < navigateController.frozenSessions.count else { return }
+        focusTerminal(session: navigateController.frozenSessions[index])
+        handleEvent(.navigateConfirmed)
     }
 
     private func startNavKeyMonitor() {
@@ -371,8 +371,8 @@ extension AppDelegate {
         navKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.panel.isVisible else { return event }
 
-            // Refocus: digit keys jump to session
-            if self.refocusController.isActive,
+            // Navigate: digit keys jump to session
+            if self.navigateController.isActive,
                let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
                 DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
                 return nil
@@ -386,14 +386,14 @@ extension AppDelegate {
 
             // Navigation keys
             if let navAction = navKeyMap[event.keyCode] {
-                if self.refocusController.isActive { self.refocusController.cancelTimeout() }
+                if self.navigateController.isActive { self.navigateController.cancelTimeout() }
                 let consumed = self.handleEvent(.navKey(navAction))
                 return consumed ? nil : event
             }
 
-            // Refocus: any other key exits
-            if self.refocusController.isActive {
-                DispatchQueue.main.async { self.handleEvent(.unrecognizedKeyDuringRefocus) }
+            // Navigate: any other key exits
+            if self.navigateController.isActive {
+                DispatchQueue.main.async { self.handleEvent(.unrecognizedKeyDuringNavigate) }
                 return nil
             }
 
@@ -409,7 +409,7 @@ extension AppDelegate {
     }
 
     private func postNavAction(_ action: PanelNavAction) {
-        refocusController.navActionSubject.send(action)
+        navigateController.navActionSubject.send(action)
     }
 }
 // MARK: - Hook binary installation

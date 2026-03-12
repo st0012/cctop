@@ -16,13 +16,13 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-dark.png")
     }
 
-    func testGenerateRefocusScreenshot() throws {
-        let rc = RefocusController()
+    func testGenerateNavigateScreenshot() throws {
+        let rc = NavigateController()
         rc.isActive = true
         let view = PopupView(
-            sessions: Session.qaShowcase, updater: DisabledUpdater(), refocus: rc
+            sessions: Session.qaShowcase, updater: DisabledUpdater(), navigate: rc
         )
-        try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-refocus.png")
+        try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-navigate.png")
     }
 
     func testGenerateRecentProjectsScreenshot() throws {

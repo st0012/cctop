@@ -13,5 +13,6 @@ enum AppearanceMode: String, CaseIterable {
 
 extension KeyboardShortcuts.Name {
     static let togglePanel = Self("togglePanel")
-    static let refocus = Self("refocus")
+    // Storage key is "refocus" (the old name) for backward compatibility with existing user shortcuts.
+    static let navigate = Self("refocus", default: .init(.n, modifiers: [.control, .command]))
 }

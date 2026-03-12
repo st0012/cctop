@@ -21,7 +21,7 @@ struct PopupView: View {
     var recentProjects: [RecentProject] = []
     @ObservedObject var updater: UpdaterBase
     var pluginManager: PluginManager?
-    var refocus: RefocusController?
+    var navigate: NavigateController?
     var initialTab: PopupTab = .active
     @State private var selectedTab: PopupTab = .active
     @State private var activeOverlay: Overlay?
@@ -29,6 +29,7 @@ struct PopupView: View {
     @State private var selectedIndex: Int?
     @State private var gearHovered = false
     @State private var versionHovered = false
+    @State private var shortcutHovered = false
     @State private var ocBannerInstalled = false
     @AppStorage("ocBannerDismissed") private var ocBannerDismissed = false
 
@@ -74,12 +75,12 @@ struct PopupView: View {
             Divider()
             footerBar
         }
-        .onReceive(refocus?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
+        .onReceive(navigate?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
             if selectedTab == .recent { selectedTab = .active }
             if activeOverlay != nil { closeOverlay(animated: false) }
         }
-        .onReceive(refocus?.navActionSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { action in
+        .onReceive(navigate?.navActionSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { action in
             guard activeOverlay == nil else { return }
             handleNavAction(action)
         }
@@ -129,7 +130,7 @@ struct PopupView: View {
                             ForEach(Array(sortedSessions.enumerated()), id: \.element.id) { index, session in
                                 SessionCardView(
                                     session: session,
-                                    refocusIndex: isRefocusActive ? index + 1 : nil,
+                                    navigateIndex: isNavigateActive ? index + 1 : nil,
                                     showSourceBadge: hasMultipleSources,
                                     isSelected: selectedIndex == index
                                 )
@@ -246,9 +247,6 @@ extension PopupView {
             QuitButton()
             versionButton
             footerShortcutHints
-                .font(.system(size: 10))
-                .foregroundStyle(Color.textMuted)
-                .lineLimit(1)
             Spacer()
             settingsGearButton
         }
@@ -292,15 +290,23 @@ extension PopupView {
     // MARK: - Helpers
 
     @ViewBuilder private var footerShortcutHints: some View {
-        if let sc = KeyboardShortcuts.getShortcut(for: .refocus) {
-            Text("\(sc.description) refocus")
+        if let sc = KeyboardShortcuts.getShortcut(for: .navigate) {
+            Button { toggleOverlay(.settings) } label: {
+                Text("\(sc.description) navigate")
+                    .font(.system(size: 10))
+                    .foregroundStyle(shortcutHovered ? Color.primary : Color.textSecondary)
+                    .underline(shortcutHovered)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .onHover { shortcutHovered = $0 }
         } else { EmptyView() }
     }
-    private var isRefocusActive: Bool { refocus?.isActive ?? false }
+    private var isNavigateActive: Bool { navigate?.isActive ?? false }
     private var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }
 
     private var sortedSessions: [Session] {
-        if isRefocusActive, let frozen = refocus?.frozenSessions, !frozen.isEmpty {
+        if isNavigateActive, let frozen = navigate?.frozenSessions, !frozen.isEmpty {
             return frozen
         }
         return Session.sorted(sessions)
@@ -373,8 +379,8 @@ extension PopupView {
             openInEditor(project: recentProjects[index])
             NSApp.deactivate()
         }
-        if isRefocusActive {
-            refocus?.didConfirmSubject.send()
+        if isNavigateActive {
+            navigate?.didConfirmSubject.send()
         }
     }
 

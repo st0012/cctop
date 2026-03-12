@@ -384,12 +384,12 @@ On MacBook laptops with a camera notch, the menubar icon is often hidden behind 
 | Shortcut | Context | Action |
 |----------|---------|--------|
 | Escape | Normal mode | Reset selection |
-| Escape | Refocus mode | Cancel refocus, restore focus |
+| Escape | Navigate mode | Cancel navigate, restore focus |
 | Up/Down arrows | Panel open | Navigate sessions |
 | Return | Session selected | Jump to session terminal |
 | Tab | Panel open | Toggle Active/Recent tab |
 | Left/Right arrows | Panel open | Switch to Active/Recent tab |
-| 1-9 | Refocus mode | Jump to numbered session |
+| 1-9 | Navigate mode | Jump to numbered session |
 
 ## Hook Delivery Debugging
 

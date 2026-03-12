@@ -6,10 +6,10 @@ import Foundation
 enum PanelMode: Equatable {
     case hidden
     case normal
-    case refocus(origin: RefocusOrigin)
+    case navigate(origin: NavigateOrigin)
 }
 
-struct RefocusOrigin: Equatable {
+struct NavigateOrigin: Equatable {
     let panelWasClosed: Bool
 }
 
@@ -23,17 +23,17 @@ enum PanelEvent {
     case menubarIconClicked(appIsActive: Bool)
     case escape
     case appLostFocus
-    case refocusShortcut
-    case refocusConfirmed
-    case refocusTimedOut
+    case navigateShortcut
+    case navigateConfirmed
+    case navigateTimedOut
     case navKey(PanelNavAction)
-    case unrecognizedKeyDuringRefocus
+    case unrecognizedKeyDuringNavigate
 }
 
 enum PanelAction: Equatable {
     case showPanel
     case dismissPanel          // hides panel + stops nav key monitor
-    case refocusPanel
+    case navigatePanel
     case positionPanel
     case activateApp
     case deactivateApp
@@ -42,8 +42,8 @@ enum PanelAction: Equatable {
     case activateExternalApp
     case restorePreviousApp
     case captureApps
-    case startRefocusMode(panelWasClosed: Bool)
-    case endRefocusMode
+    case startNavigateMode(panelWasClosed: Bool)
+    case endNavigateMode
 }
 
 // MARK: - Pure coordinator
@@ -74,12 +74,12 @@ struct PanelCoordinator {
                           .postNavAction(.reset)]
             )
 
-        case (.hidden, .refocusShortcut):
-            let mode: PanelMode = .refocus(origin: RefocusOrigin(panelWasClosed: true))
+        case (.hidden, .navigateShortcut):
+            let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: true))
             return Result(
                 state: PanelState(mode: mode),
                 actions: [.positionPanel, .showPanel, .activateApp, .startNavKeyMonitor,
-                          .startRefocusMode(panelWasClosed: true)]
+                          .startNavigateMode(panelWasClosed: true)]
             )
 
         case (.hidden, _):
@@ -101,11 +101,11 @@ struct PanelCoordinator {
         case (.normal, .appLostFocus):
             return Result(state: state, actions: [])
 
-        case (.normal, .refocusShortcut):
-            let mode: PanelMode = .refocus(origin: RefocusOrigin(panelWasClosed: false))
+        case (.normal, .navigateShortcut):
+            let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: false))
             return Result(
                 state: PanelState(mode: mode),
-                actions: [.activateApp, .startRefocusMode(panelWasClosed: false)]
+                actions: [.activateApp, .startNavigateMode(panelWasClosed: false)]
             )
 
         case (.normal, .navKey(let action)):
@@ -114,42 +114,42 @@ struct PanelCoordinator {
         case (.normal, _):
             return Result(state: state, actions: [], eventConsumed: false)
 
-        // MARK: refocus
+        // MARK: navigate
 
-        case (.refocus, .menubarIconClicked):
-            return endRefocusResult(state: state, restoreFocus: true)
+        case (.navigate, .menubarIconClicked):
+            return endNavigateResult(state: state, restoreFocus: true)
 
-        case (.refocus, .escape):
-            return endRefocusResult(state: state, restoreFocus: true)
+        case (.navigate, .escape):
+            return endNavigateResult(state: state, restoreFocus: true)
 
-        case (.refocus, .appLostFocus):
-            return endRefocusResult(state: state, restoreFocus: false)
+        case (.navigate, .appLostFocus):
+            return endNavigateResult(state: state, restoreFocus: false)
 
-        case (.refocus, .refocusConfirmed):
-            return endRefocusResult(state: state, restoreFocus: false)
+        case (.navigate, .navigateConfirmed):
+            return endNavigateResult(state: state, restoreFocus: false)
 
-        case (.refocus, .refocusTimedOut):
-            return endRefocusResult(state: state, restoreFocus: true)
+        case (.navigate, .navigateTimedOut):
+            return endNavigateResult(state: state, restoreFocus: true)
 
-        case (.refocus, .navKey(let action)):
+        case (.navigate, .navKey(let action)):
             return Result(state: state, actions: [.postNavAction(action)])
 
-        case (.refocus, .unrecognizedKeyDuringRefocus):
-            return endRefocusResult(state: state, restoreFocus: true)
+        case (.navigate, .unrecognizedKeyDuringNavigate):
+            return endNavigateResult(state: state, restoreFocus: true)
 
-        case (.refocus, _):
+        case (.navigate, _):
             return Result(state: state, actions: [], eventConsumed: false)
         }
     }
 
     // MARK: - Helpers
 
-    private static func endRefocusResult(state: PanelState, restoreFocus: Bool) -> Result {
-        guard case .refocus(let origin) = state.mode else {
+    private static func endNavigateResult(state: PanelState, restoreFocus: Bool) -> Result {
+        guard case .navigate(let origin) = state.mode else {
             return Result(state: state, actions: [])
         }
 
-        var actions: [PanelAction] = [.endRefocusMode]
+        var actions: [PanelAction] = [.endNavigateMode]
         if origin.panelWasClosed {
             actions.append(.dismissPanel)
         }

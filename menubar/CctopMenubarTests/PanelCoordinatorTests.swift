@@ -19,15 +19,15 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertTrue(r.actions.contains(.startNavKeyMonitor))
     }
 
-    func testHidden_refocusShortcut() {
-        let r = handle(.refocusShortcut, mode: .hidden)
-        if case .refocus(let origin) = r.state.mode {
+    func testHidden_navigateShortcut() {
+        let r = handle(.navigateShortcut, mode: .hidden)
+        if case .navigate(let origin) = r.state.mode {
             XCTAssertTrue(origin.panelWasClosed)
         } else {
-            XCTFail("Expected refocus mode")
+            XCTFail("Expected navigate mode")
         }
         XCTAssertTrue(r.actions.contains(.showPanel))
-        XCTAssertTrue(r.actions.contains(.startRefocusMode(panelWasClosed: true)))
+        XCTAssertTrue(r.actions.contains(.startNavigateMode(panelWasClosed: true)))
     }
 
     func testHidden_otherEvents_noOp() {
@@ -65,14 +65,14 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertTrue(r.actions.isEmpty)
     }
 
-    func testNormal_refocusShortcut() {
-        let r = handle(.refocusShortcut, mode: .normal)
-        if case .refocus(let origin) = r.state.mode {
+    func testNormal_navigateShortcut() {
+        let r = handle(.navigateShortcut, mode: .normal)
+        if case .navigate(let origin) = r.state.mode {
             XCTAssertFalse(origin.panelWasClosed)
         } else {
-            XCTFail("Expected refocus mode")
+            XCTFail("Expected navigate mode")
         }
-        XCTAssertTrue(r.actions.contains(.startRefocusMode(panelWasClosed: false)))
+        XCTAssertTrue(r.actions.contains(.startNavigateMode(panelWasClosed: false)))
     }
 
     func testNormal_navKey_forwards() {
@@ -80,75 +80,75 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertEqual(r.actions, [.postNavAction(.down)])
     }
 
-    // MARK: - Refocus (panel was open)
+    // MARK: - Navigate (panel was open)
 
-    private let refocusOpenOrigin = RefocusOrigin(panelWasClosed: false)
+    private let navigateOpenOrigin = NavigateOrigin(panelWasClosed: false)
 
-    func testRefocus_menubarClick_endsRefocus() {
-        let r = handle(.menubarIconClicked(appIsActive: true), mode: .refocus(origin: refocusOpenOrigin))
+    func testNavigate_menubarClick_endsNavigate() {
+        let r = handle(.menubarIconClicked(appIsActive: true), mode: .navigate(origin: navigateOpenOrigin))
         XCTAssertEqual(r.state.mode, .normal)
-        XCTAssertTrue(r.actions.contains(.endRefocusMode))
+        XCTAssertTrue(r.actions.contains(.endNavigateMode))
         XCTAssertTrue(r.actions.contains(.activateExternalApp))
         XCTAssertFalse(r.actions.contains(.dismissPanel))
     }
 
-    func testRefocus_escape_endsRefocusAndRestores() {
-        let r = handle(.escape, mode: .refocus(origin: refocusOpenOrigin))
+    func testNavigate_escape_endsNavigateAndRestores() {
+        let r = handle(.escape, mode: .navigate(origin: navigateOpenOrigin))
         XCTAssertEqual(r.state.mode, .normal)
-        XCTAssertTrue(r.actions.contains(.endRefocusMode))
+        XCTAssertTrue(r.actions.contains(.endNavigateMode))
         XCTAssertTrue(r.actions.contains(.activateExternalApp))
     }
 
-    func testRefocus_confirmed_endsWithoutRestore() {
-        let r = handle(.refocusConfirmed, mode: .refocus(origin: refocusOpenOrigin))
+    func testNavigate_confirmed_endsWithoutRestore() {
+        let r = handle(.navigateConfirmed, mode: .navigate(origin: navigateOpenOrigin))
         XCTAssertEqual(r.state.mode, .normal)
-        XCTAssertTrue(r.actions.contains(.endRefocusMode))
+        XCTAssertTrue(r.actions.contains(.endNavigateMode))
         XCTAssertFalse(r.actions.contains(.activateExternalApp))
     }
 
-    func testRefocus_timedOut_endsAndRestores() {
-        let r = handle(.refocusTimedOut, mode: .refocus(origin: refocusOpenOrigin))
+    func testNavigate_timedOut_endsAndRestores() {
+        let r = handle(.navigateTimedOut, mode: .navigate(origin: navigateOpenOrigin))
         XCTAssertEqual(r.state.mode, .normal)
         XCTAssertTrue(r.actions.contains(.activateExternalApp))
     }
 
-    func testRefocus_appLostFocus_endsWithoutRestore() {
-        let r = handle(.appLostFocus, mode: .refocus(origin: refocusOpenOrigin))
+    func testNavigate_appLostFocus_endsWithoutRestore() {
+        let r = handle(.appLostFocus, mode: .navigate(origin: navigateOpenOrigin))
         XCTAssertEqual(r.state.mode, .normal)
-        XCTAssertTrue(r.actions.contains(.endRefocusMode))
+        XCTAssertTrue(r.actions.contains(.endNavigateMode))
         XCTAssertFalse(r.actions.contains(.activateExternalApp))
     }
 
-    func testRefocus_navKey_forwards() {
-        let r = handle(.navKey(.down), mode: .refocus(origin: refocusOpenOrigin))
+    func testNavigate_navKey_forwards() {
+        let r = handle(.navKey(.down), mode: .navigate(origin: navigateOpenOrigin))
         XCTAssertEqual(r.actions, [.postNavAction(.down)])
     }
 
-    func testRefocus_unrecognizedKey_endsRefocus() {
-        let r = handle(.unrecognizedKeyDuringRefocus, mode: .refocus(origin: refocusOpenOrigin))
+    func testNavigate_unrecognizedKey_endsNavigate() {
+        let r = handle(.unrecognizedKeyDuringNavigate, mode: .navigate(origin: navigateOpenOrigin))
         XCTAssertEqual(r.state.mode, .normal)
-        XCTAssertTrue(r.actions.contains(.endRefocusMode))
+        XCTAssertTrue(r.actions.contains(.endNavigateMode))
         XCTAssertTrue(r.actions.contains(.activateExternalApp))
     }
 
-    // MARK: - Refocus (panel was closed)
+    // MARK: - Navigate (panel was closed)
 
-    private let refocusPanelWasClosed = RefocusOrigin(panelWasClosed: true)
+    private let navigatePanelWasClosed = NavigateOrigin(panelWasClosed: true)
 
-    func testRefocus_panelClosed_escape_dismissesPanel() {
-        let r = handle(.escape, mode: .refocus(origin: refocusPanelWasClosed))
+    func testNavigate_panelClosed_escape_dismissesPanel() {
+        let r = handle(.escape, mode: .navigate(origin: navigatePanelWasClosed))
         XCTAssertEqual(r.state.mode, .hidden)
         XCTAssertTrue(r.actions.contains(.dismissPanel))
     }
 
-    func testRefocus_panelClosed_confirmed_dismissesPanel() {
-        let r = handle(.refocusConfirmed, mode: .refocus(origin: refocusPanelWasClosed))
+    func testNavigate_panelClosed_confirmed_dismissesPanel() {
+        let r = handle(.navigateConfirmed, mode: .navigate(origin: navigatePanelWasClosed))
         XCTAssertEqual(r.state.mode, .hidden)
         XCTAssertTrue(r.actions.contains(.dismissPanel))
     }
 
-    func testRefocus_panelClosed_appLostFocus_dismissesPanel() {
-        let r = handle(.appLostFocus, mode: .refocus(origin: refocusPanelWasClosed))
+    func testNavigate_panelClosed_appLostFocus_dismissesPanel() {
+        let r = handle(.appLostFocus, mode: .navigate(origin: navigatePanelWasClosed))
         XCTAssertEqual(r.state.mode, .hidden)
         XCTAssertTrue(r.actions.contains(.dismissPanel))
     }

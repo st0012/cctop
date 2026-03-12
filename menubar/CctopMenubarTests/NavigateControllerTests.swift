@@ -1,12 +1,12 @@
 import XCTest
 @testable import CctopMenubar
 
-final class RefocusControllerTests: XCTestCase {
-    private var sut: RefocusController!
+final class NavigateControllerTests: XCTestCase {
+    private var sut: NavigateController!
 
     override func setUp() {
         super.setUp()
-        sut = RefocusController()
+        sut = NavigateController()
     }
 
     override func tearDown() {
@@ -20,7 +20,7 @@ final class RefocusControllerTests: XCTestCase {
         XCTAssertFalse(sut.isActive)
         XCTAssertTrue(sut.frozenSessions.isEmpty)
         XCTAssertNil(sut.previousApp)
-        XCTAssertFalse(sut.panelWasClosedBeforeRefocus)
+        XCTAssertFalse(sut.panelWasClosedBeforeNavigate)
     }
 
     // MARK: - Activate
@@ -168,13 +168,13 @@ final class RefocusControllerTests: XCTestCase {
 
     // MARK: - Panel state tracking
 
-    func testPanelWasClosedBeforeRefocusDefaultsFalse() {
-        XCTAssertFalse(sut.panelWasClosedBeforeRefocus)
+    func testPanelWasClosedBeforeNavigateDefaultsFalse() {
+        XCTAssertFalse(sut.panelWasClosedBeforeNavigate)
     }
 
-    func testPanelWasClosedBeforeRefocusTracksState() {
+    func testPanelWasClosedBeforeNavigateTracksState() {
         sut.activate(sessions: [], previousApp: nil, panelWasClosed: true)
-        XCTAssertTrue(sut.panelWasClosedBeforeRefocus)
+        XCTAssertTrue(sut.panelWasClosedBeforeNavigate)
     }
 
     // MARK: - Activate → Deactivate cycle
@@ -190,14 +190,14 @@ final class RefocusControllerTests: XCTestCase {
 
         XCTAssertTrue(sut.isActive)
         XCTAssertEqual(sut.frozenSessions.count, 2)
-        XCTAssertTrue(sut.panelWasClosedBeforeRefocus)
+        XCTAssertTrue(sut.panelWasClosedBeforeNavigate)
 
         // Deactivate resets all state
         let state = sut.deactivate()
 
         XCTAssertFalse(sut.isActive)
         XCTAssertTrue(sut.frozenSessions.isEmpty)
-        XCTAssertFalse(sut.panelWasClosedBeforeRefocus)
+        XCTAssertFalse(sut.panelWasClosedBeforeNavigate)
         XCTAssertNil(sut.previousApp)
         // Returned state preserves pre-deactivation values
         XCTAssertTrue(state.panelWasClosed)

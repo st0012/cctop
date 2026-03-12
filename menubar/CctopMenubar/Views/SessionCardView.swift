@@ -8,8 +8,8 @@ extension Session {
 
 struct SessionCardView: View {
     let session: Session
-    /// 1-based index for refocus mode (1-9). nil = normal mode (show status dot).
-    var refocusIndex: Int?
+    /// 1-based index for navigate mode (1-9). nil = normal mode (show status dot).
+    var navigateIndex: Int?
     var showSourceBadge = false
     var isSelected = false
     @State private var isHovered = false
@@ -107,7 +107,7 @@ struct SessionCardView: View {
     @ViewBuilder
     private var statusIndicator: some View {
         ZStack {
-            if let idx = refocusIndex, idx <= 9 {
+            if let idx = navigateIndex, idx <= 9 {
                 Circle()
                     .fill(session.status.color)
                     .frame(width: 16, height: 16)
@@ -126,7 +126,7 @@ struct SessionCardView: View {
 
     private var cardAccessibilityLabel: String {
         var parts: [String] = []
-        if let idx = refocusIndex, idx <= 9 {
+        if let idx = navigateIndex, idx <= 9 {
             parts.append("Press \(idx) to jump to")
         }
         parts += [session.projectName, "on branch", session.branch, session.status.accessibilityDescription]
@@ -184,24 +184,24 @@ struct SessionCardView: View {
     )
     .frame(width: 300).padding()
 }
-#Preview("Refocus Badge") {
+#Preview("Navigate Badge") {
     SessionCardView(
         session: .mock(status: .working, lastTool: "Edit", lastToolDetail: "/src/auth.ts"),
-        refocusIndex: 3
+        navigateIndex: 3
     )
     .frame(width: 300).padding()
 }
-#Preview("Refocus Attention") {
+#Preview("Navigate Attention") {
     SessionCardView(
         session: .mock(status: .waitingPermission, notificationMessage: "Allow Bash: rm -rf"),
-        refocusIndex: 1
+        navigateIndex: 1
     )
     .frame(width: 300).padding()
 }
-#Preview("Refocus 10+") {
+#Preview("Navigate 10+") {
     SessionCardView(
         session: .mock(status: .idle),
-        refocusIndex: 10
+        navigateIndex: 10
     )
     .frame(width: 300).padding()
 }

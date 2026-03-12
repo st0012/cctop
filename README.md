@@ -8,7 +8,7 @@
 Works with your existing editor and terminal. No IDE needed, no workflow changes — just install the app, connect your tools, and every session shows up in a floating panel you can navigate with your keyboard.
 
 <p align="center">
-  <img src="docs/cctop-8.0-demo.gif" alt="cctop demo — refocus, permission approval, history tab, opencode support" width="680">
+  <img src="docs/cctop-8.0-demo.gif" alt="cctop demo — navigate, permission approval, history tab, opencode support" width="680">
 </p>
 
 <p align="center">
@@ -25,10 +25,10 @@ Works with your existing editor and terminal. No IDE needed, no workflow changes
 
 **Jump directly to any session.** Click a session card to raise its VS Code, Cursor, or iTerm2 window — or stay on the keyboard. Arrow keys to browse, Enter to jump, Tab to switch tabs.
 
-**Refocus mode.** Hit a global hotkey to overlay numbered badges (1–9) on every session card, then press the number to jump instantly.
+**Navigate mode.** Hit a global hotkey to overlay numbered badges (1–9) on every session card, then press the number to jump instantly.
 
 <p align="center">
-  <img src="docs/menubar-refocus.png" alt="cctop refocus mode with numbered badges" width="340">
+  <img src="docs/menubar-navigate.png" alt="cctop navigate mode with numbered badges" width="340">
 </p>
 
 **Recent Projects.** A second tab keeps session history so you can reopen past projects easily.

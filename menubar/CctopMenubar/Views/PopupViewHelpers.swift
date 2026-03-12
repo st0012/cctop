@@ -96,7 +96,7 @@ struct PanelContentView: View {
     @ObservedObject var historyManager: HistoryManager
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
-    @ObservedObject var refocus: RefocusController
+    @ObservedObject var navigate: NavigateController
 
     var body: some View {
         PopupView(
@@ -104,7 +104,7 @@ struct PanelContentView: View {
             recentProjects: historyManager.recentProjects,
             updater: updater,
             pluginManager: pluginManager,
-            refocus: refocus
+            navigate: navigate
         )
         .frame(width: 320)
         .background(Color.panelBackground)
@@ -139,10 +139,10 @@ struct PanelContentView: View {
         sessions: Session.mockSessions, recentProjects: [RecentProject.mock()], updater: DisabledUpdater()
     ).frame(width: 320)
 }
-#Preview("Refocus") {
-    let rc = RefocusController(); rc.isActive = true
+#Preview("Navigate") {
+    let rc = NavigateController(); rc.isActive = true
     return PopupView(
         sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
-        updater: DisabledUpdater(), refocus: rc
+        updater: DisabledUpdater(), navigate: rc
     ).frame(width: 320)
 }
