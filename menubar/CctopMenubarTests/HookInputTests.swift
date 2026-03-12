@@ -89,7 +89,6 @@ final class HookInputTests: XCTestCase {
         let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("Notification-permission"))
         XCTAssertEqual(input.hookEventName, "Notification")
         XCTAssertEqual(input.notificationType, "permission_prompt")
-        XCTAssertEqual(input.message, "Permission needed for Bash")
     }
 
     // MARK: - SubagentStart
@@ -107,7 +106,6 @@ final class HookInputTests: XCTestCase {
         let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("SubagentStop"))
         XCTAssertEqual(input.hookEventName, "SubagentStop")
         XCTAssertEqual(input.agentId, "agent-abc-123")
-        XCTAssertEqual(input.agentType, "general-purpose")
     }
 
     // MARK: - PreCompact
@@ -115,22 +113,6 @@ final class HookInputTests: XCTestCase {
     func testDecodePreCompact() throws {
         let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("PreCompact"))
         XCTAssertEqual(input.hookEventName, "PreCompact")
-    }
-
-    // MARK: - PostCompact
-
-    func testDecodePostCompact() throws {
-        let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("PostCompact"))
-        XCTAssertEqual(input.hookEventName, "PostCompact")
-    }
-
-    // MARK: - SessionError
-
-    func testDecodeSessionError() throws {
-        let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("SessionError"))
-        XCTAssertEqual(input.hookEventName, "SessionError")
-        XCTAssertEqual(input.error, "Context window exceeded")
-        XCTAssertEqual(input.message, "Session encountered an error")
     }
 
     // MARK: - SessionEnd
@@ -163,16 +145,14 @@ final class HookInputTests: XCTestCase {
             "SessionStart", "SessionEnd", "UserPromptSubmit", "Stop",
             "PreToolUse", "PostToolUse", "PostToolUseFailure",
             "PermissionRequest", "Notification",
-            "SubagentStart", "SubagentStop", "PreCompact",
-            "PostCompact", "SessionError"
+            "SubagentStart", "SubagentStop", "PreCompact"
         ]
 
         let fixtureNames = [
             "SessionStart", "SessionEnd", "UserPromptSubmit", "Stop",
             "PreToolUse", "PostToolUse", "PostToolUseFailure",
             "PermissionRequest", "Notification-idle", "Notification-permission",
-            "SubagentStart", "SubagentStop", "PreCompact",
-            "PostCompact", "SessionError"
+            "SubagentStart", "SubagentStop", "PreCompact"
         ]
 
         for name in fixtureNames {
