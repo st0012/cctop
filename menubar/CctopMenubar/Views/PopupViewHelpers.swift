@@ -15,22 +15,12 @@ struct CardSelectionStyle: ViewModifier {
         content
             .background(backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(borderColor, lineWidth: 1)
-            )
     }
 
     private var backgroundColor: Color {
-        if isSelected { return Color.amber.opacity(0.10) }
-        if isHovered { return Color.primary.opacity(0.06) }
-        return Color.cardBackground
-    }
-
-    private var borderColor: Color {
-        if isSelected { return Color.amber.opacity(0.4) }
-        if isHovered { return Color.primary.opacity(0.15) }
-        return Color.cardBorder
+        if isSelected { return Color.primary.opacity(0.06) }
+        if isHovered { return Color.primary.opacity(0.04) }
+        return .clear
     }
 }
 
@@ -69,13 +59,13 @@ struct TabButtonView: View {
             HStack(spacing: 4) {
                 Text(label)
                     .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? Color.amber : Color.textMuted)
+                    .foregroundStyle(isSelected ? .primary : Color.textMuted)
                 Text("\(count)")
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(isSelected ? Color.amber : Color.textMuted)
+                    .foregroundStyle(isSelected ? .primary : Color.textMuted)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
-                    .background(isSelected ? Color.amber.opacity(0.15) : Color.primary.opacity(0.06))
+                    .background(isSelected ? Color.primary.opacity(0.1) : Color.primary.opacity(0.04))
                     .clipShape(Capsule())
             }
             .padding(.horizontal, 10)

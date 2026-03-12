@@ -7,11 +7,11 @@ struct HeaderView: View {
         let counts = StatusCounts(sessions: sessions)
 
         HStack {
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 4)
                 .fill(Color.amber)
-                .frame(width: 20, height: 20)
-                .overlay(Text("C").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))
-            Text("cctop").font(.system(size: 14, weight: .semibold))
+                .frame(width: 18, height: 18)
+                .overlay(Text("C").font(.system(size: 10, weight: .bold)).foregroundStyle(.white))
+            Text("cctop").font(.system(size: 13, weight: .semibold))
             Spacer()
             StatusChip(count: counts.permission, color: .red, categoryLabel: "need permission")
             StatusChip(count: counts.attention, color: Color.amber, categoryLabel: "need attention")

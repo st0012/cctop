@@ -18,7 +18,7 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
                         .frame(maxWidth: .infinity).padding(.vertical, 5)
                         .foregroundStyle(isSelected ? Color.segmentActiveText : Color.segmentText)
                         .background(RoundedRectangle(cornerRadius: 5)
-                            .fill(isSelected ? Color.amber : Color.clear))
+                            .fill(isSelected ? Color.primary.opacity(0.1) : Color.clear))
                         .contentShape(Rectangle())
                 }.buttonStyle(.plain)
             }
@@ -41,106 +41,91 @@ struct SettingsSection: View {
     var body: some View {
         VStack(spacing: 0) {
             updateSection
+
+            sectionHeader("Tools")
             MonitoredToolsView(
                 pluginManager: pluginManager,
                 justInstalled: $justInstalled,
                 installFailed: $installFailed,
                 removeHovered: $removeHovered
             )
-            Divider().padding(.horizontal, 14)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Appearance")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.textSecondary)
-                AmberSegmentedPicker(
-                    options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) },
-                    selection: $appearanceMode
-                )
-            }
+            Divider().padding(.horizontal, 8)
+
+            sectionHeader("Appearance")
+            AmberSegmentedPicker(
+                options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) },
+                selection: $appearanceMode
+            )
             .padding(.horizontal, 14)
-            .padding(.top, 12)
             .padding(.bottom, 10)
+            Divider().padding(.horizontal, 8)
 
-            Divider().padding(.horizontal, 14)
-
-            HStack {
-                Text("Toggle Shortcut")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.textSecondary)
-                Spacer()
+            sectionHeader("Shortcuts")
+            settingsRow("Toggle Panel") {
                 KeyboardShortcuts.Recorder("", name: .togglePanel)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 10)
-
-            Divider().padding(.horizontal, 14)
-
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Navigate Shortcut")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.textSecondary)
-                    Spacer()
+                settingsRow("Navigate") {
                     KeyboardShortcuts.Recorder("", name: .navigate)
                 }
-                Text("Bring up the panel and jump to sessions by number.")
+                Text("Jump to sessions by number")
                     .font(.system(size: 10))
                     .foregroundStyle(Color.textMuted)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 6)
             }
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 10)
+            Divider().padding(.horizontal, 8)
 
-            Divider().padding(.horizontal, 14)
-
+            sectionHeader("General")
             Toggle(isOn: $launchAtLogin) {
                 Text("Launch at Login")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.textSecondary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary.opacity(0.75))
             }
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 12)
+            .toggleStyle(.switch).controlSize(.mini)
+            .padding(.horizontal, 14).padding(.vertical, 7)
             .onChange(of: launchAtLogin) { newValue in
                 do {
-                    if newValue {
-                        try SMAppService.mainApp.register()
-                    } else {
-                        try SMAppService.mainApp.unregister()
-                    }
-                } catch {
-                    launchAtLogin = SMAppService.mainApp.status == .enabled
-                }
+                    if newValue { try SMAppService.mainApp.register()
+                    } else { try SMAppService.mainApp.unregister() }
+                } catch { launchAtLogin = SMAppService.mainApp.status == .enabled }
             }
-
-            Divider().padding(.horizontal, 14)
-
             Toggle(isOn: $notificationsEnabled) {
                 Text("Notifications")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.textSecondary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary.opacity(0.75))
             }
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .padding(.horizontal, 14)
-            .padding(.top, 10)
-            .padding(.bottom, 12)
+            .toggleStyle(.switch).controlSize(.mini)
+            .padding(.horizontal, 14).padding(.vertical, 7)
             .onChange(of: notificationsEnabled) { newValue in
-                if newValue {
-                    SessionManager.requestNotificationPermission()
-                }
+                if newValue { SessionManager.requestNotificationPermission() }
             }
         }
-        .background(Color.settingsBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.settingsBorder, lineWidth: 1)
-        )
         .padding(.horizontal, 8)
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(Color.textMuted)
+            .textCase(.uppercase)
+            .tracking(0.8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
+    }
+
+    private func settingsRow<Content: View>(_ label: String, @ViewBuilder trailing: () -> Content) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary.opacity(0.75))
+            Spacer()
+            trailing()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
     }
 
     @ViewBuilder
@@ -221,16 +206,12 @@ private struct MonitoredToolsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Monitored Tools")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color.textSecondary)
             toolRow(name: "Claude Code", installed: pluginManager.ccInstalled)
             if pluginManager.ocConfigExists {
                 openCodeRow
             }
         }
         .padding(.horizontal, 14)
-        .padding(.top, 12)
         .padding(.bottom, 10)
     }
 

@@ -126,8 +126,12 @@ struct PopupView: View {
                 }
                 ScrollViewReader { proxy in
                     ScrollView(showsIndicators: false) {
-                        LazyVStack(spacing: 4) {
+                        LazyVStack(spacing: 0) {
                             ForEach(Array(sortedSessions.enumerated()), id: \.element.id) { index, session in
+                                if index > 0 {
+                                    Divider()
+                                        .padding(.horizontal, 16)
+                                }
                                 SessionCardView(
                                     session: session,
                                     navigateIndex: isNavigateActive ? index + 1 : nil,
@@ -150,7 +154,7 @@ struct PopupView: View {
                                 .help("Click to jump to session")
                             }
                         }
-                        .padding(8)
+                        .padding(.vertical, 4)
                     }
                     .frame(maxHeight: 290)
                     .onChange(of: selectedIndex) { newIndex in
@@ -184,12 +188,16 @@ struct PopupView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 4) {
+                    LazyVStack(spacing: 0) {
                         ForEach(Array(recentProjects.enumerated()), id: \.element.id) { index, project in
+                            if index > 0 {
+                                Divider()
+                                    .padding(.horizontal, 16)
+                            }
                             recentCard(project, isSelected: selectedIndex == index)
                         }
                     }
-                    .padding(8)
+                    .padding(.vertical, 4)
                 }
                 .frame(maxHeight: 290)
                 .onChange(of: selectedIndex) { newIndex in
@@ -250,8 +258,8 @@ extension PopupView {
             Spacer()
             settingsGearButton
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 7)
     }
 
     private var versionButton: some View {
@@ -328,13 +336,8 @@ extension PopupView {
     private func closeOverlay(animated: Bool) {
         activeOverlay = nil
         notifyLayoutChanged()
-        if animated {
-            DispatchQueue.main.asyncAfter(deadline: .now() + overlayAnimationDuration) {
-                hideContent = false
-            }
-        } else {
-            hideContent = false
-        }
+        guard animated else { hideContent = false; return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + overlayAnimationDuration) { hideContent = false }
     }
 
     private func notifyLayoutChanged() {
@@ -345,8 +348,6 @@ extension PopupView {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(path, forType: .string)
     }
-
-    // MARK: - Keyboard navigation
 
     private func handleNavAction(_ action: PanelNavAction) {
         switch action {
@@ -361,11 +362,7 @@ extension PopupView {
     private func moveSelection(by delta: Int) {
         let count = selectedTab == .active ? sortedSessions.count : recentProjects.count
         guard count > 0 else { return }
-        if let current = selectedIndex {
-            selectedIndex = (current + delta + count) % count
-        } else {
-            selectedIndex = delta > 0 ? 0 : count - 1
-        }
+        selectedIndex = selectedIndex.map { ($0 + delta + count) % count } ?? (delta > 0 ? 0 : count - 1)
     }
 
     private func confirmSelection() {
