@@ -33,6 +33,9 @@
 		H10000010000000000000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000020000000000000001 /* AppSettings.swift */; };
 		FX0000010000000000000001 /* HookInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FX0000020000000000000001 /* HookInputTests.swift */; };
 		FX0000030000000000000001 /* HookInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000040000000000000001 /* HookInput.swift */; };
+		HH0000010000000000000001 /* HookHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HH0000020000000000000001 /* HookHandlerTests.swift */; };
+		HH0000030000000000000001 /* HookHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000060000000000000001 /* HookHandler.swift */; };
+		HH0000050000000000000001 /* HookLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000080000000000000001 /* HookLogger.swift */; };
 		HT0000010000000000000001 /* HookEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HT0000020000000000000001 /* HookEventTests.swift */; };
 		J10000010000000000000001 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = J10000020000000000000001 /* SettingsSection.swift */; };
 		K10000010000000000000001 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000020000000000000001 /* Color+Theme.swift */; };
@@ -121,6 +124,7 @@
 		G10000040000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		H10000020000000000000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		FX0000020000000000000001 /* HookInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookInputTests.swift; sourceTree = "<group>"; };
+		HH0000020000000000000001 /* HookHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandlerTests.swift; sourceTree = "<group>"; };
 		HT0000020000000000000001 /* HookEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventTests.swift; sourceTree = "<group>"; };
 		J10000020000000000000001 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		K10000020000000000000001 /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
@@ -322,6 +326,7 @@
 				T10000080000000000000002 /* AppSettingsTests.swift */,
 				HT0000020000000000000001 /* HookEventTests.swift */,
 				FX0000020000000000000001 /* HookInputTests.swift */,
+				HH0000020000000000000001 /* HookHandlerTests.swift */,
 				SN0000040000000000000001 /* SessionNameLookupTests.swift */,
 				FK0000020000000000000001 /* ForkSessionTests.swift */,
 				FT0000020000000000000001 /* WorkspaceFileTests.swift */,
@@ -483,6 +488,8 @@
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,
 				FX0000030000000000000001 /* HookInput.swift in Sources */,
+				HH0000030000000000000001 /* HookHandler.swift in Sources */,
+				HH0000050000000000000001 /* HookLogger.swift in Sources */,
 				N10000050000000000000001 /* Config.swift in Sources */,
 				SN0000050000000000000001 /* SessionNameLookup.swift in Sources */,
 				RP0000010000000000000001 /* RecentProject.swift in Sources */,
@@ -529,6 +536,7 @@
 				T10000070000000000000002 /* AppSettingsTests.swift in Sources */,
 				HT0000010000000000000001 /* HookEventTests.swift in Sources */,
 				FX0000010000000000000001 /* HookInputTests.swift in Sources */,
+				HH0000010000000000000001 /* HookHandlerTests.swift in Sources */,
 				SN0000030000000000000001 /* SessionNameLookupTests.swift in Sources */,
 				FK0000010000000000000001 /* ForkSessionTests.swift in Sources */,
 				FT0000010000000000000001 /* WorkspaceFileTests.swift in Sources */,

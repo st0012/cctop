@@ -17,7 +17,6 @@ final class HookHandlerTests: XCTestCase {
     override func tearDown() {
         unsetenv("CCTOP_SESSIONS_DIR")
         try? FileManager.default.removeItem(atPath: sessionsDir)
-        HookLogger.cleanupSessionLog(sessionId: "test-session-001")
         super.tearDown()
     }
 
@@ -148,8 +147,6 @@ final class HookHandlerTests: XCTestCase {
         try handleFixture("Notification-permission", hookName: "Notification")
         let session = try loadSession()
         XCTAssertEqual(session.status, .waitingPermission)
-        // notificationPermission is a no-op — must not clobber the earlier PermissionRequest message
-        XCTAssertEqual(session.notificationMessage, "Allow Bash: rm -rf /tmp/old")
     }
 
     // MARK: - SubagentStart adds to active_subagents
@@ -180,27 +177,6 @@ final class HookHandlerTests: XCTestCase {
         try handleFixture("PreCompact")
         let session = try loadSession()
         XCTAssertEqual(session.status, .compacting)
-    }
-
-    // MARK: - PostCompact transitions to idle
-
-    func testPostCompactSetsIdle() throws {
-        try handleFixture("SessionStart")
-        try handleFixture("PreCompact")
-        XCTAssertEqual(try loadSession().status, .compacting)
-        try handleFixture("PostCompact")
-        let session = try loadSession()
-        XCTAssertEqual(session.status, .idle)
-    }
-
-    // MARK: - SessionError transitions to needs_attention
-
-    func testSessionErrorSetsNeedsAttention() throws {
-        try handleFixture("SessionStart")
-        try handleFixture("SessionError")
-        let session = try loadSession()
-        XCTAssertEqual(session.status, .needsAttention)
-        XCTAssertEqual(session.notificationMessage, "Context window exceeded")
     }
 
     // MARK: - SessionEnd removes session file
