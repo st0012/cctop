@@ -89,6 +89,7 @@ final class HookInputTests: XCTestCase {
         let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("Notification-permission"))
         XCTAssertEqual(input.hookEventName, "Notification")
         XCTAssertEqual(input.notificationType, "permission_prompt")
+        XCTAssertEqual(input.message, "Permission needed for Bash")
     }
 
     // MARK: - SubagentStart
@@ -106,6 +107,7 @@ final class HookInputTests: XCTestCase {
         let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("SubagentStop"))
         XCTAssertEqual(input.hookEventName, "SubagentStop")
         XCTAssertEqual(input.agentId, "agent-abc-123")
+        XCTAssertEqual(input.agentType, "general-purpose")
     }
 
     // MARK: - PreCompact
