@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/user/cctop/hook-input.schema.json",
-  "title": "Claude Code Hook Input",
-  "description": "JSON payload delivered to Claude Code hooks via stdin.",
+  "$id": "https://github.com/st0012/cctop/hook-input.schema.json",
+  "title": "cctop-hook Input",
+  "description": "JSON payload piped to stdin of the cctop-hook binary. Tools translate their native events to this schema.",
   "type": "object",
   "required": ["session_id", "cwd", "hook_event_name"],
   "properties": {
@@ -22,7 +22,9 @@
         "Notification",
         "PermissionRequest",
         "SubagentStart",
-        "SubagentStop"
+        "SubagentStop",
+        "PostCompact",
+        "SessionError"
       ],
       "description": "The hook event that triggered this payload"
     },
