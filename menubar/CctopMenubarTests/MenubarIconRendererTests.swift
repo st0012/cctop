@@ -1,6 +1,7 @@
 import XCTest
 @testable import CctopMenubar
 
+@MainActor
 final class MenubarIconRendererTests: XCTestCase {
     // MARK: - Zero sessions (template icon)
 

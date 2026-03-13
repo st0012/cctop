@@ -1,6 +1,7 @@
 import XCTest
 @testable import CctopMenubar
 
+@MainActor
 final class StatusCountsTests: XCTestCase {
     func testTotal() {
         let counts = StatusCounts(permission: 1, attention: 2, working: 3, idle: 4)

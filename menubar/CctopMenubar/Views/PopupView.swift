@@ -10,10 +10,6 @@ enum PopupTab {
     case active, recent
 }
 
-private enum Overlay: Equatable {
-    case settings, about
-}
-
 private let overlayAnimationDuration: TimeInterval = 0.2
 
 struct PopupView: View {
@@ -22,10 +18,9 @@ struct PopupView: View {
     @ObservedObject var updater: UpdaterBase
     var pluginManager: PluginManager?
     var navigate: NavigateController?
+    @ObservedObject var overlayController: OverlayController = OverlayController()
     var initialTab: PopupTab = .active
     @State private var selectedTab: PopupTab = .active
-    @State private var activeOverlay: Overlay?
-    @State private var hideContent = false
     @State private var selectedIndex: Int?
     @State private var gearHovered = false
     @State private var versionHovered = false
@@ -54,9 +49,9 @@ struct PopupView: View {
                     case .recent: recentContent
                     }
                 }
-                .opacity(hideContent ? 0 : 1)
-                .animation(.none, value: hideContent)
-                if let overlay = activeOverlay {
+                .opacity(overlayController.hideContent ? 0 : 1)
+                .animation(.none, value: overlayController.hideContent)
+                if let overlay = overlayController.active {
                     overlayPanel {
                         switch overlay {
                         case .settings:
@@ -71,17 +66,17 @@ struct PopupView: View {
                 }
             }
             .clipped()
-            .animation(.easeInOut(duration: overlayAnimationDuration), value: activeOverlay)
+            .animation(.easeInOut(duration: overlayAnimationDuration), value: overlayController.active)
             Divider()
             footerBar
         }
         .onReceive(navigate?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
             if selectedTab == .recent { selectedTab = .active }
-            if activeOverlay != nil { closeOverlay(animated: false) }
+            if overlayController.active != nil { closeOverlay(animated: false) }
         }
         .onReceive(navigate?.navActionSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { action in
-            guard activeOverlay == nil else { return }
+            guard overlayController.active == nil else { return }
             handleNavAction(action)
         }
         .onChange(of: selectedTab) { _ in selectedIndex = nil }
@@ -102,7 +97,7 @@ struct PopupView: View {
 
     private func tabButton(_ label: String, count: Int, tab: PopupTab) -> some View {
         TabButtonView(label: label, count: count, isSelected: selectedTab == tab) {
-            if activeOverlay != nil { closeOverlay(animated: true) }
+            if overlayController.active != nil { closeOverlay(animated: true) }
             withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
             notifyLayoutChanged()
         }
@@ -263,7 +258,7 @@ extension PopupView {
     }
 
     private var versionButton: some View {
-        let isActive = activeOverlay == .about
+        let isActive = overlayController.active == .about
         let color: Color = isActive ? .amber : (versionHovered ? .primary : .textMuted)
         return Button { toggleOverlay(.about) } label: {
             Text("v\(Bundle.main.appVersion)")
@@ -279,14 +274,14 @@ extension PopupView {
         Button { toggleOverlay(.settings) } label: {
             Image(systemName: "gearshape")
                 .font(.system(size: 14))
-                .foregroundStyle(activeOverlay == .settings ? Color.amber : Color.secondary)
+                .foregroundStyle(overlayController.active == .settings ? Color.amber : Color.secondary)
                 .frame(width: 28, height: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color.textPrimary.opacity(gearHovered ? 0.1 : 0))
                 )
                 .overlay(alignment: .topTrailing) {
-                    if updater.pendingUpdateVersion != nil && activeOverlay != .settings {
+                    if updater.pendingUpdateVersion != nil && overlayController.active != .settings {
                         Circle().fill(Color.amber).frame(width: 7, height: 7).offset(x: 2, y: -2)
                     }
                 }
@@ -322,22 +317,22 @@ extension PopupView {
 
     private func focusSession(_ session: Session) { focusTerminal(session: session); NSApp.deactivate() }
 
-    private func toggleOverlay(_ overlay: Overlay) {
-        if activeOverlay == overlay {
+    private func toggleOverlay(_ overlay: PopupOverlay) {
+        if overlayController.active == overlay {
             closeOverlay(animated: true)
         } else {
-            activeOverlay = nil
-            hideContent = true
-            activeOverlay = overlay
+            overlayController.active = nil
+            overlayController.hideContent = true
+            overlayController.active = overlay
             notifyLayoutChanged()
         }
     }
 
     private func closeOverlay(animated: Bool) {
-        activeOverlay = nil
+        overlayController.active = nil
         notifyLayoutChanged()
-        guard animated else { hideContent = false; return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + overlayAnimationDuration) { hideContent = false }
+        guard animated else { overlayController.hideContent = false; return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + overlayAnimationDuration) { overlayController.hideContent = false }
     }
 
     private func notifyLayoutChanged() {
@@ -390,7 +385,7 @@ extension PopupView {
         default: newTab = selectedTab == .active ? .recent : .active
         }
         guard newTab != selectedTab else { return }
-        if activeOverlay != nil { closeOverlay(animated: true) }
+        if overlayController.active != nil { closeOverlay(animated: true) }
         withAnimation(.easeInOut(duration: 0.15)) { selectedTab = newTab }
         notifyLayoutChanged()
     }

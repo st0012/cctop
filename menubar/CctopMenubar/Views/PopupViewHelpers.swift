@@ -1,5 +1,15 @@
 import SwiftUI
 
+enum PopupOverlay: Equatable {
+    case settings, about
+}
+
+@MainActor
+class OverlayController: ObservableObject {
+    @Published var active: PopupOverlay?
+    @Published var hideContent = false
+}
+
 enum PanelNavAction {
     case up, down, confirm, escape, reset, toggleTab, previousTab, nextTab
 }
@@ -88,6 +98,7 @@ struct PanelContentView: View {
     @ObservedObject var pluginManager: PluginManager
     @ObservedObject var navigate: NavigateController
     @ObservedObject private var themeManager = ThemeManager.shared
+    @StateObject private var overlayController = OverlayController()
 
     var body: some View {
         PopupView(
@@ -95,7 +106,8 @@ struct PanelContentView: View {
             recentProjects: historyManager.recentProjects,
             updater: updater,
             pluginManager: pluginManager,
-            navigate: navigate
+            navigate: navigate,
+            overlayController: overlayController
         )
         .frame(width: 320)
         .background(Color.panelBackground)

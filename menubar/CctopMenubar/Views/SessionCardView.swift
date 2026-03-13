@@ -42,7 +42,7 @@ struct SessionCardView: View {
                     if showSourceBadge {
                         Text(session.sourceLabel)
                             .font(.system(size: 9))
-                            .foregroundStyle(Color.textMuted)
+                            .foregroundStyle(session.sourceBadgeColor)
                     }
 
                     Spacer()

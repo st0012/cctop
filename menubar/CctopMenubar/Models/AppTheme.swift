@@ -35,6 +35,7 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
     var segmentText: ColorPair { textMuted }
     var segmentActiveText: ColorPair { textPrimary }
     var statusPermission: ColorPair { accent }
+    var statusAttention: ColorPair { accent }
     var statusWorking: ColorPair { statusGreen }
 
     // Shared across all themes

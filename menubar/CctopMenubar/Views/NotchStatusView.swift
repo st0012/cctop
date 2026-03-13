@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotchStatusView: View {
     let counts: StatusCounts
+    var themeId: String = ""
 
     var body: some View {
         HStack(spacing: 4) {
@@ -13,6 +14,7 @@ struct NotchStatusView: View {
                     .frame(width: 36, height: 4)
             }
         }
+        .id(themeId)
         .padding(.leading, 5)
         .padding(.trailing, 2)
         .padding(.top, 4)

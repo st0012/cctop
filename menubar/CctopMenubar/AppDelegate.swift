@@ -5,6 +5,7 @@ import KeyboardShortcuts
 import SwiftUI
 import UserNotifications
 
+// swiftlint:disable:next type_body_length
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem!
     private var panel: FloatingPanel!
@@ -13,7 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var pluginManager: PluginManager!
     private var historyManager: HistoryManager!
     private var navigateController = NavigateController()
-    private var notchController = NotchStatusController()
+    private var notchController: NotchStatusController!
     private var navKeyMonitor: Any?
     private var previousApp: NSRunningApplication?
     private var lastExternalApp: NSRunningApplication?
@@ -30,6 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
         installHookBinaryIfNeeded()
         UNUserNotificationCenter.current().delegate = self
+        notchController = NotchStatusController()
         historyManager = HistoryManager()
         sessionManager = SessionManager(historyManager: historyManager)
         updater = makeUpdater()
@@ -62,6 +64,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         applyAppearance()
         registerShortcuts()
         observeSessionUpdates()
+        observeThemeChanges()
     }
 
     @MainActor private func registerShortcuts() {
@@ -130,6 +133,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                         self?.resizePanel(animate: true)
                     }
                 }
+            }
+            .store(in: &cancellables)
+    }
+
+    @MainActor private func observeThemeChanges() {
+        ThemeManager.shared.$current
+            .dropFirst() // skip initial value
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, let counts = self.lastRenderedCounts else { return }
+                self.refreshStatusDisplay(counts: counts)
             }
             .store(in: &cancellables)
     }
@@ -219,7 +233,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound])
     }
 
-    private func positionPanel(animate: Bool = false) {
+    @MainActor private func positionPanel(animate: Bool = false) {
         guard let (width, height) = panelFittingSize() else { return }
 
         // Use the notch pill position when the menubar icon is hidden behind the notch

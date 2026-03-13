@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Manages the notch status panel lifecycle. Creates a small status indicator
 /// next to the camera notch on built-in displays. No-op on non-notch Macs.
+@MainActor
 class NotchStatusController {
     private static let pillWidth: CGFloat = 70
     private static let pillHeight: CGFloat = 20
@@ -32,7 +33,9 @@ class NotchStatusController {
 
         if let panel {
             if counts != lastCounts {
-                hostingView?.rootView = NotchStatusView(counts: counts)
+                hostingView?.rootView = NotchStatusView(
+                    counts: counts, themeId: ThemeManager.shared.themeId
+                )
                 lastCounts = counts
             }
             panel.setFrame(frame, display: true)
@@ -40,7 +43,7 @@ class NotchStatusController {
             return
         }
 
-        let statusView = NotchStatusView(counts: counts)
+        let statusView = NotchStatusView(counts: counts, themeId: ThemeManager.shared.themeId)
         let hosting = NSHostingView(rootView: statusView)
         hosting.autoresizingMask = [.width, .height]
 
@@ -61,7 +64,7 @@ class NotchStatusController {
     func update(counts: StatusCounts) {
         lastCounts = counts
         guard let hostingView else { return }
-        hostingView.rootView = NotchStatusView(counts: counts)
+        hostingView.rootView = NotchStatusView(counts: counts, themeId: ThemeManager.shared.themeId)
     }
 
     /// Remove the notch panel. Hide first, then release views.

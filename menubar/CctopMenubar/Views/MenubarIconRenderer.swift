@@ -2,6 +2,7 @@ import AppKit
 
 /// Renders the menubar icon: grid icon on the left + proportional status bar on the right.
 /// Returns a template image when no sessions are active.
+@MainActor
 enum MenubarIconRenderer {
     private static let size = NSSize(width: 44, height: 18)
     private static let iconWidth: CGFloat = 16

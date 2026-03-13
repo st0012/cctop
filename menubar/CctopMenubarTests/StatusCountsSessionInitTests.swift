@@ -1,6 +1,7 @@
 import XCTest
 @testable import CctopMenubar
 
+@MainActor
 final class StatusCountsSessionInitTests: XCTestCase {
     func testEmptyArray_returnsZero() {
         let counts = StatusCounts(sessions: [])

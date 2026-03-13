@@ -1,4 +1,5 @@
 /// Aggregated session status counts used by the menubar icon, notch pill, and accessibility labels.
+@MainActor
 struct StatusCounts: Equatable {
     let permission: Int
     let attention: Int
@@ -56,9 +57,9 @@ struct StatusCounts: Equatable {
 
     /// Minimum width in points for action-needing segments (permission, attention).
     private static let minActionWidth: Double = 5
-    private static let actionColors: Set<StatusColors.RGBColor> = [
-        StatusColors.permission, StatusColors.attention,
-    ]
+    private static var actionColors: Set<StatusColors.RGBColor> {
+        [StatusColors.permission, StatusColors.attention]
+    }
 
     /// Bar segments with minimum width enforcement for action-needing segments.
     /// Steals space proportionally from non-action segments (working, idle).
