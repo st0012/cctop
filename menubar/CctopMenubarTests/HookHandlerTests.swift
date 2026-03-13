@@ -182,6 +182,27 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.status, .compacting)
     }
 
+    // MARK: - PostCompact transitions to idle
+
+    func testPostCompactSetsIdle() throws {
+        try handleFixture("SessionStart")
+        try handleFixture("PreCompact")
+        XCTAssertEqual(try loadSession().status, .compacting)
+        try handleFixture("PostCompact")
+        let session = try loadSession()
+        XCTAssertEqual(session.status, .idle)
+    }
+
+    // MARK: - SessionError transitions to needs_attention
+
+    func testSessionErrorSetsNeedsAttention() throws {
+        try handleFixture("SessionStart")
+        try handleFixture("SessionError")
+        let session = try loadSession()
+        XCTAssertEqual(session.status, .needsAttention)
+        XCTAssertEqual(session.notificationMessage, "Context window exceeded")
+    }
+
     // MARK: - SessionEnd removes session file
 
     func testSessionEndRemovesFile() throws {
