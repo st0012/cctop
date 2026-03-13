@@ -37,6 +37,14 @@ final class HookEventTests: XCTestCase {
         XCTAssertEqual(HookEvent.parse(hookName: "PreCompact", notificationType: nil), .preCompact)
     }
 
+    func testParsePostCompact() {
+        XCTAssertEqual(HookEvent.parse(hookName: "PostCompact", notificationType: nil), .postCompact)
+    }
+
+    func testParseSessionError() {
+        XCTAssertEqual(HookEvent.parse(hookName: "SessionError", notificationType: nil), .sessionError)
+    }
+
     func testParseSessionEnd() {
         XCTAssertEqual(HookEvent.parse(hookName: "SessionEnd", notificationType: nil), .sessionEnd)
     }
@@ -129,6 +137,16 @@ final class HookEventTests: XCTestCase {
         XCTAssertEqual(Transition.forEvent(.working, event: .preCompact), .compacting)
     }
 
+    func testPostCompactTransitionsToIdle() {
+        XCTAssertEqual(Transition.forEvent(.compacting, event: .postCompact), .idle)
+        XCTAssertEqual(Transition.forEvent(.working, event: .postCompact), .idle)
+    }
+
+    func testSessionErrorTransitionsToNeedsAttention() {
+        XCTAssertEqual(Transition.forEvent(.working, event: .sessionError), .needsAttention)
+        XCTAssertEqual(Transition.forEvent(.idle, event: .sessionError), .needsAttention)
+    }
+
     // MARK: - Transition.forEvent() — Preserve status (nil return)
 
     func testNotificationOtherPreservesStatus() {
@@ -153,7 +171,7 @@ final class HookEventTests: XCTestCase {
         let allEvents: [HookEvent] = [
             .sessionStart, .userPromptSubmit, .preToolUse, .postToolUse, .postToolUseFailure,
             .stop, .notificationIdle, .notificationPermission, .notificationOther,
-            .permissionRequest, .preCompact, .sessionEnd, .unknown
+            .permissionRequest, .preCompact, .postCompact, .sessionError, .sessionEnd, .unknown
         ]
 
         // Every event x status combination should not crash
@@ -178,6 +196,8 @@ final class HookEventTests: XCTestCase {
             XCTAssertNotNil(Transition.forEvent(status, event: .notificationIdle))
             XCTAssertNotNil(Transition.forEvent(status, event: .permissionRequest))
             XCTAssertNotNil(Transition.forEvent(status, event: .preCompact))
+            XCTAssertNotNil(Transition.forEvent(status, event: .postCompact))
+            XCTAssertNotNil(Transition.forEvent(status, event: .sessionError))
             XCTAssertNil(Transition.forEvent(status, event: .notificationPermission))
             XCTAssertNil(Transition.forEvent(status, event: .notificationOther))
             XCTAssertNil(Transition.forEvent(status, event: .sessionEnd))

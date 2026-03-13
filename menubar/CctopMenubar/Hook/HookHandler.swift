@@ -141,11 +141,6 @@ enum HookHandler {
                 session.notificationMessage = msg
             }
 
-        case .notificationPermission:
-            // PermissionRequest already handles side effects (clears tool state, sets notificationMessage).
-            // The Notification fires ~6s later and would clobber parallel tool state.
-            break
-
         case .stop:
             clearToolState(&session)
 
@@ -157,7 +152,11 @@ enum HookHandler {
         case .subagentStart, .subagentStop:
             applySubagentEvent(event: event, session: &session, input: input)
 
-        case .preCompact, .postToolUse, .sessionEnd, .unknown:
+        case .sessionError:
+            session.notificationMessage = input.error ?? input.message
+
+        // notificationPermission: PermissionRequest already handles side effects; Notification fires ~6s later.
+        case .notificationPermission, .postCompact, .preCompact, .postToolUse, .sessionEnd, .unknown:
             break
         }
     }

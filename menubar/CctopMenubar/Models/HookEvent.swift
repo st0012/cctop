@@ -14,6 +14,8 @@ enum HookEvent: Equatable {
     case subagentStart
     case subagentStop
     case preCompact
+    case postCompact
+    case sessionError
     case sessionEnd
     case unknown
 
@@ -23,6 +25,7 @@ enum HookEvent: Equatable {
         "PostToolUseFailure": .postToolUseFailure, "Stop": .stop,
         "PermissionRequest": .permissionRequest, "PreCompact": .preCompact,
         "SubagentStart": .subagentStart, "SubagentStop": .subagentStop,
+        "PostCompact": .postCompact, "SessionError": .sessionError,
         "SessionEnd": .sessionEnd,
     ]
 
@@ -48,6 +51,8 @@ enum Transition {
         case .notificationIdle: return .waitingInput
         case .permissionRequest: return .waitingPermission
         case .preCompact: return .compacting
+        case .postCompact: return .idle
+        case .sessionError: return .needsAttention
         // notificationPermission: PermissionRequest already sets waitingPermission immediately.
         // The Notification fires ~6s later and would race with PostToolUse if the user allows quickly.
         case .subagentStart, .subagentStop: return nil

@@ -117,6 +117,22 @@ final class HookInputTests: XCTestCase {
         XCTAssertEqual(input.hookEventName, "PreCompact")
     }
 
+    // MARK: - PostCompact
+
+    func testDecodePostCompact() throws {
+        let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("PostCompact"))
+        XCTAssertEqual(input.hookEventName, "PostCompact")
+    }
+
+    // MARK: - SessionError
+
+    func testDecodeSessionError() throws {
+        let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("SessionError"))
+        XCTAssertEqual(input.hookEventName, "SessionError")
+        XCTAssertEqual(input.error, "Context window exceeded")
+        XCTAssertEqual(input.message, "Session encountered an error")
+    }
+
     // MARK: - SessionEnd
 
     func testDecodeSessionEnd() throws {
@@ -147,14 +163,16 @@ final class HookInputTests: XCTestCase {
             "SessionStart", "SessionEnd", "UserPromptSubmit", "Stop",
             "PreToolUse", "PostToolUse", "PostToolUseFailure",
             "PermissionRequest", "Notification",
-            "SubagentStart", "SubagentStop", "PreCompact"
+            "SubagentStart", "SubagentStop", "PreCompact",
+            "PostCompact", "SessionError"
         ]
 
         let fixtureNames = [
             "SessionStart", "SessionEnd", "UserPromptSubmit", "Stop",
             "PreToolUse", "PostToolUse", "PostToolUseFailure",
             "PermissionRequest", "Notification-idle", "Notification-permission",
-            "SubagentStart", "SubagentStop", "PreCompact"
+            "SubagentStart", "SubagentStop", "PreCompact",
+            "PostCompact", "SessionError"
         ]
 
         for name in fixtureNames {
