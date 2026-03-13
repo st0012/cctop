@@ -7,6 +7,7 @@ private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "Plu
 class PluginManager: ObservableObject {
     @Published var ccInstalled: Bool = false
     @Published var ocInstalled: Bool = false
+    @Published var ocNeedsUpdate: Bool = false
     @Published var ocConfigExists: Bool = false
 
     private static let home = FileManager.default.homeDirectoryForCurrentUser
@@ -28,6 +29,16 @@ class PluginManager: ObservableObject {
         ocConfigExists = fm.fileExists(atPath: ocConfigDir.path)
 
         ocInstalled = fm.fileExists(atPath: Self.ocPluginPath.path)
+        ocNeedsUpdate = ocInstalled && Self.installedPluginOutdated()
+    }
+
+    private static func installedPluginOutdated() -> Bool {
+        guard let bundledURL = Bundle.main.url(forResource: "opencode-plugin", withExtension: "js"),
+              let bundledData = try? Data(contentsOf: bundledURL),
+              let installedData = try? Data(contentsOf: ocPluginPath) else {
+            return false
+        }
+        return bundledData != installedData
     }
 
     func installOpenCodePlugin() -> Bool {
