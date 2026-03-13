@@ -40,7 +40,9 @@
     "error":            { "type": "string" },
     "is_interrupt":     { "type": "boolean" },
     "agent_id":         { "type": "string" },
-    "agent_type":       { "type": "string" }
+    "agent_type":       { "type": "string" },
+    "source":           { "type": "string", "description": "Tool that created this session (e.g. \"opencode\")" },
+    "session_name":     { "type": "string", "description": "Display name for the session" }
   },
   "additionalProperties": true
 }

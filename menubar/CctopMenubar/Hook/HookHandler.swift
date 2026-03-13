@@ -92,9 +92,11 @@ enum HookHandler {
         // already set it, and we need the original timestamp for child-process-start-time
         // comparison in the menubar app.
         if event != .notificationPermission { session.lastActivity = Date() }
-        session.branch = branch
-        session.terminal = terminal
-        if event == .sessionStart || event == .userPromptSubmit {
+        session.branch = branch; session.terminal = terminal
+        if let source = input.source { session.source = source }
+        if let name = input.sessionName {
+            session.sessionName = name
+        } else if event == .sessionStart || event == .userPromptSubmit {
             session.sessionName = SessionNameLookup.lookupSessionName(
                 transcriptPath: input.transcriptPath, sessionId: input.sessionId
             )

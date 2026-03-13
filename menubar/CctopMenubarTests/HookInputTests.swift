@@ -133,6 +133,16 @@ final class HookInputTests: XCTestCase {
         XCTAssertEqual(input.message, "Session encountered an error")
     }
 
+    // MARK: - SessionStart (opencode)
+
+    func testDecodeSessionStartOpencode() throws {
+        let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("SessionStart-opencode"))
+        XCTAssertEqual(input.sessionId, "opencode-12345")
+        XCTAssertEqual(input.hookEventName, "SessionStart")
+        XCTAssertEqual(input.source, "opencode")
+        XCTAssertEqual(input.sessionName, "Fix login bug")
+    }
+
     // MARK: - SessionEnd
 
     func testDecodeSessionEnd() throws {
@@ -172,7 +182,8 @@ final class HookInputTests: XCTestCase {
             "PreToolUse", "PostToolUse", "PostToolUseFailure",
             "PermissionRequest", "Notification-idle", "Notification-permission",
             "SubagentStart", "SubagentStop", "PreCompact",
-            "PostCompact", "SessionError"
+            "PostCompact", "SessionError",
+            "SessionStart-opencode"
         ]
 
         for name in fixtureNames {

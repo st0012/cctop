@@ -19,6 +19,8 @@ struct HookInput: Codable {
     var isInterrupt: Bool?
     var agentId: String?
     var agentType: String?
+    var source: String?
+    var sessionName: String?
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
@@ -34,6 +36,8 @@ struct HookInput: Codable {
         case isInterrupt = "is_interrupt"
         case agentId = "agent_id"
         case agentType = "agent_type"
+        case source
+        case sessionName = "session_name"
     }
 
     init(from decoder: Decoder) throws {
@@ -53,6 +57,8 @@ struct HookInput: Codable {
         isInterrupt = try container.decodeIfPresent(Bool.self, forKey: .isInterrupt)
         agentId = try container.decodeIfPresent(String.self, forKey: .agentId)
         agentType = try container.decodeIfPresent(String.self, forKey: .agentType)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        sessionName = try container.decodeIfPresent(String.self, forKey: .sessionName)
 
         if container.contains(.toolInput) {
             let rawDict = try? container.decode([String: ToolInputValue].self, forKey: .toolInput)

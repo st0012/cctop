@@ -212,6 +212,22 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertFalse(sessionFileExists())
     }
 
+    // MARK: - Source passthrough (opencode)
+
+    func testSourcePassthrough() throws {
+        try handleFixture("SessionStart-opencode")
+        let session = try loadSession()
+        XCTAssertEqual(session.source, "opencode")
+    }
+
+    // MARK: - Session name from input
+
+    func testSessionNameFromInput() throws {
+        try handleFixture("SessionStart-opencode")
+        let session = try loadSession()
+        XCTAssertEqual(session.sessionName, "Fix login bug")
+    }
+
     // MARK: - Full lifecycle sequence
 
     func testFullLifecycle() throws {
