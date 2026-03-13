@@ -75,7 +75,10 @@ class FloatingPanel: NSPanel {
         if frame.origin != startOrigin {
             NotificationCenter.default.post(
                 name: .panelDragEnded, object: nil,
-                userInfo: ["x": frame.origin.x, "topY": frame.maxY]
+                userInfo: [
+                    PanelDragKeys.originX: frame.origin.x,
+                    PanelDragKeys.topY: frame.maxY
+                ]
             )
         }
     }

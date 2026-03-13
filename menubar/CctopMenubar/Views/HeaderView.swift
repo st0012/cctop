@@ -8,6 +8,11 @@ extension Notification.Name {
     static let resetPanelPosition = Notification.Name("resetPanelPosition")
 }
 
+enum PanelDragKeys {
+    static let originX = "x"
+    static let topY = "topY"
+}
+
 private func makeMoveCursor(color: NSColor) -> NSCursor {
     let size = NSSize(width: 16, height: 16)
     let image = NSImage(size: size, flipped: true) { _ in
@@ -54,14 +59,18 @@ private class DragCursorView: NSView {
         addCursorRect(bounds, cursor: currentMoveCursor)
     }
 
+    private var cursorTrackingArea: NSTrackingArea?
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        trackingAreas.forEach { removeTrackingArea($0) }
-        addTrackingArea(NSTrackingArea(
+        if let area = cursorTrackingArea { removeTrackingArea(area) }
+        let area = NSTrackingArea(
             rect: bounds,
             options: [.cursorUpdate, .activeAlways, .inVisibleRect],
             owner: self
-        ))
+        )
+        addTrackingArea(area)
+        cursorTrackingArea = area
     }
 
     override func cursorUpdate(with event: NSEvent) {

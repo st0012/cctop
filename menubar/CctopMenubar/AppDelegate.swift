@@ -27,8 +27,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
+    private enum PanelPositionKeys {
+        static let originX = "panelCustomX"
+        static let topY = "panelCustomTopY"
+    }
+
     private var hasCustomPanelPosition: Bool {
-        UserDefaults.standard.object(forKey: "panelCustomX") != nil
+        UserDefaults.standard.object(forKey: PanelPositionKeys.originX) != nil
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -122,8 +127,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         nc.addObserver(
             forName: .panelDragEnded, object: nil, queue: .main
         ) { [weak self] notification in
-            guard let originX = notification.userInfo?["x"] as? CGFloat,
-                  let topY = notification.userInfo?["topY"] as? CGFloat else { return }
+            guard let originX = notification.userInfo?[PanelDragKeys.originX] as? CGFloat,
+                  let topY = notification.userInfo?[PanelDragKeys.topY] as? CGFloat else { return }
             self?.saveCustomPanelPosition(originX: originX, topY: topY)
         }
         nc.addObserver(
@@ -231,20 +236,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     // MARK: - Custom panel position
 
     private func saveCustomPanelPosition(originX: CGFloat, topY: CGFloat) {
-        UserDefaults.standard.set(originX, forKey: "panelCustomX")
-        UserDefaults.standard.set(topY, forKey: "panelCustomTopY")
+        UserDefaults.standard.set(originX, forKey: PanelPositionKeys.originX)
+        UserDefaults.standard.set(topY, forKey: PanelPositionKeys.topY)
     }
 
     private func clearCustomPanelPosition() {
-        UserDefaults.standard.removeObject(forKey: "panelCustomX")
-        UserDefaults.standard.removeObject(forKey: "panelCustomTopY")
+        UserDefaults.standard.removeObject(forKey: PanelPositionKeys.originX)
+        UserDefaults.standard.removeObject(forKey: PanelPositionKeys.topY)
     }
 
     private func savedPanelPosition() -> (originX: CGFloat, topY: CGFloat)? {
-        guard hasCustomPanelPosition else { return nil }
-        let originX = CGFloat(UserDefaults.standard.double(forKey: "panelCustomX"))
-        let topY = CGFloat(UserDefaults.standard.double(forKey: "panelCustomTopY"))
-        return (originX: originX, topY: topY)
+        guard let originX = UserDefaults.standard.object(forKey: PanelPositionKeys.originX) as? Double else {
+            return nil
+        }
+        let topY = UserDefaults.standard.double(forKey: PanelPositionKeys.topY)
+        return (originX: CGFloat(originX), topY: CGFloat(topY))
     }
 
     func userNotificationCenter(
@@ -317,8 +323,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     ) -> (originX: CGFloat, topY: CGFloat) {
         let point = NSPoint(x: originX, y: topY)
         let panelRect = NSRect(x: originX, y: topY - height, width: width, height: height)
-        let screen = NSScreen.screens.first { $0.frame.contains(point) }
-                     ?? NSScreen.screens.first { $0.visibleFrame.intersects(panelRect) }
+        let screens = NSScreen.screens
+        let screen = screens.first { $0.frame.contains(point) }
+                     ?? screens.first { $0.visibleFrame.intersects(panelRect) }
                      ?? NSScreen.main
         guard let vf = screen?.visibleFrame else { return (originX, topY) }
         let margin: CGFloat = 4
