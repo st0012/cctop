@@ -27,6 +27,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
+    private var hasCustomPanelPosition: Bool {
+        UserDefaults.standard.object(forKey: "panelCustomX") != nil
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
         installHookBinaryIfNeeded()
@@ -114,6 +118,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             forName: .notchPillClicked, object: nil, queue: .main
         ) { [weak self] _ in
             self?.togglePanel()
+        }
+        nc.addObserver(
+            forName: .panelDragEnded, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let originX = notification.userInfo?["x"] as? CGFloat,
+                  let topY = notification.userInfo?["topY"] as? CGFloat else { return }
+            self?.saveCustomPanelPosition(originX: originX, topY: topY)
+        }
+        nc.addObserver(
+            forName: .resetPanelPosition, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.clearCustomPanelPosition()
+            self?.positionPanelAtAnchor(animate: true)
         }
     }
 
@@ -211,6 +228,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
+    // MARK: - Custom panel position
+
+    private func saveCustomPanelPosition(originX: CGFloat, topY: CGFloat) {
+        UserDefaults.standard.set(originX, forKey: "panelCustomX")
+        UserDefaults.standard.set(topY, forKey: "panelCustomTopY")
+    }
+
+    private func clearCustomPanelPosition() {
+        UserDefaults.standard.removeObject(forKey: "panelCustomX")
+        UserDefaults.standard.removeObject(forKey: "panelCustomTopY")
+    }
+
+    private func savedPanelPosition() -> (originX: CGFloat, topY: CGFloat)? {
+        guard hasCustomPanelPosition else { return nil }
+        let originX = CGFloat(UserDefaults.standard.double(forKey: "panelCustomX"))
+        let topY = CGFloat(UserDefaults.standard.double(forKey: "panelCustomTopY"))
+        return (originX: originX, topY: topY)
+    }
+
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
@@ -234,6 +270,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @MainActor private func positionPanel(animate: Bool = false) {
+        if let saved = savedPanelPosition(), let (width, height) = panelFittingSize() {
+            let clamped = clampToScreen(
+                originX: saved.originX, topY: saved.topY,
+                width: width, height: height
+            )
+            let newFrame = NSRect(
+                x: clamped.originX, y: clamped.topY - height,
+                width: width, height: height
+            )
+            setPanelFrame(newFrame, animate: animate)
+        } else {
+            positionPanelAtAnchor(animate: animate)
+        }
+    }
+
+    @MainActor private func positionPanelAtAnchor(animate: Bool = false) {
         guard let (width, height) = panelFittingSize() else { return }
 
         // Use the notch pill position when the menubar icon is hidden behind the notch
@@ -260,6 +312,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         setPanelFrame(newFrame, animate: animate)
     }
 
+    private func clampToScreen(
+        originX: CGFloat, topY: CGFloat, width: CGFloat, height: CGFloat
+    ) -> (originX: CGFloat, topY: CGFloat) {
+        let point = NSPoint(x: originX, y: topY)
+        let panelRect = NSRect(x: originX, y: topY - height, width: width, height: height)
+        let screen = NSScreen.screens.first { $0.frame.contains(point) }
+                     ?? NSScreen.screens.first { $0.visibleFrame.intersects(panelRect) }
+                     ?? NSScreen.main
+        guard let vf = screen?.visibleFrame else { return (originX, topY) }
+        let margin: CGFloat = 4
+        let clampedX = max(vf.minX + margin, min(originX, vf.maxX - width - margin))
+        let clampedTopY = max(vf.minY + height + margin, min(topY, vf.maxY - margin))
+        return (clampedX, clampedTopY)
+    }
+
     @MainActor private func handleScreenChange() {
         screenChangeWork?.cancel()
         suppressResize = true
@@ -270,6 +337,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             self.refreshStatusDisplay(counts: StatusCounts(sessions: self.sessionManager.sessions))
             guard self.panel.isVisible else { return }
             self.positionPanel(animate: false)
+            // Update saved position if it was clamped to new screen bounds
+            if self.hasCustomPanelPosition {
+                let frame = self.panel.frame
+                self.saveCustomPanelPosition(originX: frame.origin.x, topY: frame.maxY)
+            }
         }
         screenChangeWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
@@ -279,7 +351,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard !suppressResize else { return }
         guard let (width, height) = panelFittingSize() else { return }
         let oldFrame = panel.frame
-        let newFrame = NSRect(x: oldFrame.midX - width / 2, y: oldFrame.maxY - height, width: width, height: height)
+        let newFrame: NSRect
+        if hasCustomPanelPosition {
+            // Keep top-left corner stable
+            newFrame = NSRect(
+                x: oldFrame.origin.x, y: oldFrame.maxY - height,
+                width: width, height: height
+            )
+        } else {
+            // Keep midX centered, top edge stable
+            newFrame = NSRect(
+                x: oldFrame.midX - width / 2, y: oldFrame.maxY - height,
+                width: width, height: height
+            )
+        }
         setPanelFrame(newFrame, animate: animate)
     }
 
