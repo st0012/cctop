@@ -25,6 +25,7 @@ const KEY_MAP = { filePath: "file_path" };
 
 function findHookBinary() {
   const candidates = [
+    join(homedir(), ".cctop/bin/cctop-hook"),
     "/Applications/cctop.app/Contents/MacOS/cctop-hook",
     join(homedir(), "Applications/cctop.app/Contents/MacOS/cctop-hook"),
   ];
