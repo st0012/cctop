@@ -19,6 +19,8 @@ Works with your existing editor and terminal. No IDE needed, no workflow changes
 
 **Jump directly to any session.** Click a session card to raise its VS Code, Cursor, or iTerm2 window — or stay on the keyboard. Arrow keys to browse, Enter to jump, Tab to switch tabs.
 
+**Draggable panel.** Drag the header to reposition the panel anywhere on screen — position persists across launches. Double-click the header to snap back to the default menubar anchor.
+
 **Navigate mode.** Hit a global hotkey to overlay numbered badges (1–9) on every session card, then press the number to jump instantly.
 
 <p align="center">
