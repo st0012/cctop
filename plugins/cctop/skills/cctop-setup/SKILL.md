@@ -28,8 +28,7 @@ If not found, the user needs to install cctop.app.
 
 **Option A: Homebrew (recommended)**
 ```bash
-brew tap st0012/cctop
-brew install --cask cctop
+brew install --cask st0012/cctop/cctop
 ```
 
 **Option B: Download from GitHub**

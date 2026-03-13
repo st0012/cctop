@@ -59,8 +59,7 @@ Switch themes in Settings > Appearance > Color.
 **Homebrew:**
 
 ```bash
-brew tap st0012/cctop
-brew install --cask cctop
+brew install --cask st0012/cctop/cctop
 ```
 
 Or [download the latest release](https://github.com/st0012/cctop/releases/latest) — the app is signed and notarized by Apple.
