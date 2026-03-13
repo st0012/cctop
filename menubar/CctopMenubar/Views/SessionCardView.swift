@@ -36,7 +36,7 @@ struct SessionCardView: View {
                         let count = session.subagentCount
                         Text("\(count) agent\(count == 1 ? "" : "s")")
                             .font(.system(size: 10))
-                            .foregroundStyle(.purple.opacity(0.7))
+                            .foregroundStyle(Color.agentBadge)
                     }
 
                     if showSourceBadge {

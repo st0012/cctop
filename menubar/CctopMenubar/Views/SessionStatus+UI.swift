@@ -3,11 +3,17 @@ import SwiftUI
 extension SessionStatus {
     var color: Color {
         switch self {
-        case .waitingPermission: return .red
+        case .waitingPermission: return Color.amber
         case .waitingInput, .needsAttention: return Color.amber
         case .working: return Color.statusGreen
-        case .compacting: return .purple
-        case .idle: return .gray
+        case .compacting:
+            return Color(nsColor: NSColor(name: nil) { appearance in
+                ThemeManager.shared.current.agentBadge.resolve(appearance)
+            })
+        case .idle:
+            return Color(nsColor: NSColor(name: nil) { appearance in
+                ThemeManager.shared.current.statusIdle.resolve(appearance)
+            })
         }
     }
 

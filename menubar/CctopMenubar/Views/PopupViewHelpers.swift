@@ -18,8 +18,8 @@ struct CardSelectionStyle: ViewModifier {
     }
 
     private var backgroundColor: Color {
-        if isSelected { return Color.primary.opacity(0.12) }
-        if isHovered { return Color.primary.opacity(0.07) }
+        if isSelected { return Color.textPrimary.opacity(0.12) }
+        if isHovered { return Color.textPrimary.opacity(0.07) }
         return .clear
     }
 }
@@ -65,12 +65,12 @@ struct TabButtonView: View {
                     .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
-                    .background(isSelected ? Color.primary.opacity(0.12) : Color.primary.opacity(0.05))
+                    .background(isSelected ? Color.textPrimary.opacity(0.12) : Color.textPrimary.opacity(0.05))
                     .clipShape(RoundedRectangle(cornerRadius: 4))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(isSelected || isHovered ? Color.primary.opacity(0.1) : Color.clear)
+            .background(isSelected || isHovered ? Color.textPrimary.opacity(0.1) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
@@ -87,6 +87,7 @@ struct PanelContentView: View {
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @ObservedObject var navigate: NavigateController
+    @ObservedObject private var themeManager = ThemeManager.shared
 
     var body: some View {
         PopupView(
@@ -99,6 +100,7 @@ struct PanelContentView: View {
         .frame(width: 320)
         .background(Color.panelBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        .id(themeManager.themeId)
     }
 }
 

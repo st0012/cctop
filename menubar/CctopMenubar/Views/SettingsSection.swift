@@ -49,8 +49,8 @@ private struct SegmentButton: View {
     }
 
     private var backgroundColor: Color {
-        if isSelected { return Color.primary.opacity(0.1) }
-        if isHovered { return Color.primary.opacity(0.05) }
+        if isSelected { return Color.textPrimary.opacity(0.1) }
+        if isHovered { return Color.textPrimary.opacity(0.05) }
         return .clear
     }
 }
@@ -68,7 +68,7 @@ struct ShortcutBadge: View {
                     .foregroundStyle(isHovered ? Color.segmentActiveText : Color.textSecondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.primary.opacity(isHovered ? 0.12 : 0.08))
+                    .background(Color.textPrimary.opacity(isHovered ? 0.12 : 0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 3))
             } else {
                 Text("Record Shortcut")
@@ -88,6 +88,7 @@ struct ShortcutBadge: View {
 struct SettingsSection: View {
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
+    @ObservedObject private var themeManager = ThemeManager.shared
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -109,14 +110,14 @@ struct SettingsSection: View {
             Divider().padding(.horizontal, 8)
 
             sectionHeader("Appearance")
-            settingsRow("Theme") {
-                AmberSegmentedPicker(
-                    options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) },
-                    selection: $appearanceMode
-                )
+            settingsRow("Color") {
+                let binding = Binding(get: { themeManager.current }, set: { themeManager.setTheme($0) })
+                AmberSegmentedPicker(options: AppTheme.allCases.map { ($0, $0.displayName) }, selection: binding)
+            }
+            settingsRow("Mode") {
+                AmberSegmentedPicker(options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) }, selection: $appearanceMode)
             }
             Divider().padding(.horizontal, 8)
-
             sectionHeader("Shortcuts")
             settingsRow("Toggle Panel") {
                 ShortcutBadge(name: .togglePanel)
@@ -318,11 +319,8 @@ private struct MonitoredToolsView: View {
     private var installPluginButton: some View {
         Button {
             if pluginManager.installOpenCodePlugin() {
-                justInstalled = true
-                installFailed = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    justInstalled = false
-                }
+                justInstalled = true; installFailed = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { justInstalled = false }
             } else {
                 flashFailed()
             }
@@ -340,9 +338,7 @@ private struct MonitoredToolsView: View {
 
     private func flashFailed() {
         installFailed = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            installFailed = false
-        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { installFailed = false }
     }
 
     private func toolRow(name: String, installed: Bool) -> some View {
@@ -392,23 +388,12 @@ private struct MonitoredToolsView: View {
     pm.ocConfigExists = ocConfig
     return pm
 }
-#Preview("Default") {
-    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding()
-}
-#Preview("Update available") {
-    let up = DisabledUpdater(); up.pendingUpdateVersion = "0.7.0"
-    return SettingsSection(updater: up, pluginManager: previewPM()).frame(width: 320).padding()
-}
-#Preview("OC detected") {
-    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(ocConfig: true)).frame(width: 320).padding()
-}
+#Preview("Default") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }
+#Preview("Update available") { let up = DisabledUpdater(); up.pendingUpdateVersion = "0.7.0"
+    return SettingsSection(updater: up, pluginManager: previewPM()).frame(width: 320).padding() }
+#Preview("OC detected") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(ocConfig: true)).frame(width: 320).padding() }
 #Preview("Both connected") {
-    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true)).frame(width: 320).padding()
-}
-#Preview("Sparkle: update available") {
-    let mock = MockUpdater(); mock.pendingUpdateVersion = "0.7.0"
-    return SettingsSection(updater: mock, pluginManager: previewPM()).frame(width: 320).padding()
-}
-#Preview("Sparkle: up to date") {
-    SettingsSection(updater: MockUpdater(), pluginManager: previewPM()).frame(width: 320).padding()
-}
+    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true)).frame(width: 320).padding() }
+#Preview("Sparkle: update available") { let mu = MockUpdater(); mu.pendingUpdateVersion = "0.7.0"
+    return SettingsSection(updater: mu, pluginManager: previewPM()).frame(width: 320).padding() }
+#Preview("Sparkle: up to date") { SettingsSection(updater: MockUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }

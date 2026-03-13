@@ -283,7 +283,7 @@ extension PopupView {
                 .frame(width: 28, height: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.primary.opacity(gearHovered ? 0.1 : 0))
+                        .fill(Color.textPrimary.opacity(gearHovered ? 0.1 : 0))
                 )
                 .overlay(alignment: .topTrailing) {
                     if updater.pendingUpdateVersion != nil && activeOverlay != .settings {

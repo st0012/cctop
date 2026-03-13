@@ -165,7 +165,7 @@ struct EmptyStateView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(Color.primary.opacity(0.04))
+        .background(Color.textPrimary.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 

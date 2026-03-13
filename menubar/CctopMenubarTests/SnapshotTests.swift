@@ -33,6 +33,23 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-recent.png")
     }
 
+    /// Generates theme showcase screenshots for all 4 themes in both dark and light modes.
+    ///
+    /// Run with:
+    ///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
+    ///     -only-testing:CctopMenubarTests/SnapshotTests/testGenerateThemeScreenshots \
+    ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+    func testGenerateThemeScreenshots() throws {
+        for theme in AppTheme.allCases {
+            ThemeManager.shared.setTheme(theme)
+            let view = PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater())
+            try renderScreenshot(view: view, colorScheme: .dark, filename: "theme-\(theme.rawValue)-dark.png")
+            try renderScreenshot(view: view, colorScheme: .light, filename: "theme-\(theme.rawValue)-light.png")
+        }
+        // Restore default
+        ThemeManager.shared.setTheme(.claude)
+    }
+
     private func renderScreenshot(
         view: some View, colorScheme: ColorScheme, filename: String, width: CGFloat = 320
     ) throws {

@@ -48,6 +48,16 @@ Works with your existing editor and terminal. No IDE needed, no workflow changes
 
 Works with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and [opencode](https://opencode.ai).
 
+### Themes
+
+Four color schemes inspired by beloved developer tools — each with dark and light variants.
+
+| Claude | Tokyo Night | Gruvbox | Nord |
+|:------:|:-----------:|:-------:|:----:|
+| <img src="docs/theme-claude-dark.png" width="180"> | <img src="docs/theme-tokyoNight-dark.png" width="180"> | <img src="docs/theme-gruvbox-dark.png" width="180"> | <img src="docs/theme-nord-dark.png" width="180"> |
+
+Switch themes in Settings > Appearance > Color.
+
 ## Installation
 
 ### Step 1: Install the app
