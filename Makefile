@@ -25,6 +25,7 @@ clean:
 install:
 	xcodebuild build -project $(PROJECT) -scheme cctop-hook -configuration Release -derivedDataPath $(DERIVED) $(SIGN)
 	mkdir -p ~/.cctop/bin
+	rm -f ~/.cctop/bin/cctop-hook
 	cp $(DERIVED)/Build/Products/Release/cctop-hook ~/.cctop/bin/cctop-hook
 
 run: build
