@@ -47,6 +47,7 @@ private func focusITerm2Session(sessionId: String?) -> Bool {
                     tell t
                         repeat with s in sessions
                             if (unique id of s) is equal to "\(guid)" then
+                                set miniaturized of w to false
                                 set index of w to 1
                                 select t
                                 tell s to select
