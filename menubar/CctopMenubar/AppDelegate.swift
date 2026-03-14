@@ -135,7 +135,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             forName: .resetPanelPosition, object: nil, queue: .main
         ) { [weak self] _ in
             self?.clearCustomPanelPosition()
-            self?.positionPanelAtAnchor(animate: true)
+            self?.resetPanelToCurrentScreen(animate: true)
         }
     }
 
@@ -291,28 +291,52 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
-    @MainActor private func positionPanelAtAnchor(animate: Bool = false) {
+    /// The screen-space rect of the anchor (notch pill or menubar icon).
+    @MainActor private func anchorRect() -> NSRect? {
+        if let pillFrame = notchController.pillFrame {
+            return pillFrame
+        } else if let button = statusItem.button, let buttonWindow = button.window {
+            return buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        }
+        return nil
+    }
+
+    /// Reset panel position on double-click. If the panel is on the same screen
+    /// as the anchor (menubar icon / notch pill), snap to anchor. Otherwise, snap
+    /// to the top-center of the panel's current screen so it doesn't jump across screens.
+    @MainActor private func resetPanelToCurrentScreen(animate: Bool = false) {
         guard let (width, height) = panelFittingSize() else { return }
 
-        // Use the notch pill position when the menubar icon is hidden behind the notch
-        let anchorRect: NSRect
-        if let pillFrame = notchController.pillFrame {
-            anchorRect = pillFrame
-        } else if let button = statusItem.button, let buttonWindow = button.window {
-            anchorRect = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
-        } else {
+        let anchorScreen = anchorRect().flatMap { rect in
+            NSScreen.screens.first { $0.frame.contains(rect.origin) }
+        }
+        let panelScreen = panel.screen ?? NSScreen.main
+
+        if anchorScreen == panelScreen {
+            positionPanelAtAnchor(animate: animate)
             return
         }
+        guard let vf = panelScreen?.visibleFrame else {
+            positionPanelAtAnchor(animate: animate)
+            return
+        }
+        let panelX = max(vf.minX + 4, min(vf.midX - width / 2, vf.maxX - width - 4))
+        let newFrame = NSRect(x: panelX, y: vf.maxY - 4 - height, width: width, height: height)
+        setPanelFrame(newFrame, animate: animate)
+    }
 
-        var panelX = anchorRect.midX - width / 2
-        // Clamp to the screen that contains the anchor (pill or menubar icon)
-        let anchorScreen = NSScreen.screens.first { $0.frame.contains(anchorRect.origin) }
+    @MainActor private func positionPanelAtAnchor(animate: Bool = false) {
+        guard let (width, height) = panelFittingSize(),
+              let anchor = anchorRect() else { return }
+
+        var panelX = anchor.midX - width / 2
+        let anchorScreen = NSScreen.screens.first { $0.frame.contains(anchor.origin) }
         if let visibleFrame = (anchorScreen ?? NSScreen.main)?.visibleFrame {
             panelX = max(visibleFrame.minX + 4, min(panelX, visibleFrame.maxX - width - 4))
         }
 
         let newFrame = NSRect(
-            x: panelX, y: anchorRect.minY - height - 4,
+            x: panelX, y: anchor.minY - height - 4,
             width: width, height: height
         )
         setPanelFrame(newFrame, animate: animate)
