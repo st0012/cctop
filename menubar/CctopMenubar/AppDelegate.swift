@@ -24,6 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var suppressResize = false
     private var lastRenderedCounts: StatusCounts?
     private var hasNotch = false
+    private var clickLocation: NSPoint?
     private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
@@ -190,6 +191,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @MainActor @objc private func togglePanel() {
+        clickLocation = NSEvent.mouseLocation
         handleEvent(.menubarIconClicked(appIsActive: NSApp.isActive))
     }
 
@@ -277,6 +279,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     @MainActor private func positionPanel(animate: Bool = false) {
         if let saved = savedPanelPosition(), let (width, height) = panelFittingSize() {
+            // If clicked on a different screen than the saved position, ignore saved position
+            if let loc = clickLocation,
+               let clickScreen = NSScreen.screens.first(where: { NSMouseInRect(loc, $0.frame, false) }) {
+                let savedPoint = NSPoint(x: saved.originX, y: saved.topY)
+                if !clickScreen.frame.contains(savedPoint) {
+                    positionPanelAtAnchor(animate: animate)
+                    return
+                }
+            }
             let clamped = clampToScreen(
                 originX: saved.originX, topY: saved.topY,
                 width: width, height: height
@@ -326,12 +337,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @MainActor private func positionPanelAtAnchor(animate: Bool = false) {
-        guard let (width, height) = panelFittingSize(),
-              let anchor = anchorRect() else { return }
+        guard let (width, height) = panelFittingSize() else { return }
+
+        let anchor: NSRect
+        let targetScreen: NSScreen?
+
+        if let buttonAnchor = anchorRect() {
+            let anchorScreen = NSScreen.screens.first { $0.frame.contains(buttonAnchor.origin) }
+            let clickScreen = clickLocation.flatMap { loc in
+                NSScreen.screens.first { NSMouseInRect(loc, $0.frame, false) }
+            }
+            if let click = clickScreen, click != anchorScreen, let loc = clickLocation {
+                // Clicked on a different screen — synthesize anchor at the click X position
+                anchor = NSRect(
+                    x: loc.x - 10, y: click.visibleFrame.maxY - 22,
+                    width: 20, height: 22
+                )
+                targetScreen = click
+            } else {
+                anchor = buttonAnchor
+                targetScreen = anchorScreen
+            }
+        } else {
+            return
+        }
 
         var panelX = anchor.midX - width / 2
-        let anchorScreen = NSScreen.screens.first { $0.frame.contains(anchor.origin) }
-        if let visibleFrame = (anchorScreen ?? NSScreen.main)?.visibleFrame {
+        if let visibleFrame = (targetScreen ?? NSScreen.main)?.visibleFrame {
             panelX = max(visibleFrame.minX + 4, min(panelX, visibleFrame.maxX - width - 4))
         }
 
@@ -448,6 +480,7 @@ extension AppDelegate {
                 // Re-position after SwiftUI layout settles
                 DispatchQueue.main.async { [weak self] in
                     self?.positionPanel()
+                    self?.clickLocation = nil
                 }
             case .dismissPanel:
                 panel.orderOut(nil)
