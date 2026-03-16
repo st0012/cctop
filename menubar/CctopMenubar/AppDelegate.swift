@@ -301,7 +301,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             savedPosition: savedPanelPosition(),
             clickLocation: clickLocation,
             anchorRect: anchorRect(),
-            panelSize: NSSize(width: size.width, height: size.height),
+            panelSize: size,
             screens: screenLayouts
         ) {
             setPanelFrame(frame, animate: animate)
@@ -330,7 +330,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if let frame = PanelPositioning.resolveResetPosition(
             anchorRect: anchorRect(),
             panelScreenIndex: panelIdx,
-            panelSize: NSSize(width: size.width, height: size.height),
+            panelSize: size,
             screens: layouts
         ) {
             setPanelFrame(frame, animate: animate)
@@ -342,7 +342,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if let frame = PanelPositioning.resolveAnchorPosition(
             anchorRect: anchorRect(),
             clickLocation: clickLocation,
-            panelSize: NSSize(width: size.width, height: size.height),
+            panelSize: size,
             screens: screenLayouts
         ) {
             setPanelFrame(frame, animate: animate)
@@ -371,32 +371,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     private func resizePanel(animate: Bool = false) {
         guard !suppressResize else { return }
-        guard let (width, height) = panelFittingSize() else { return }
+        guard let size = panelFittingSize() else { return }
         let oldFrame = panel.frame
         let newFrame: NSRect
         if hasCustomPanelPosition {
             // Keep top-left corner stable
             newFrame = NSRect(
-                x: oldFrame.origin.x, y: oldFrame.maxY - height,
-                width: width, height: height
+                x: oldFrame.origin.x, y: oldFrame.maxY - size.height,
+                width: size.width, height: size.height
             )
         } else {
             // Keep midX centered, top edge stable
             newFrame = NSRect(
-                x: oldFrame.midX - width / 2, y: oldFrame.maxY - height,
-                width: width, height: height
+                x: oldFrame.midX - size.width / 2, y: oldFrame.maxY - size.height,
+                width: size.width, height: size.height
             )
         }
         setPanelFrame(newFrame, animate: animate)
     }
 
-    private func panelFittingSize() -> (width: CGFloat, height: CGFloat)? {
+    private func panelFittingSize() -> NSSize? {
         panel.contentView?.layout()
         guard let size = panel.contentView?.fittingSize else { return nil }
-        return (max(size.width, 320), min(size.height, 600))
+        return NSSize(width: max(size.width, 320), height: min(size.height, 600))
     }
 
     private func setPanelFrame(_ frame: NSRect, animate: Bool) {
+        guard panel.frame != frame else { return }
         if animate {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.2
@@ -443,6 +444,7 @@ extension AppDelegate {
                 }
             case .dismissPanel:
                 panel.orderOut(nil)
+                clickLocation = nil
                 previousApp = nil
                 stopNavKeyMonitor()
                 updateNotchVisibility(immediate: true)

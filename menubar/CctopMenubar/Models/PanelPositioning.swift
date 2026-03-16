@@ -134,31 +134,25 @@ enum PanelPositioning {
     ) -> NSRect? {
         let anchorIdx = anchorRect.flatMap { screenIndex(containing: $0.origin, in: screens) }
 
-        if anchorIdx == panelScreenIndex {
-            return resolveAnchorPosition(
-                anchorRect: anchorRect,
-                clickLocation: nil,
-                panelSize: panelSize,
-                screens: screens
+        // Center on panel's screen if it differs from the anchor screen
+        if let pIdx = panelScreenIndex, pIdx < screens.count, anchorIdx != pIdx {
+            let vf = screens[pIdx].visibleFrame
+            let panelX = max(
+                vf.minX + margin,
+                min(vf.midX - panelSize.width / 2, vf.maxX - panelSize.width - margin)
+            )
+            return NSRect(
+                x: panelX, y: vf.maxY - margin - panelSize.height,
+                width: panelSize.width, height: panelSize.height
             )
         }
 
-        guard let pIdx = panelScreenIndex, pIdx < screens.count else {
-            return resolveAnchorPosition(
-                anchorRect: anchorRect,
-                clickLocation: nil,
-                panelSize: panelSize,
-                screens: screens
-            )
-        }
-        let vf = screens[pIdx].visibleFrame
-        let panelX = max(
-            vf.minX + margin,
-            min(vf.midX - panelSize.width / 2, vf.maxX - panelSize.width - margin)
-        )
-        return NSRect(
-            x: panelX, y: vf.maxY - margin - panelSize.height,
-            width: panelSize.width, height: panelSize.height
+        // Same screen as anchor, or no valid panel screen → snap to anchor
+        return resolveAnchorPosition(
+            anchorRect: anchorRect,
+            clickLocation: nil,
+            panelSize: panelSize,
+            screens: screens
         )
     }
 }

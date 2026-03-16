@@ -2,7 +2,7 @@ PROJECT = menubar/CctopMenubar.xcodeproj
 DERIVED = menubar/build
 SIGN = CODE_SIGN_IDENTITY="-"
 
-.PHONY: all build test lint clean install run
+.PHONY: all build test lint clean install run restart
 
 all: lint build test
 
@@ -29,4 +29,9 @@ install:
 	cp $(DERIVED)/Build/Products/Release/cctop-hook ~/.cctop/bin/cctop-hook
 
 run: build
+	open $(DERIVED)/Build/Products/Debug/CctopMenubar.app
+
+restart: build
+	-pkill -x CctopMenubar
+	sleep 0.5
 	open $(DERIVED)/Build/Products/Debug/CctopMenubar.app
