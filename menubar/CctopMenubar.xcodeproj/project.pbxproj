@@ -84,6 +84,8 @@
 		SCT000010000000000000001 /* StatusCountsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCT000020000000000000001 /* StatusCountsTests.swift */; };
 		HVT000010000000000000001 /* StatusCountsSessionInitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HVT000020000000000000001 /* StatusCountsSessionInitTests.swift */; };
 		NVT000010000000000000001 /* NotchVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NVT000020000000000000001 /* NotchVisibilityTests.swift */; };
+		PPO000010000000000000001 /* PanelPositioning.swift in Sources */ = {isa = PBXBuildFile; fileRef = PPO000020000000000000001 /* PanelPositioning.swift */; };
+		PPT000010000000000000001 /* PanelPositioningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PPT000020000000000000001 /* PanelPositioningTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -168,6 +170,8 @@
 		SCT000020000000000000001 /* StatusCountsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCountsTests.swift; sourceTree = "<group>"; };
 		HVT000020000000000000001 /* StatusCountsSessionInitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCountsSessionInitTests.swift; sourceTree = "<group>"; };
 		NVT000020000000000000001 /* NotchVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchVisibilityTests.swift; sourceTree = "<group>"; };
+		PPO000020000000000000001 /* PanelPositioning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPositioning.swift; sourceTree = "<group>"; };
+		PPT000020000000000000001 /* PanelPositioningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPositioningTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -273,6 +277,7 @@
 				EK0000020000000000000001 /* HostApp.swift */,
 				STC000020000000000000001 /* StatusColors.swift */,
 				SCN000020000000000000001 /* StatusCounts.swift */,
+				PPO000020000000000000001 /* PanelPositioning.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -334,6 +339,7 @@
 				SCT000020000000000000001 /* StatusCountsTests.swift */,
 				HVT000020000000000000001 /* StatusCountsSessionInitTests.swift */,
 				NVT000020000000000000001 /* NotchVisibilityTests.swift */,
+				PPT000020000000000000001 /* PanelPositioningTests.swift */,
 			);
 			path = CctopMenubarTests;
 			sourceTree = "<group>";
@@ -498,6 +504,7 @@
 				NSC000010000000000000001 /* NotchStatusController.swift in Sources */,
 				STC000010000000000000001 /* StatusColors.swift in Sources */,
 				SCN000010000000000000001 /* StatusCounts.swift in Sources */,
+				PPO000010000000000000001 /* PanelPositioning.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -541,6 +548,7 @@
 				SCT000010000000000000001 /* StatusCountsTests.swift in Sources */,
 				HVT000010000000000000001 /* StatusCountsSessionInitTests.swift in Sources */,
 				NVT000010000000000000001 /* NotchVisibilityTests.swift in Sources */,
+				PPT000010000000000000001 /* PanelPositioningTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

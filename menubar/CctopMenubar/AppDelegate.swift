@@ -291,28 +291,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound])
     }
 
+    private var screenLayouts: [ScreenLayout] {
+        NSScreen.screens.map { ScreenLayout($0) }
+    }
+
     @MainActor private func positionPanel(animate: Bool = false) {
-        if let saved = savedPanelPosition(), let (width, height) = panelFittingSize() {
-            // If clicked on a different screen than the saved position, ignore saved position
-            if let loc = clickLocation,
-               let clickScreen = NSScreen.screens.first(where: { NSMouseInRect(loc, $0.frame, false) }) {
-                let savedPoint = NSPoint(x: saved.originX, y: saved.topY)
-                if !clickScreen.frame.contains(savedPoint) {
-                    positionPanelAtAnchor(animate: animate)
-                    return
-                }
-            }
-            let clamped = clampToScreen(
-                originX: saved.originX, topY: saved.topY,
-                width: width, height: height
-            )
-            let newFrame = NSRect(
-                x: clamped.originX, y: clamped.topY - height,
-                width: width, height: height
-            )
-            setPanelFrame(newFrame, animate: animate)
-        } else {
-            positionPanelAtAnchor(animate: animate)
+        guard let size = panelFittingSize() else { return }
+        if let frame = PanelPositioning.resolveShowPosition(
+            savedPosition: savedPanelPosition(),
+            clickLocation: clickLocation,
+            anchorRect: anchorRect(),
+            panelSize: NSSize(width: size.width, height: size.height),
+            screens: screenLayouts
+        ) {
+            setPanelFrame(frame, animate: animate)
         }
     }
 
@@ -330,78 +322,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     /// as the anchor (menubar icon / notch pill), snap to anchor. Otherwise, snap
     /// to the top-center of the panel's current screen so it doesn't jump across screens.
     @MainActor private func resetPanelToCurrentScreen(animate: Bool = false) {
-        guard let (width, height) = panelFittingSize() else { return }
-
-        let anchorScreen = anchorRect().flatMap { rect in
-            NSScreen.screens.first { $0.frame.contains(rect.origin) }
+        guard let size = panelFittingSize() else { return }
+        let layouts = screenLayouts
+        let panelIdx = (panel.screen ?? NSScreen.main).flatMap { screen in
+            layouts.firstIndex { $0.frame == ScreenLayout(screen).frame }
         }
-        let panelScreen = panel.screen ?? NSScreen.main
-
-        if anchorScreen == panelScreen {
-            positionPanelAtAnchor(animate: animate)
-            return
+        if let frame = PanelPositioning.resolveResetPosition(
+            anchorRect: anchorRect(),
+            panelScreenIndex: panelIdx,
+            panelSize: NSSize(width: size.width, height: size.height),
+            screens: layouts
+        ) {
+            setPanelFrame(frame, animate: animate)
         }
-        guard let vf = panelScreen?.visibleFrame else {
-            positionPanelAtAnchor(animate: animate)
-            return
-        }
-        let panelX = max(vf.minX + 4, min(vf.midX - width / 2, vf.maxX - width - 4))
-        let newFrame = NSRect(x: panelX, y: vf.maxY - 4 - height, width: width, height: height)
-        setPanelFrame(newFrame, animate: animate)
     }
 
     @MainActor private func positionPanelAtAnchor(animate: Bool = false) {
-        guard let (width, height) = panelFittingSize() else { return }
-
-        let anchor: NSRect
-        let targetScreen: NSScreen?
-
-        if let buttonAnchor = anchorRect() {
-            let anchorScreen = NSScreen.screens.first { $0.frame.contains(buttonAnchor.origin) }
-            let clickScreen = clickLocation.flatMap { loc in
-                NSScreen.screens.first { NSMouseInRect(loc, $0.frame, false) }
-            }
-            if let click = clickScreen, click != anchorScreen, let loc = clickLocation {
-                // Clicked on a different screen — synthesize anchor at the click X position
-                anchor = NSRect(
-                    x: loc.x - 10, y: click.visibleFrame.maxY - 22,
-                    width: 20, height: 22
-                )
-                targetScreen = click
-            } else {
-                anchor = buttonAnchor
-                targetScreen = anchorScreen
-            }
-        } else {
-            return
+        guard let size = panelFittingSize() else { return }
+        if let frame = PanelPositioning.resolveAnchorPosition(
+            anchorRect: anchorRect(),
+            clickLocation: clickLocation,
+            panelSize: NSSize(width: size.width, height: size.height),
+            screens: screenLayouts
+        ) {
+            setPanelFrame(frame, animate: animate)
         }
-
-        var panelX = anchor.midX - width / 2
-        if let visibleFrame = (targetScreen ?? NSScreen.main)?.visibleFrame {
-            panelX = max(visibleFrame.minX + 4, min(panelX, visibleFrame.maxX - width - 4))
-        }
-
-        let newFrame = NSRect(
-            x: panelX, y: anchor.minY - height - 4,
-            width: width, height: height
-        )
-        setPanelFrame(newFrame, animate: animate)
-    }
-
-    private func clampToScreen(
-        originX: CGFloat, topY: CGFloat, width: CGFloat, height: CGFloat
-    ) -> (originX: CGFloat, topY: CGFloat) {
-        let point = NSPoint(x: originX, y: topY)
-        let panelRect = NSRect(x: originX, y: topY - height, width: width, height: height)
-        let screens = NSScreen.screens
-        let screen = screens.first { $0.frame.contains(point) }
-                     ?? screens.first { $0.visibleFrame.intersects(panelRect) }
-                     ?? NSScreen.main
-        guard let vf = screen?.visibleFrame else { return (originX, topY) }
-        let margin: CGFloat = 4
-        let clampedX = max(vf.minX + margin, min(originX, vf.maxX - width - margin))
-        let clampedTopY = max(vf.minY + height + margin, min(topY, vf.maxY - margin))
-        return (clampedX, clampedTopY)
     }
 
     @MainActor private func handleScreenChange() {
