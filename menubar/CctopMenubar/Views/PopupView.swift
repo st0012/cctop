@@ -112,6 +112,7 @@ struct PopupView: View {
                     EmptyStateView(pluginManager: pluginManager)
                 }
             } else {
+                VStack(spacing: 0) {
                 if showOcBanner {
                     OpenCodeBanner(
                         pluginManager: pluginManager,
@@ -159,6 +160,7 @@ struct PopupView: View {
                             proxy.scrollTo(sortedSessions[idx].id, anchor: .center)
                         }
                     }
+                }
                 }
             }
         }
