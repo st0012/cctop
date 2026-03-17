@@ -5,10 +5,15 @@ import Combine
 class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
 
+    static let defaultsKey = "colorTheme"
+
     @Published private(set) var current: AppTheme
 
-    init() {
-        let saved = UserDefaults.standard.string(forKey: "colorTheme") ?? "claude"
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let saved = defaults.string(forKey: Self.defaultsKey) ?? "claude"
         self.current = AppTheme(rawValue: saved) ?? .claude
     }
 
@@ -16,7 +21,7 @@ class ThemeManager: ObservableObject {
 
     func setTheme(_ theme: AppTheme) {
         current = theme
-        UserDefaults.standard.set(theme.rawValue, forKey: "colorTheme")
-        UserDefaults.standard.synchronize()
+        defaults.set(theme.rawValue, forKey: Self.defaultsKey)
+        defaults.synchronize()
     }
 }

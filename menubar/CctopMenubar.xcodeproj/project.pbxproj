@@ -86,6 +86,7 @@
 		NVT000010000000000000001 /* NotchVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NVT000020000000000000001 /* NotchVisibilityTests.swift */; };
 		PPO000010000000000000001 /* PanelPositioning.swift in Sources */ = {isa = PBXBuildFile; fileRef = PPO000020000000000000001 /* PanelPositioning.swift */; };
 		PPT000010000000000000001 /* PanelPositioningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PPT000020000000000000001 /* PanelPositioningTests.swift */; };
+		TMT000010000000000000001 /* ThemeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TMT000020000000000000001 /* ThemeManagerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -172,6 +173,7 @@
 		NVT000020000000000000001 /* NotchVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchVisibilityTests.swift; sourceTree = "<group>"; };
 		PPO000020000000000000001 /* PanelPositioning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPositioning.swift; sourceTree = "<group>"; };
 		PPT000020000000000000001 /* PanelPositioningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPositioningTests.swift; sourceTree = "<group>"; };
+		TMT000020000000000000001 /* ThemeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManagerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -340,6 +342,7 @@
 				HVT000020000000000000001 /* StatusCountsSessionInitTests.swift */,
 				NVT000020000000000000001 /* NotchVisibilityTests.swift */,
 				PPT000020000000000000001 /* PanelPositioningTests.swift */,
+				TMT000020000000000000001 /* ThemeManagerTests.swift */,
 			);
 			path = CctopMenubarTests;
 			sourceTree = "<group>";
@@ -549,6 +552,7 @@
 				HVT000010000000000000001 /* StatusCountsSessionInitTests.swift in Sources */,
 				NVT000010000000000000001 /* NotchVisibilityTests.swift in Sources */,
 				PPT000010000000000000001 /* PanelPositioningTests.swift in Sources */,
+				TMT000010000000000000001 /* ThemeManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
