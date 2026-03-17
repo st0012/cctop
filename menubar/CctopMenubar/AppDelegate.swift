@@ -109,6 +109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.handleEvent(.appLostFocus)
+            self?.updateNotchVisibility()
         }
         nc.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
@@ -215,11 +216,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
         let counts = lastRenderedCounts ?? .zero
         let show: () -> Void = { [weak self] in
-            guard let self, self.hasNotch, let screen = NSScreen.builtin,
-                  self.isStatusItemOccluded else {
-                self?.notchController.tearDown(); return
+            guard let self else { return }
+            let action = NotchStatusController.resolveVisibility(
+                hasNotch: self.hasNotch,
+                hasBuiltinScreen: NSScreen.builtin != nil,
+                appIsActive: NSApp.isActive,
+                pillExists: self.notchController.pillFrame != nil,
+                statusItemOccluded: self.isStatusItemOccluded
+            )
+            switch action {
+            case .show:
+                if let screen = NSScreen.builtin {
+                    self.notchController.showOnScreen(screen, counts: counts)
+                }
+            case .keep:
+                break
+            case .tearDown:
+                self.notchController.tearDown()
             }
-            self.notchController.showOnScreen(screen, counts: counts)
         }
         guard !immediate else { show(); return }
         let work = DispatchWorkItem(block: show)

@@ -74,4 +74,27 @@ class NotchStatusController {
         panel = nil
         hostingView = nil
     }
+
+    /// Decide whether to show, keep, or tear down the notch pill.
+    nonisolated static func resolveVisibility(
+        hasNotch: Bool,
+        hasBuiltinScreen: Bool,
+        appIsActive: Bool,
+        pillExists: Bool,
+        statusItemOccluded: Bool
+    ) -> NotchPillAction {
+        guard hasNotch, hasBuiltinScreen else { return .tearDown }
+        // When cctop is active, its minimal menubar frees space and
+        // isStatusItemOccluded may return false even though the status
+        // item will be re-occluded once the previous app's menubar returns.
+        // Preserve an existing pill; let the deactivation check decide.
+        if appIsActive, pillExists { return .keep }
+        return statusItemOccluded ? .show : .tearDown
+    }
+}
+
+enum NotchPillAction: Equatable {
+    case show
+    case keep
+    case tearDown
 }

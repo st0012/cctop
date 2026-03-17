@@ -83,6 +83,7 @@
 		MRT000010000000000000001 /* MenubarIconRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MRT000020000000000000001 /* MenubarIconRendererTests.swift */; };
 		SCT000010000000000000001 /* StatusCountsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCT000020000000000000001 /* StatusCountsTests.swift */; };
 		HVT000010000000000000001 /* StatusCountsSessionInitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HVT000020000000000000001 /* StatusCountsSessionInitTests.swift */; };
+		NVT000010000000000000001 /* NotchVisibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = NVT000020000000000000001 /* NotchVisibilityTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -166,6 +167,7 @@
 		MRT000020000000000000001 /* MenubarIconRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarIconRendererTests.swift; sourceTree = "<group>"; };
 		SCT000020000000000000001 /* StatusCountsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCountsTests.swift; sourceTree = "<group>"; };
 		HVT000020000000000000001 /* StatusCountsSessionInitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCountsSessionInitTests.swift; sourceTree = "<group>"; };
+		NVT000020000000000000001 /* NotchVisibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchVisibilityTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -331,6 +333,7 @@
 				MRT000020000000000000001 /* MenubarIconRendererTests.swift */,
 				SCT000020000000000000001 /* StatusCountsTests.swift */,
 				HVT000020000000000000001 /* StatusCountsSessionInitTests.swift */,
+				NVT000020000000000000001 /* NotchVisibilityTests.swift */,
 			);
 			path = CctopMenubarTests;
 			sourceTree = "<group>";
@@ -537,6 +540,7 @@
 				MRT000010000000000000001 /* MenubarIconRendererTests.swift in Sources */,
 				SCT000010000000000000001 /* StatusCountsTests.swift in Sources */,
 				HVT000010000000000000001 /* StatusCountsSessionInitTests.swift in Sources */,
+				NVT000010000000000000001 /* NotchVisibilityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
