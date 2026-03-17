@@ -117,6 +117,9 @@ struct SettingsSection: View {
             settingsRow("Mode") {
                 AmberSegmentedPicker(options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) }, selection: $appearanceMode)
             }
+            .onChange(of: appearanceMode) { _ in
+                UserDefaults.standard.synchronize()
+            }
             Divider().padding(.horizontal, 8)
             sectionHeader("Shortcuts")
             settingsRow("Toggle Panel") {

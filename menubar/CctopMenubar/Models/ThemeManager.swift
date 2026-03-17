@@ -17,5 +17,6 @@ class ThemeManager: ObservableObject {
     func setTheme(_ theme: AppTheme) {
         current = theme
         UserDefaults.standard.set(theme.rawValue, forKey: "colorTheme")
+        UserDefaults.standard.synchronize()
     }
 }
