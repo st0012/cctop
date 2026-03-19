@@ -140,11 +140,12 @@ private struct PanelLifecycle {
     }
 
     /// Simulate resizePanel triggered by session count change.
-    /// Models: AppDelegate.resizePanel with hasCustomPanelPosition check.
+    /// Models: AppDelegate.resizePanel with per-screen hasCustomPanelPosition check.
     mutating func resize(newHeight: CGFloat) {
         guard isVisible, let oldFrame = panelFrame else { return }
         let newSize = NSSize(width: panelSize.width, height: newHeight)
-        if hasCustomPosition {
+        let hasPositionOnCurrentScreen = panelScreenKey.map { savedPositions[$0] != nil } ?? false
+        if hasPositionOnCurrentScreen {
             // Keep top-left corner stable
             panelFrame = NSRect(
                 x: oldFrame.origin.x, y: oldFrame.maxY - newSize.height,

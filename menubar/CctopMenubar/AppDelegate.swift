@@ -35,10 +35,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         static let legacyTopY = "panelCustomTopY"
     }
 
-    private var hasCustomPanelPosition: Bool {
-        !(savedPanelPositions().isEmpty)
-    }
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
         migrateLegacyPanelPosition()
