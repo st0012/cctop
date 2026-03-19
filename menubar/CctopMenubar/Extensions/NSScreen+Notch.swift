@@ -7,9 +7,27 @@ extension NSScreen {
     }
 
     /// The CGDirectDisplayID for this screen, extracted from device description.
-    private var displayID: CGDirectDisplayID {
+    var displayID: CGDirectDisplayID {
         let key = NSDeviceDescriptionKey("NSScreenNumber")
         return deviceDescription[key] as? CGDirectDisplayID ?? 0
+    }
+
+    /// A stable identifier for this physical display that survives reconnects.
+    /// Built-in displays return `"builtin"`. External displays return
+    /// `"vendor-model-serial"` or `"vendor-model-WxH"` if serial is 0.
+    var screenKey: String {
+        let id = displayID
+        if CGDisplayIsBuiltin(id) != 0 { return "builtin" }
+        let vendor = CGDisplayVendorNumber(id)
+        let model = CGDisplayModelNumber(id)
+        let serial = CGDisplaySerialNumber(id)
+        if serial != 0 {
+            return "\(vendor)-\(model)-\(serial)"
+        }
+        let mode = CGDisplayCopyDisplayMode(id)
+        let width = mode?.pixelWidth ?? Int(frame.width)
+        let height = mode?.pixelHeight ?? Int(frame.height)
+        return "\(vendor)-\(model)-\(width)x\(height)"
     }
 
     /// Whether this is the built-in (laptop) display.

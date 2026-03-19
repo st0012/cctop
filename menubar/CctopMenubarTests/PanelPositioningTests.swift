@@ -5,11 +5,13 @@ final class PanelPositioningTests: XCTestCase {
     // Two-screen setup: primary (left), secondary (right)
     let primary = ScreenLayout(
         frame: NSRect(x: 0, y: 0, width: 1920, height: 1080),
-        visibleFrame: NSRect(x: 0, y: 0, width: 1920, height: 1055)
+        visibleFrame: NSRect(x: 0, y: 0, width: 1920, height: 1055),
+        key: "primary"
     )
     let secondary = ScreenLayout(
         frame: NSRect(x: 1920, y: 0, width: 1920, height: 1080),
-        visibleFrame: NSRect(x: 1920, y: 0, width: 1920, height: 1055)
+        visibleFrame: NSRect(x: 1920, y: 0, width: 1920, height: 1055),
+        key: "secondary"
     )
 
     var screens: [ScreenLayout] { [primary, secondary] }
@@ -90,7 +92,8 @@ final class PanelPositioningTests: XCTestCase {
 
     func testSavedPositionOnClickScreenUsesSaved() {
         let result = PanelPositioning.resolveShowPosition(
-            savedPosition: (originX: 100, topY: 800),
+            savedPositions: ["primary": (originX: 100, topY: 800)],
+            clickScreenKey: "primary",
             clickLocation: NSPoint(x: 500, y: 500),
             anchorRect: anchorOnPrimary,
             panelSize: panelSize, screens: screens
@@ -100,23 +103,25 @@ final class PanelPositioningTests: XCTestCase {
     }
 
     func testSavedPositionOnDifferentScreenIgnoresSaved() {
-        // Saved on primary (100, 800), click on secondary
+        // Saved on primary, but click screen is secondary (no entry for secondary)
         let result = PanelPositioning.resolveShowPosition(
-            savedPosition: (originX: 100, topY: 800),
+            savedPositions: ["primary": (originX: 100, topY: 800)],
+            clickScreenKey: "secondary",
             clickLocation: NSPoint(x: 2500, y: 500),
             anchorRect: anchorOnPrimary,
             panelSize: panelSize, screens: screens
         )
         XCTAssertNotNil(result)
-        // Panel must be on secondary screen
+        // Panel must be on secondary screen (falls back to anchor)
         XCTAssertGreaterThanOrEqual(result!.origin.x, secondary.frame.minX)
         XCTAssertLessThan(result!.maxX, secondary.frame.maxX)
     }
 
     func testNoClickLocationUsesSavedDirectly() {
-        // No clickLocation (e.g., handleScreenChange path) → use saved
+        // No clickLocation (e.g., handleScreenChange path) → use saved via key
         let result = PanelPositioning.resolveShowPosition(
-            savedPosition: (originX: 100, topY: 800),
+            savedPositions: ["primary": (originX: 100, topY: 800)],
+            clickScreenKey: "primary",
             clickLocation: nil,
             anchorRect: anchorOnPrimary,
             panelSize: panelSize, screens: screens
@@ -125,9 +130,31 @@ final class PanelPositioningTests: XCTestCase {
         XCTAssertEqual(result!.origin.x, 100, accuracy: 1)
     }
 
+    func testSavedPositionOnWrongScreenFallsBackToAnchor() {
+        // Saved position for "primary" key has coordinates that are on secondary screen (stale data)
+        let result = PanelPositioning.resolveShowPosition(
+            savedPositions: ["primary": (originX: 2500, topY: 800)],
+            clickScreenKey: "primary",
+            clickLocation: NSPoint(x: 500, y: 500),
+            anchorRect: anchorOnPrimary,
+            panelSize: panelSize, screens: screens
+        )
+        XCTAssertNotNil(result)
+        // Should fall back to anchor on primary, NOT use stale position on secondary
+        XCTAssertLessThan(
+            result!.origin.x, primary.frame.maxX,
+            "Panel should be on primary screen, not at stale position on secondary"
+        )
+        XCTAssertGreaterThanOrEqual(
+            result!.origin.x, primary.frame.minX,
+            "Panel should be on primary screen"
+        )
+    }
+
     func testNoSavedPositionFallsBackToAnchor() {
         let result = PanelPositioning.resolveShowPosition(
-            savedPosition: nil,
+            savedPositions: [:],
+            clickScreenKey: "primary",
             clickLocation: NSPoint(x: 1890, y: 1060),
             anchorRect: anchorOnPrimary,
             panelSize: panelSize, screens: screens

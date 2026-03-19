@@ -4,15 +4,18 @@ import AppKit
 struct ScreenLayout: Equatable {
     let frame: NSRect
     let visibleFrame: NSRect
+    let key: String?
 
-    init(frame: NSRect, visibleFrame: NSRect) {
+    init(frame: NSRect, visibleFrame: NSRect, key: String? = nil) {
         self.frame = frame
         self.visibleFrame = visibleFrame
+        self.key = key
     }
 
     init(_ screen: NSScreen) {
         self.frame = screen.frame
         self.visibleFrame = screen.visibleFrame
+        self.key = screen.screenKey
     }
 }
 
@@ -47,35 +50,32 @@ enum PanelPositioning {
     }
 
     /// Resolve where to position the panel when showing it.
+    /// Looks up the saved position for the click screen by key.
     static func resolveShowPosition(
-        savedPosition: (originX: CGFloat, topY: CGFloat)?,
+        savedPositions: [String: (originX: CGFloat, topY: CGFloat)],
+        clickScreenKey: String?,
         clickLocation: NSPoint?,
         anchorRect: NSRect?,
         panelSize: NSSize,
         screens: [ScreenLayout]
     ) -> NSRect? {
-        if let saved = savedPosition {
-            // If clicked on a different screen than the saved position, ignore it
-            if let click = clickLocation,
-               let clickIdx = screenIndex(containing: click, in: screens) {
-                let savedPoint = NSPoint(x: saved.originX, y: saved.topY)
-                if !screens[clickIdx].frame.contains(savedPoint) {
-                    return resolveAnchorPosition(
-                        anchorRect: anchorRect,
-                        clickLocation: clickLocation,
-                        panelSize: panelSize,
-                        screens: screens
-                    )
-                }
+        if let key = clickScreenKey, let saved = savedPositions[key] {
+            // Find the target screen by key
+            let targetScreen = screens.first { $0.key == key }
+            let savedPoint = NSPoint(x: saved.originX, y: saved.topY)
+
+            // Validate saved position is on the target screen (not stale from a different layout)
+            if let target = targetScreen, target.frame.contains(savedPoint) {
+                let clamped = clampToScreen(
+                    originX: saved.originX, topY: saved.topY,
+                    size: panelSize, screens: screens
+                )
+                return NSRect(
+                    x: clamped.originX, y: clamped.topY - panelSize.height,
+                    width: panelSize.width, height: panelSize.height
+                )
             }
-            let clamped = clampToScreen(
-                originX: saved.originX, topY: saved.topY,
-                size: panelSize, screens: screens
-            )
-            return NSRect(
-                x: clamped.originX, y: clamped.topY - panelSize.height,
-                width: panelSize.width, height: panelSize.height
-            )
+            // Saved position is stale (on wrong screen) — fall through to anchor
         }
         return resolveAnchorPosition(
             anchorRect: anchorRect,
