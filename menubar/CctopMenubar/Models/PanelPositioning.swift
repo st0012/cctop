@@ -49,8 +49,7 @@ enum PanelPositioning {
         return (clampedX, clampedTopY)
     }
 
-    /// Resolve where to position the panel when showing it.
-    /// Looks up the saved position for the click screen by key.
+    // swiftlint:disable:next function_parameter_count
     static func resolveShowPosition(
         savedPositions: [String: (originX: CGFloat, topY: CGFloat)],
         clickScreenKey: String?,

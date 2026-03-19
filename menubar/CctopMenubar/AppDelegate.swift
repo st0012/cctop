@@ -30,7 +30,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     private enum PanelPositionKeys {
         static let positions = "panelPositions"
-        // TODO(v0.13.0): Remove legacy migration (legacyOriginX, legacyTopY, migrateLegacyPanelPosition)
+        // MIGRATION(v0.12.0→v0.13.0): Remove legacyOriginX, legacyTopY, migrateLegacyPanelPosition
         static let legacyOriginX = "panelCustomX"
         static let legacyTopY = "panelCustomTopY"
     }
@@ -463,6 +463,7 @@ extension AppDelegate {
         return result.eventConsumed
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     @MainActor private func execute(_ actions: [PanelAction]) {
         for action in actions {
             switch action {
