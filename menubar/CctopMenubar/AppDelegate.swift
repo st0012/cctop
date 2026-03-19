@@ -69,6 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             defer: false
         )
         panel.contentView = hostingView
+        panel.panelDelegate = self
 
         applyAppearance()
         registerShortcuts()
@@ -124,24 +125,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             forName: .notchPillClicked, object: nil, queue: .main
         ) { [weak self] _ in
             self?.togglePanel()
-        }
-        nc.addObserver(
-            forName: .panelDragEnded, object: nil, queue: .main
-        ) { [weak self] notification in
-            guard let self,
-                  let originX = notification.userInfo?[PanelDragKeys.originX] as? CGFloat,
-                  let topY = notification.userInfo?[PanelDragKeys.topY] as? CGFloat,
-                  let key = self.panelScreenKey() else { return }
-            self.saveCustomPanelPosition(originX: originX, topY: topY, forScreenKey: key)
-        }
-        nc.addObserver(
-            forName: .resetPanelPosition, object: nil, queue: .main
-        ) { [weak self] _ in
-            guard let self else { return }
-            if let key = self.panelScreenKey() {
-                self.clearCustomPanelPosition(forScreenKey: key)
-            }
-            self.resetPanelToCurrentScreen(animate: true)
         }
     }
 
@@ -590,6 +573,20 @@ extension AppDelegate {
 
     private func postNavAction(_ action: PanelNavAction) {
         navigateController.navActionSubject.send(action)
+    }
+}
+// MARK: - FloatingPanelDelegate
+extension AppDelegate: FloatingPanelDelegate {
+    @MainActor func panelDidDrag(originX: CGFloat, topY: CGFloat) {
+        guard let key = panelScreenKey() else { return }
+        saveCustomPanelPosition(originX: originX, topY: topY, forScreenKey: key)
+    }
+
+    @MainActor func panelDidRequestReset() {
+        if let key = panelScreenKey() {
+            clearCustomPanelPosition(forScreenKey: key)
+        }
+        resetPanelToCurrentScreen(animate: true)
     }
 }
 // MARK: - Hook binary installation

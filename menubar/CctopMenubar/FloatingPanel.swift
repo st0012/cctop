@@ -1,6 +1,12 @@
 import AppKit
 
+@MainActor protocol FloatingPanelDelegate: AnyObject {
+    func panelDidDrag(originX: CGFloat, topY: CGFloat)
+    func panelDidRequestReset()
+}
+
 class FloatingPanel: NSPanel {
+    weak var panelDelegate: FloatingPanelDelegate?
     /// Height of the header drag zone (matches HeaderView padding + content).
     private let headerDragHeight: CGFloat = 44
 
@@ -40,7 +46,7 @@ class FloatingPanel: NSPanel {
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown && isInHeaderArea(event) {
             if event.clickCount == 2 {
-                NotificationCenter.default.post(name: .resetPanelPosition, object: nil)
+                panelDelegate?.panelDidRequestReset()
                 return
             }
             handleHeaderDrag()
@@ -73,13 +79,7 @@ class FloatingPanel: NSPanel {
         }
 
         if frame.origin != startOrigin {
-            NotificationCenter.default.post(
-                name: .panelDragEnded, object: nil,
-                userInfo: [
-                    PanelDragKeys.originX: frame.origin.x,
-                    PanelDragKeys.topY: frame.maxY
-                ]
-            )
+            panelDelegate?.panelDidDrag(originX: frame.origin.x, topY: frame.maxY)
         }
     }
 

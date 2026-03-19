@@ -3,16 +3,6 @@ import SwiftUI
 
 // MARK: - Window drag area
 
-extension Notification.Name {
-    static let panelDragEnded = Notification.Name("panelDragEnded")
-    static let resetPanelPosition = Notification.Name("resetPanelPosition")
-}
-
-enum PanelDragKeys {
-    static let originX = "x"
-    static let topY = "topY"
-}
-
 private func makeMoveCursor(color: NSColor) -> NSCursor {
     let size = NSSize(width: 16, height: 16)
     let image = NSImage(size: size, flipped: true) { _ in
