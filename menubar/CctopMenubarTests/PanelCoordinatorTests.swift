@@ -17,6 +17,7 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertTrue(r.actions.contains(.showPanel))
         XCTAssertTrue(r.actions.contains(.captureApps))
         XCTAssertTrue(r.actions.contains(.startNavKeyMonitor))
+        XCTAssertFalse(r.actions.contains(.positionPanel))
     }
 
     func testHidden_navigateShortcut() {

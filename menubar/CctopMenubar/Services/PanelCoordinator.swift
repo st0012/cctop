@@ -70,7 +70,7 @@ struct PanelCoordinator {
         case (.hidden, .menubarIconClicked):
             return Result(
                 state: PanelState(mode: .normal),
-                actions: [.captureApps, .positionPanel, .showPanel, .activateApp, .startNavKeyMonitor,
+                actions: [.captureApps, .showPanel, .activateApp, .startNavKeyMonitor,
                           .postNavAction(.reset)]
             )
 
@@ -78,7 +78,7 @@ struct PanelCoordinator {
             let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: true))
             return Result(
                 state: PanelState(mode: mode),
-                actions: [.positionPanel, .showPanel, .activateApp, .startNavKeyMonitor,
+                actions: [.showPanel, .activateApp, .startNavKeyMonitor,
                           .startNavigateMode(panelWasClosed: true)]
             )
 
