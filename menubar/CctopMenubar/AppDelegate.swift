@@ -198,25 +198,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @MainActor @objc private func togglePanel() {
         clickLocation = NSEvent.mouseLocation
 
-        // If panel is visible on a different screen, move it there instead of toggling
-        if panelMode == .normal,
-           let click = clickLocation,
-           let clickKey = screenKey(at: click),
-           let currentKey = panelScreenKey(),
-           clickKey != currentKey {
-            positionPanel()
-            panel.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            // If panel didn't land on target screen, clear stale position for that key
-            if panelScreenKey() != clickKey {
-                clearCustomPanelPosition(forScreenKey: clickKey)
-                positionPanel()
-            }
-            clickLocation = nil
-            return
-        }
+        let onDifferentScreen: Bool = {
+            guard panelMode == .normal,
+                  let click = clickLocation,
+                  let clickKey = screenKey(at: click),
+                  let currentKey = panelScreenKey() else { return false }
+            return clickKey != currentKey
+        }()
 
-        handleEvent(.menubarIconClicked(appIsActive: NSApp.isActive))
+        handleEvent(.menubarIconClicked(appIsActive: NSApp.isActive, onDifferentScreen: onDifferentScreen))
     }
 
     /// Whether the status item is hidden behind the notch.
@@ -511,6 +501,13 @@ extension AppDelegate {
                 panel.makeKeyAndOrderFront(nil)
             case .positionPanel:
                 positionPanel()
+                // If panel didn't land on target screen, clear stale position and retry
+                if let click = clickLocation,
+                   let clickKey = screenKey(at: click),
+                   panelScreenKey() != clickKey {
+                    clearCustomPanelPosition(forScreenKey: clickKey)
+                    positionPanel()
+                }
             case .activateApp:
                 NSApp.activate(ignoringOtherApps: true)
             case .deactivateApp:
