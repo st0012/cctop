@@ -30,7 +30,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     private enum PanelPositionKeys {
         static let positions = "panelPositions"
-        // Legacy keys for migration
+        // TODO(v0.13.0): Remove legacy migration (legacyOriginX, legacyTopY, migrateLegacyPanelPosition)
         static let legacyOriginX = "panelCustomX"
         static let legacyTopY = "panelCustomTopY"
     }
