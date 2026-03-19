@@ -53,6 +53,20 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertFalse(r.actions.contains(.restorePreviousApp))
     }
 
+    func testNormal_menubarClickDifferentScreen_repositionsWithoutDismiss() {
+        let r = handle(.menubarIconClicked(appIsActive: true, onDifferentScreen: true), mode: .normal)
+        XCTAssertEqual(r.state.mode, .normal)
+        XCTAssertTrue(r.actions.contains(.positionPanel))
+        XCTAssertTrue(r.actions.contains(.activateApp))
+        XCTAssertFalse(r.actions.contains(.dismissPanel))
+    }
+
+    func testNormal_menubarClickSameScreen_dismisses() {
+        let r = handle(.menubarIconClicked(appIsActive: true, onDifferentScreen: false), mode: .normal)
+        XCTAssertEqual(r.state.mode, .hidden)
+        XCTAssertTrue(r.actions.contains(.dismissPanel))
+    }
+
     func testNormal_escape_postsEscapeAction() {
         let r = handle(.escape, mode: .normal)
         XCTAssertEqual(r.state.mode, .normal)

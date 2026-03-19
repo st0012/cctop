@@ -20,7 +20,7 @@ struct PanelState: Equatable {
 // MARK: - Events & Actions
 
 enum PanelEvent {
-    case menubarIconClicked(appIsActive: Bool)
+    case menubarIconClicked(appIsActive: Bool, onDifferentScreen: Bool = false)
     case escape
     case appLostFocus
     case navigateShortcut
@@ -87,7 +87,13 @@ struct PanelCoordinator {
 
         // MARK: normal
 
-        case (.normal, .menubarIconClicked(let appIsActive)):
+        case (.normal, .menubarIconClicked(_, onDifferentScreen: true)):
+            return Result(
+                state: PanelState(mode: .normal),
+                actions: [.positionPanel, .activateApp]
+            )
+
+        case (.normal, .menubarIconClicked(let appIsActive, onDifferentScreen: false)):
             var actions: [PanelAction] = [.dismissPanel]
             if appIsActive { actions.append(.restorePreviousApp) }
             return Result(
@@ -115,6 +121,15 @@ struct PanelCoordinator {
             return Result(state: state, actions: [], eventConsumed: false)
 
         // MARK: navigate
+
+        case (.navigate, .menubarIconClicked(_, onDifferentScreen: true)):
+            if case .navigate(let origin) = state.mode, !origin.panelWasClosed {
+                return Result(
+                    state: PanelState(mode: .normal),
+                    actions: [.endNavigateMode, .positionPanel, .activateApp]
+                )
+            }
+            return endNavigateResult(state: state, restoreFocus: false)
 
         case (.navigate, .menubarIconClicked):
             return endNavigateResult(state: state, restoreFocus: true)
