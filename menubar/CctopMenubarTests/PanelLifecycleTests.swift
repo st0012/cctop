@@ -5,7 +5,7 @@ import XCTest
 
 /// Simulates AppDelegate's panel position state management for lifecycle testing.
 ///
-/// Models the interaction between savedPosition (UserDefaults), clickLocation
+/// Models the interaction between savedPositions (UserDefaults), focusLocation
 /// (transient per-toggle), and panelFrame across show/drag/dismiss/screenChange
 /// operations. Each method mirrors a real AppDelegate code path.
 ///
@@ -74,7 +74,29 @@ private struct PanelLifecycle {
             panelFrame = frame
         }
         isVisible = true
-        // clickLocation cleared after show (AppDelegate .showPanel async block)
+        // focusLocation cleared after show (AppDelegate .showPanel async block)
+    }
+
+    /// Simulate the OLD navigate shortcut bug (no focusLocation set).
+    /// Before the fix, navigate shortcut didn't set focusLocation,
+    /// so positionPanel() fell back to panelScreenKey().
+    mutating func showViaNavigateWithoutMouseLocation() {
+        precondition(!isVisible, "Panel must be hidden to show via navigate")
+
+        // Falls back to panel's last screen key (or nil if no panel frame)
+        let clickKey = panelScreenKey
+
+        if let frame = PanelPositioning.resolveShowPosition(
+            savedPositions: savedPositions,
+            clickScreenKey: clickKey,
+            clickLocation: nil,
+            anchorRect: anchorRect,
+            panelSize: panelSize,
+            screens: screens
+        ) {
+            panelFrame = frame
+        }
+        isVisible = true
     }
 
     /// Simulate header drag to a new position.
@@ -96,17 +118,17 @@ private struct PanelLifecycle {
     mutating func dismiss() {
         precondition(isVisible, "Panel must be visible to dismiss")
         isVisible = false
-        // clickLocation cleared in .dismissPanel action
+        // focusLocation cleared in .dismissPanel action
     }
 
     /// Simulate handleScreenChange while panel is visible.
-    /// Models: AppDelegate.handleScreenChange → positionPanel(clickLocation: nil) + save if custom.
+    /// Models: AppDelegate.handleScreenChange → positionPanel(focusLocation: nil) + save if custom.
     mutating func handleScreenChange() {
         guard isVisible else { return }
 
         let currentKey = panelScreenKey
 
-        // positionPanel with clickLocation = nil (always cleared by this point)
+        // positionPanel with focusLocation = nil (always cleared by this point)
         if let frame = PanelPositioning.resolveShowPosition(
             savedPositions: savedPositions,
             clickScreenKey: currentKey,
@@ -527,5 +549,40 @@ final class PanelLifecycleTests: XCTestCase {
             smaller.visibleFrame.maxX - panelSize.width - margin,
             "Saved position should be clamped to smaller screen"
         )
+    }
+
+    // MARK: - Navigate shortcut opens on mouse screen (regression for #69)
+
+    func testNavigateShortcutOpensOnMouseScreen() {
+        var lc = makeLifecycle()
+
+        // First show on primary so panel has a "last screen"
+        lc.show(clickAt: clickOnPrimary)
+        lc.dismiss()
+
+        // Navigate shortcut with mouse on secondary → should open on secondary
+        // (After fix: navigate sets focusLocation = mouseLocation, same as show)
+        lc.show(clickAt: clickOnSecondary)
+        XCTAssertGreaterThanOrEqual(
+            lc.panelFrame!.origin.x, secondary.frame.minX,
+            "Navigate shortcut should open panel on the screen where the mouse is"
+        )
+    }
+
+    func testNavigateShortcutWithoutMouseLocationOpensOnLastScreen() {
+        var lc = makeLifecycle()
+
+        // Show on primary so panel has a "last screen"
+        lc.show(clickAt: clickOnPrimary)
+        lc.drag(toOriginX: 200, topY: 700)
+        lc.dismiss()
+
+        // OLD bug: navigate without mouse location falls back to panel's last screen
+        lc.showViaNavigateWithoutMouseLocation()
+        XCTAssertEqual(
+            lc.panelFrame!.origin.x, 200, accuracy: 1,
+            "Without mouse location, falls back to panel's last screen position"
+        )
+        // This is the broken behavior — panel opens on primary even if user is on secondary
     }
 }

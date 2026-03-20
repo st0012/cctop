@@ -24,7 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var suppressResize = false
     private var lastRenderedCounts: StatusCounts?
     private var hasNotch = false
-    private var clickLocation: NSPoint?
+    private var focusLocation: NSPoint?
     private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
@@ -80,6 +80,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @MainActor private func registerShortcuts() {
         KeyboardShortcuts.onKeyUp(for: .togglePanel) { [weak self] in self?.togglePanel() }
         KeyboardShortcuts.onKeyUp(for: .navigate) { [weak self] in
+            self?.focusLocation = NSEvent.mouseLocation
             self?.handleEvent(.navigateShortcut)
         }
         navigateController.didConfirmSubject
@@ -179,11 +180,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @MainActor @objc private func togglePanel() {
-        clickLocation = NSEvent.mouseLocation
+        focusLocation = NSEvent.mouseLocation
 
         let onDifferentScreen: Bool = {
             guard panelMode == .normal,
-                  let click = clickLocation,
+                  let click = focusLocation,
                   let clickKey = screenKey(at: click),
                   let currentKey = panelScreenKey() else { return false }
             return clickKey != currentKey
@@ -322,12 +323,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     @MainActor private func positionPanel(animate: Bool = false) {
         guard let size = panelFittingSize() else { return }
-        let clickKey = clickLocation.flatMap { screenKey(at: $0) }
+        let clickKey = focusLocation.flatMap { screenKey(at: $0) }
             ?? panelScreenKey()
         if let frame = PanelPositioning.resolveShowPosition(
             savedPositions: savedPanelPositions(),
             clickScreenKey: clickKey,
-            clickLocation: clickLocation,
+            clickLocation: focusLocation,
             anchorRect: anchorRect(),
             panelSize: size,
             screens: screenLayouts
@@ -369,7 +370,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let size = panelFittingSize() else { return }
         if let frame = PanelPositioning.resolveAnchorPosition(
             anchorRect: anchorRect(),
-            clickLocation: clickLocation,
+            clickLocation: focusLocation,
             panelSize: size,
             screens: screenLayouts
         ) {
@@ -473,11 +474,11 @@ extension AppDelegate {
                 // Re-position after SwiftUI layout settles
                 DispatchQueue.main.async { [weak self] in
                     self?.positionPanel()
-                    self?.clickLocation = nil
+                    self?.focusLocation = nil
                 }
             case .dismissPanel:
                 panel.orderOut(nil)
-                clickLocation = nil
+                focusLocation = nil
                 previousApp = nil
                 stopNavKeyMonitor()
                 updateNotchVisibility(immediate: true)
@@ -486,7 +487,7 @@ extension AppDelegate {
             case .positionPanel:
                 positionPanel()
                 // If panel didn't land on target screen, clear stale position and retry
-                if let click = clickLocation,
+                if let click = focusLocation,
                    let clickKey = screenKey(at: click),
                    panelScreenKey() != clickKey {
                     clearCustomPanelPosition(forScreenKey: clickKey)
