@@ -35,7 +35,7 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
     var segmentText: ColorPair { textMuted }
     var segmentActiveText: ColorPair { textPrimary }
     var statusPermission: ColorPair { Self.permissions[self]! }
-    var statusAttention: ColorPair { accent }
+    var statusAttention: ColorPair { Self.attentions[self]! }
     var statusWorking: ColorPair { statusGreen }
 
     // Shared across all themes
@@ -75,6 +75,13 @@ private extension AppTheme {
         .tokyoNight: ColorPair(dark: hex(0xF7, 0x76, 0x8E), light: hex(0x94, 0x35, 0x45)),
         .gruvbox: ColorPair(dark: hex(0xFB, 0x49, 0x34), light: hex(0x9D, 0x00, 0x06)),
         .nord: ColorPair(dark: hex(0xBF, 0x61, 0x6A), light: hex(0xA0, 0x35, 0x40)),
+    ]
+
+    static let attentions: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0xD4, 0xA0, 0x50), light: hex(0xC9, 0x64, 0x42)),
+        .tokyoNight: ColorPair(dark: hex(0x7A, 0xA2, 0xF7), light: hex(0x29, 0x59, 0xAA)),
+        .gruvbox: ColorPair(dark: hex(0xFE, 0x80, 0x19), light: hex(0xAF, 0x3A, 0x03)),
+        .nord: ColorPair(dark: hex(0xD0, 0x87, 0x70), light: hex(0xA0, 0x35, 0x40)),
     ]
 
     static let greens: [AppTheme: ColorPair] = [
