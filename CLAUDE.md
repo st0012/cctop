@@ -307,7 +307,7 @@ The menubar app detects opencode when `~/.config/opencode/` exists and offers to
 - Manual cleanup: `rm ~/.cctop/sessions/<pid>.json`
 
 ### Jump to session not working
-- **VS Code / Cursor (menubar app)**: Runs `code <path>` or `cursor <path>` to focus the project window. If a `.code-workspace` file is detected in the project directory, it's passed instead of the folder path.
+- **VS Code / Cursor (menubar app)**: Uses `NSWorkspace.open` with the editor's bundle ID to focus the project window. Does not shell out to `code`/`cursor` CLI (avoids PATH issues after Sparkle updates). If a `.code-workspace` file is detected in the project directory, it's passed instead of the folder path.
 - **VS Code / Cursor (Raycast extension)**: Uses `open -a "Visual Studio Code" <path>` because Raycast's sandboxed Node.js doesn't have `/usr/local/bin` in PATH. The `code` CLI cannot be called directly.
 - **Workspace limitation**: cctop detects workspace files by scanning the project directory at session start. If the project folder contains a `.code-workspace` file but you opened the folder directly (not via the workspace file), cctop may incorrectly open the workspace instead of focusing the folder window. VS Code does not expose which mode was used via environment variables or APIs.
 - **iTerm2**: Uses AppleScript to match the session's `ITERM_SESSION_ID` GUID against iTerm2's `unique id` property. Raises the correct window (`set index of w to 1`), selects the tab, and focuses the pane. Falls back to generic `app.activate()` if the session ID is missing or stale. Requires macOS Automation permission (prompted on first use via `NSAppleEventsUsageDescription`).
