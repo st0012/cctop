@@ -92,10 +92,10 @@ struct HeaderView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Color.textPrimary)
             Spacer()
-            StatusChip(count: counts.permission, color: .red, categoryLabel: "need permission")
+            StatusChip(count: counts.permission, color: Color.amber, categoryLabel: "need permission")
             StatusChip(count: counts.attention, color: Color.amber, categoryLabel: "need attention")
             StatusChip(count: counts.working, color: Color.statusGreen, categoryLabel: "working")
-            StatusChip(count: counts.idle, color: .gray, categoryLabel: "idle")
+            StatusChip(count: counts.idle, color: Color.textMuted, categoryLabel: "idle")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
