@@ -60,7 +60,7 @@ final class SnapshotTests: XCTestCase {
         let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
         let styled = view
             .frame(width: width)
-            .background(Color(NSColor.windowBackgroundColor))
+            .background(Color.panelBackground)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .environment(\.colorScheme, colorScheme)
 
