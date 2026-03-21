@@ -3,8 +3,8 @@ import SwiftUI
 extension SessionStatus {
     var color: Color {
         switch self {
-        case .waitingPermission: return Color.amber
-        case .waitingInput, .needsAttention: return Color.amber
+        case .waitingPermission: return Color.statusPermission
+        case .waitingInput, .needsAttention: return Color.statusAttention
         case .working: return Color.statusGreen
         case .compacting:
             return Color(nsColor: NSColor(name: nil) { appearance in

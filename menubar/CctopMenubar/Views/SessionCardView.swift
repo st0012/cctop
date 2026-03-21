@@ -146,8 +146,8 @@ struct SessionCardView: View {
 
     private var statusLabelColor: Color {
         switch session.status {
-        case .waitingPermission: return Color.amber
-        case .waitingInput, .needsAttention: return Color.amber
+        case .waitingPermission: return Color.statusPermission
+        case .waitingInput, .needsAttention: return Color.statusAttention
         case .working, .compacting: return Color.textSecondary
         case .idle: return Color.textMuted
         }

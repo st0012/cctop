@@ -92,8 +92,8 @@ struct HeaderView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Color.textPrimary)
             Spacer()
-            StatusChip(count: counts.permission, color: Color.amber, categoryLabel: "need permission")
-            StatusChip(count: counts.attention, color: Color.amber, categoryLabel: "need attention")
+            StatusChip(count: counts.permission, color: Color.statusPermission, categoryLabel: "need permission")
+            StatusChip(count: counts.attention, color: Color.statusAttention, categoryLabel: "need attention")
             StatusChip(count: counts.working, color: Color.statusGreen, categoryLabel: "working")
             StatusChip(count: counts.idle, color: Color.textMuted, categoryLabel: "idle")
         }
@@ -102,8 +102,11 @@ struct HeaderView: View {
         .overlay(WindowDragArea())
     }
     private func headerBarColor(counts: StatusCounts) -> Color {
-        if counts.permission > 0 || counts.attention > 0 {
-            return Color.amber
+        if counts.permission > 0 {
+            return Color.statusPermission
+        }
+        if counts.attention > 0 {
+            return Color.statusAttention
         }
         if counts.working > 0 {
             return Color.statusGreen.opacity(0.5)

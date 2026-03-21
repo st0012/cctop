@@ -65,6 +65,20 @@ extension Color {
         })
     }
 
+    /// Attention/waiting status (less urgent than permission).
+    static var statusAttention: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.statusAttention.resolve(appearance)
+        })
+    }
+
+    /// Permission status (urgent, needs approval).
+    static var statusPermission: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.statusPermission.resolve(appearance)
+        })
+    }
+
     /// Working status green.
     static var statusGreen: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
