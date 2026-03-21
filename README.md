@@ -7,11 +7,16 @@
 
 Works with your existing editor and terminal. No IDE needed, no workflow changes — just install the app, connect your tools, and every session shows up in a floating panel you can navigate with your keyboard.
 
-<p align="center">
-  <img src="docs/menubar-light.png" alt="cctop menubar popup (light mode)" width="340">
-  &nbsp;&nbsp;
-  <img src="docs/menubar-dark.png" alt="cctop menubar popup (dark mode)" width="340">
-</p>
+<table align="center">
+  <tr>
+    <td align="center"><img src="docs/menubar-tokyonight-dark.png" alt="cctop menubar popup (Tokyo Night dark)" width="340"></td>
+    <td align="center"><img src="docs/menubar-light.png" alt="cctop menubar popup (Claude light)" width="340"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Tokyo Night (dark)</em></td>
+    <td align="center"><em>Claude (light)</em></td>
+  </tr>
+</table>
 
 ## Features
 
@@ -29,12 +34,14 @@ Works with your existing editor and terminal. No IDE needed, no workflow changes
 
 <p align="center">
   <img src="docs/menubar-navigate.png" alt="cctop navigate mode with numbered badges" width="340">
+  <br><em>Navigate mode — press 1–9 to jump</em>
 </p>
 
 **Recent Projects.** A second tab keeps session history so you can reopen past projects easily.
 
 <p align="center">
   <img src="docs/menubar-recent.png" alt="cctop recent projects tab" width="340">
+  <br><em>Recent projects tab</em>
 </p>
 
 **Smart status icon.** See session health without opening the panel:
