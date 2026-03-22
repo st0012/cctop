@@ -319,43 +319,20 @@ private struct MonitoredToolsView: View {
         }
     }
 
-    private var updatePluginButton: some View {
-        Button {
-            if pluginManager.installOpenCodePlugin() {
-                justInstalled = true
-                installFailed = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    justInstalled = false
-                }
-            } else {
-                flashFailed()
-            }
-        } label: {
-            Text("Update Plugin")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.segmentActiveText)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Color.amber)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-        }
-        .buttonStyle(.plain)
-    }
+    private var updatePluginButton: some View { pluginActionButton("Update Plugin") }
+    private var installPluginButton: some View { pluginActionButton("Install Plugin") }
 
-    private var installPluginButton: some View {
+    private func pluginActionButton(_ label: String) -> some View {
         Button {
             if pluginManager.installOpenCodePlugin() {
                 justInstalled = true; installFailed = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { justInstalled = false }
-            } else {
-                flashFailed()
-            }
+            } else { flashFailed() }
         } label: {
-            Text("Install Plugin")
+            Text(label)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.segmentActiveText)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
+                .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Color.amber)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         }
@@ -401,28 +378,23 @@ private struct MonitoredToolsView: View {
 }
 
 // MARK: - Preview Helpers
-
 @MainActor private class MockUpdater: UpdaterBase {
     override var canCheckForUpdates: Bool { true }
 }
 @MainActor private func previewPM(
     cc: Bool = true, oc: Bool = false, ocConfig: Bool = false, ocUpdate: Bool = false
 ) -> PluginManager {
-    let pm = PluginManager()
-    pm.ccInstalled = cc
-    pm.ocInstalled = oc
-    pm.ocNeedsUpdate = ocUpdate
-    pm.ocConfigExists = ocConfig
-    return pm
+    let pm = PluginManager(); pm.ccInstalled = cc; pm.ocInstalled = oc
+    pm.ocNeedsUpdate = ocUpdate; pm.ocConfigExists = ocConfig; return pm
 }
 #Preview("Default") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }
 #Preview("Update available") { let up = DisabledUpdater(); up.pendingUpdateVersion = "0.7.0"
     return SettingsSection(updater: up, pluginManager: previewPM()).frame(width: 320).padding() }
 #Preview("OC detected") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(ocConfig: true)).frame(width: 320).padding() }
-#Preview("Both connected") {
-    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true)).frame(width: 320).padding() }
-#Preview("OC update available") {
-    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true, ocUpdate: true)).frame(width: 320).padding() }
+#Preview("Both connected") { SettingsSection(
+    updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true)).frame(width: 320).padding() }
+#Preview("OC update available") { SettingsSection(
+    updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true, ocUpdate: true)).frame(width: 320).padding() }
 #Preview("Sparkle: update available") { let mu = MockUpdater(); mu.pendingUpdateVersion = "0.7.0"
     return SettingsSection(updater: mu, pluginManager: previewPM()).frame(width: 320).padding() }
 #Preview("Sparkle: up to date") { SettingsSection(updater: MockUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }

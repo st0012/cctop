@@ -27,4 +27,4 @@ After installing, follow the app's instructions to connect your tools (Claude Co
 
 ## How It Works
 
-The cctop menubar app writes session files to `~/.cctop/sessions/` via plugins for Claude Code and opencode. This Raycast extension reads those files and displays live session status, polling every 2 seconds. No network access is involved — all data stays on your machine.
+The cctop menubar app monitors session files in `~/.cctop/sessions/`, written by `cctop-hook` (a native binary called by both Claude Code and opencode plugins). This Raycast extension reads those files and displays live session status, polling every 2 seconds. No network access is involved — all data stays on your machine.

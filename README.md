@@ -102,7 +102,7 @@ cat ~/.cctop/sessions/*.json | python3 -m json.tool
 ## FAQ
 
 **Does cctop slow down my coding tool?**
-No. The plugin writes a small JSON file on each event and returns immediately. There is no measurable impact on performance.
+No. The plugin calls a lightweight native binary (`cctop-hook`) on each event, which writes a small JSON file and returns immediately. There is no measurable impact on performance.
 
 **Do I need to configure anything per project?**
 No. Once the plugin is installed, all sessions are automatically tracked. No per-project setup required.
@@ -129,10 +129,10 @@ First, make sure you restarted sessions after installing the plugin. Then check 
 cctop detects dead sessions automatically. It checks whether each session's process is still running and removes stale entries. No manual cleanup needed.
 
 **Does the opencode plugin need Node.js or Bun installed separately?**
-No. The plugin runs inside opencode's built-in Bun runtime. You don't need to install anything beyond the plugin file itself.
+No. The plugin runs inside opencode's built-in Bun runtime. It calls the `cctop-hook` binary bundled inside the cctop app — no additional dependencies needed.
 
 **Why does the app need to be in /Applications/?**
-The Claude Code plugin looks for `cctop-hook` inside `/Applications/cctop.app`. Installing elsewhere breaks the hook path. (The opencode plugin writes session files directly and does not need the app in a specific location.)
+Both plugins look for `cctop-hook` inside `/Applications/cctop.app`. Installing elsewhere breaks the hook path. (The opencode plugin also checks `~/.cctop/bin/` as a fallback.)
 
 ## Uninstall
 
@@ -156,7 +156,7 @@ If installed via Homebrew: `brew uninstall --cask cctop`
 <details>
 <summary>How it works</summary>
 
-Both tools write to the same session store — the menubar app doesn't care where the data comes from.
+Both tools go through `cctop-hook` — a single native binary that manages all session state.
 
 ```
 ┌─────────────┐    hook fires     ┌────────────┐
@@ -164,26 +164,24 @@ Both tools write to the same session store — the menubar app doesn't care wher
 │  (session)  │  SessionStart,    │  (Swift)   │   │  writes JSON
 │             │  Stop, PreTool,   │            │   │  per-session
 └─────────────┘  Notification,…   └────────────┘   │
-                                                   ▼
-                                           ┌───────────────────┐
-                                           │ ~/.cctop/sessions │
-                                           │   ├── 123.json    │
-                                           │   ├── 456.json    │
-                                           │   └── 789.json    │
-                                           └──────────┬────────┘
-┌─────────────┐   plugin event    ┌────────────┐  ▲   │
-│  opencode   │ ────────────────> │ JS plugin  │ ─┘   │ file watcher
-│  (session)  │  session.status,  │            │      ▼
-│             │  tool.execute,…   │            │  ┌──────────────┐
-└─────────────┘                   └────────────┘  │ Menubar app  │
+                                       ▲           ▼
+┌─────────────┐   plugin event    ┌────┴───────┐  ┌───────────────────┐
+│  opencode   │ ────────────────> │ JS plugin  │  │ ~/.cctop/sessions │
+│  (session)  │  session.status,  │ (calls     │  │   ├── 123.json    │
+│             │  tool.execute,…   │  cctop-hook│  │   └── 456.json    │
+└─────────────┘                   └────────────┘  └──────────┬────────┘
+                                                             │ file watcher
+                                                             ▼
+                                                  ┌──────────────┐
+                                                  │ Menubar app  │
                                                   │ (live status)│
                                                   └──────────────┘
 ```
 
-1. Each tool has its own plugin that translates events into session state
-2. **Claude Code**: hooks invoke `cctop-hook` (a Swift CLI), which writes JSON session files
-3. **opencode**: a JS plugin listens to events and writes the same JSON format directly
-4. Both write to `~/.cctop/sessions/` — the menubar app watches this directory and displays live status
+1. Each tool has its own plugin that translates events into `cctop-hook` calls
+2. **Claude Code**: shell hooks invoke `cctop-hook` directly
+3. **opencode**: a JS plugin translates events and calls `cctop-hook` via `execFileSync`
+4. `cctop-hook` writes to `~/.cctop/sessions/` — the menubar app watches this directory and displays live status
 
 </details>
 
