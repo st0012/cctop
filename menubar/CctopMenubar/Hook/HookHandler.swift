@@ -260,14 +260,16 @@ enum HookHandler {
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
         let path = (Config.sessionsDir() as NSString).appendingPathComponent("\(pid).json")
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
-        // Stamp endedAt so the menubar app archives before removing the file.
-        if var session = try? Session.fromFile(path: path) {
-            session.endedAt = Date()
-            try? session.writeToFile(path: path)
-            HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
-        } else {
-            HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
-            removeSession(at: path, sessionId: safeId)
+        // Stamp endedAt instead of deleting — the menubar app archives to history on next poll.
+        try? withSessionLock(sessionPath: path) {
+            if var session = try? Session.fromFile(path: path) {
+                session.endedAt = Date()
+                try? session.writeToFile(path: path)
+                HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
+            } else {
+                HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
+                removeSession(at: path, sessionId: safeId)
+            }
         }
     }
 

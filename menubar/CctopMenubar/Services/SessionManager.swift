@@ -55,8 +55,11 @@ class SessionManager: ObservableObject {
                     return nil
                 }
             }
-        let alive = allDecoded.filter { $0.1.endedAt == nil && $0.1.isAlive }
-        let dead = allDecoded.filter { $0.1.endedAt != nil || !$0.1.isAlive }
+        var alive: [(URL, Session)] = []
+        var dead: [(URL, Session)] = []
+        for entry in allDecoded {
+            if entry.1.endedAt != nil || !entry.1.isAlive { dead.append(entry) } else { alive.append(entry) }
+        }
         logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead")
         let oldCount = sessions.count
         sessions = alive.map(\.1).map { session in

@@ -26,7 +26,7 @@ class HistoryManager: ObservableObject {
     @discardableResult
     func archiveSession(_ session: Session) -> Bool {
         var archived = session
-        archived.endedAt = Date()
+        archived.endedAt = archived.endedAt ?? Date()
 
         let safeName = sanitizeFilenameComponent(session.projectName)
         let timestamp = ISO8601DateFormatter.archiveFormatter
