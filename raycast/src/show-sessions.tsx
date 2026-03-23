@@ -58,7 +58,10 @@ function sessionAccessories(
   if (showSource) {
     const label = sourceLabel(session);
     accessories.push({
-      tag: { value: label, color: label === "OC" ? Color.Blue : Color.Orange },
+      tag: {
+        value: label,
+        color: label === "OC" ? Color.Blue : label === "Pi" ? Color.Green : Color.Orange,
+      },
     });
   }
 

@@ -41,7 +41,7 @@ export interface CctopSession {
   notification_message?: string | null;
   session_name?: string | null;
   workspace_file?: string | null;
-  source?: string | null; // "opencode" or null/undefined for Claude Code
+  source?: string | null; // "opencode", "pi", or null/undefined for Claude Code
   active_subagents?: SubagentInfo[] | null;
 }
 
