@@ -26,6 +26,7 @@ struct PopupView: View {
     @State private var versionHovered = false
     @State private var shortcutHovered = false
     @State private var ocBannerInstalled = false
+    @State private var lastFocusTime: Date = .distantPast
     @AppStorage("ocBannerDismissed") private var ocBannerDismissed = false
 
     private var showOcBanner: Bool {
@@ -316,7 +317,11 @@ extension PopupView {
         return Session.sorted(sessions)
     }
 
-    private func focusSession(_ session: Session) { focusTerminal(session: session); NSApp.deactivate() }
+    private func focusSession(_ session: Session) {
+        guard Date().timeIntervalSince(lastFocusTime) > 0.5 else { return }
+        lastFocusTime = Date()
+        focusTerminal(session: session); NSApp.deactivate()
+    }
 
     private func toggleOverlay(_ overlay: PopupOverlay) {
         if overlayController.active == overlay {
