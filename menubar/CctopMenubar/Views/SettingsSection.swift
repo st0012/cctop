@@ -92,9 +92,7 @@ struct SettingsSection: View {
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @State private var justInstalled = false
     @State private var installFailed = false
-    @State private var removeHovered = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -103,9 +101,7 @@ struct SettingsSection: View {
             sectionHeader("Tools")
             MonitoredToolsView(
                 pluginManager: pluginManager,
-                justInstalled: $justInstalled,
-                installFailed: $installFailed,
-                removeHovered: $removeHovered
+                installFailed: $installFailed
             )
             Divider().padding(.horizontal, 8)
 
@@ -257,74 +253,92 @@ struct SettingsSection: View {
 
 private struct MonitoredToolsView: View {
     @ObservedObject var pluginManager: PluginManager
-    @Binding var justInstalled: Bool
     @Binding var installFailed: Bool
-    @Binding var removeHovered: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            toolRow(name: "Claude Code", installed: pluginManager.ccInstalled)
+            toolStatusRow(name: "Claude Code", installed: pluginManager.ccInstalled)
             if pluginManager.ocConfigExists {
-                openCodeRow
+                PluginRowView(
+                    name: "opencode", installed: pluginManager.ocInstalled,
+                    needsUpdate: pluginManager.ocNeedsUpdate,
+                    installFailed: $installFailed,
+                    install: { pluginManager.installOpenCodePlugin() },
+                    remove: { pluginManager.removeOpenCodePlugin() }
+                )
+            }
+            if pluginManager.piConfigExists {
+                PluginRowView(
+                    name: "pi", installed: pluginManager.piInstalled,
+                    installFailed: $installFailed,
+                    install: { pluginManager.installPiPlugin() },
+                    remove: { pluginManager.removePiPlugin() }
+                )
             }
         }
         .padding(.horizontal, 14)
         .padding(.bottom, 8)
     }
 
-    private var openCodeRow: some View {
+    private func toolStatusRow(name: String, installed: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text(name).font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.textPrimary)
+            Spacer()
+            if installed {
+                ConnectedBadge()
+            } else {
+                Text("Not installed").font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+            }
+        }
+        .padding(.vertical, 7)
+    }
+}
+
+private struct PluginRowView: View {
+    let name: String; let installed: Bool; var needsUpdate: Bool = false
+    @Binding var installFailed: Bool
+    let install: () -> Bool; let remove: () -> Bool
+    @State private var justInstalled = false; @State private var removeHovered = false
+
+    var body: some View {
         VStack(spacing: 4) {
             HStack(spacing: 8) {
-                toolLabel("opencode")
+                Text(name).font(.system(size: 11, weight: .medium)).foregroundStyle(Color.textPrimary)
                 Spacer()
                 if justInstalled {
                     EmptyView()
-                } else if pluginManager.ocNeedsUpdate {
-                    updatePluginButton
-                } else if pluginManager.ocInstalled {
-                    connectedBadge
-                    Button {
-                        if !pluginManager.removeOpenCodePlugin() {
-                            flashFailed()
-                        }
-                    } label: {
-                        Text("Remove")
-                            .font(.system(size: 10))
+                } else if needsUpdate {
+                    updateButton
+                } else if installed {
+                    ConnectedBadge()
+                    Button { if !remove() { flashFailed() } } label: {
+                        Text("Remove").font(.system(size: 10))
                             .foregroundStyle(removeHovered ? Color.textPrimary : Color.textMuted)
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { removeHovered = $0 }
-                } else {
-                    installPluginButton
-                }
-            }
-            .padding(.vertical, 7)
+                    }.buttonStyle(.plain).onHover { removeHovered = $0 }
+                } else { installButton }
+            }.padding(.vertical, 7)
             if justInstalled {
                 HStack(spacing: 4) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.green)
-                    Text("Installed \u{2014} restart opencode to start tracking")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.textMuted)
-                }
-                .transition(.opacity)
+                    Image(systemName: "checkmark").font(.system(size: 10)).foregroundStyle(.green)
+                    Text("Installed \u{2014} restart \(name) to start tracking")
+                        .font(.system(size: 10)).foregroundStyle(Color.textMuted)
+                }.transition(.opacity)
             }
             if installFailed {
                 Text("Failed \u{2014} check permissions")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.amber)
-                    .transition(.opacity)
+                    .font(.system(size: 10)).foregroundStyle(Color.amber).transition(.opacity)
             }
         }
     }
 
-    private var updatePluginButton: some View { pluginActionButton("Update Plugin") }
-    private var installPluginButton: some View { pluginActionButton("Install Plugin") }
+    private var updateButton: some View { actionButton("Update Plugin") }
+    private var installButton: some View { actionButton("Install Plugin") }
 
-    private func pluginActionButton(_ label: String) -> some View {
+    private func actionButton(_ label: String) -> some View {
         Button {
-            if pluginManager.installOpenCodePlugin() {
+            if install() {
                 justInstalled = true; installFailed = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { justInstalled = false }
             } else { flashFailed() }
@@ -335,44 +349,20 @@ private struct MonitoredToolsView: View {
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Color.amber)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
-        }
-        .buttonStyle(.plain)
+        }.buttonStyle(.plain)
     }
 
     private func flashFailed() {
         installFailed = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { installFailed = false }
     }
+}
 
-    private func toolRow(name: String, installed: Bool) -> some View {
-        HStack(spacing: 8) {
-            toolLabel(name)
-            Spacer()
-            if installed {
-                connectedBadge
-            } else {
-                Text("Not installed")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-            }
-        }
-        .padding(.vertical, 7)
-    }
-
-    private func toolLabel(_ name: String) -> some View {
-        Text(name)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(Color.textPrimary)
-    }
-
-    private var connectedBadge: some View {
+private struct ConnectedBadge: View {
+    var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(Color.statusGreen)
-                .frame(width: 5, height: 5)
-            Text("Connected")
-                .font(.system(size: 10))
-                .foregroundStyle(Color.textMuted)
+            Circle().fill(Color.statusGreen).frame(width: 5, height: 5)
+            Text("Connected").font(.system(size: 10)).foregroundStyle(Color.textMuted)
         }
     }
 }
@@ -382,17 +372,23 @@ private struct MonitoredToolsView: View {
     override var canCheckForUpdates: Bool { true }
 }
 @MainActor private func previewPM(
-    cc: Bool = true, oc: Bool = false, ocConfig: Bool = false, ocUpdate: Bool = false
+    cc: Bool = true, oc: Bool = false, ocConfig: Bool = false, ocUpdate: Bool = false,
+    pi: Bool = false, piConfig: Bool = false
 ) -> PluginManager {
     let pm = PluginManager(); pm.ccInstalled = cc; pm.ocInstalled = oc
-    pm.ocNeedsUpdate = ocUpdate; pm.ocConfigExists = ocConfig; return pm
+    pm.ocNeedsUpdate = ocUpdate; pm.ocConfigExists = ocConfig
+    pm.piInstalled = pi; pm.piConfigExists = piConfig; return pm
 }
 #Preview("Default") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }
 #Preview("Update available") { let up = DisabledUpdater(); up.pendingUpdateVersion = "0.7.0"
     return SettingsSection(updater: up, pluginManager: previewPM()).frame(width: 320).padding() }
-#Preview("OC detected") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM(ocConfig: true)).frame(width: 320).padding() }
-#Preview("Both connected") { SettingsSection(
-    updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true)).frame(width: 320).padding() }
+#Preview("OC detected") { SettingsSection(
+    updater: DisabledUpdater(), pluginManager: previewPM(ocConfig: true)).frame(width: 320).padding() }
+#Preview("Pi detected") { SettingsSection(
+    updater: DisabledUpdater(), pluginManager: previewPM(piConfig: true)).frame(width: 320).padding() }
+#Preview("All connected") { SettingsSection(
+    updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true, pi: true, piConfig: true))
+        .frame(width: 320).padding() }
 #Preview("OC update available") { SettingsSection(
     updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true, ocUpdate: true)).frame(width: 320).padding() }
 #Preview("Sparkle: update available") { let mu = MockUpdater(); mu.pendingUpdateVersion = "0.7.0"

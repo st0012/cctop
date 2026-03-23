@@ -2,7 +2,11 @@ import SwiftUI
 
 extension Session {
     var sourceBadgeColor: Color {
-        source == "opencode" ? .blue : .amber
+        switch source {
+        case "opencode": return .blue
+        case "pi": return .green
+        default: return .amber
+        }
     }
 }
 

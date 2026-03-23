@@ -3,12 +3,16 @@ import SwiftUI
 struct EmptyStateView: View {
     @ObservedObject var pluginManager: PluginManager
     @State private var copiedIndex: Int?
-    @State private var justInstalled = false
+    @State private var justInstalledOC = false
+    @State private var justInstalledPi = false
 
     private static let ccMarketplace = "claude plugin marketplace add st0012/cctop"
     private static let ccInstall = "claude plugin install cctop"
 
-    private var anyInstalled: Bool { pluginManager.ccInstalled || pluginManager.ocInstalled }
+    private var anyInstalled: Bool {
+        pluginManager.ccInstalled || pluginManager.ocInstalled
+            || pluginManager.piInstalled
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -40,9 +44,14 @@ struct EmptyStateView: View {
 
     private var installedView: some View {
         VStack(spacing: 8) {
-            pluginStatusRow("Claude Code", installed: pluginManager.ccInstalled)
+            pluginStatusRow(
+                "Claude Code", installed: pluginManager.ccInstalled
+            )
             if pluginManager.ocConfigExists {
                 ocPluginRow
+            }
+            if pluginManager.piConfigExists {
+                piPluginRow
             }
 
             Text("Start a session \u{2014} it will appear here automatically.")
@@ -72,15 +81,40 @@ struct EmptyStateView: View {
     }
 
     private var ocPluginRow: some View {
+        thirdPartyPluginRow(
+            name: "opencode",
+            installed: pluginManager.ocInstalled,
+            justInstalled: $justInstalledOC,
+            install: { pluginManager.installOpenCodePlugin() }
+        )
+    }
+
+    private var piPluginRow: some View {
+        thirdPartyPluginRow(
+            name: "pi",
+            installed: pluginManager.piInstalled,
+            justInstalled: $justInstalledPi,
+            install: { pluginManager.installPiPlugin() }
+        )
+    }
+
+    private func thirdPartyPluginRow(
+        name: String,
+        installed: Bool,
+        justInstalled: Binding<Bool>,
+        install: @escaping () -> Bool
+    ) -> some View {
         VStack(spacing: 4) {
             HStack(spacing: 6) {
-                pluginStatusRow("opencode", installed: pluginManager.ocInstalled)
-                if !pluginManager.ocInstalled && !justInstalled {
+                pluginStatusRow(name, installed: installed)
+                if !installed && !justInstalled.wrappedValue {
                     Button {
-                        if pluginManager.installOpenCodePlugin() {
-                            justInstalled = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                justInstalled = false
+                        if install() {
+                            justInstalled.wrappedValue = true
+                            DispatchQueue.main.asyncAfter(
+                                deadline: .now() + 3
+                            ) {
+                                justInstalled.wrappedValue = false
                             }
                         }
                     } label: {
@@ -95,14 +129,16 @@ struct EmptyStateView: View {
                     .buttonStyle(.plain)
                 }
             }
-            if justInstalled {
+            if justInstalled.wrappedValue {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10))
                         .foregroundStyle(.green)
-                    Text("Installed \u{2014} restart opencode to start tracking sessions")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.textMuted)
+                    Text(
+                        "Installed \u{2014} restart \(name) to start tracking sessions"
+                    )
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
                     Spacer()
                 }
                 .transition(.opacity)
@@ -122,6 +158,13 @@ struct EmptyStateView: View {
                 VStack(spacing: 6) {
                     sectionHeader("opencode")
                     ocPluginRow
+                }
+            }
+
+            if pluginManager.piConfigExists {
+                VStack(spacing: 6) {
+                    sectionHeader("pi")
+                    piPluginRow
                 }
             }
 
@@ -186,12 +229,15 @@ struct EmptyStateView: View {
 
 @MainActor
 private func previewPluginManager(
-    cc: Bool = false, oc: Bool = false, ocConfig: Bool = false
+    cc: Bool = false, oc: Bool = false, ocConfig: Bool = false,
+    pi: Bool = false, piConfig: Bool = false
 ) -> PluginManager {
     let pm = PluginManager()
     pm.ccInstalled = cc
     pm.ocInstalled = oc
     pm.ocConfigExists = ocConfig
+    pm.piInstalled = pi
+    pm.piConfigExists = piConfig
     return pm
 }
 
@@ -199,27 +245,37 @@ private func previewPluginManager(
     EmptyStateView(pluginManager: previewPluginManager())
         .frame(width: 320)
 }
-#Preview("Not installed (OC detected)") {
-    EmptyStateView(pluginManager: previewPluginManager(ocConfig: true))
-        .frame(width: 320)
-}
-#Preview("Not installed (OC installed)") {
-    EmptyStateView(pluginManager: previewPluginManager(oc: true, ocConfig: true))
-        .frame(width: 320)
+#Preview("Not installed (OC + Pi detected)") {
+    EmptyStateView(
+        pluginManager: previewPluginManager(
+            ocConfig: true, piConfig: true
+        )
+    )
+    .frame(width: 320)
 }
 #Preview("CC installed") {
     EmptyStateView(pluginManager: previewPluginManager(cc: true))
         .frame(width: 320)
 }
-#Preview("CC installed + OC detected") {
-    EmptyStateView(pluginManager: previewPluginManager(cc: true, ocConfig: true))
-        .frame(width: 320)
+#Preview("CC installed + Pi detected") {
+    EmptyStateView(
+        pluginManager: previewPluginManager(
+            cc: true, piConfig: true
+        )
+    )
+    .frame(width: 320)
 }
-#Preview("Both installed") {
-    EmptyStateView(pluginManager: previewPluginManager(cc: true, oc: true, ocConfig: true))
-        .frame(width: 320)
+#Preview("All installed") {
+    EmptyStateView(
+        pluginManager: previewPluginManager(
+            cc: true, oc: true, ocConfig: true, pi: true, piConfig: true
+        )
+    )
+    .frame(width: 320)
 }
-#Preview("OC only") {
-    EmptyStateView(pluginManager: previewPluginManager(oc: true, ocConfig: true))
-        .frame(width: 320)
+#Preview("Pi only") {
+    EmptyStateView(
+        pluginManager: previewPluginManager(pi: true, piConfig: true)
+    )
+    .frame(width: 320)
 }

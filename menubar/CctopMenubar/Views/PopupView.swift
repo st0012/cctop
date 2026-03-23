@@ -27,10 +27,15 @@ struct PopupView: View {
     @State private var shortcutHovered = false
     @State private var ocBannerInstalled = false
     @State private var lastFocusTime: Date = .distantPast
+    @State private var piBannerInstalled = false
     @AppStorage("ocBannerDismissed") private var ocBannerDismissed = false
+    @AppStorage("piBannerDismissed") private var piBannerDismissed = false
 
     private var showOcBanner: Bool {
         pluginManager.map { $0.ocConfigExists && !$0.ocInstalled && !ocBannerDismissed } ?? false
+    }
+    private var showPiBanner: Bool {
+        pluginManager.map { $0.piConfigExists && !$0.piInstalled && !piBannerDismissed } ?? false
     }
 
     private var showTabs: Bool { !recentProjects.isEmpty }
@@ -103,9 +108,7 @@ struct PopupView: View {
             notifyLayoutChanged()
         }
     }
-
     // MARK: - Active tab
-
     private var activeContent: some View {
         Group {
             if sessions.isEmpty {
@@ -119,6 +122,12 @@ struct PopupView: View {
                         toolName: "opencode", iconLabel: ">_", iconColor: .blue,
                         installAction: { pluginManager?.installOpenCodePlugin() ?? false },
                         installed: $ocBannerInstalled, dismissed: $ocBannerDismissed)
+                }
+                if showPiBanner {
+                    ToolInstallBanner(
+                        toolName: "pi", iconLabel: "\u{03C0}", iconColor: .green,
+                        installAction: { pluginManager?.installPiPlugin() ?? false },
+                        installed: $piBannerInstalled, dismissed: $piBannerDismissed)
                 }
                 ScrollViewReader { proxy in
                     ScrollView(showsIndicators: false) {
@@ -165,9 +174,7 @@ struct PopupView: View {
             }
         }
     }
-
     // MARK: - Recent tab
-
     @ViewBuilder
     private var recentContent: some View {
         if recentProjects.isEmpty {
@@ -309,7 +316,6 @@ extension PopupView {
     }
     private var isNavigateActive: Bool { navigate?.isActive ?? false }
     private var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }
-
     private var sortedSessions: [Session] {
         if isNavigateActive, let frozen = navigate?.frozenSessions, !frozen.isEmpty {
             return frozen
@@ -333,7 +339,6 @@ extension PopupView {
             notifyLayoutChanged()
         }
     }
-
     private func closeOverlay(animated: Bool) {
         overlayController.active = nil
         notifyLayoutChanged()
@@ -384,12 +389,8 @@ extension PopupView {
 
     private func switchTab(to action: PanelNavAction) {
         guard showTabs else { return }
-        let newTab: PopupTab
-        switch action {
-        case .previousTab: newTab = .active
-        case .nextTab: newTab = .recent
-        default: newTab = selectedTab == .active ? .recent : .active
-        }
+        let newTab: PopupTab = action == .previousTab ? .active : action == .nextTab ? .recent
+            : (selectedTab == .active ? .recent : .active)
         guard newTab != selectedTab else { return }
         if overlayController.active != nil { closeOverlay(animated: true) }
         withAnimation(.easeInOut(duration: 0.15)) { selectedTab = newTab }
