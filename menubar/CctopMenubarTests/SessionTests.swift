@@ -274,6 +274,11 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.sourceLabel, "CC")
     }
 
+    func testSourceLabelPi() {
+        let session = Session.mock(source: "pi")
+        XCTAssertEqual(session.sourceLabel, "Pi")
+    }
+
     func testSourceLabelUnknownValue() {
         let session = Session.mock(source: "aider")
         XCTAssertEqual(session.sourceLabel, "CC")

@@ -230,6 +230,15 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.sessionName, "Fix login bug")
     }
 
+    // MARK: - Source passthrough (pi)
+
+    func testSourcePassthroughPi() throws {
+        try handleFixture("SessionStart-pi")
+        let session = try loadSession()
+        XCTAssertEqual(session.source, "pi")
+        XCTAssertEqual(session.sessionName, "Refactor auth module")
+    }
+
     // MARK: - Full lifecycle sequence
 
     func testFullLifecycle() throws {

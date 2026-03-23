@@ -103,7 +103,11 @@ struct Session: Codable, Identifiable {
     }
 
     var sourceLabel: String {
-        source == "opencode" ? "OC" : "CC"
+        switch source {
+        case "opencode": return "OC"
+        case "pi": return "Pi"
+        default: return "CC"
+        }
     }
 
     var subagentCount: Int {

@@ -54,13 +54,11 @@ enum HookHandler {
             cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: pid)
         }
     }
-
     private static func clearToolState(_ session: inout Session) {
         session.lastTool = nil
         session.lastToolDetail = nil
         session.notificationMessage = nil
     }
-
     private static func applySubagentEvent(event: HookEvent, session: inout Session, input: HookInput) {
         switch event {
         case .subagentStart:
@@ -88,9 +86,8 @@ enum HookHandler {
         let oldStatus = session.status.rawValue
         let newStatus = Transition.forEvent(session.status, event: event)
         if let newStatus { session.status = newStatus }
-        // Skip lastActivity update for late notificationPermission — the PermissionRequest
-        // already set it, and we need the original timestamp for child-process-start-time
-        // comparison in the menubar app.
+        // Skip lastActivity for notificationPermission — PermissionRequest already set it,
+        // and the menubar app needs the original timestamp for child-process-start-time comparison.
         if event != .notificationPermission { session.lastActivity = Date() }
         session.branch = branch; session.terminal = terminal
         if let source = input.source { session.source = source }
