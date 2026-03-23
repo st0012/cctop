@@ -203,13 +203,15 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.notificationMessage, "Context window exceeded")
     }
 
-    // MARK: - SessionEnd removes session file
+    // MARK: - SessionEnd stamps endedAt for archiving
 
-    func testSessionEndRemovesFile() throws {
+    func testSessionEndStampsEndedAt() throws {
         try handleFixture("SessionStart")
         XCTAssertTrue(sessionFileExists())
+        XCTAssertNil(try loadSession().endedAt)
         try handleFixture("SessionEnd")
-        XCTAssertFalse(sessionFileExists())
+        XCTAssertTrue(sessionFileExists(), "File should remain for menubar to archive")
+        XCTAssertNotNil(try loadSession().endedAt)
     }
 
     // MARK: - Source passthrough (opencode)
@@ -247,6 +249,7 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(try loadSession().status, .waitingInput)
 
         try handleFixture("SessionEnd")
-        XCTAssertFalse(sessionFileExists())
+        XCTAssertTrue(sessionFileExists())
+        XCTAssertNotNil(try loadSession().endedAt)
     }
 }

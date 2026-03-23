@@ -113,13 +113,9 @@ enum HookHandler {
             clearToolState(&session)
             session.activeSubagents = []
             session.workspaceFile = Session.findWorkspaceFile(in: input.cwd)
-
         case .userPromptSubmit:
             clearToolState(&session)
-            if let prompt = input.prompt {
-                session.lastPrompt = prompt
-            }
-
+            if let prompt = input.prompt { session.lastPrompt = prompt }
         case .preToolUse:
             if let toolName = input.toolName {
                 session.lastTool = toolName
@@ -137,20 +133,12 @@ enum HookHandler {
             // delayed Notification transitions to .working, the card can show what tool is running.
 
         case .notificationIdle, .notificationOther:
-            session.lastTool = nil
-            session.lastToolDetail = nil
-            if let msg = input.message {
-                session.notificationMessage = msg
-            }
-
+            session.lastTool = nil; session.lastToolDetail = nil
+            if let msg = input.message { session.notificationMessage = msg }
         case .stop:
             clearToolState(&session)
-
         case .postToolUseFailure:
-            if let error = input.error {
-                session.notificationMessage = error
-            }
-
+            if let error = input.error { session.notificationMessage = error }
         case .subagentStart, .subagentStop:
             applySubagentEvent(event: event, session: &session, input: input)
 
@@ -268,13 +256,19 @@ enum HookHandler {
     // MARK: - Cleanup
 
     private static func handleSessionEnd(hookName: String, input: HookInput) {
-        let sessionsDir = Config.sessionsDir()
         let pid = getParentPID()
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
-        let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(pid).json")
+        let path = (Config.sessionsDir() as NSString).appendingPathComponent("\(pid).json")
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
-        HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
-        removeSession(at: sessionPath, sessionId: safeId)
+        // Stamp endedAt so the menubar app archives before removing the file.
+        if var session = try? Session.fromFile(path: path) {
+            session.endedAt = Date()
+            try? session.writeToFile(path: path)
+            HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
+        } else {
+            HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
+            removeSession(at: path, sessionId: safeId)
+        }
     }
 
     static func cleanupSessionsForProject(sessionsDir: String, projectPath: String, currentPid: UInt32?) {
