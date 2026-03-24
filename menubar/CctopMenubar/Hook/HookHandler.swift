@@ -211,14 +211,14 @@ enum HookHandler {
     }
 
     static func captureTerminalInfo() -> TerminalInfo {
-        let program = ProcessInfo.processInfo.environment["TERM_PROGRAM"] ?? ""
+        let env = ProcessInfo.processInfo.environment
+        let program = env["TERM_PROGRAM"] ?? ""
         let sessionId = sanitizeTerminalSessionId(
-            ProcessInfo.processInfo.environment["ITERM_SESSION_ID"]
-            ?? ProcessInfo.processInfo.environment["KITTY_WINDOW_ID"]
+            env["ITERM_SESSION_ID"] ?? env["KITTY_WINDOW_ID"]
         )
-        let tty = ProcessInfo.processInfo.environment["TTY"]
-            ?? findTTY()
-        return TerminalInfo(program: program, sessionId: sessionId, tty: tty)
+        let tty = env["TTY"] ?? findTTY()
+        let bundleId = env["__CFBundleIdentifier"]
+        return TerminalInfo(program: program, sessionId: sessionId, tty: tty, bundleId: bundleId)
     }
 
     /// Validate terminal session IDs to prevent injection via env vars.

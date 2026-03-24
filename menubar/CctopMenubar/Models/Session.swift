@@ -49,17 +49,20 @@ struct TerminalInfo: Codable {
     let program: String
     let sessionId: String?
     let tty: String?
+    let bundleId: String?
 
     enum CodingKeys: String, CodingKey {
         case program
         case sessionId = "session_id"
         case tty
+        case bundleId = "bundle_id"
     }
 
-    init(program: String = "", sessionId: String? = nil, tty: String? = nil) {
+    init(program: String = "", sessionId: String? = nil, tty: String? = nil, bundleId: String? = nil) {
         self.program = program
         self.sessionId = sessionId
         self.tty = tty
+        self.bundleId = bundleId
     }
 }
 

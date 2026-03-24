@@ -13,6 +13,13 @@ enum HostApp {
     case ghostty
     case unknown
 
+    /// Match a bundle identifier to a HostApp. Preferred over program name matching
+    /// because `__CFBundleIdentifier` unambiguously identifies VS Code forks.
+    static func from(bundleIdentifier: String?) -> HostApp? {
+        guard let id = bundleIdentifier, !id.isEmpty else { return nil }
+        return allByBundleID[id]
+    }
+
     /// Match program name to a HostApp.
     static func from(editorName: String?) -> HostApp {
         guard let name = editorName, !name.isEmpty else { return .unknown }
@@ -75,6 +82,14 @@ enum HostApp {
         case .iterm2, .warp, .terminal, .ghostty, .unknown: return false
         }
     }
+
+    /// Reverse lookup: bundle ID → HostApp.
+    static let allByBundleID: [String: HostApp] = {
+        let all: [HostApp] = [.vscode, .cursor, .windsurf, .zed, .iterm2, .warp, .terminal, .ghostty]
+        return Dictionary(uniqueKeysWithValues: all.compactMap { app in
+            app.bundleID.map { ($0, app) }
+        })
+    }()
 
     /// CLI command name for opening files (used by focusTerminal for active sessions).
     var cliCommand: String? {

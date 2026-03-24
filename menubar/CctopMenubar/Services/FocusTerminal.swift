@@ -23,7 +23,10 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
         return .openInFinder(session.projectPath)
     }
 
-    let hostApp = HostApp.from(editorName: terminal.program)
+    // Prefer bundle_id (from __CFBundleIdentifier) over program name — it
+    // unambiguously identifies VS Code forks that all set TERM_PROGRAM=vscode.
+    let hostApp = HostApp.from(bundleIdentifier: terminal.bundleId)
+        ?? HostApp.from(editorName: terminal.program)
     let target = session.workspaceFile ?? session.projectPath
 
     // Editors with a known bundle ID → open the project with that app.
