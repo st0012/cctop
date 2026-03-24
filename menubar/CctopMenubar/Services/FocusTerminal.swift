@@ -58,6 +58,7 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
 func focusTerminal(session: Session) {
     let strategy = resolveFocusStrategy(session: session)
     executeFocusStrategy(strategy)
+    NSApp.deactivate()
 }
 
 private func executeFocusStrategy(_ strategy: FocusStrategy) {

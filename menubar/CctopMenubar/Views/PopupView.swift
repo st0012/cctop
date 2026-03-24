@@ -326,7 +326,7 @@ extension PopupView {
     private func focusSession(_ session: Session) {
         guard Date().timeIntervalSince(lastFocusTime) > 0.5 else { return }
         lastFocusTime = Date()
-        focusTerminal(session: session); NSApp.deactivate()
+        focusTerminal(session: session)
     }
 
     private func toggleOverlay(_ overlay: PopupOverlay) {
