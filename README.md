@@ -34,6 +34,7 @@ Works with your existing editor and terminal. No IDE needed, no workflow changes
 
 <p align="center">
   <img src="docs/menubar-navigate.png" alt="cctop navigate mode with numbered badges" width="340">
+[![Hypercommit](https://img.shields.io/badge/Hypercommit-DB2475)](https://hypercommit.com/cctop)
   <br><em>Navigate mode — press 1–9 to jump</em>
 </p>
 
