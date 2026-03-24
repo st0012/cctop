@@ -1,3 +1,4 @@
+import AppKit
 import Darwin.libproc
 import Foundation
 import UserNotifications
@@ -172,11 +173,36 @@ class SessionManager: ObservableObject {
     }
 
     static func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if let error {
-                logger.error("Notification permission error: \(error, privacy: .public)")
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                DispatchQueue.main.async {
+                    // Menubar-only apps (activationPolicy = .accessory) can't show the
+                    // macOS notification permission prompt. Temporarily become a regular
+                    // app so the system presents the dialog, then switch back.
+                    let wasAccessory = NSApplication.shared.activationPolicy() == .accessory
+                    if wasAccessory { NSApplication.shared.setActivationPolicy(.regular) }
+
+                    center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                        if let error {
+                            logger.error("Notification permission error: \(error, privacy: .public)")
+                        }
+                        logger.info("Notification permission granted: \(granted, privacy: .public)")
+                        DispatchQueue.main.async {
+                            if wasAccessory { NSApplication.shared.setActivationPolicy(.accessory) }
+                        }
+                    }
+                }
+            case .denied:
+                DispatchQueue.main.async {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            default:
+                break
             }
-            logger.info("Notification permission granted: \(granted, privacy: .public)")
         }
     }
 
