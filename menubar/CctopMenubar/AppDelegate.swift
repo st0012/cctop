@@ -454,6 +454,14 @@ private let navKeyMap: [UInt16: PanelNavAction] = [
     124: .nextTab       // right arrow
 ]
 
+// Hardware key codes for digit row (1-9). Using keyCode instead of
+// event.characters so digit navigation works with non-English input
+// methods (e.g. Zhuyin where "1" produces "ㄅ").
+private let digitKeyCodeMap: [UInt16: Int] = [
+    18: 1, 19: 2, 20: 3, 21: 4, 23: 5,
+    22: 6, 26: 7, 28: 8, 25: 9
+]
+
 extension AppDelegate {
     @MainActor @discardableResult
     func handleEvent(_ event: PanelEvent) -> Bool {
@@ -536,9 +544,9 @@ extension AppDelegate {
         navKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.panel.isVisible else { return event }
 
-            // Navigate: digit keys jump to session
+            // Navigate: digit keys jump to session (use keyCode for IME compatibility)
             if self.navigateController.isActive,
-               let char = event.characters, let digit = Int(char), digit >= 1, digit <= 9 {
+               let digit = digitKeyCodeMap[event.keyCode] {
                 DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
                 return nil
             }
