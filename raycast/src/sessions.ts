@@ -147,6 +147,15 @@ export function sourceLabel(session: CctopSession): string {
 }
 
 /**
+ * Human-readable source name for detail panes.
+ */
+export function sourceDisplayName(session: CctopSession): string {
+  if (session.source === "opencode") return "opencode";
+  if (session.source === "pi") return "pi";
+  return "Claude Code";
+}
+
+/**
  * Format tool display matching Session.swift formatToolDisplay.
  * Case-insensitive matching (opencode sends lowercase, Claude Code sends capitalized).
  */

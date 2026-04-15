@@ -19,6 +19,7 @@ import {
   contextLine,
   relativeTime,
   sourceLabel,
+  sourceDisplayName,
   statusGroup,
   groupSessions,
   needsAttention,
@@ -120,7 +121,7 @@ function SessionDetail({ session }: { session: CctopSession }) {
           />
           <List.Item.Detail.Metadata.Label
             title="Source"
-            text={session.source === "opencode" ? "opencode" : "Claude Code"}
+            text={sourceDisplayName(session)}
           />
           <List.Item.Detail.Metadata.Separator />
           <List.Item.Detail.Metadata.Label
