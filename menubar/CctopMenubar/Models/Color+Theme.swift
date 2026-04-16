@@ -120,4 +120,25 @@ extension Color {
             ThemeManager.shared.current.agentBadge.resolve(appearance)
         })
     }
+
+    /// Source badge — opencode.
+    static var opencodeBadge: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.opencodeBadge.resolve(appearance)
+        })
+    }
+
+    /// Source badge — pi.
+    static var piBadge: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.piBadge.resolve(appearance)
+        })
+    }
+
+    /// Source badge — codex.
+    static var codexBadge: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.codexBadge.resolve(appearance)
+        })
+    }
 }

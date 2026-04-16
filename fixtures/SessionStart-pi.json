@@ -2,6 +2,7 @@
   "session_id": "pi-12345",
   "cwd": "/tmp/test-project",
   "hook_event_name": "SessionStart",
+  "harness_name": "pi",
   "source": "pi",
   "session_name": "Refactor auth module"
 }

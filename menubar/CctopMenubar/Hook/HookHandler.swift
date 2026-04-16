@@ -90,7 +90,10 @@ enum HookHandler {
         // and the menubar app needs the original timestamp for child-process-start-time comparison.
         if event != .notificationPermission { session.lastActivity = Date() }
         session.branch = branch; session.terminal = terminal
-        if let source = input.source { session.source = source }
+        // MIGRATION(harness_name): The session JSON file still uses the `source` key.
+        // Renaming the JSON key would require a reader-side migration in SessionManager +
+        // the Raycast extension. Do that in a future PR once `harness_name` is settled.
+        if let harness = input.resolvedHarnessName { session.source = harness }
         if let name = input.sessionName {
             session.sessionName = name
         } else if event == .sessionStart || event == .userPromptSubmit {

@@ -76,7 +76,8 @@ export const cctop = async ({ directory }) => {
     return {
       session_id: sessionId,
       cwd: directory,
-      source: "opencode",
+      harness_name: "opencode",
+      source: "opencode",  // MIGRATION(harness_name): Keep for older cctop-hook binaries
       ...(sessionName && { session_name: sessionName }),
     };
   }

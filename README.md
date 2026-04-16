@@ -60,7 +60,7 @@ Works with your existing editor and terminal. No IDE needed, no workflow changes
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Supported | Shell hooks → `cctop-hook` CLI |
 | [opencode](https://opencode.ai) | Supported | JS plugin → `cctop-hook` CLI |
 | [pi](https://github.com/badlogic/pi-mono) | Supported | TS extension → `cctop-hook` CLI |
-| [Codex CLI](https://github.com/openai/codex) | Planned | Waiting for plugin/hook API to stabilize |
+| [Codex CLI](https://github.com/openai/codex) | Supported | Shell hooks → `cctop-hook` CLI (requires `codex_hooks = true` feature flag) |
 
 ### Themes
 

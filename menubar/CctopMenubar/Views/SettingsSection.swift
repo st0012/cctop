@@ -254,45 +254,33 @@ struct SettingsSection: View {
 private struct MonitoredToolsView: View {
     @ObservedObject var pluginManager: PluginManager
     @Binding var installFailed: Bool
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             toolStatusRow(name: "Claude Code", installed: pluginManager.ccInstalled)
             if pluginManager.ocConfigExists {
-                PluginRowView(
-                    name: "opencode", installed: pluginManager.ocInstalled,
-                    needsUpdate: pluginManager.ocNeedsUpdate,
-                    installFailed: $installFailed,
+                PluginRowView(name: "opencode", installed: pluginManager.ocInstalled,
+                    needsUpdate: pluginManager.ocNeedsUpdate, installFailed: $installFailed,
                     install: { pluginManager.installOpenCodePlugin() },
-                    remove: { pluginManager.removeOpenCodePlugin() }
-                )
+                    remove: { pluginManager.removeOpenCodePlugin() })
             }
             if pluginManager.piConfigExists {
-                PluginRowView(
-                    name: "pi", installed: pluginManager.piInstalled,
-                    installFailed: $installFailed,
-                    install: { pluginManager.installPiPlugin() },
-                    remove: { pluginManager.removePiPlugin() }
-                )
+                PluginRowView(name: "pi", installed: pluginManager.piInstalled,
+                    installFailed: $installFailed, install: { pluginManager.installPiPlugin() },
+                    remove: { pluginManager.removePiPlugin() })
+            }
+            if pluginManager.codexConfigExists {
+                CodexPluginRowView(pluginManager: pluginManager, installFailed: $installFailed)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 14).padding(.bottom, 8)
     }
-
     private func toolStatusRow(name: String, installed: Bool) -> some View {
         HStack(spacing: 8) {
-            Text(name).font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.textPrimary)
+            Text(name).font(.system(size: 11, weight: .medium)).foregroundStyle(Color.textPrimary)
             Spacer()
-            if installed {
-                ConnectedBadge()
-            } else {
-                Text("Not installed").font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-            }
-        }
-        .padding(.vertical, 7)
+            if installed { ConnectedBadge()
+            } else { Text("Not installed").font(.system(size: 10)).foregroundStyle(Color.textMuted) }
+        }.padding(.vertical, 7)
     }
 }
 
@@ -358,39 +346,51 @@ private struct PluginRowView: View {
     }
 }
 
-private struct ConnectedBadge: View {
+private struct CodexPluginRowView: View {
+    @ObservedObject var pluginManager: PluginManager
+    @Binding var installFailed: Bool
+    @State private var showFlagAlert = false
+    private static let flagWarning = "Codex CLI requires the codex_hooks feature flag, "
+        + "which is experimental. Codex will show a startup warning."
     var body: some View {
-        HStack(spacing: 4) {
-            Circle().fill(Color.statusGreen).frame(width: 5, height: 5)
-            Text("Connected").font(.system(size: 10)).foregroundStyle(Color.textMuted)
+        PluginRowView(
+            name: "Codex CLI", installed: pluginManager.codexInstalled,
+            needsUpdate: pluginManager.codexNeedsUpdate, installFailed: $installFailed,
+            install: { onInstall() }, remove: { pluginManager.removeCodexPlugin() })
+        .alert("Enable experimental feature?", isPresented: $showFlagAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Enable & Install") { doInstall() }
+        } message: { Text(Self.flagWarning) }
+    }
+    private func onInstall() -> Bool {
+        if pluginManager.codexFlagAlreadyEnabled { return pluginManager.installCodexPlugin() }
+        showFlagAlert = true
+        // PluginRowView interprets false as failure and flashes an error banner.
+        // Suppress it on the next run loop so it never renders.
+        DispatchQueue.main.async { installFailed = false }
+        return false
+    }
+    private func doInstall() {
+        guard pluginManager.installCodexPlugin() else {
+            installFailed = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { installFailed = false }
+            return
         }
     }
 }
 
-// MARK: - Preview Helpers
-@MainActor private class MockUpdater: UpdaterBase {
-    override var canCheckForUpdates: Bool { true }
+private struct ConnectedBadge: View {
+    var body: some View { HStack(spacing: 4) {
+        Circle().fill(Color.statusGreen).frame(width: 5, height: 5)
+        Text("Connected").font(.system(size: 10)).foregroundStyle(Color.textMuted)
+    } }
 }
-@MainActor private func previewPM(
-    cc: Bool = true, oc: Bool = false, ocConfig: Bool = false, ocUpdate: Bool = false,
-    pi: Bool = false, piConfig: Bool = false
-) -> PluginManager {
-    let pm = PluginManager(); pm.ccInstalled = cc; pm.ocInstalled = oc
-    pm.ocNeedsUpdate = ocUpdate; pm.ocConfigExists = ocConfig
-    pm.piInstalled = pi; pm.piConfigExists = piConfig; return pm
+// MARK: - Previews
+@MainActor private class MockUpdater: UpdaterBase { override var canCheckForUpdates: Bool { true } }
+@MainActor private func previewPM() -> PluginManager {
+    let pm = PluginManager(); pm.ccInstalled = true; pm.ocInstalled = true
+    pm.ocConfigExists = true; pm.piInstalled = true; pm.piConfigExists = true
+    pm.codexInstalled = true; pm.codexConfigExists = true; return pm
 }
-#Preview("Default") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }
-#Preview("Update available") { let up = DisabledUpdater(); up.pendingUpdateVersion = "0.7.0"
-    return SettingsSection(updater: up, pluginManager: previewPM()).frame(width: 320).padding() }
-#Preview("OC detected") { SettingsSection(
-    updater: DisabledUpdater(), pluginManager: previewPM(ocConfig: true)).frame(width: 320).padding() }
-#Preview("Pi detected") { SettingsSection(
-    updater: DisabledUpdater(), pluginManager: previewPM(piConfig: true)).frame(width: 320).padding() }
-#Preview("All connected") { SettingsSection(
-    updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true, pi: true, piConfig: true))
-        .frame(width: 320).padding() }
-#Preview("OC update available") { SettingsSection(
-    updater: DisabledUpdater(), pluginManager: previewPM(oc: true, ocConfig: true, ocUpdate: true)).frame(width: 320).padding() }
-#Preview("Sparkle: update available") { let mu = MockUpdater(); mu.pendingUpdateVersion = "0.7.0"
-    return SettingsSection(updater: mu, pluginManager: previewPM()).frame(width: 320).padding() }
-#Preview("Sparkle: up to date") { SettingsSection(updater: MockUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }
+#Preview("Default") { SettingsSection(updater: DisabledUpdater(), pluginManager: PluginManager()).frame(width: 320).padding() }
+#Preview("All connected") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }

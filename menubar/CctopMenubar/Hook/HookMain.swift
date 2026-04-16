@@ -5,7 +5,7 @@ import Foundation
 /// Called by Claude Code hooks to track session state.
 /// Reads hook event JSON from stdin and updates session files in ~/.cctop/sessions/.
 ///
-/// Usage: cctop-hook <HookName>
+/// Usage: cctop-hook <HookName> [--harness <name>]
 @main
 struct HookMain {
     static let version = "0.13.2"
@@ -30,16 +30,20 @@ struct HookMain {
         }
 
         let hookName = args[1]
+        let harnessArg = parseHarnessArg(args)
 
         guard let stdinBuf = readStdin(hookName: hookName) else { exit(0) }
 
-        let input: HookInput
+        var input: HookInput
         do {
             input = try JSONDecoder().decode(HookInput.self, from: Data(stdinBuf.utf8))
         } catch {
             HookLogger.logError("\(hookName): failed to parse JSON: \(error)")
             exit(0)
         }
+
+        // --harness flag overrides JSON for tools (like Codex) whose stdin we can't modify.
+        if let harnessArg { input.harnessName = harnessArg }
 
         do {
             try HookHandler.handleHook(hookName: hookName, input: input)
@@ -77,19 +81,27 @@ struct HookMain {
         }
     }
 
+    /// Parse `--harness <name>` from argv. Used by the Codex shim to identify the
+    /// tool without injecting fields into Codex's stdin JSON.
+    private static func parseHarnessArg(_ args: [String]) -> String? {
+        guard let idx = args.firstIndex(of: "--harness"),
+              idx + 1 < args.count else { return nil }
+        return args[idx + 1]
+    }
+
     private static func printHelp() {
         print("cctop-hook \(version)")
-        print("Claude Code hook handler for cctop session tracking.\n")
-        print("This binary is called by Claude Code hooks via the cctop plugin.")
-        print("It reads hook event JSON from stdin and updates session files")
+        print("Hook handler for cctop session tracking.\n")
+        print("Reads hook event JSON from stdin and updates session files")
         print("in ~/.cctop/sessions/.\n")
         print("USAGE:")
-        print("    cctop-hook <HOOK_NAME>\n")
+        print("    cctop-hook <HOOK_NAME> [--harness <name>]\n")
         print("HOOK NAMES:")
         print("    SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,")
         print("    Stop, Notification, PermissionRequest, PreCompact, SessionEnd\n")
         print("OPTIONS:")
-        print("    -h, --help       Print this help message")
-        print("    -V, --version    Print version")
+        print("    --harness <name>  Set the harness name (e.g. codex)")
+        print("    -h, --help        Print this help message")
+        print("    -V, --version     Print version")
     }
 }

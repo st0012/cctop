@@ -140,6 +140,7 @@ final class HookInputTests: XCTestCase {
         XCTAssertEqual(input.sessionId, "opencode-12345")
         XCTAssertEqual(input.hookEventName, "SessionStart")
         XCTAssertEqual(input.source, "opencode")
+        XCTAssertEqual(input.harnessName, "opencode")
         XCTAssertEqual(input.sessionName, "Fix login bug")
     }
 
@@ -183,7 +184,8 @@ final class HookInputTests: XCTestCase {
             "PermissionRequest", "Notification-idle", "Notification-permission",
             "SubagentStart", "SubagentStop", "PreCompact",
             "PostCompact", "SessionError",
-            "SessionStart-opencode"
+            "SessionStart-opencode",
+            "codex-SessionStart"
         ]
 
         for name in fixtureNames {
@@ -193,5 +195,52 @@ final class HookInputTests: XCTestCase {
                 "Fixture \(name) has unexpected event: \(input.hookEventName)"
             )
         }
+    }
+
+    // MARK: - resolvedHarnessName
+
+    func testHarnessNamePrefersHarnessNameField() throws {
+        let input = try JSONDecoder().decode(
+            HookInput.self, from: loadFixture("SessionStart-opencode")
+        )
+        XCTAssertEqual(input.harnessName, "opencode")
+        XCTAssertEqual(input.source, "opencode")
+        XCTAssertEqual(input.resolvedHarnessName, "opencode")
+    }
+
+    func testHarnessNameFallsBackToSourceForLegacyPlugins() throws {
+        let json = """
+        {"session_id":"test","cwd":"/tmp","hook_event_name":"SessionStart","source":"opencode"}
+        """
+        let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
+        XCTAssertNil(input.harnessName)
+        XCTAssertEqual(input.resolvedHarnessName, "opencode")
+    }
+
+    func testHarnessNameIgnoresCodexTriggerKind() throws {
+        let input = try JSONDecoder().decode(
+            HookInput.self, from: loadFixture("codex-SessionStart")
+        )
+        XCTAssertEqual(input.source, "startup")
+        XCTAssertNil(input.resolvedHarnessName, "'startup' is not a harness name")
+    }
+
+    func testHarnessNameSetViaCLIArg() throws {
+        // Codex path: shim passes --harness codex, HookMain sets input.harnessName
+        // before calling handleHook. We simulate that by setting harnessName directly.
+        var input = try JSONDecoder().decode(
+            HookInput.self, from: loadFixture("codex-SessionStart")
+        )
+        XCTAssertNil(input.harnessName)
+        input.harnessName = "codex"
+        XCTAssertEqual(input.resolvedHarnessName, "codex")
+    }
+
+    func testHarnessNameRejectsUnknownSourceValue() throws {
+        let json = """
+        {"session_id":"test","cwd":"/tmp","hook_event_name":"SessionStart","source":"../../etc/passwd"}
+        """
+        let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
+        XCTAssertNil(input.resolvedHarnessName, "non-allowlisted source must be rejected")
     }
 }

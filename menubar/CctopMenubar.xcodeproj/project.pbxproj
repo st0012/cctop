@@ -32,6 +32,8 @@
 		G10000030000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000040000000000000001 /* AppDelegate.swift */; };
 		H10000010000000000000001 /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000020000000000000001 /* AppSettings.swift */; };
 		FX0000010000000000000001 /* HookInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FX0000020000000000000001 /* HookInputTests.swift */; };
+		CPT000010000000000000001 /* CodexPluginInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPT000020000000000000001 /* CodexPluginInstallerTests.swift */; };
+		CPTOML010000000000000001 /* CodexPluginTomlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPTOML020000000000000001 /* CodexPluginTomlTests.swift */; };
 		FX0000030000000000000001 /* HookInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000040000000000000001 /* HookInput.swift */; };
 		HH0000010000000000000001 /* HookHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HH0000020000000000000001 /* HookHandlerTests.swift */; };
 		HH0000030000000000000001 /* HookHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000060000000000000001 /* HookHandler.swift */; };
@@ -63,6 +65,8 @@
 		JM0000010000000000000001 /* NavigateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = JM0000020000000000000001 /* NavigateController.swift */; };
 		PC0000010000000000000001 /* PanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = PC0000020000000000000001 /* PanelCoordinator.swift */; };
 		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
+		CPI000010000000000000001 /* CodexPluginInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPI000020000000000000001 /* CodexPluginInstaller.swift */; };
+		CCT000010000000000000001 /* CodexConfigToml.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCT000020000000000000001 /* CodexConfigToml.swift */; };
 		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
 		SN0000010000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
 		SN0000030000000000000001 /* SessionNameLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000040000000000000001 /* SessionNameLookupTests.swift */; };
@@ -126,6 +130,8 @@
 		G10000040000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		H10000020000000000000001 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		FX0000020000000000000001 /* HookInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookInputTests.swift; sourceTree = "<group>"; };
+		CPT000020000000000000001 /* CodexPluginInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPluginInstallerTests.swift; sourceTree = "<group>"; };
+		CPTOML020000000000000001 /* CodexPluginTomlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPluginTomlTests.swift; sourceTree = "<group>"; };
 		HH0000020000000000000001 /* HookHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandlerTests.swift; sourceTree = "<group>"; };
 		HT0000020000000000000001 /* HookEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventTests.swift; sourceTree = "<group>"; };
 		J10000020000000000000001 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
@@ -152,6 +158,8 @@
 		JM0000020000000000000001 /* NavigateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigateController.swift; sourceTree = "<group>"; };
 		PC0000020000000000000001 /* PanelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinator.swift; sourceTree = "<group>"; };
 		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
+		CPI000020000000000000001 /* CodexPluginInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPluginInstaller.swift; sourceTree = "<group>"; };
+		CCT000020000000000000001 /* CodexConfigToml.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexConfigToml.swift; sourceTree = "<group>"; };
 		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
 		SN0000020000000000000001 /* SessionNameLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookup.swift; sourceTree = "<group>"; };
 		SN0000040000000000000001 /* SessionNameLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookupTests.swift; sourceTree = "<group>"; };
@@ -222,6 +230,8 @@
 				E10000020000000000000001 /* FocusTerminal.swift */,
 				SP0000020000000000000001 /* SparkleUpdater.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
+				CPI000020000000000000001 /* CodexPluginInstaller.swift */,
+				CCT000020000000000000001 /* CodexConfigToml.swift */,
 				JM0000020000000000000001 /* NavigateController.swift */,
 				PC0000020000000000000001 /* PanelCoordinator.swift */,
 				NSC000020000000000000001 /* NotchStatusController.swift */,
@@ -332,6 +342,8 @@
 				T10000080000000000000002 /* AppSettingsTests.swift */,
 				HT0000020000000000000001 /* HookEventTests.swift */,
 				FX0000020000000000000001 /* HookInputTests.swift */,
+				CPT000020000000000000001 /* CodexPluginInstallerTests.swift */,
+				CPTOML020000000000000001 /* CodexPluginTomlTests.swift */,
 				HH0000020000000000000001 /* HookHandlerTests.swift */,
 				SN0000040000000000000001 /* SessionNameLookupTests.swift */,
 				FK0000020000000000000001 /* ForkSessionTests.swift */,
@@ -490,6 +502,8 @@
 				L10000010000000000000001 /* EmptyStateView.swift in Sources */,
 				SP0000010000000000000001 /* SparkleUpdater.swift in Sources */,
 				PM0000010000000000000001 /* PluginManager.swift in Sources */,
+				CPI000010000000000000001 /* CodexPluginInstaller.swift in Sources */,
+				CCT000010000000000000001 /* CodexConfigToml.swift in Sources */,
 				HM0000010000000000000001 /* HistoryManager.swift in Sources */,
 				JM0000010000000000000001 /* NavigateController.swift in Sources */,
 				PC0000010000000000000001 /* PanelCoordinator.swift in Sources */,
@@ -544,6 +558,8 @@
 				T10000070000000000000002 /* AppSettingsTests.swift in Sources */,
 				HT0000010000000000000001 /* HookEventTests.swift in Sources */,
 				FX0000010000000000000001 /* HookInputTests.swift in Sources */,
+				CPT000010000000000000001 /* CodexPluginInstallerTests.swift in Sources */,
+				CPTOML010000000000000001 /* CodexPluginTomlTests.swift in Sources */,
 				HH0000010000000000000001 /* HookHandlerTests.swift in Sources */,
 				SN0000030000000000000001 /* SessionNameLookupTests.swift in Sources */,
 				FK0000010000000000000001 /* ForkSessionTests.swift in Sources */,

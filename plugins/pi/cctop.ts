@@ -85,7 +85,8 @@ export default function cctop(pi: any) {
     return {
       session_id: sessionId,
       cwd,
-      source: "pi",
+      harness_name: "pi",
+      source: "pi",  // MIGRATION(harness_name): Keep for older cctop-hook binaries
       ...(sessionName && { session_name: sessionName }),
     };
   }

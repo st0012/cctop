@@ -11,6 +11,10 @@ class PluginManager: ObservableObject {
     @Published var ocConfigExists: Bool = false
     @Published var piInstalled: Bool = false
     @Published var piConfigExists: Bool = false
+    @Published var codexInstalled: Bool = false
+    @Published var codexNeedsUpdate: Bool = false
+    @Published var codexConfigExists: Bool = false
+    @Published var codexFlagAlreadyEnabled: Bool = false
 
     private static let home = FileManager.default.homeDirectoryForCurrentUser
     private static let ocPluginPath = home.appendingPathComponent(
@@ -41,15 +45,53 @@ class PluginManager: ObservableObject {
         let piConfigDir = home.appendingPathComponent(".pi")
         piConfigExists = fm.fileExists(atPath: piConfigDir.path)
         piInstalled = fm.fileExists(atPath: Self.piPluginPath.path)
+
+        codexConfigExists = CodexPluginInstaller.codexConfigExists()
+        codexInstalled = CodexPluginInstaller.isInstalled()
+        codexNeedsUpdate = codexInstalled && Self.codexShimOutdated()
+
+        if codexConfigExists,
+           let text = try? String(contentsOf: CodexPluginInstaller.configTomlPath, encoding: .utf8) {
+            codexFlagAlreadyEnabled = CodexPluginInstaller.isFeatureFlagEnabled(text)
+        } else {
+            codexFlagAlreadyEnabled = false
+        }
     }
 
     private static func installedPluginOutdated() -> Bool {
-        guard let bundledURL = Bundle.main.url(forResource: "opencode-plugin", withExtension: "js"),
-              let bundledData = try? Data(contentsOf: bundledURL),
+        guard let bundledData = loadBundledResource(name: "opencode-plugin", ext: "js"),
               let installedData = try? Data(contentsOf: ocPluginPath) else {
             return false
         }
         return bundledData != installedData
+    }
+
+    private static func codexShimOutdated() -> Bool {
+        guard let data = loadBundledResource(name: "codex-shim", ext: "sh") else { return false }
+        return CodexPluginInstaller.needsUpdate(bundledShim: data)
+    }
+
+    /// Read a bundled Resources file. Logs and returns nil if missing or unreadable.
+    private static func loadBundledResource(name: String, ext: String) -> Data? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: ext) else {
+            logger.error("Missing bundled resource \(name, privacy: .public).\(ext, privacy: .public)")
+            return nil
+        }
+        return try? Data(contentsOf: url)
+    }
+
+    func installCodexPlugin() -> Bool {
+        defer { refresh() }
+        guard let shim = Self.loadBundledResource(name: "codex-shim", ext: "sh"),
+              let template = Self.loadBundledResource(name: "codex-hooks", ext: "json") else {
+            return false
+        }
+        return CodexPluginInstaller.install(shimContents: shim, hooksTemplate: template)
+    }
+
+    func removeCodexPlugin() -> Bool {
+        defer { refresh() }
+        return CodexPluginInstaller.remove()
     }
 
     func installOpenCodePlugin() -> Bool {
@@ -80,31 +122,18 @@ class PluginManager: ObservableObject {
         resource: String, ext: String, destination: URL, name: String
     ) -> Bool {
         defer { refresh() }
-
-        guard let bundledPlugin = Bundle.main.url(
-            forResource: resource, withExtension: ext
-        ),
-            let bundledData = try? Data(contentsOf: bundledPlugin)
-        else {
-            logger.error("Could not read bundled \(name) plugin")
+        guard let bundledData = Self.loadBundledResource(name: resource, ext: ext) else {
             return false
         }
-
-        let pluginsDir = destination.deletingLastPathComponent()
-
         do {
             try FileManager.default.createDirectory(
-                at: pluginsDir, withIntermediateDirectories: true
+                at: destination.deletingLastPathComponent(), withIntermediateDirectories: true
             )
             try bundledData.write(to: destination, options: .atomic)
-            logger.info(
-                "Installed \(name) plugin to \(destination.path, privacy: .public)"
-            )
+            logger.info("Installed \(name) plugin to \(destination.path, privacy: .public)")
             return true
         } catch {
-            logger.error(
-                "Failed to install \(name) plugin: \(error, privacy: .public)"
-            )
+            logger.error("Failed to install \(name) plugin: \(error, privacy: .public)")
             return false
         }
     }

@@ -109,6 +109,7 @@ struct Session: Codable, Identifiable {
         switch source {
         case "opencode": return "OC"
         case "pi": return "Pi"
+        case "codex": return "Codex"
         default: return "CC"
         }
     }

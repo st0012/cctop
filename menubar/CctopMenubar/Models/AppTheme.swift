@@ -31,6 +31,9 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
     var panelBackground: ColorPair { Self.panels[self]! }
     var statusIdle: ColorPair { Self.idles[self]! }
     var agentBadge: ColorPair { Self.badges[self]! }
+    var opencodeBadge: ColorPair { Self.opencodeBadges[self]! }
+    var piBadge: ColorPair { Self.piBadges[self]! }
+    var codexBadge: ColorPair { Self.codexBadges[self]! }
 
     var segmentText: ColorPair { textMuted }
     var segmentActiveText: ColorPair { textPrimary }
@@ -137,10 +140,40 @@ private extension AppTheme {
         .nord: ColorPair(dark: hex(0x59, 0x64, 0x78), light: hex(0x4C, 0x56, 0x6A)),
     ]
 
+    // Subagent count badge. Claude dark was #7216AB (~3.1:1 contrast, fails AA at 9pt)
+    // and Nord light was #B48EAD (~3.4:1) — both lightened/darkened to clear 4.5:1.
     static let badges: [AppTheme: ColorPair] = [
-        .claude: ColorPair(dark: hex(0x72, 0x16, 0xAB), light: hex(0x7A, 0x35, 0x80)),
+        .claude: ColorPair(dark: hex(0xA2, 0x56, 0xC8), light: hex(0x7A, 0x35, 0x80)),
         .tokyoNight: ColorPair(dark: hex(0xBB, 0x9A, 0xF7), light: hex(0x7B, 0x43, 0xBA)),
         .gruvbox: ColorPair(dark: hex(0xD3, 0x86, 0x9B), light: hex(0x8F, 0x3F, 0x71)),
-        .nord: ColorPair(dark: hex(0xB4, 0x8E, 0xAD), light: hex(0xB4, 0x8E, 0xAD)),
+        .nord: ColorPair(dark: hex(0xB4, 0x8E, 0xAD), light: hex(0x8B, 0x6A, 0x86)),
+    ]
+
+    // Source badges — themed per-palette so the source row matches the rest of the
+    // app's color system instead of using raw SwiftUI system colors. Each source
+    // uses the same hue family across themes (opencode → blue, pi → teal, codex →
+    // yellow/gold) so users build a consistent mental model.
+    static let opencodeBadges: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0x5C, 0x8A, 0xB8), light: hex(0x2D, 0x5A, 0x82)),
+        .tokyoNight: ColorPair(dark: hex(0x7A, 0xA2, 0xF7), light: hex(0x3A, 0x5B, 0xA0)),
+        .gruvbox: ColorPair(dark: hex(0x83, 0xA5, 0x98), light: hex(0x07, 0x66, 0x78)),
+        .nord: ColorPair(dark: hex(0x81, 0xA1, 0xC1), light: hex(0x5E, 0x81, 0xAC)),
+    ]
+
+    static let piBadges: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0x6E, 0xAE, 0xA8), light: hex(0x34, 0x6B, 0x66)),
+        .tokyoNight: ColorPair(dark: hex(0x5D, 0xBF, 0xB1), light: hex(0x1F, 0x6B, 0x5D)),
+        .gruvbox: ColorPair(dark: hex(0x8E, 0xC0, 0x7C), light: hex(0x42, 0x7B, 0x58)),
+        .nord: ColorPair(dark: hex(0x8F, 0xBC, 0xBB), light: hex(0x4C, 0x72, 0x71)),
+    ]
+
+    // Gruvbox codex is bronze rather than yellow because Gruvbox's attention status
+    // already owns `#FABD2F` / `#B57614` (pure yellow). Bronze keeps it warm and
+    // distinguishable.
+    static let codexBadges: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0xD4, 0xA8, 0x4A), light: hex(0x8B, 0x69, 0x14)),
+        .tokyoNight: ColorPair(dark: hex(0xE0, 0xAF, 0x68), light: hex(0x7B, 0x5A, 0x1F)),
+        .gruvbox: ColorPair(dark: hex(0xC5, 0x89, 0x40), light: hex(0x7A, 0x4F, 0x0E)),
+        .nord: ColorPair(dark: hex(0xEB, 0xCB, 0x8B), light: hex(0x8B, 0x69, 0x14)),
     ]
 }

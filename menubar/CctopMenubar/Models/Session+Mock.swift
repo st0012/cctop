@@ -158,6 +158,10 @@ extension Session {
               status: .waitingInput,
               lastPrompt: "Should I also update the retry logic?",
               source: "opencode"),
-        .mock(id: "5", project: "docs", branch: "main", status: .idle),
+        .mock(id: "5", project: "terraform-infra", branch: "main",
+              status: .working, lastTool: "Bash",
+              lastToolDetail: "terraform plan -out=tfplan",
+              source: "codex"),
+        .mock(id: "6", project: "docs", branch: "main", status: .idle),
     ]
 }

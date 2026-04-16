@@ -20,6 +20,7 @@ struct HookInput: Codable {
     var agentId: String?
     var agentType: String?
     var source: String?
+    var harnessName: String?
     var sessionName: String?
 
     enum CodingKeys: String, CodingKey {
@@ -37,6 +38,7 @@ struct HookInput: Codable {
         case agentId = "agent_id"
         case agentType = "agent_type"
         case source
+        case harnessName = "harness_name"
         case sessionName = "session_name"
     }
 
@@ -58,6 +60,7 @@ struct HookInput: Codable {
         agentId = try container.decodeIfPresent(String.self, forKey: .agentId)
         agentType = try container.decodeIfPresent(String.self, forKey: .agentType)
         source = try container.decodeIfPresent(String.self, forKey: .source)
+        harnessName = try container.decodeIfPresent(String.self, forKey: .harnessName)
         sessionName = try container.decodeIfPresent(String.self, forKey: .sessionName)
 
         if container.contains(.toolInput) {
@@ -66,6 +69,25 @@ struct HookInput: Codable {
         } else {
             toolInput = nil
         }
+    }
+
+    /// Identifies which tool harness sent this event. Resolution order:
+    ///   1. `harness_name` JSON field (set by plugins, or injected via `--harness` CLI arg)
+    ///   2. `source` JSON field (legacy fallback — old opencode/pi plugins send this)
+    ///
+    /// The allowlist on the `source` fallback guards against Codex's `source` field,
+    /// which carries the SessionStart trigger kind ("startup"/"resume"/"clear"), not a
+    /// tool name.
+    ///
+    /// MIGRATION(harness_name): Remove the `source` fallback after opencode/pi plugins
+    /// shipping `harness_name` have been in the wild for at least one release cycle.
+    private static let knownHarnesses: Set<String> = ["cc", "codex", "opencode", "pi"]
+
+    var resolvedHarnessName: String? {
+        if let harnessName { return harnessName }
+        // MIGRATION(harness_name): Legacy fallback for old plugins that send `source`.
+        if let source, Self.knownHarnesses.contains(source) { return source }
+        return nil
     }
 }
 

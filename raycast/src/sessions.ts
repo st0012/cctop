@@ -137,13 +137,24 @@ export function displayName(session: CctopSession): string {
 }
 
 /**
- * Source label: "OC" for opencode, "Pi" for pi, "CC" for Claude Code.
+ * Source label: "OC" for opencode, "Pi" for pi, "Codex" for Codex CLI, "CC" for Claude Code.
  * Matches Session.swift sourceLabel.
  */
 export function sourceLabel(session: CctopSession): string {
   if (session.source === "opencode") return "OC";
   if (session.source === "pi") return "Pi";
+  if (session.source === "codex") return "Codex";
   return "CC";
+}
+
+/**
+ * Human-readable source name for detail panes.
+ */
+export function sourceDisplayName(session: CctopSession): string {
+  if (session.source === "opencode") return "opencode";
+  if (session.source === "pi") return "pi";
+  if (session.source === "codex") return "Codex CLI";
+  return "Claude Code";
 }
 
 /**

@@ -1,0 +1,10 @@
+{
+  "session_id": "019090a0-6644-7c6a-b3c1-1e8d5c9c0001",
+  "turn_id": "turn-1",
+  "transcript_path": "/tmp/codex-transcript.jsonl",
+  "cwd": "/tmp/test-project",
+  "hook_event_name": "SessionStart",
+  "model": "gpt-5.1-codex",
+  "permission_mode": "default",
+  "source": "startup"
+}

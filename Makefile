@@ -12,6 +12,8 @@ build:
 	mkdir -p $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources
 	cp plugins/opencode/plugin.js $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/opencode-plugin.js
 	cp plugins/pi/cctop.ts $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/pi-plugin.ts
+	cp plugins/codex/cctop-shim.sh $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/codex-shim.sh
+	cp plugins/codex/hooks.json $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/codex-hooks.json
 
 test:
 	xcodebuild test -project $(PROJECT) -scheme CctopMenubar -configuration Debug -derivedDataPath $(DERIVED) $(SIGN)
