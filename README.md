@@ -76,7 +76,7 @@ Switch themes in Settings > Appearance > Color.
 
 ### Step 1: Install the app
 
-[**Download the latest release**](https://github.com/st0012/cctop/releases/latest) — the app is signed and notarized by Apple. Unzip it and drag `cctop.app` into `/Applications/`.
+[**Download the latest release**](https://github.com/st0012/cctop/releases/latest) — the app is signed and notarized by Apple. Open the `.dmg` and drag `cctop.app` into `/Applications/`.
 
 Once installed, cctop updates itself automatically via Sparkle — you'll be prompted when a new version is available.
 
