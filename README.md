@@ -76,13 +76,18 @@ Switch themes in Settings > Appearance > Color.
 
 ### Step 1: Install the app
 
-**Homebrew:**
+[**Download the latest release**](https://github.com/st0012/cctop/releases/latest) — the app is signed and notarized by Apple. Unzip it and drag `cctop.app` into `/Applications/`.
+
+Once installed, cctop updates itself automatically via Sparkle — you'll be prompted when a new version is available.
+
+<details>
+<summary>Alternative: Homebrew</summary>
 
 ```bash
 brew install --cask st0012/cctop/cctop
 ```
 
-Or [download the latest release](https://github.com/st0012/cctop/releases/latest) — the app is signed and notarized by Apple.
+</details>
 
 ### Step 2: Connect your tools
 
