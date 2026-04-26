@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>cctop — monitor and jump between AI coding sessions</title>
+<meta name="description" content="A keyboard-first macOS menubar app to monitor and jump between AI coding sessions. Works with Claude Code, opencode, pi, and Codex CLI." />
+<meta property="og:title" content="cctop — monitor and jump between AI coding sessions" />
+<meta property="og:description" content="A keyboard-first macOS menubar app. Works with Claude Code, opencode, pi, and Codex CLI." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://st0012.github.io/cctop/" />
+<meta property="og:image" content="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Tokyo Night — exact hex values from AppTheme.swift dark variant. */
+    --bg:        #1a1b26;  /* panelBackground.tokyoNight.dark */
+    --bg-2:      #16161e;  /* sunk, for badge fills + brew row */
+    --surface:   #24283b;  /* canonical Tokyo Night surface */
+    --surface-2: #2f3549;  /* surface, raised */
+    --line:       rgba(192, 202, 245, 0.10);  /* fg @ 10% */
+    --line-strong:rgba(192, 202, 245, 0.18);  /* fg @ 18% */
+    --fg:        #c0caf5;  /* textPrimary.tokyoNight.dark */
+    --fg-mute:   #787c99;  /* textSecondary.tokyoNight.dark */
+    --fg-dim:    #565d78;  /* textDimmed.tokyoNight.dark */
+    --accent:    #ff9e64;  /* Tokyo Night orange — same as attentions.tokyoNight.dark */
+    --accent-2:  #7dcfff;  /* Tokyo Night cyan */
+    --warn:      #e0af68;  /* Tokyo Night yellow/gold */
+    --danger:    #f7768e;  /* Tokyo Night pink/red */
+    --info:      #7dcfff;  /* Tokyo Night cyan */
+    --radius: 10px;
+
+    --fs-xs:   0.75rem;
+    --fs-sm:   0.875rem;
+    --fs-base: 1rem;
+    --fs-md:   1.125rem;
+    --fs-lg:   1.375rem;
+    --fs-xl:   1.75rem;
+    --fs-2xl:  2.25rem;
+    --fs-3xl:  clamp(2.5rem, 4vw, 3.25rem);
+    --fs-4xl:  clamp(3rem, 6vw, 4.5rem);
+
+    --mono:    'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans:    'IBM Plex Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --serif:   'Instrument Serif', ui-serif, Georgia, serif;
+  }
+  *{box-sizing:border-box;min-width:0}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:var(--fs-base);line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-feature-settings:"ss01","cv11"}
+  html,body{overflow-x:hidden;max-width:100%}
+  img,svg,video{max-width:100%;height:auto}
+  pre,code{overflow-wrap:anywhere;word-break:break-word}
+  code{font-family:var(--mono)}
+  a{color:inherit;text-decoration:none}
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;scroll-behavior:auto !important}
+  }
+  a:focus-visible, button:focus-visible, summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+  ::selection{background:color-mix(in oklab, var(--accent) 35%, transparent);color:#fff}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 32px}
+  @media (max-width: 720px){ .wrap{padding:0 20px} }
+  .mono{font-family:var(--mono)}
+
+  /* Top bar */
+  header.top{
+    position:sticky;top:0;z-index:50;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    background: color-mix(in oklab, var(--bg) 75%, transparent);
+    border-bottom:1px solid var(--line);
+  }
+  .top-inner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;height:60px;gap:32px}
+  .top-inner > .top-cta{justify-self:end}
+  .brand{display:inline-flex;align-items:baseline;gap:2px;font-weight:600;letter-spacing:-0.01em;line-height:1}
+  .brand .word{font-family:var(--mono);font-weight:600;font-size:16px;color:var(--fg)}
+  .brand .caret{color:var(--accent);font-family:var(--mono);font-size:16px;font-weight:600;margin-left:2px;animation:caret 1.1s steps(2) infinite}
+  footer .brand .caret{animation:none}
+  @keyframes caret{50%{opacity:0}}
+  nav.top-nav{display:flex;gap:26px;font-size:14px;color:var(--fg-mute);justify-self:center}
+  nav.top-nav a{white-space:nowrap}
+  nav.top-nav a:hover{color:var(--fg)}
+  .top-cta{display:flex;align-items:center;gap:10px}
+  @media (max-width: 1040px){ .top-inner{grid-template-columns:auto auto !important} nav.top-nav{display:none !important} }
+  @media (max-width: 520px){ .top-cta .pill:first-child{display:none !important} }
+  .pill{
+    display:inline-flex;align-items:center;gap:8px;
+    height:34px;padding:0 14px;border-radius:999px;
+    border:1px solid var(--line-strong);
+    background: var(--surface);
+    font-size:13px;font-weight:500;color:var(--fg);
+    transition: background .15s ease, border-color .15s ease, transform .1s ease;
+    cursor:pointer;
+  }
+  .pill:hover{background:var(--surface-2);border-color: color-mix(in oklab, var(--fg) 22%, transparent)}
+  .pill.primary{background: var(--accent); color:#1a1b26; border-color: transparent}
+  .pill.primary:hover{filter:brightness(1.05)}
+  .pill svg{width:14px;height:14px}
+  .pill.lg{height:42px;padding:0 18px;font-size:14px;font-weight:600}
+
+  /* Hero */
+  section.hero{padding:64px 0 0;position:relative}
+  .badge{
+    display:inline-flex;align-items:center;gap:10px;padding:5px 12px;border-radius:6px;
+    border:1px solid var(--line-strong); background: var(--bg-2);
+    font-size:12px;color:var(--fg-mute);font-family:var(--mono);
+    letter-spacing:0.01em;
+  }
+  .badge .mono-prefix{
+    color: var(--accent); font-weight:600;
+    border-right:1px solid var(--line-strong);
+    padding-right:10px;
+  }
+  h1.hero-title{
+    font-size: var(--fs-4xl);
+    line-height: 1.02;
+    letter-spacing:-0.035em;
+    margin: 20px 0 18px;
+    font-weight: 600;
+    text-wrap: balance;
+    max-width: 20ch;
+    font-feature-settings:"ss01","ss02","cv11";
+  }
+  h1.hero-title .accent{
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--fg);
+    position:relative;
+    white-space:nowrap;
+  }
+  h1.hero-title .accent::after{
+    content:"";position:absolute;left:0;right:0;bottom:0.05em;height:0.12em;
+    background: var(--accent);opacity:0.35;border-radius:2px;z-index:-1;
+  }
+  p.hero-sub{
+    font-size: var(--fs-md);
+    line-height:1.55;
+    color: var(--fg-mute);
+    max-width: 56ch;
+    text-wrap: pretty;
+    margin: 0 0 28px;
+  }
+  .hero-grid{display:grid;grid-template-columns: 1fr 1fr;gap:56px;align-items:center}
+  @media (max-width: 980px){ .hero-grid{grid-template-columns:1fr;gap:40px} h1.hero-title{max-width:none} }
+  .hero-ctas{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+
+  /* Hero screenshot frame */
+  .shot-frame{
+    position:relative;
+    border-radius: 14px;
+    padding: 16px;
+    background: var(--surface);
+    border:1px solid var(--line);
+  }
+  .shot-frame img{display:block;width:100%;height:auto;border-radius:8px}
+  .shot-frame.narrow{max-width: 380px; margin: 0 auto}
+  .shot-pair{max-width:380px;margin: 0 auto}
+  .shot-caption{
+    font-family:var(--mono);font-size:11px;color:var(--fg-dim);
+    margin-top:10px;letter-spacing:.02em;text-align:center
+  }
+
+  /* Sections */
+  section{padding: 80px 0;position:relative}
+  @media (max-width: 720px){ section{padding: 56px 0} section.hero{padding: 40px 0 24px} }
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-family:var(--mono);font-size:12px;color:var(--accent);
+    text-transform:uppercase;letter-spacing:0.12em
+  }
+  .eyebrow::before{content:"";width:18px;height:1px;background: var(--accent)}
+  h2{
+    font-size: var(--fs-2xl);
+    line-height:1.1;letter-spacing:-0.025em;
+    font-weight:600;margin: 10px 0 14px;text-wrap:balance;max-width: 22ch;
+  }
+  @media (min-width: 720px){ h2{font-size: var(--fs-3xl)} }
+  h2 em, .section-sub em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--fg);letter-spacing:-0.01em}
+  .section-sub{color:var(--fg-mute);max-width:62ch;font-size:var(--fs-md);line-height:1.6;text-wrap:pretty}
+
+  /* Feature rows — alternating screenshot + text */
+  .row{
+    display:grid;grid-template-columns: 1fr 1fr;gap:56px;align-items:center;
+  }
+  @media (max-width: 980px){ .row{grid-template-columns:1fr;gap:32px} .row.reverse > :first-child{order:0} }
+  .feat-block + .feat-block{margin-top:80px}
+  .feat h3{font-size: var(--fs-lg);margin:14px 0 10px;letter-spacing:-0.015em;font-weight:600;font-family:var(--sans)}
+  .feat p{color:var(--fg-mute);font-size:var(--fs-base);line-height:1.65;margin:0;max-width:50ch;text-wrap:pretty}
+  .feat .kbd-row{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;align-items:center;color:var(--fg-dim);font-size:13px;font-family:var(--mono)}
+  .kbd{
+    font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;
+    background: var(--surface-2); color:var(--fg); border:1px solid var(--line-strong);
+  }
+
+  /* Themes strip */
+  .themes{
+    display:grid;grid-template-columns: repeat(4, 1fr);gap:16px;margin-top:36px;
+  }
+  @media (max-width: 900px){ .themes{grid-template-columns: repeat(2, 1fr)} }
+  .theme-card{
+    background: var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:12px;text-align:center;
+    transition: border-color .15s, transform .15s;
+  }
+  .theme-card:hover{border-color: var(--line-strong); transform: translateY(-1px)}
+  .theme-card img{display:block;width:100%;height:auto;border-radius:8px}
+  .theme-card .name{
+    margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--fg-mute);
+    display:flex;align-items:center;justify-content:center;gap:8px
+  }
+  .theme-card .sw{width:8px;height:8px;border-radius:50%}
+
+  /* Supported tools */
+  .tool-group{margin-top:32px}
+  .tool-group-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+  .tool-group-title{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg)}
+  .tool-group-sub{font-size:13px;color:var(--fg-dim)}
+  .tools{
+    display:grid;grid-template-columns: repeat(4, 1fr);gap:14px;
+  }
+  @media (max-width: 900px){ .tools{grid-template-columns: repeat(2, 1fr)} }
+  .tool-card{
+    background: var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px 18px 16px;
+    display:block;color:inherit;
+    transition: border-color .15s, background .15s, transform .1s;
+  }
+  .tool-card:hover{border-color: var(--line-strong); background: var(--surface-2)}
+  .tool-card .name{font-size:16px;font-weight:600;letter-spacing:-0.01em;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .tool-card .conn{margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--fg-dim);line-height:1.55}
+  .tool-card .arr{color:var(--fg-dim);transition:color .15s, transform .15s}
+  .tool-card:hover .arr{color:var(--accent);transform:translate(2px,-2px)}
+
+  /* Editor/terminal tier rows — denser than tool cards (informational, not links). */
+  .tier-row{
+    display:grid;grid-template-columns: minmax(0, 280px) 1fr;
+    gap:24px;padding:14px 0;align-items:start;
+  }
+  .tier-row + .tier-row{border-top:1px solid var(--line)}
+  .tier-row:last-child{padding-bottom:0}
+  @media (max-width: 720px){ .tier-row{grid-template-columns:1fr;gap:8px} }
+  .tier-label{display:flex;flex-direction:column;gap:3px}
+  .tier-label strong{color:var(--fg);font-weight:600;font-size:14px;letter-spacing:-0.005em}
+  .tier-label .sg-note{color:var(--fg-dim);font-size:12.5px;line-height:1.45}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+  .chip{
+    display:inline-flex;align-items:center;
+    padding:5px 11px;border-radius:999px;
+    background: var(--bg-2);border:1px solid var(--line);
+    color: var(--fg-mute);font-family:var(--mono);font-size:12px;
+    white-space:nowrap;
+  }
+
+  /* Install */
+  .install-card{
+    background: var(--surface);border:1px solid var(--line);border-radius: var(--radius);
+    padding: 28px;margin-top: 32px;
+    display:grid;grid-template-columns: 1.05fr 1fr;gap:36px;align-items:center;
+  }
+  @media (max-width: 900px){ .install-card{grid-template-columns:1fr;padding:24px} }
+  .install-card h3{margin:0 0 10px;font-size:24px;letter-spacing:-0.02em;font-weight:600}
+  .install-card p{margin:0 0 18px;color:var(--fg-mute);font-size:15px;line-height:1.6}
+  .install-card .small{font-family:var(--mono);font-size:12px;color:var(--fg-dim);margin-top:14px;display:block}
+  .alt-install{margin-top:22px}
+  .alt-install-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .alt-install-rule{flex:1;height:1px;background:var(--line)}
+  .alt-install-label{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-dim);white-space:nowrap}
+  .brew{
+    font-family:var(--mono);font-size:13px;
+    background: var(--bg-2); border:1px solid var(--line); border-radius:8px;
+    padding: 10px 12px; color: var(--fg);
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    overflow-x:auto;
+  }
+  .brew code{white-space:nowrap}
+  .copy{
+    font-family:var(--mono);font-size:11px;color:var(--fg-mute);
+    background: transparent;border:1px solid var(--line-strong);padding:3px 9px;border-radius:6px;cursor:pointer;
+    transition: color .15s, border-color .15s, background .15s;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .copy:hover{color:var(--fg);border-color: color-mix(in oklab, var(--fg) 20%, transparent);background: color-mix(in oklab, var(--fg) 4%, transparent)}
+  .copy.ok{color: var(--accent); border-color: color-mix(in oklab, var(--accent) 35%, transparent)}
+  .copy svg{width:12px;height:12px}
+  /* Toggle the icon + label between idle and ok states without rewriting DOM. */
+  .copy .icon-ok, .copy .label-ok{display:none}
+  .copy.ok .icon-idle, .copy.ok .label-idle{display:none}
+  .copy.ok .icon-ok, .copy.ok .label-ok{display:inline-flex}
+  .copy.ok .label-ok{display:inline}
+
+  /* FAQ */
+  .faq{margin-top: 28px; border-top: 1px solid var(--line)}
+  .faq details{border-bottom:1px solid var(--line);padding:18px 4px}
+  .faq summary{
+    list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
+    font-size:17px;font-weight:500;letter-spacing:-0.01em
+  }
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:"+";font-family:var(--mono);color:var(--fg-mute);font-size:18px;transition:transform .15s;margin-left:16px}
+  .faq details[open] summary::after{content:"−"}
+  .faq p{color:var(--fg-mute);margin: 12px 0 0;font-size:15px;line-height:1.6;max-width: 70ch}
+  .faq ol{color:var(--fg-mute);margin: 12px 0 0 0;padding-left: 24px;font-size:15px;line-height:1.6;max-width: 70ch}
+  .faq ol li{margin: 4px 0}
+  .faq ol li code{background: var(--bg-2);padding:1px 6px;border-radius:4px;font-size:13px;color:var(--fg)}
+
+  /* Footer */
+  footer{padding: 50px 0 60px;border-top:1px solid var(--line);margin-top:80px;color:var(--fg-mute);font-size:13px}
+  .foot-grid{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .foot-cols{display:flex;gap:48px;flex-wrap:wrap}
+  .foot-col h4{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-dim);margin:0 0 10px;font-family:var(--mono);font-weight:500}
+  .foot-col a{display:block;padding:4px 0;color:var(--fg-mute)}
+  .foot-col a:hover{color:var(--fg)}
+</style>
+</head>
+<body>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <symbol id="i-github" viewBox="0 0 16 16">
+    <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+  </symbol>
+  <symbol id="i-download" viewBox="0 0 16 16">
+    <path fill="none" stroke="currentColor" stroke-width="1.6" d="M8 2v8m0 0 3-3m-3 3-3-3"/>
+    <path fill="none" stroke="currentColor" stroke-width="1.6" d="M3 12v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1"/>
+  </symbol>
+  <symbol id="i-ext" viewBox="0 0 16 16">
+    <path fill="none" stroke="currentColor" stroke-width="1.5" d="M6 3H3v10h10v-3M10 3h3v3M13 3l-6 6"/>
+  </symbol>
+  <symbol id="i-copy" viewBox="0 0 16 16">
+    <rect fill="none" stroke="currentColor" stroke-width="1.4" x="4" y="4" width="9" height="10" rx="1.4"/>
+    <path fill="none" stroke="currentColor" stroke-width="1.4" d="M11 4V3a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h1"/>
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 16 16">
+    <path fill="none" stroke="currentColor" stroke-width="2" d="m3 8 3.5 3.5L13 5"/>
+  </symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <a href="#" aria-label="cctop home">
+      <span class="brand"><span class="word">cctop</span><span class="caret">_</span></span>
+    </a>
+    <nav class="top-nav">
+      <a href="#tools">Tools</a>
+      <a href="#features">Features</a>
+      <a href="#themes">Themes</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="top-cta">
+      <a class="pill" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer">
+        <svg width="14" height="14" aria-hidden="true"><use href="#i-github"/></svg>
+        GitHub
+      </a>
+      <a class="pill primary" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
+        <svg width="14" height="14" aria-hidden="true"><use href="#i-download"/></svg>
+        Download
+      </a>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="badge"><span class="mono-prefix" data-version>v0.14.0</span> macOS 13+ · signed &amp; notarized</span>
+        <h1 class="hero-title">Keep an eye on every <span class="accent">AI coding session</span>.</h1>
+        <p class="hero-sub">See which session is waiting on you. Jump there with a keystroke.</p>
+        <div class="hero-ctas">
+          <a class="pill primary lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
+            <svg width="14" height="14" aria-hidden="true"><use href="#i-download"/></svg>
+            Download for Apple Silicon
+          </a>
+          <a class="pill lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg">Intel</a>
+          <a class="pill lg" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer">
+            <svg width="14" height="14" aria-hidden="true"><use href="#i-github"/></svg>
+            GitHub
+          </a>
+        </div>
+      </div>
+      <div>
+        <div class="shot-frame narrow">
+          <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="cctop menubar panel showing five active coding sessions" width="640" height="750" decoding="async" />
+        </div>
+        <div class="shot-caption">Tokyo Night theme</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tools">
+  <div class="wrap">
+    <span class="eyebrow">Compatibility</span>
+    <h2>What tools does it work with?</h2>
+    <p class="section-sub">cctop monitors your AI coding agents and jumps you back to the right editor or terminal window.</p>
+
+    <div class="tool-group">
+      <div class="tool-group-head">
+        <span class="tool-group-title">Coding agents</span>
+        <span class="tool-group-sub">Sessions tracked automatically once the plugin is installed.</span>
+      </div>
+      <div class="tools">
+        <a class="tool-card" href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" rel="noopener noreferrer">
+          <div class="name">Claude Code <span class="arr"><svg width="12" height="12" aria-hidden="true"><use href="#i-ext"/></svg></span></div>
+          <div class="conn">Anthropic's CLI agent</div>
+        </a>
+        <a class="tool-card" href="https://opencode.ai" target="_blank" rel="noopener noreferrer">
+          <div class="name">opencode <span class="arr"><svg width="12" height="12" aria-hidden="true"><use href="#i-ext"/></svg></span></div>
+          <div class="conn">Open-source agent by SST</div>
+        </a>
+        <a class="tool-card" href="https://github.com/badlogic/pi-mono" target="_blank" rel="noopener noreferrer">
+          <div class="name">pi <span class="arr"><svg width="12" height="12" aria-hidden="true"><use href="#i-ext"/></svg></span></div>
+          <div class="conn">Open-source agent by Mario Zechner</div>
+        </a>
+        <a class="tool-card" href="https://github.com/openai/codex" target="_blank" rel="noopener noreferrer">
+          <div class="name">Codex CLI <span class="arr"><svg width="12" height="12" aria-hidden="true"><use href="#i-ext"/></svg></span></div>
+          <div class="conn">OpenAI's open-source agent</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="tool-group">
+      <div class="tool-group-head">
+        <span class="tool-group-title">Editors &amp; terminals</span>
+        <span class="tool-group-sub">Click a session card to jump back to it.</span>
+      </div>
+      <div class="tier-row">
+        <div class="tier-label">
+          <strong>Targets the exact pane</strong>
+          <span class="sg-note">right window, tab, and pane</span>
+        </div>
+        <div class="chips">
+          <span class="chip">iTerm2</span>
+        </div>
+      </div>
+      <div class="tier-row">
+        <div class="tier-label">
+          <strong>Opens the project</strong>
+          <span class="sg-note">focuses the editor window, using the workspace file if present</span>
+        </div>
+        <div class="chips">
+          <span class="chip">VS Code</span>
+          <span class="chip">Cursor</span>
+          <span class="chip">Windsurf</span>
+          <span class="chip">Zed</span>
+        </div>
+      </div>
+      <div class="tier-row">
+        <div class="tier-label">
+          <strong>Activates the app</strong>
+          <span class="sg-note">raises the app; find the tab manually</span>
+        </div>
+        <div class="chips">
+          <span class="chip">Warp</span>
+          <span class="chip">Terminal</span>
+          <span class="chip">Ghostty</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <h2>Features</h2>
+
+    <div style="margin-top:56px">
+      <div class="feat-block">
+        <div class="row">
+          <div class="feat">
+            <h3>Navigate mode</h3>
+            <p>Hit a global hotkey to overlay numbered badges (1–9) on every session card, then press the number to jump instantly.</p>
+            <div class="kbd-row">
+              <span class="kbd">1</span>–<span class="kbd">9</span>
+              <span>jump to session</span>
+            </div>
+          </div>
+          <div>
+            <div class="shot-frame narrow">
+              <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-navigate.png" alt="Navigate mode" loading="lazy" width="640" height="750" decoding="async" />
+            </div>
+            <div class="shot-caption">Press 1–9 to jump</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feat-block">
+        <div class="row reverse">
+          <div class="feat">
+            <h3>Draggable panel</h3>
+            <p>Drag the header to reposition the panel anywhere on screen — position persists across launches. Double-click the header to snap back to the default menubar anchor.</p>
+          </div>
+          <div>
+            <div class="shot-frame narrow">
+              <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/draggable-panel-demo.gif" alt="Draggable panel" loading="lazy" width="680" height="442" decoding="async" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feat-block">
+        <div class="row">
+          <div class="feat">
+            <h3>Smart status icon</h3>
+            <p>Lives in your macOS menubar in three states — healthy, needs attention, and a slim pill for laptops with a camera notch. See status without opening the panel.</p>
+          </div>
+          <div>
+            <div class="shot-frame">
+              <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/status-icon.png" alt="Smart status icon" loading="lazy" width="1000" height="400" decoding="async" />
+            </div>
+            <div class="shot-caption">All healthy · needs attention · notch pill</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="feat-block">
+        <div class="row reverse">
+          <div class="feat">
+            <h3>Recent projects</h3>
+            <p>A second tab keeps session history so you can reopen past projects easily.</p>
+          </div>
+          <div>
+            <div class="shot-frame narrow">
+              <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-recent.png" alt="Recent projects" loading="lazy" width="640" height="754" decoding="async" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="themes">
+  <div class="wrap">
+    <h2>Themes</h2>
+    <p class="section-sub">Four color schemes inspired by beloved developer tools — each with dark and light variants. Switch in Settings &gt; Appearance &gt; Color.</p>
+    <div class="themes">
+      <div class="theme-card">
+        <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-claude-dark.png" alt="Claude theme" loading="lazy" width="640" height="750" decoding="async" />
+        <div class="name"><span class="sw" style="background:#d97757"></span> Claude</div>
+      </div>
+      <div class="theme-card">
+        <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-tokyoNight-dark.png" alt="Tokyo Night theme" loading="lazy" width="640" height="750" decoding="async" />
+        <div class="name"><span class="sw" style="background:#7aa2f7"></span> Tokyo Night</div>
+      </div>
+      <div class="theme-card">
+        <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-gruvbox-dark.png" alt="Gruvbox theme" loading="lazy" width="640" height="750" decoding="async" />
+        <div class="name"><span class="sw" style="background:#b8bb26"></span> Gruvbox</div>
+      </div>
+      <div class="theme-card">
+        <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-nord-dark.png" alt="Nord theme" loading="lazy" width="640" height="750" decoding="async" />
+        <div class="name"><span class="sw" style="background:#88c0d0"></span> Nord</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Installation</h2>
+    <p class="section-sub">Download the latest release, open the .dmg, and drag cctop.app into /Applications. The app auto-updates via Sparkle.</p>
+
+    <div class="install-card">
+      <div>
+        <h3>Step 1 — Install the app</h3>
+        <p>Signed and notarized by Apple. Runs on macOS 13+.</p>
+        <p style="margin-top:-8px"><strong style="color:var(--fg)">Step 2 — Connect your tools.</strong> Follow the app's instructions. It auto-detects installed tools and offers one-click plugin installation.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <a class="pill primary lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
+            <svg width="14" height="14" aria-hidden="true"><use href="#i-download"/></svg>
+            Download for Apple Silicon
+          </a>
+          <a class="pill lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg">Intel</a>
+        </div>
+        <div class="alt-install">
+          <div class="alt-install-head">
+            <span class="alt-install-rule"></span>
+            <span class="alt-install-label">Prefer Homebrew?</span>
+            <span class="alt-install-rule"></span>
+          </div>
+          <div class="brew">
+            <code>$ brew install --cask st0012/cctop/cctop</code>
+            <button type="button" class="copy" data-copy="brew install --cask st0012/cctop/cctop" aria-label="Copy command">
+              <svg class="icon-idle" width="12" height="12" aria-hidden="true"><use href="#i-copy"/></svg>
+              <svg class="icon-ok" width="12" height="12" aria-hidden="true"><use href="#i-check"/></svg>
+              <span class="label-idle">copy</span>
+              <span class="label-ok">copied</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="shot-pair">
+          <div class="shot-frame narrow">
+            <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-light.png" alt="cctop in Claude light theme" loading="lazy" width="640" height="750" decoding="async" />
+          </div>
+          <div class="shot-caption">Claude theme · light</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>Common questions.</h2>
+    <div class="faq">
+      <details open>
+        <summary>Does cctop slow down my coding tool?</summary>
+        <p>No. The plugin runs a tiny native binary on each event, which writes a small JSON file and returns immediately. There is no measurable impact on performance.</p>
+      </details>
+      <details>
+        <summary>Does cctop send any data anywhere?</summary>
+        <p>No — no network access, no analytics, no telemetry. All session data stays on your machine in <code>~/.cctop/sessions/</code> as plain JSON you can inspect anytime.</p>
+      </details>
+      <details>
+        <summary>Do I need to configure anything per project?</summary>
+        <p>No. Once the plugin is installed, every session is automatically tracked. There's no per-project setup.</p>
+      </details>
+      <details>
+        <summary>How does cctop name sessions?</summary>
+        <p>By default, by the project directory name. In Claude Code, /rename gives the session a custom label and cctop picks it up.</p>
+      </details>
+      <details>
+        <summary>Why does the app need to live in /Applications/?</summary>
+        <p>Plugins look for the cctop helper inside /Applications/cctop.app or ~/.cctop/bin/. Installing elsewhere breaks the integration.</p>
+      </details>
+      <details>
+        <summary>How do I uninstall?</summary>
+        <ol>
+          <li>Remove the app: <code>rm -rf /Applications/cctop.app</code></li>
+          <li>Remove each plugin you installed (see the README's Uninstall section, e.g. <code>claude plugin remove cctop</code>).</li>
+          <li>Wipe session data and config: <code>rm -rf ~/.cctop</code></li>
+        </ol>
+        <p>Installed via Homebrew? Use <code>brew uninstall --cask cctop</code> for step 1.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-grid">
+    <div>
+      <div style="margin-bottom:10px">
+        <span class="brand"><span class="word">cctop</span><span class="caret">_</span></span>
+      </div>
+      <div style="max-width:34ch;color:var(--fg-dim);line-height:1.55">
+        A keyboard-first macOS menubar app to monitor and jump between AI coding sessions. MIT licensed.
+      </div>
+    </div>
+    <div class="foot-cols">
+      <div class="foot-col">
+        <h4>Project</h4>
+        <a href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://github.com/st0012/cctop/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+        <a href="https://github.com/st0012/cctop/issues" target="_blank" rel="noopener noreferrer">Issues</a>
+      </div>
+      <div class="foot-col">
+        <h4>Docs</h4>
+        <a href="https://github.com/st0012/cctop#readme" target="_blank" rel="noopener noreferrer">README</a>
+        <a href="https://github.com/st0012/cctop/blob/master/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contributing</a>
+        <a href="https://github.com/st0012/cctop/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">License</a>
+      </div>
+      <div class="foot-col">
+        <h4>Author</h4>
+        <a href="https://st0012.dev" target="_blank" rel="noopener noreferrer">@st0012</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('.copy[data-copy]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard?.writeText(btn.dataset.copy);
+      btn.classList.add('ok');
+      setTimeout(() => btn.classList.remove('ok'), 1400);
+    });
+  });
+
+  // Pull the live release tag from the GitHub API; the static value above
+  // stays if the request fails (rate limited, offline, blocked).
+  fetch('https://api.github.com/repos/st0012/cctop/releases/latest', {
+    headers: { 'Accept': 'application/vnd.github+json' }
+  })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (!d || !d.tag_name) return;
+      document.querySelectorAll('[data-version]').forEach(el => { el.textContent = d.tag_name; });
+    })
+    .catch(() => {});
+</script>
+
+</body>
+</html>

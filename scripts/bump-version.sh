@@ -56,6 +56,12 @@ echo "  Updated HookMain.swift version"
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$REPO_ROOT/plugins/opencode/package.json"
 echo "  Updated plugins/opencode/package.json"
 
+# 8. site/index.html — static fallback for the version badge.
+# A small fetch() to api.github.com overrides this at runtime when online,
+# but the static value is what users see if the request fails (rate limit, offline).
+sed -i '' "s/data-version>v[0-9.]*</data-version>v$NEW_VERSION</" "$REPO_ROOT/site/index.html"
+echo "  Updated site/index.html"
+
 echo ""
 echo "Done! Version bumped to $NEW_VERSION in all files."
 echo "Verify with: grep -r '\"$NEW_VERSION\"' packaging/ plugins/ .claude-plugin/"
