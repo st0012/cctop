@@ -100,7 +100,70 @@
   .pill.lg{height:42px;padding:0 18px;font-size:14px;font-weight:600}
 
   /* Hero */
-  section.hero{padding:64px 0 0;position:relative}
+  section.hero{padding:72px 0 32px;position:relative}
+  @media (max-width: 720px){ section.hero{padding:48px 0 24px} }
+
+  /* Menubar-pill signature element. This IS the cctop menubar icon (per
+     docs/status-icon.png) blown up to hero scale — black pill, "cctop_"
+     wordmark in the brand orange, then the proportional status bar showing
+     the four real session states using AppTheme.swift status colors. */
+  .hero-pill{
+    display:inline-flex;align-items:center;gap:0;
+    padding: 5px 8px 5px 12px;
+    border-radius: 999px;
+    background: #000;
+    border: 1px solid color-mix(in oklab, white 10%, transparent);
+    box-shadow: 0 2px 0 inset color-mix(in oklab, white 4%, transparent), 0 18px 36px -22px var(--accent);
+    font-family: var(--mono);
+  }
+  .hero-pill .hp-word{
+    color: var(--accent); font-weight: 600; font-size: 12px;
+    letter-spacing: 0.02em; padding-right: 10px;
+  }
+  .hero-pill .hp-bar{
+    display: flex;
+    width: 168px; height: 14px;
+    border-radius: 999px; overflow: hidden;
+    border: 1px solid color-mix(in oklab, white 8%, transparent);
+  }
+  .hero-pill .hp-bar > span{ display:block;height:100% }
+
+  h1.hero-title{
+    font-size: clamp(2.75rem, 8vw, 7rem);  /* ~44 → 112px */
+    line-height: 0.96;
+    letter-spacing: -0.045em;
+    margin: 18px 0 0;
+    font-weight: 700;
+    text-wrap: balance;
+    max-width: 16ch;
+    font-feature-settings: "ss01","ss02","cv11";
+  }
+  h1.hero-title em{
+    font-style: italic;
+    font-weight: 700;
+    /* Subtle weight + stress without slop-tell italic-serif underline. */
+  }
+
+  .hero-content{
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: 56px;
+    align-items: end;
+  }
+  @media (max-width: 980px){ .hero-content{grid-template-columns:1fr;gap:40px;align-items:start} h1.hero-title{max-width:none} }
+
+  p.hero-sub{
+    font-size: var(--fs-md);
+    line-height: 1.55;
+    color: var(--fg-mute);
+    max-width: 50ch;
+    text-wrap: pretty;
+    margin: 0 0 22px;
+  }
+  .hero-ctas{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+
+  /* Fine-print badge — moved below CTAs as a footnote, not a pre-headline tag. */
   .badge{
     display:inline-flex;align-items:center;gap:10px;padding:5px 12px;border-radius:6px;
     border:1px solid var(--line-strong); background: var(--bg-2);
@@ -112,40 +175,6 @@
     border-right:1px solid var(--line-strong);
     padding-right:10px;
   }
-  h1.hero-title{
-    font-size: var(--fs-4xl);
-    line-height: 1.02;
-    letter-spacing:-0.035em;
-    margin: 20px 0 18px;
-    font-weight: 600;
-    text-wrap: balance;
-    max-width: 20ch;
-    font-feature-settings:"ss01","ss02","cv11";
-  }
-  h1.hero-title .accent{
-    font-family: var(--serif);
-    font-style: italic;
-    font-weight: 400;
-    letter-spacing: -0.01em;
-    color: var(--fg);
-    position:relative;
-    white-space:nowrap;
-  }
-  h1.hero-title .accent::after{
-    content:"";position:absolute;left:0;right:0;bottom:0.05em;height:0.12em;
-    background: var(--accent);opacity:0.35;border-radius:2px;z-index:-1;
-  }
-  p.hero-sub{
-    font-size: var(--fs-md);
-    line-height:1.55;
-    color: var(--fg-mute);
-    max-width: 56ch;
-    text-wrap: pretty;
-    margin: 0 0 28px;
-  }
-  .hero-grid{display:grid;grid-template-columns: 1fr 1fr;gap:56px;align-items:center}
-  @media (max-width: 980px){ .hero-grid{grid-template-columns:1fr;gap:40px} h1.hero-title{max-width:none} }
-  .hero-ctas{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
 
   /* Hero screenshot frame */
   .shot-frame{
@@ -364,10 +393,18 @@
 
 <section class="hero">
   <div class="wrap">
-    <div class="hero-grid">
+    <div class="hero-pill" aria-hidden="true">
+      <span class="hp-word">cctop_</span>
+      <span class="hp-bar">
+        <span style="width:42%;background:#9ece6a"></span>
+        <span style="width:18%;background:#ff9e64"></span>
+        <span style="width:14%;background:#f7768e"></span>
+        <span style="width:26%;background:#565d78"></span>
+      </span>
+    </div>
+    <h1 class="hero-title">Keep an eye on <em>every</em> AI coding session.</h1>
+    <div class="hero-content">
       <div>
-        <span class="badge"><span class="mono-prefix" data-version>v0.14.0</span> macOS 13+ · signed &amp; notarized</span>
-        <h1 class="hero-title">Keep an eye on every <span class="accent">AI coding session</span>.</h1>
         <p class="hero-sub">See which session is waiting on you. Jump there with a keystroke.</p>
         <div class="hero-ctas">
           <a class="pill primary lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
@@ -379,6 +416,9 @@
             <svg width="14" height="14" aria-hidden="true"><use href="#i-github"/></svg>
             GitHub
           </a>
+        </div>
+        <div>
+          <span class="badge"><span class="mono-prefix" data-version>v0.14.0</span> macOS 13+ · signed &amp; notarized</span>
         </div>
       </div>
       <div>
