@@ -27,10 +27,8 @@
     --fg-mute:   #787c99;  /* textSecondary.tokyoNight.dark */
     --fg-dim:    #565d78;  /* textDimmed.tokyoNight.dark */
     --accent:    #ff9e64;  /* Tokyo Night orange — same as attentions.tokyoNight.dark */
-    --accent-2:  #7dcfff;  /* Tokyo Night cyan */
-    --warn:      #e0af68;  /* Tokyo Night yellow/gold */
-    --danger:    #f7768e;  /* Tokyo Night pink/red */
-    --info:      #7dcfff;  /* Tokyo Night cyan */
+    --danger:    #f7768e;  /* Tokyo Night pink/red — permissions.tokyoNight.dark */
+    --status-ok: #9ece6a;  /* Tokyo Night green — greens.tokyoNight.dark */
     --radius: 10px;
 
     --fs-xs:   0.75rem;
@@ -127,6 +125,10 @@
     border: 1px solid color-mix(in oklab, white 8%, transparent);
   }
   .hero-pill .hp-bar > span{ display:block;height:100% }
+  .hp-working    { background: var(--status-ok) }
+  .hp-attention  { background: var(--accent) }
+  .hp-permission { background: var(--danger) }
+  .hp-idle       { background: var(--fg-dim) }
 
   h1.hero-title{
     font-size: clamp(2.75rem, 8vw, 7rem);  /* ~44 → 112px */
@@ -161,7 +163,8 @@
     text-wrap: pretty;
     margin: 0 0 22px;
   }
-  .hero-ctas{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .cta-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .hero-ctas{margin-bottom:14px}
 
   /* Fine-print badge — moved below CTAs as a footnote, not a pre-headline tag. */
   .badge{
@@ -396,17 +399,17 @@
     <div class="hero-pill" aria-hidden="true">
       <span class="hp-word">cctop_</span>
       <span class="hp-bar">
-        <span style="width:42%;background:#9ece6a"></span>
-        <span style="width:18%;background:#ff9e64"></span>
-        <span style="width:14%;background:#f7768e"></span>
-        <span style="width:26%;background:#565d78"></span>
+        <span class="hp-working"    style="width:42%"></span>
+        <span class="hp-attention"  style="width:18%"></span>
+        <span class="hp-permission" style="width:14%"></span>
+        <span class="hp-idle"       style="width:26%"></span>
       </span>
     </div>
     <h1 class="hero-title">Keep an eye on <em>every</em> AI coding session.</h1>
     <div class="hero-content">
       <div>
         <p class="hero-sub">See which session is waiting on you. Jump there with a keystroke.</p>
-        <div class="hero-ctas">
+        <div class="cta-row hero-ctas">
           <a class="pill primary lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
             <svg width="14" height="14" aria-hidden="true"><use href="#i-download"/></svg>
             Download for Apple Silicon
@@ -423,7 +426,7 @@
       </div>
       <div>
         <div class="shot-frame narrow">
-          <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="cctop menubar panel showing five active coding sessions" width="640" height="750" decoding="async" />
+          <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="cctop menubar panel showing five active coding sessions" width="640" height="750" decoding="async" fetchpriority="high" />
         </div>
         <div class="shot-caption">Tokyo Night theme</div>
       </div>
@@ -607,9 +610,8 @@
     <div class="install-card">
       <div>
         <h3>Step 1 — Install the app</h3>
-        <p>Signed and notarized by Apple. Runs on macOS 13+.</p>
-        <p style="margin-top:-8px"><strong style="color:var(--fg)">Step 2 — Connect your tools.</strong> Follow the app's instructions. It auto-detects installed tools and offers one-click plugin installation.</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <p>Signed and notarized by Apple. Runs on macOS 13+. <strong style="color:var(--fg)">Step 2:</strong> follow the app's instructions to connect your tools — it auto-detects what you have installed and offers one-click plugin install.</p>
+        <div class="cta-row">
           <a class="pill primary lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
             <svg width="14" height="14" aria-hidden="true"><use href="#i-download"/></svg>
             Download for Apple Silicon
@@ -692,7 +694,7 @@
         A keyboard-first macOS menubar app to monitor and jump between AI coding sessions. MIT licensed.
       </div>
     </div>
-    <div class="foot-cols">
+    <nav class="foot-cols" aria-label="Footer">
       <div class="foot-col">
         <h4>Project</h4>
         <a href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer">GitHub</a>
@@ -709,7 +711,7 @@
         <h4>Author</h4>
         <a href="https://st0012.dev" target="_blank" rel="noopener noreferrer">@st0012</a>
       </div>
-    </div>
+    </nav>
   </div>
 </footer>
 
