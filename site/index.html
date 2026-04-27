@@ -722,8 +722,12 @@
 
 <script>
   document.querySelectorAll('.copy[data-copy]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      navigator.clipboard?.writeText(btn.dataset.copy);
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.copy);
+      } catch {
+        return;
+      }
       btn.classList.add('ok');
       setTimeout(() => btn.classList.remove('ok'), 1400);
     });
