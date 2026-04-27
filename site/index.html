@@ -81,7 +81,12 @@
   nav.top-nav a:hover{color:var(--fg)}
   .top-cta{display:flex;align-items:center;gap:10px}
   @media (max-width: 1040px){ .top-inner{grid-template-columns:auto auto !important} nav.top-nav{display:none !important} }
-  @media (max-width: 520px){ .top-cta .pill:first-child{display:none !important} }
+  /* On narrow screens the GitHub pill becomes icon-only so the Download CTA
+     fits next to it; aria-label keeps it announced for screen readers. */
+  @media (max-width: 520px){
+    .top-cta .pill:first-child .pill-label{display:none}
+    .top-cta .pill:first-child{padding:0 10px;gap:0}
+  }
   .pill{
     display:inline-flex;align-items:center;gap:8px;
     height:34px;padding:0 14px;border-radius:999px;
@@ -382,9 +387,9 @@
       <a href="#faq">FAQ</a>
     </nav>
     <div class="top-cta">
-      <a class="pill" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer">
+      <a class="pill" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository">
         <svg width="14" height="14" aria-hidden="true"><use href="#i-github"/></svg>
-        GitHub
+        <span class="pill-label">GitHub</span>
       </a>
       <a class="pill primary" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
         <svg width="14" height="14" aria-hidden="true"><use href="#i-download"/></svg>
