@@ -55,7 +55,7 @@ cctop/
 │   ├── sign-and-notarize.sh   # Code sign + Apple notarization
 │   ├── generate-appcast.sh    # Sparkle appcast (multi-arch)
 │   └── bump-version.sh        # Version bumper (all files incl. site/index.html)
-├── site/                # Public website (st0012.github.io/cctop)
+├── site/                # Public website (cctop.app)
 │   ├── index.html       # Single static page, no build step
 │   └── README.md        # Local preview + sync rules
 ├── .github/workflows/
@@ -172,9 +172,12 @@ The `{PR_MERGE_DATE}` placeholder is replaced with the actual date on merge. Eac
 
 ### Website (`site/`)
 
-The public site at https://st0012.github.io/cctop/ lives in `site/index.html` — a single static page with no build step. Pushed to master, `.github/workflows/pages.yml` uploads `site/` as the GitHub Pages artifact and deploys.
+The public site at https://cctop.app lives in `site/index.html` — a single static page with no build step. Pushed to master, `.github/workflows/pages.yml` uploads `site/` as the GitHub Pages artifact and deploys.
 
-**One-time repo setting:** GitHub repo > Settings > Pages > Source must be set to "GitHub Actions". The first run of `pages.yml` after this is set will publish the site.
+**One-time repo settings:**
+1. Settings > Pages > Source = "GitHub Actions".
+2. Settings > Pages > Custom domain = `cctop.app`. The `site/CNAME` file pins this on every deploy — without it, the artifact upload would clear the custom domain on each run.
+3. After the Let's Encrypt cert provisions, check "Enforce HTTPS". `.app` is HSTS preloaded, so HTTPS is mandatory.
 
 **Local preview:**
 ```bash

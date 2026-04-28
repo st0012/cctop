@@ -1,10 +1,12 @@
 # cctop website
 
-Source for the public site at https://st0012.github.io/cctop/.
+Source for the public site at https://cctop.app/.
 
 `index.html` is a single static file. No build step. The deploy is driven by
 `.github/workflows/pages.yml`, which uploads this folder as the Pages artifact
-on every push to `master` that touches `site/**`.
+on every push to `master` that touches `site/**`. The `CNAME` file in this
+folder pins the custom domain (`cctop.app`) on every deploy — without it, the
+custom-domain setting gets cleared each time the artifact replaces the site.
 
 ## Local preview
 
@@ -29,6 +31,8 @@ they land on master — no site change required.
 | `Color+Theme.swift`, README themes table | `#themes` cards | Manual — name, accent swatch hex, and `docs/theme-*.png` filename. |
 | README FAQ | `#faq` `<details>` entries | Manual. |
 | Hero copy, install copy, privacy copy | Hero / install / tools sections | Manual — site has its own short-form copy that mirrors the README's tone. |
+| Custom domain (`cctop.app`) | `site/CNAME` | Auto — file ships with every deploy so the Pages "Custom domain" setting persists. |
+| Social preview card | `site/og.html` (rendered to PNG externally for OG metadata) | Manual — update copy and re-render to PNG when hero copy or palette changes substantively. |
 
 ## When you change the implementation
 
