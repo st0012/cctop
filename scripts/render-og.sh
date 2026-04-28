@@ -53,23 +53,41 @@ echo "Rendering $OG_HTML"
 echo "  Using: $CHROME"
 echo "  Output: $OG_PNG"
 
+# Chrome --headless=new on macOS reserves ~88px of vertical space for invisible
+# window chrome — content positioned below ~y=542 in a 1200x630 window simply
+# doesn't render. Workaround: render into a taller window so the layout viewport
+# is at least 630 tall, then crop the screenshot to the OG-required 1200x630.
+RENDER_PNG="$USER_DATA_DIR/render.png"
 "$CHROME" \
     --headless=new \
     --disable-gpu \
     --hide-scrollbars \
-    --window-size=1200,630 \
+    --window-size=1200,800 \
     --user-data-dir="$USER_DATA_DIR" \
-    --screenshot="$OG_PNG" \
+    --screenshot="$RENDER_PNG" \
     --virtual-time-budget=8000 \
     "file://$OG_HTML" >/dev/null 2>&1 || {
     echo "Error: Chrome headless exited with non-zero status" >&2
     exit 1
 }
 
-if [ ! -f "$OG_PNG" ]; then
-    echo "Error: render did not produce $OG_PNG" >&2
+if [ ! -f "$RENDER_PNG" ]; then
+    echo "Error: render did not produce $RENDER_PNG" >&2
     exit 1
 fi
+
+# Crop to 1200x630 from the top-left. The 800-tall render has body's full layout
+# starting at y=0, so the top 630 rows contain everything including the bottom-
+# anchored stamp. sips's --cropOffset is unreliable here, so use ImageMagick
+# (which is required to produce predictable top-anchored crops).
+if ! command -v magick >/dev/null 2>&1; then
+    echo "Error: ImageMagick required (brew install imagemagick)" >&2
+    exit 1
+fi
+magick "$RENDER_PNG" -crop 1200x630+0+0 +repage "$OG_PNG" >/dev/null 2>&1 || {
+    echo "Error: ImageMagick crop failed" >&2
+    exit 1
+}
 
 # Verify dimensions; OG card metadata expects 1200x630.
 DIMS=$(python3 -c "

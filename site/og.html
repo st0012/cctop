@@ -5,62 +5,62 @@
 <title>cctop — social preview source (1200×630)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@600&family=IBM+Plex+Sans:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@600;700&display=swap" rel="stylesheet">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1200px;height:630px}
   body{
-    width:1200px;height:630px;
     background:#1a1b26;
     color:#c0caf5;
-    font-family:'IBM Plex Sans',sans-serif;
+    font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;
     -webkit-font-smoothing:antialiased;
+    position:relative;
     overflow:hidden;
-    display:flex;
-    align-items:stretch;
-    gap:72px;
-    padding:60px 80px;
-  }
-
-  .left{
-    width:540px;flex:none;
-    display:flex;flex-direction:column;
-    justify-content:space-between;
   }
 
   .wordmark{
-    font-family:'IBM Plex Mono',monospace;
+    position:absolute;
+    top:60px;left:80px;
+    font-family:'IBM Plex Mono','SF Mono',Menlo,monospace;
     font-size:80px;font-weight:600;
     letter-spacing:-0.04em;line-height:1;
     color:#c0caf5;
-    display:flex;align-items:baseline;
   }
-  .wordmark .caret{color:#ff9e64;margin-left:4px}
+  .wordmark .caret{color:#ff9e64}
 
   .tagline{
+    position:absolute;
+    top:188px;left:80px;
+    width:540px;
     font-size:54px;font-weight:600;
     color:#c0caf5;
-    line-height:1.05;letter-spacing:-0.025em;
-    margin-top:32px;
+    line-height:1.08;letter-spacing:-0.025em;
   }
   .tagline .accent{color:#ff9e64}
 
   .stamp{
+    position:absolute;
+    bottom:60px;left:80px;
+    height:24px;
     display:flex;align-items:center;gap:14px;
-    font-family:'IBM Plex Mono',monospace;
+  }
+  .stamp .line{
+    width:32px;height:2px;
+    background:#ff9e64;border-radius:1px;
+    flex:0 0 auto;
+  }
+  .stamp .label{
+    font-family:'IBM Plex Mono','SF Mono',Menlo,monospace;
     font-size:18px;font-weight:600;
+    line-height:24px;
     color:#a9b1d6;
     letter-spacing:0.10em;text-transform:uppercase;
   }
-  .stamp .line{
-    display:block;width:32px;height:2px;
-    background:#ff9e64;border-radius:1px;
-  }
 
-  .right{
-    flex:1;
-    display:flex;align-items:center;justify-content:center;
-  }
   .frame{
+    position:absolute;
+    top:60px;right:80px;
+    height:510px;
     background:#24283b;
     border:1px solid rgba(192,202,245,0.12);
     border-radius:18px;
@@ -77,15 +77,14 @@
 </style>
 </head>
 <body>
-  <div class="left">
-    <div class="wordmark">cctop<span class="caret">_</span></div>
-    <div class="tagline">Keep an eye on every <span class="accent">AI coding session.</span></div>
-    <div class="stamp"><span class="line"></span>cctop.app</div>
+  <div class="wordmark">cctop<span class="caret">_</span></div>
+  <div class="tagline">Keep an eye on every <span class="accent">AI coding session.</span></div>
+  <div class="stamp">
+    <span class="line"></span>
+    <span class="label">cctop.app</span>
   </div>
-  <div class="right">
-    <div class="frame">
-      <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="">
-    </div>
+  <div class="frame">
+    <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="" width="411" height="482">
   </div>
 </body>
 </html>
