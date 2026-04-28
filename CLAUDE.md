@@ -89,29 +89,6 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 
 **Data flow:** The menubar app reads `~/.cctop/sessions/*.json` files. These are written by `cctop-hook` (Swift CLI), which is called by all plugins (Claude Code hooks, opencode JS plugin, pi TS extension). Both Xcode targets share model code.
 
-**Key files:**
-- `menubar/CctopMenubar/AppDelegate.swift` — NSStatusItem + FloatingPanel management
-- `menubar/CctopMenubar/FloatingPanel.swift` — NSPanel subclass (persistent popup)
-- `menubar/CctopMenubar/Views/PopupView.swift` — Main popup layout
-- `menubar/CctopMenubar/Views/SessionCardView.swift` — Session card component
-- `menubar/CctopMenubar/Models/Session.swift` — Session data model (Codable, shared)
-- `menubar/CctopMenubar/Models/HookEvent.swift` — Hook event enum + transition logic (shared)
-- `menubar/CctopMenubar/Models/Config.swift` — JSON config, sessions dir (shared)
-- `menubar/CctopMenubar/Services/SessionManager.swift` — File watching + session loading
-- `menubar/CctopMenubar/Services/NotchStatusController.swift` — Notch status panel lifecycle
-- `menubar/CctopMenubar/Views/NotchStatusPanel.swift` — NSPanel for notch area display
-- `menubar/CctopMenubar/Views/NotchStatusView.swift` — SwiftUI view for notch status pill
-- `menubar/CctopMenubar/Views/MenubarIconRenderer.swift` — Menubar icon with proportional status bar
-- `menubar/CctopMenubar/Models/StatusCounts.swift` — Aggregated session counts, bar segments, accessibility labels
-- `menubar/CctopMenubar/Models/StatusColors.swift` — Shared status bar colors (RGBColor with NSColor + SwiftUI Color)
-- `menubar/CctopMenubar/Models/Color+Theme.swift` — Theme-aware color tokens (textPrimary, textSecondary, textMuted, amber, etc.)
-- `menubar/CctopMenubar/Extensions/NSScreen+Notch.swift` — Notch detection extension
-- `menubar/CctopMenubar/Hook/HookMain.swift` — CLI entry point (cctop-hook target only)
-- `menubar/CctopMenubar/Hook/HookHandler.swift` — Core hook logic (cctop-hook target only)
-- `menubar/CctopMenubar/Hook/SessionNameLookup.swift` — Session name lookup from transcript/index (cctop-hook target only)
-- `plugins/opencode/plugin.js` — opencode plugin (translates events to cctop-hook calls)
-- `plugins/pi/cctop.ts` — pi extension (translates events to cctop-hook calls, skips non-interactive sessions)
-
 ### Raycast Extension
 
 A Raycast extension that reads the same `~/.cctop/sessions/*.json` files and provides a searchable session list with filtering, detail pane, and jump-to-session actions.
@@ -344,61 +321,8 @@ cat ~/.cctop/sessions/*.json | jq '.source'
 
 Note: The app only installs the plugin when the user explicitly clicks "Install Plugin" — it will not overwrite your local changes automatically. However, if you click "Install Plugin" again from the UI, it will overwrite with the bundled version.
 
-## Plugin Installation (Local Development)
+## Jump-to-Session Behavior
 
-### Claude Code
-
-```bash
-# Add the local marketplace
-claude plugin marketplace add /path/to/cctop
-
-# Install the plugin
-claude plugin install cctop
-
-# Verify installation
-ls ~/.claude/plugins/cache/cctop/
-```
-
-After installing, **restart Claude Code sessions** to pick up the hooks.
-
-### opencode
-
-The menubar app detects opencode when `~/.config/opencode/` exists and offers to install the plugin via the UI (Settings > Monitored Tools or the install banner). Click "Install Plugin", then restart opencode.
-
-### pi
-
-The menubar app detects pi when `~/.pi/` exists and offers to install the extension via the UI (Settings > Monitored Tools or the install banner). Click "Install Plugin", then restart pi. The extension is installed to `~/.pi/agent/extensions/cctop.ts`.
-
-## Common Issues
-
-### Hooks not firing (Claude Code)
-- Check if plugin is installed: `claude plugin list`
-- Hooks only load at session start - restart the session
-- Check debug logs: `grep cctop ~/.claude/debug/<session-id>.txt`
-
-### Plugin not working (opencode)
-- The app detects opencode when `~/.config/opencode/` exists and offers to install via the UI
-- Install the plugin via Settings > Monitored Tools or the install banner
-- Check if plugin file exists: `ls ~/.config/opencode/plugins/cctop.js`
-- Restart opencode after installing the plugin
-- Check for session files: `ls ~/.cctop/sessions/`
-
-### Extension not working (pi)
-- The app detects pi when `~/.pi/` exists and offers to install via the UI
-- Install the extension via Settings > Monitored Tools or the install banner
-- Check if extension file exists: `ls ~/.pi/agent/extensions/cctop.ts`
-- Restart pi after installing the extension (or use `/reload` in pi)
-- Check for session files: `ls ~/.cctop/sessions/`
-
-### "command not found" errors
-- Hooks search for `cctop-hook` in `/Applications/cctop.app/Contents/MacOS/` and `~/Applications/cctop.app/Contents/MacOS/`
-- Ensure the app is installed in one of those locations
-
-### Stale sessions showing
-- Sessions store the PID of the Claude process and are validated by checking if that PID is still running
-- Manual cleanup: `rm ~/.cctop/sessions/<pid>.json`
-
-### Jump to session not working
 - **VS Code / Cursor (menubar app)**: Uses `NSWorkspace.open` with the editor's bundle ID to focus the project window. Does not shell out to `code`/`cursor` CLI (avoids PATH issues after Sparkle updates). If a `.code-workspace` file is detected in the project directory, it's passed instead of the folder path.
 - **VS Code / Cursor (Raycast extension)**: Uses `open -a "Visual Studio Code" <path>` because Raycast's sandboxed Node.js doesn't have `/usr/local/bin` in PATH. The `code` CLI cannot be called directly.
 - **Workspace limitation**: cctop detects workspace files by scanning the project directory at session start. If the project folder contains a `.code-workspace` file but you opened the folder directly (not via the workspace file), cctop may incorrectly open the workspace instead of focusing the folder window. VS Code does not expose which mode was used via environment variables or APIs.
@@ -563,48 +487,18 @@ grep 'SHIM' ~/.cctop/logs/<session-id>.log
 cat ~/.cctop/logs/_errors.log
 ```
 
-## opencode Plugin Debugging
+## Plugin Debugging (opencode / pi)
 
-The opencode plugin now calls `cctop-hook`, so per-session logs (`~/.cctop/logs/`) work the same as Claude Code. The plugin calls `execFileSync` for each event — if cctop-hook isn't found, calls silently fail.
+Both plugins call `cctop-hook` via `execFileSync`, so per-session logs in `~/.cctop/logs/` work the same as Claude Code. If `cctop-hook` isn't found, calls silently fail. Pi additionally skips non-interactive sessions (`ctx.hasUI === false`) — no session file or log will be created.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| No session file appears | Plugin not installed, or cctop-hook not found | Verify plugin: `ls ~/.config/opencode/plugins/cctop.js`. Verify binary: `ls /Applications/cctop.app/Contents/MacOS/cctop-hook` or `~/.cctop/bin/cctop-hook` |
+| No session file appears | Plugin not installed, cctop-hook not found, or (pi only) non-interactive session | Verify plugin: `ls ~/.config/opencode/plugins/cctop.js` or `ls ~/.pi/agent/extensions/cctop.ts`. Verify binary: `ls /Applications/cctop.app/Contents/MacOS/cctop-hook` or `~/.cctop/bin/cctop-hook` |
 | No HOOK entries in logs | Plugin calling hook but binary failing | Check `~/.cctop/logs/_errors.log` for parse errors |
-| Session file appears but status doesn't update | Plugin event handler error or stale plugin | Check opencode logs for JS errors; update plugin via Settings > Monitored Tools |
+| Session file appears but status doesn't update | Plugin event handler error or stale plugin | Check tool console for JS/TS errors; reinstall via Settings > Monitored Tools |
 
 ```bash
-# Check if the plugin is installed
-ls ~/.config/opencode/plugins/cctop.js
-
-# Check if session files are being written
-ls -lt ~/.cctop/sessions/
-
-# Check per-session hook logs (same as Claude Code now)
-ls ~/.cctop/logs/
-
-# Verify the source field
-cat ~/.cctop/sessions/*.json | jq '{project: .project_name, status: .status, source: .source}'
-```
-
-## pi Extension Debugging
-
-The pi extension calls `cctop-hook`, so per-session logs (`~/.cctop/logs/`) work the same as other tools. Non-interactive sessions (`ctx.hasUI === false`) are silently skipped — no session file or log will be created.
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| No session file appears | Extension not installed, cctop-hook not found, or session is non-interactive | Verify extension: `ls ~/.pi/agent/extensions/cctop.ts`. Verify binary exists. Check if pi is running in background mode (`-p`, `--mode json`). |
-| No HOOK entries in logs | Extension calling hook but binary failing | Check `~/.cctop/logs/_errors.log` for parse errors |
-| Session file appears but status doesn't update | Extension event handler error | Check pi console for TS errors; reinstall extension via Settings |
-
-```bash
-# Check if the extension is installed
-ls ~/.pi/agent/extensions/cctop.ts
-
-# Check if session files are being written
-ls -lt ~/.cctop/sessions/
-
-# Verify the source field shows "pi"
+# Verify source field per session
 cat ~/.cctop/sessions/*.json | jq '{project: .project_name, status: .status, source: .source}'
 ```
 
@@ -623,15 +517,6 @@ lsof -p <PID> | grep cwd
 # View session file contents
 cat ~/.cctop/sessions/*.json | jq '.project_name + " | " + .status'
 ```
-
-## Files to Check When Debugging
-
-- `~/.cctop/logs/{session_id}.log` - Per-session hook delivery logs (SHIM/HOOK entries)
-- `~/.cctop/logs/_errors.log` - Pre-parse errors (before session ID is known)
-- `~/.cctop/sessions/*.json` - Session state files
-- `~/.claude/debug/<session-id>.txt` - Claude Code debug logs
-- `~/.claude/plugins/cache/cctop/` - Installed plugin cache
-- `~/.claude/settings.json` - Check if plugin is enabled
 
 ## Release Pipeline
 
@@ -698,28 +583,6 @@ cp /tmp/menubar-light.png /tmp/menubar-dark.png docs/
 ```
 
 The showcase sessions are defined in `Session+Mock.swift` (`qaShowcase`). Edit that array to change what appears in the screenshots.
-
-## Agent Workflow Guidelines
-
-Learned from development. The menubar app is pure Swift with two Xcode targets sharing model code. The Raycast extension is TypeScript/React. Changes to shared models (Models/) affect both the menubar app and cctop-hook CLI. The Raycast extension has its own TypeScript types (`types.ts`) that mirror the Swift models.
-
-### When to use what
-
-**Subagents** (focused, report-back-only): quick research ("what's the convention for X?"), codebase exploration, code review after milestones. Use when only the result matters, not discussion.
-
-**Agent teams** (inter-agent communication): debating approaches with competing hypotheses, parallel code review with different lenses, cross-file implementation where each teammate owns different files. Use when agents need to challenge each other or coordinate.
-
-**Solo** (no agents): sequential changes across coupled files, small fixes, tasks where context transfer overhead exceeds benefit.
-
-### Team best practices for this project
-- Use **delegate mode** (Shift+Tab) to keep the lead in coordination-only role
-- Design tasks around **file ownership**, not domain expertise
-- Aim for **5-6 tasks per teammate** to keep them productive
-- **Require plan approval** for implementation tasks
-- Models/ files are the shared interface — changes here affect both targets
-- Hook/ files are cctop-hook only, Views/Services are menubar only — good split for parallel work
-- `raycast/` is independent of the Swift code — changes there don't affect menubar/cctop-hook builds
-- If the session JSON format changes (Models/Session.swift), update `raycast/src/types.ts` to match
 
 ## Design Context
 
