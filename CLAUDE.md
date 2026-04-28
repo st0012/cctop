@@ -54,7 +54,8 @@ cctop/
 │   ├── bundle-macos.sh        # Build and bundle .app
 │   ├── sign-and-notarize.sh   # Code sign + Apple notarization
 │   ├── generate-appcast.sh    # Sparkle appcast (multi-arch)
-│   └── bump-version.sh        # Version bumper (all files incl. site/index.html)
+│   ├── bump-version.sh        # Version bumper (all files incl. site/index.html)
+│   └── render-og.sh           # Render site/og.html → site/og.png (1200x630)
 ├── site/                # Public website (cctop.app)
 │   ├── index.html       # Single static page, no build step
 │   └── README.md        # Local preview + sync rules
@@ -197,6 +198,18 @@ python3 -m http.server 8000 --directory site
 - Hero / install / privacy copy if the README's framing changes
 
 `site/README.md` has the same sync table for quick reference when working in the site folder.
+
+**Social preview card (`site/og.html` → `site/og.png`):**
+
+The social preview is a static HTML source rendered to a 1200×630 PNG and committed alongside it. The site's `og:image` meta tag points at `https://cctop.app/og.png`.
+
+**ALWAYS** re-run `scripts/render-og.sh` after editing `site/og.html`, and commit `site/og.png` in the same commit. Otherwise the deployed `og:image` and the source diverge — link unfurlers (Twitter, Slack, Discord) cache OG images aggressively, so a stale PNG can persist for days even after the source change ships.
+
+```bash
+scripts/render-og.sh   # writes site/og.png from site/og.html
+```
+
+The script uses Chrome headless (auto-detected on macOS, override with `CHROME_BIN=...`). It validates the output is exactly 1200×630 and exits non-zero if rendering fails. The script is also safe to re-run — it always overwrites the existing PNG.
 
 ## Supported Agents
 
