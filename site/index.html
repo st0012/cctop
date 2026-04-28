@@ -339,15 +339,17 @@
     font-family:var(--mono);font-size:13px;
     background: var(--bg-2); border:1px solid var(--line); border-radius:8px;
     padding: 10px 12px; color: var(--fg);
-    display:flex;align-items:center;justify-content:space-between;gap:12px;
-    overflow-x:auto;
+    display:flex;align-items:center;gap:12px;
   }
-  .brew code{white-space:nowrap}
+  /* Scope horizontal scroll to the code itself so the copy button can never
+     overlap the command. min-width:0 lets the flex item shrink below its
+     content's intrinsic size (overrides the default min-width:auto). */
+  .brew code{white-space:nowrap;overflow-x:auto;min-width:0;flex:1}
   .copy{
     font-family:var(--mono);font-size:11px;color:var(--fg-mute);
     background: transparent;border:1px solid var(--line-strong);padding:3px 9px;border-radius:6px;cursor:pointer;
     transition: color .15s, border-color .15s, background .15s;
-    display:inline-flex;align-items:center;gap:6px;
+    display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
   }
   .copy:hover{color:var(--fg);border-color: color-mix(in oklab, var(--fg) 20%, transparent);background: color-mix(in oklab, var(--fg) 4%, transparent)}
   .copy.ok{color: var(--accent); border-color: color-mix(in oklab, var(--accent) 35%, transparent)}
