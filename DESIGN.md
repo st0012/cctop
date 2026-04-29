@@ -84,8 +84,13 @@ variants. The Swift app exposes them via the semantic token API in
 | Card background    | `cardBackground`                                           | Selected card / settings rows (white@4% / black@2%) |
 | Card border        | `cardBorder`                                               | Hairline divider (white@4% / black@4%)           |
 
-**Forward-compatible decoding.** Unknown statuses map to `.needsAttention` so
-new server-side status values never crash old clients.
+**Forward-compatible decoding.** `SessionStatus.init(from:)` first tries to
+match the raw string against a known case, then falls back by name: unknown
+values containing `"waiting"` map to `.needsAttention`; everything else maps
+to `.working`. New server-side status values never crash old clients — but
+when adding a backend status, name it `waiting_*` if it should surface as
+attention on older builds; otherwise older clients will render it as a
+working session.
 
 ### Palette: Claude
 
