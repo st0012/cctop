@@ -8,6 +8,8 @@ enum FocusStrategy: Equatable {
     case openWithApp(bundleID: String, target: String)
     /// Focus an iTerm2 session by its unique GUID, with a bundle ID fallback.
     case iTerm2(guid: String)
+    /// Focus a Kitty window via remote control socket, with bundle ID fallback.
+    case kitty(socket: String, windowId: String)
     /// Activate a running app by its localized name.
     case activateByName(String)
     /// Activate a running app by its bundle identifier.
@@ -46,6 +48,13 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
         return .iTerm2(guid: guid)
     }
 
+    // Kitty → remote control to focus the specific window (pane in Kitty's terms)
+    if hostApp == .kitty,
+       let socket = terminal.socket,
+       let windowId = terminal.sessionId {
+        return .kitty(socket: socket, windowId: windowId)
+    }
+
     // Try activation by name, then bundle ID, then Finder
     if let name = hostApp.activationName {
         return .activateByName(name)
@@ -81,6 +90,13 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
     case .iTerm2(let guid):
         if !executeITerm2Script(guid: guid) {
             if let bundleID = HostApp.iterm2.bundleID {
+                activateAppByBundleID(bundleID)
+            }
+        }
+
+    case .kitty(let socket, let windowId):
+        if !executeKittyFocusWindow(socket: socket, windowId: windowId) {
+            if let bundleID = HostApp.kitty.bundleID {
                 activateAppByBundleID(bundleID)
             }
         }
@@ -130,6 +146,24 @@ private func executeITerm2Script(guid: String) -> Bool {
     var error: NSDictionary?
     NSAppleScript(source: script)?.executeAndReturnError(&error)
     return error == nil
+}
+
+// MARK: - Kitty Remote Control
+// https://sw.kovidgoyal.net/kitty/remote-control/
+
+private func executeKittyFocusWindow(socket: String, windowId: String) -> Bool {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["kitty", "@", "--to", socket, "focus-window", "--match", "id:\(windowId)"]
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    do {
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus == 0
+    } catch {
+        return false
+    }
 }
 
 // MARK: - Open recent project in editor

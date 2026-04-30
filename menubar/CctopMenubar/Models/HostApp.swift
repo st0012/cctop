@@ -11,6 +11,7 @@ enum HostApp {
     case warp
     case terminal
     case ghostty
+    case kitty
     case unknown
 
     /// Match a bundle identifier to a HostApp. Preferred over program name matching
@@ -33,6 +34,7 @@ enum HostApp {
         if lower.contains("iterm") { return .iterm2 }
         if lower.contains("warp") { return .warp }
         if lower.contains("ghostty") { return .ghostty }
+        if lower.contains("kitty") { return .kitty }
         if lower.contains("terminal") { return .terminal }
         return .unknown
     }
@@ -47,6 +49,7 @@ enum HostApp {
         case .warp: return "dev.warp.Warp-Stable"
         case .terminal: return "com.apple.Terminal"
         case .ghostty: return "com.mitchellh.ghostty"
+        case .kitty: return "net.kovidgoyal.kitty"
         case .unknown: return nil
         }
     }
@@ -62,6 +65,7 @@ enum HostApp {
         case .warp: return "warp"
         case .terminal: return "terminal"
         case .ghostty: return "ghostty"
+        case .kitty: return "kitty"
         case .unknown: return nil
         }
     }
@@ -70,7 +74,7 @@ enum HostApp {
         switch self {
         case .vscode, .cursor, .windsurf, .zed:
             return "chevron.left.forwardslash.chevron.right"
-        case .iterm2, .warp, .terminal, .ghostty, .unknown:
+        case .iterm2, .warp, .terminal, .ghostty, .kitty, .unknown:
             return "terminal"
         }
     }
@@ -79,13 +83,13 @@ enum HostApp {
     var usesWorkspaceFile: Bool {
         switch self {
         case .vscode, .cursor, .windsurf, .zed: return true
-        case .iterm2, .warp, .terminal, .ghostty, .unknown: return false
+        case .iterm2, .warp, .terminal, .ghostty, .kitty, .unknown: return false
         }
     }
 
     /// Reverse lookup: bundle ID → HostApp.
     static let allByBundleID: [String: HostApp] = {
-        let all: [HostApp] = [.vscode, .cursor, .windsurf, .zed, .iterm2, .warp, .terminal, .ghostty]
+        let all: [HostApp] = [.vscode, .cursor, .windsurf, .zed, .iterm2, .warp, .terminal, .ghostty, .kitty]
         return Dictionary(uniqueKeysWithValues: all.compactMap { app in
             app.bundleID.map { ($0, app) }
         })

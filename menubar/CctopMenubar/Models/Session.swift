@@ -50,19 +50,23 @@ struct TerminalInfo: Codable {
     let sessionId: String?
     let tty: String?
     let bundleId: String?
+    let socket: String? // Remote-control socket (e.g. KITTY_LISTEN_ON)
 
     enum CodingKeys: String, CodingKey {
         case program
         case sessionId = "session_id"
         case tty
         case bundleId = "bundle_id"
+        case socket
     }
 
-    init(program: String = "", sessionId: String? = nil, tty: String? = nil, bundleId: String? = nil) {
+    init(program: String = "", sessionId: String? = nil, tty: String? = nil,
+         bundleId: String? = nil, socket: String? = nil) {
         self.program = program
         self.sessionId = sessionId
         self.tty = tty
         self.bundleId = bundleId
+        self.socket = socket
     }
 }
 

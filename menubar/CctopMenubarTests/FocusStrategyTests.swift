@@ -7,12 +7,17 @@ final class FocusStrategyTests: XCTestCase {
 
     private func makeSession(
         program: String,
-        sessionId: String? = nil
+        sessionId: String? = nil,
+        bundleId: String? = nil,
+        socket: String? = nil
     ) -> Session {
         Session.mock(
             id: "test",
             project: "myapp",
-            terminal: TerminalInfo(program: program, sessionId: sessionId, tty: nil)
+            terminal: TerminalInfo(
+                program: program, sessionId: sessionId, tty: nil,
+                bundleId: bundleId, socket: socket
+            )
         )
     }
 
@@ -91,6 +96,44 @@ final class FocusStrategyTests: XCTestCase {
         )
         let strategy = resolveFocusStrategy(session: session)
         XCTAssertEqual(strategy, .activateByName("iterm2"))
+    }
+
+    // MARK: - Kitty uses remote control with socket
+
+    func testKittyWithSocketUsesRemoteControl() {
+        let session = makeSession(
+            program: "kitty", sessionId: "1",
+            bundleId: "net.kovidgoyal.kitty", socket: "unix:/tmp/kitty-1234"
+        )
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .kitty(socket: "unix:/tmp/kitty-1234", windowId: "1"))
+    }
+
+    func testKittyWithoutSocketFallsBackToActivate() {
+        let session = makeSession(
+            program: "kitty", sessionId: "1",
+            bundleId: "net.kovidgoyal.kitty"
+        )
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .activateByName("kitty"))
+    }
+
+    func testKittyWithoutWindowIdFallsBackToActivate() {
+        let session = makeSession(
+            program: "kitty",
+            bundleId: "net.kovidgoyal.kitty", socket: "unix:/tmp/kitty-1234"
+        )
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .activateByName("kitty"))
+    }
+
+    func testKittyDetectedByBundleIdWhenProgramDiffers() {
+        let session = makeSession(
+            program: "zellij", sessionId: "1",
+            bundleId: "net.kovidgoyal.kitty", socket: "unix:/tmp/kitty-1234"
+        )
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .kitty(socket: "unix:/tmp/kitty-1234", windowId: "1"))
     }
 
     // MARK: - Other terminals use activate

@@ -221,7 +221,9 @@ enum HookHandler {
         )
         let tty = env["TTY"] ?? findTTY()
         let bundleId = env["__CFBundleIdentifier"]
-        return TerminalInfo(program: program, sessionId: sessionId, tty: tty, bundleId: bundleId)
+        // Only Kitty exposes a remote-control socket for now (KITTY_LISTEN_ON).
+        let socket = env["KITTY_LISTEN_ON"]
+        return TerminalInfo(program: program, sessionId: sessionId, tty: tty, bundleId: bundleId, socket: socket)
     }
 
     /// Validate terminal session IDs to prevent injection via env vars.
