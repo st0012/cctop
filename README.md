@@ -63,11 +63,15 @@ When you click a session card (or jump via Navigate mode), cctop focuses the hos
 |-----|-------------|
 | VS Code, Cursor, Windsurf, Zed | Opens the project (workspace file if present) |
 | iTerm2 | Targets the specific window, tab, and pane |
+| Kitty | Targets the specific window via remote control |
 | Warp, Terminal, Ghostty | Activates the app (no per-tab targeting) |
 | Other | Falls back to opening the project folder in Finder |
 
 > [!NOTE]
 > iTerm2 requires macOS Automation permission. You'll be prompted to grant it on first use.
+>
+> Kitty requires `allow_remote_control socket-only` and `listen_on` in your `kitty.conf`.
+> Without remote control enabled, Kitty falls back to app activation (same as Warp/Ghostty).
 
 ## Installation
 
