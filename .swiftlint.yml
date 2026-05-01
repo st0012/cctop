@@ -19,6 +19,9 @@ cyclomatic_complexity:
 type_body_length:
   warning: 300
 
+file_length:
+  warning: 500
+
 identifier_name:
   min_length:
     warning: 2
