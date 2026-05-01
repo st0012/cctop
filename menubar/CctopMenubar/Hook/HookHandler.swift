@@ -223,14 +223,35 @@ enum HookHandler {
         let bundleId = env["__CFBundleIdentifier"]
         // Only Kitty exposes a remote-control socket for now (KITTY_LISTEN_ON).
         let socket = env["KITTY_LISTEN_ON"]
-        return TerminalInfo(program: program, sessionId: sessionId, tty: tty, bundleId: bundleId, socket: socket)
+        let multiplexer = captureMultiplexerInfo(env: env)
+        return TerminalInfo(
+            program: program, sessionId: sessionId, tty: tty,
+            bundleId: bundleId, socket: socket, multiplexer: multiplexer
+        )
+    }
+
+    /// Detect zellij or tmux from env vars. Checks zellij first, then tmux.
+    private static func captureMultiplexerInfo(env: [String: String]) -> MultiplexerInfo? {
+        // zellij: ZELLIJ_SESSION_NAME + ZELLIJ_PANE_ID
+        if let sessionName = sanitizeTerminalSessionId(env["ZELLIJ_SESSION_NAME"]),
+           let paneId = sanitizeTerminalSessionId(env["ZELLIJ_PANE_ID"]) {
+            return .zellij(sessionName: sessionName, paneId: paneId)
+        }
+        // tmux: $TMUX = "socket_path,pid,session_index", $TMUX_PANE = "%N"
+        if let tmux = env["TMUX"],
+           let paneId = sanitizeTerminalSessionId(env["TMUX_PANE"]),
+           let socket = tmux.split(separator: ",").first.map(String.init),
+           !socket.isEmpty {
+            return .tmux(socket: socket, paneId: paneId)
+        }
+        return nil
     }
 
     /// Validate terminal session IDs to prevent injection via env vars.
-    /// Only allows alphanumeric, hyphens, colons, and periods (covers iTerm2 and Kitty formats).
+    /// Only allows alphanumeric, hyphens, colons, periods, at-signs, underscores, and percent (covers iTerm2, Kitty, and tmux formats).
     private static func sanitizeTerminalSessionId(_ value: String?) -> String? {
         guard let value, !value.isEmpty,
-              value.range(of: #"^[0-9a-zA-Z:.@_-]+$"#, options: .regularExpression) != nil
+              value.range(of: #"^[0-9a-zA-Z:.@_%-]+$"#, options: .regularExpression) != nil
         else { return nil }
         return value
     }
