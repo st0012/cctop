@@ -51,6 +51,7 @@ struct TerminalInfo: Codable {
     let tty: String?
     let bundleId: String?
     let socket: String? // Remote-control socket (e.g. KITTY_LISTEN_ON)
+    let multiplexer: MultiplexerInfo?
 
     enum CodingKeys: String, CodingKey {
         case program
@@ -58,15 +59,69 @@ struct TerminalInfo: Codable {
         case tty
         case bundleId = "bundle_id"
         case socket
+        case multiplexer
     }
 
     init(program: String = "", sessionId: String? = nil, tty: String? = nil,
-         bundleId: String? = nil, socket: String? = nil) {
+         bundleId: String? = nil, socket: String? = nil, multiplexer: MultiplexerInfo? = nil) {
         self.program = program
         self.sessionId = sessionId
         self.tty = tty
         self.bundleId = bundleId
         self.socket = socket
+        self.multiplexer = multiplexer
+    }
+}
+
+/// Identifies a terminal multiplexer (zellij, tmux) hosting the session.
+/// Each variant carries exactly the fields needed for its focus command.
+enum MultiplexerInfo: Codable, Equatable {
+    /// zellij --session $sessionName action focus-pane-id $paneId
+    case zellij(sessionName: String, paneId: String)
+    /// tmux -S $socket select-window -t $paneId && tmux -S $socket select-pane -t $paneId
+    case tmux(socket: String, paneId: String)
+
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case sessionName = "session_name"
+        case paneId = "pane_id"
+        case socket
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let name = try container.decode(String.self, forKey: .name)
+        switch name {
+        case "zellij":
+            self = .zellij(
+                sessionName: try container.decode(String.self, forKey: .sessionName),
+                paneId: try container.decode(String.self, forKey: .paneId)
+            )
+        case "tmux":
+            self = .tmux(
+                socket: try container.decode(String.self, forKey: .socket),
+                paneId: try container.decode(String.self, forKey: .paneId)
+            )
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .name, in: container,
+                debugDescription: "Unknown multiplexer: \(name)"
+            )
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .zellij(let sessionName, let paneId):
+            try container.encode("zellij", forKey: .name)
+            try container.encode(sessionName, forKey: .sessionName)
+            try container.encode(paneId, forKey: .paneId)
+        case .tmux(let socket, let paneId):
+            try container.encode("tmux", forKey: .name)
+            try container.encode(socket, forKey: .socket)
+            try container.encode(paneId, forKey: .paneId)
+        }
     }
 }
 
