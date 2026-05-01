@@ -65,11 +65,37 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
     return .openInFinder(session.projectPath)
 }
 
+// MARK: - Multiplexer focus (independent of emulator focus)
+
+/// Describes how to focus a specific pane inside a terminal multiplexer.
+enum MultiplexerFocusStrategy: Equatable {
+    /// zellij --session $sessionName action focus-pane-id $paneId
+    case zellij(sessionName: String, paneId: String)
+    /// tmux -S $socket select-window -t $paneId && tmux -S $socket select-pane -t $paneId
+    case tmux(socket: String, paneId: String)
+}
+
+/// Resolve multiplexer focus from session info. Returns nil when no multiplexer is present.
+/// Pure function — no side effects, fully testable.
+func resolveMultiplexerFocus(session: Session) -> MultiplexerFocusStrategy? {
+    guard let mux = session.terminal?.multiplexer else { return nil }
+    switch mux {
+    case .zellij(let sessionName, let paneId):
+        return .zellij(sessionName: sessionName, paneId: paneId)
+    case .tmux(let socket, let paneId):
+        return .tmux(socket: socket, paneId: paneId)
+    }
+}
+
 // MARK: - Execution (AppKit side effects)
 
 func focusTerminal(session: Session) {
     let strategy = resolveFocusStrategy(session: session)
+    let muxStrategy = resolveMultiplexerFocus(session: session)
     executeFocusStrategy(strategy)
+    if let mux = muxStrategy {
+        executeMultiplexerFocus(mux)
+    }
     NSApp.deactivate()
 }
 
@@ -229,4 +255,47 @@ private func activateAppByName(_ program: String) -> Bool {
     }
     app.activate()
     return true
+}
+
+// MARK: - Multiplexer focus execution
+// Failures are silently ignored — the emulator was already focused,
+// which is better than nothing.
+
+private func executeMultiplexerFocus(_ strategy: MultiplexerFocusStrategy) {
+    switch strategy {
+    case .zellij(let sessionName, let paneId):
+        executeZellijFocus(sessionName: sessionName, paneId: paneId)
+    case .tmux(let socket, let paneId):
+        executeTmuxFocus(socket: socket, paneId: paneId)
+    }
+}
+
+// https://zellij.dev/documentation/controlling-zellij-through-cli
+private func executeZellijFocus(sessionName: String, paneId: String) {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["zellij", "--session", sessionName, "action", "focus-pane-id", paneId]
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    do {
+        try process.run()
+        process.waitUntilExit()
+    } catch {}
+}
+
+// https://man.openbsd.org/tmux.1
+// select-window switches to the window containing the pane;
+// select-pane then activates the specific pane within that window.
+private func executeTmuxFocus(socket: String, paneId: String) {
+    for cmd in [["select-window", "-t", paneId], ["select-pane", "-t", paneId]] {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["tmux", "-S", socket] + cmd
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {}
+    }
 }
