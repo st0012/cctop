@@ -73,6 +73,16 @@ When you click a session card (or jump via Navigate mode), cctop focuses the hos
 > Kitty requires `allow_remote_control socket-only` and `listen_on` in your `kitty.conf`.
 > Without remote control enabled, Kitty falls back to app activation (same as Warp/Ghostty).
 
+### Terminal Multiplexers
+
+When running inside a multiplexer, cctop additionally focuses the specific pane.
+This composes with any terminal emulator above.
+
+| Multiplexer | How it focuses |
+|-------------|----------------|
+| Zellij | `zellij --session <name> action focus-pane-id <paneId>` — targets the exact pane |
+| tmux | `tmux select-window` + `select-pane` — targets the exact window and pane |
+
 ## Installation
 
 ### Step 1: Install the app
