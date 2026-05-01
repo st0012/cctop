@@ -92,6 +92,7 @@
 		PLT000010000000000000001 /* PanelLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLT000020000000000000001 /* PanelLifecycleTests.swift */; };
 		PPT000010000000000000001 /* PanelPositioningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PPT000020000000000000001 /* PanelPositioningTests.swift */; };
 		FST000010000000000000001 /* FocusStrategyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FST000020000000000000001 /* FocusStrategyTests.swift */; };
+		MFT000010000000000000001 /* MultiplexerFocusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MFT000020000000000000001 /* MultiplexerFocusTests.swift */; };
 		TMT000010000000000000001 /* ThemeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TMT000020000000000000001 /* ThemeManagerTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -185,6 +186,7 @@
 		PLT000020000000000000001 /* PanelLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelLifecycleTests.swift; sourceTree = "<group>"; };
 		PPT000020000000000000001 /* PanelPositioningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPositioningTests.swift; sourceTree = "<group>"; };
 		FST000020000000000000001 /* FocusStrategyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusStrategyTests.swift; sourceTree = "<group>"; };
+		MFT000020000000000000001 /* MultiplexerFocusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiplexerFocusTests.swift; sourceTree = "<group>"; };
 		TMT000020000000000000001 /* ThemeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManagerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -360,6 +362,7 @@
 				PLT000020000000000000001 /* PanelLifecycleTests.swift */,
 				PPT000020000000000000001 /* PanelPositioningTests.swift */,
 				FST000020000000000000001 /* FocusStrategyTests.swift */,
+				MFT000020000000000000001 /* MultiplexerFocusTests.swift */,
 				TMT000020000000000000001 /* ThemeManagerTests.swift */,
 			);
 			path = CctopMenubarTests;
@@ -576,6 +579,7 @@
 				PLT000010000000000000001 /* PanelLifecycleTests.swift in Sources */,
 				PPT000010000000000000001 /* PanelPositioningTests.swift in Sources */,
 				FST000010000000000000001 /* FocusStrategyTests.swift in Sources */,
+				MFT000010000000000000001 /* MultiplexerFocusTests.swift in Sources */,
 				TMT000010000000000000001 /* ThemeManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
