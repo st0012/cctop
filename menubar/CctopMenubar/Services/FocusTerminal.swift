@@ -94,7 +94,9 @@ func focusTerminal(session: Session) {
     let muxStrategy = resolveMultiplexerFocus(session: session)
     executeFocusStrategy(strategy)
     if let mux = muxStrategy {
-        executeMultiplexerFocus(mux)
+        DispatchQueue.global(qos: .userInitiated).async {
+            executeMultiplexerFocus(mux)
+        }
     }
     NSApp.deactivate()
 }
