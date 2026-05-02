@@ -62,22 +62,27 @@ class SessionManager: ObservableObject {
             if entry.1.endedAt != nil || !entry.1.isAlive { dead.append(entry) } else { alive.append(entry) }
         }
         logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead")
-        let oldCount = sessions.count
-        sessions = alive.map(\.1).map { session in
+        let newSessions = alive.map(\.1).map { session in
             adjustDisplayStatus(session)
-        }
-        if sessions.count != oldCount {
-            logger.info("loadSessions: session count changed \(oldCount) -> \(self.sessions.count)")
-        }
+        }.sorted { $0.id < $1.id }
 
+        // Side effects: run before the equality guard so they always execute.
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
-            for session in sessions {
+            for session in newSessions {
                 guard session.status.needsAttention,
                       let oldStatus = oldStatuses[session.id],
                       !oldStatus.needsAttention else { continue }
                 sendNotification(for: session)
             }
         }
+        // Only publish when data actually changed to avoid unnecessary SwiftUI re-renders.
+        if newSessions != sessions {
+            if newSessions.count != sessions.count {
+                logger.info("loadSessions: session count changed \(self.sessions.count) -> \(newSessions.count)")
+            }
+            sessions = newSessions
+        }
+
         archiveAndRemoveDeadSessions(dead)
         cleanupOldFormatFiles(jsonFiles)
     }

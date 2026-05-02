@@ -45,7 +45,7 @@ extension JSONDecoder {
     }()
 }
 
-struct TerminalInfo: Codable {
+struct TerminalInfo: Codable, Equatable {
     let program: String
     let sessionId: String?
     let tty: String?
@@ -70,7 +70,7 @@ struct TerminalInfo: Codable {
     }
 }
 
-struct SubagentInfo: Codable {
+struct SubagentInfo: Codable, Equatable {
     let agentId: String
     let agentType: String
     let startedAt: Date
@@ -82,7 +82,7 @@ struct SubagentInfo: Codable {
     }
 }
 
-struct Session: Codable, Identifiable {
+struct Session: Codable, Identifiable, Equatable {
     let sessionId: String
     let projectPath: String
     let projectName: String
