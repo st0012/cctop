@@ -235,14 +235,16 @@ enum HookHandler {
         // zellij: ZELLIJ_SESSION_NAME + ZELLIJ_PANE_ID
         if let sessionName = sanitizeTerminalSessionId(env["ZELLIJ_SESSION_NAME"]),
            let paneId = sanitizeTerminalSessionId(env["ZELLIJ_PANE_ID"]) {
-            return .zellij(sessionName: sessionName, paneId: paneId)
+            let path = resolveBinaryPath(env: env, name: "zellij")
+            return .zellij(sessionName: sessionName, paneId: paneId, binaryPath: path)
         }
         // tmux: $TMUX = "socket_path,pid,session_index", $TMUX_PANE = "%N"
         if let tmux = env["TMUX"],
            let paneId = sanitizeTerminalSessionId(env["TMUX_PANE"]),
            let socket = tmux.split(separator: ",").first.map(String.init),
            !socket.isEmpty {
-            return .tmux(socket: socket, paneId: paneId)
+            let path = resolveBinaryPath(env: env, name: "tmux")
+            return .tmux(socket: socket, paneId: paneId, binaryPath: path)
         }
         return nil
     }
@@ -254,6 +256,19 @@ enum HookHandler {
               value.range(of: #"^[0-9a-zA-Z:.@_%-]+$"#, options: .regularExpression) != nil
         else { return nil }
         return value
+    }
+
+    /// Resolve absolute path for a CLI binary by searching $PATH.
+    private static func resolveBinaryPath(env: [String: String], name: String) -> String? {
+        guard let pathEnv = env["PATH"] else { return nil }
+        let fm = FileManager.default
+        for dir in pathEnv.split(separator: ":") {
+            let fullPath = URL(fileURLWithPath: String(dir)).appendingPathComponent(name).path
+            if fm.isExecutableFile(atPath: fullPath) {
+                return fullPath
+            }
+        }
+        return nil
     }
 
     /// Walk up the process tree to find the first ancestor with a controlling terminal.

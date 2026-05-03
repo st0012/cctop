@@ -9,22 +9,36 @@ final class MultiplexerFocusTests: XCTestCase {
         let session = Session.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
-                multiplexer: .zellij(sessionName: "dev", paneId: "terminal_3")
+                multiplexer: .zellij(sessionName: "dev", paneId: "terminal_3", binaryPath: "/usr/bin/zellij")
             )
         )
         let strategy = resolveMultiplexerFocus(session: session)
-        XCTAssertEqual(strategy, .zellij(sessionName: "dev", paneId: "terminal_3"))
+        XCTAssertEqual(strategy, .zellij(sessionName: "dev", paneId: "terminal_3", binaryPath: "/usr/bin/zellij"))
     }
 
     func testTmuxReturnsStrategy() {
         let session = Session.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
-                multiplexer: .tmux(socket: "/tmp/tmux-501/default", paneId: "%3")
+                multiplexer: .tmux(socket: "/tmp/tmux-501/default", paneId: "%3", binaryPath: "/opt/homebrew/bin/tmux")
             )
         )
         let strategy = resolveMultiplexerFocus(session: session)
-        XCTAssertEqual(strategy, .tmux(socket: "/tmp/tmux-501/default", paneId: "%3"))
+        XCTAssertEqual(
+            strategy,
+            .tmux(socket: "/tmp/tmux-501/default", paneId: "%3", binaryPath: "/opt/homebrew/bin/tmux")
+        )
+    }
+
+    func testNoBinaryPathReturnsNil() {
+        let session = Session.mock(
+            terminal: TerminalInfo(
+                program: "Ghostty",
+                multiplexer: .zellij(sessionName: "dev", paneId: "terminal_3", binaryPath: nil)
+            )
+        )
+        let strategy = resolveMultiplexerFocus(session: session)
+        XCTAssertNil(strategy)
     }
 
     func testNoMultiplexerReturnsNil() {
@@ -44,36 +58,45 @@ final class MultiplexerFocusTests: XCTestCase {
     // MARK: - MultiplexerInfo Codable round-trip
 
     func testZellijCodableRoundTrip() throws {
-        let info = MultiplexerInfo.zellij(sessionName: "amzn", paneId: "42")
+        let info = MultiplexerInfo.zellij(sessionName: "amzn", paneId: "42", binaryPath: "/usr/bin/zellij")
         let data = try JSONEncoder().encode(info)
         let decoded = try JSONDecoder().decode(MultiplexerInfo.self, from: data)
         XCTAssertEqual(decoded, info)
     }
 
     func testTmuxCodableRoundTrip() throws {
-        let info = MultiplexerInfo.tmux(socket: "/tmp/tmux-501/default", paneId: "%3")
+        let info = MultiplexerInfo.tmux(socket: "/tmp/tmux-501/default", paneId: "%3", binaryPath: "/opt/homebrew/bin/tmux")
+        let data = try JSONEncoder().encode(info)
+        let decoded = try JSONDecoder().decode(MultiplexerInfo.self, from: data)
+        XCTAssertEqual(decoded, info)
+    }
+
+    func testNilBinaryPathCodableRoundTrip() throws {
+        let info = MultiplexerInfo.zellij(sessionName: "dev", paneId: "1", binaryPath: nil)
         let data = try JSONEncoder().encode(info)
         let decoded = try JSONDecoder().decode(MultiplexerInfo.self, from: data)
         XCTAssertEqual(decoded, info)
     }
 
     func testZellijJSONShape() throws {
-        let info = MultiplexerInfo.zellij(sessionName: "dev", paneId: "terminal_1")
+        let info = MultiplexerInfo.zellij(sessionName: "dev", paneId: "terminal_1", binaryPath: "/usr/bin/zellij")
         let data = try JSONEncoder().encode(info)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: String]
         XCTAssertEqual(json?["name"], "zellij")
         XCTAssertEqual(json?["session_name"], "dev")
         XCTAssertEqual(json?["pane_id"], "terminal_1")
+        XCTAssertEqual(json?["binary_path"], "/usr/bin/zellij")
         XCTAssertNil(json?["socket"])
     }
 
     func testTmuxJSONShape() throws {
-        let info = MultiplexerInfo.tmux(socket: "/tmp/tmux-501/default", paneId: "%3")
+        let info = MultiplexerInfo.tmux(socket: "/tmp/tmux-501/default", paneId: "%3", binaryPath: "/opt/homebrew/bin/tmux")
         let data = try JSONEncoder().encode(info)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: String]
         XCTAssertEqual(json?["name"], "tmux")
         XCTAssertEqual(json?["socket"], "/tmp/tmux-501/default")
         XCTAssertEqual(json?["pane_id"], "%3")
+        XCTAssertEqual(json?["binary_path"], "/opt/homebrew/bin/tmux")
         XCTAssertNil(json?["session_name"])
     }
 
@@ -90,13 +113,13 @@ final class MultiplexerFocusTests: XCTestCase {
         let session = Session.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
-                multiplexer: .zellij(sessionName: "dev", paneId: "terminal_1")
+                multiplexer: .zellij(sessionName: "dev", paneId: "terminal_1", binaryPath: "/usr/bin/zellij")
             )
         )
         let emulatorStrategy = resolveFocusStrategy(session: session)
         XCTAssertEqual(emulatorStrategy, .activateByName("ghostty"))
 
         let muxStrategy = resolveMultiplexerFocus(session: session)
-        XCTAssertEqual(muxStrategy, .zellij(sessionName: "dev", paneId: "terminal_1"))
+        XCTAssertEqual(muxStrategy, .zellij(sessionName: "dev", paneId: "terminal_1", binaryPath: "/usr/bin/zellij"))
     }
 }

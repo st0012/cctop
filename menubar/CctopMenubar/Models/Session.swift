@@ -77,30 +77,34 @@ struct TerminalInfo: Codable {
 /// Each variant carries exactly the fields needed for its focus command.
 enum MultiplexerInfo: Codable, Equatable {
     /// zellij --session $sessionName action focus-pane-id $paneId
-    case zellij(sessionName: String, paneId: String)
+    case zellij(sessionName: String, paneId: String, binaryPath: String?)
     /// tmux -S $socket select-window -t $paneId && tmux -S $socket select-pane -t $paneId
-    case tmux(socket: String, paneId: String)
+    case tmux(socket: String, paneId: String, binaryPath: String?)
 
     private enum CodingKeys: String, CodingKey {
         case name
         case sessionName = "session_name"
         case paneId = "pane_id"
         case socket
+        case binaryPath = "binary_path"
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let name = try container.decode(String.self, forKey: .name)
+        let binaryPath = try container.decodeIfPresent(String.self, forKey: .binaryPath)
         switch name {
         case "zellij":
             self = .zellij(
                 sessionName: try container.decode(String.self, forKey: .sessionName),
-                paneId: try container.decode(String.self, forKey: .paneId)
+                paneId: try container.decode(String.self, forKey: .paneId),
+                binaryPath: binaryPath
             )
         case "tmux":
             self = .tmux(
                 socket: try container.decode(String.self, forKey: .socket),
-                paneId: try container.decode(String.self, forKey: .paneId)
+                paneId: try container.decode(String.self, forKey: .paneId),
+                binaryPath: binaryPath
             )
         default:
             throw DecodingError.dataCorruptedError(
@@ -113,14 +117,16 @@ enum MultiplexerInfo: Codable, Equatable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .zellij(let sessionName, let paneId):
+        case .zellij(let sessionName, let paneId, let binaryPath):
             try container.encode("zellij", forKey: .name)
             try container.encode(sessionName, forKey: .sessionName)
             try container.encode(paneId, forKey: .paneId)
-        case .tmux(let socket, let paneId):
+            try container.encodeIfPresent(binaryPath, forKey: .binaryPath)
+        case .tmux(let socket, let paneId, let binaryPath):
             try container.encode("tmux", forKey: .name)
             try container.encode(socket, forKey: .socket)
             try container.encode(paneId, forKey: .paneId)
+            try container.encodeIfPresent(binaryPath, forKey: .binaryPath)
         }
     }
 }
