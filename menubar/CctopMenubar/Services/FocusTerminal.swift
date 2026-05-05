@@ -207,8 +207,8 @@ private func executeITerm2Script(guid: String) -> Bool {
 // for an exact, unambiguous match (analogous to iTerm2's GUID strategy).
 
 /// Escape a string for safe interpolation inside an AppleScript double-quoted literal.
-func escapeAppleScriptString(_ s: String) -> String {
-    s.replacingOccurrences(of: "\\", with: "\\\\")
+func escapeAppleScriptString(_ value: String) -> String {
+    value.replacingOccurrences(of: "\\", with: "\\\\")
         .replacingOccurrences(of: "\"", with: "\\\"")
 }
 
