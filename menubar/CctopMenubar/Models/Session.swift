@@ -52,6 +52,7 @@ struct TerminalInfo: Codable, Equatable {
     let bundleId: String?
     let socket: String? // Remote-control socket (e.g. KITTY_LISTEN_ON)
     let multiplexer: MultiplexerInfo?
+    let binaryPaths: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case program
@@ -60,16 +61,19 @@ struct TerminalInfo: Codable, Equatable {
         case bundleId = "bundle_id"
         case socket
         case multiplexer
+        case binaryPaths = "binary_paths"
     }
 
     init(program: String = "", sessionId: String? = nil, tty: String? = nil,
-         bundleId: String? = nil, socket: String? = nil, multiplexer: MultiplexerInfo? = nil) {
+         bundleId: String? = nil, socket: String? = nil, multiplexer: MultiplexerInfo? = nil,
+         binaryPaths: [String: String]? = nil) {
         self.program = program
         self.sessionId = sessionId
         self.tty = tty
         self.bundleId = bundleId
         self.socket = socket
         self.multiplexer = multiplexer
+        self.binaryPaths = binaryPaths
     }
 }
 

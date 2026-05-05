@@ -9,14 +9,16 @@ final class FocusStrategyTests: XCTestCase {
         program: String,
         sessionId: String? = nil,
         bundleId: String? = nil,
-        socket: String? = nil
+        socket: String? = nil,
+        binaryPaths: [String: String]? = nil
     ) -> Session {
         Session.mock(
             id: "test",
             project: "myapp",
             terminal: TerminalInfo(
                 program: program, sessionId: sessionId, tty: nil,
-                bundleId: bundleId, socket: socket
+                bundleId: bundleId, socket: socket,
+                binaryPaths: binaryPaths
             )
         )
     }
@@ -103,10 +105,13 @@ final class FocusStrategyTests: XCTestCase {
     func testKittyWithSocketUsesRemoteControl() {
         let session = makeSession(
             program: "kitty", sessionId: "1",
-            bundleId: "net.kovidgoyal.kitty", socket: "unix:/tmp/kitty-1234"
+            bundleId: "net.kovidgoyal.kitty", socket: "unix:/tmp/kitty-1234",
+            binaryPaths: ["kitty": "/opt/homebrew/bin/kitty"]
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .kitty(socket: "unix:/tmp/kitty-1234", windowId: "1"))
+        XCTAssertEqual(strategy, .kitty(
+            socket: "unix:/tmp/kitty-1234", windowId: "1", binaryPath: "/opt/homebrew/bin/kitty"
+        ))
     }
 
     func testKittyWithoutSocketFallsBackToActivate() {
@@ -121,6 +126,16 @@ final class FocusStrategyTests: XCTestCase {
     func testKittyWithoutWindowIdFallsBackToActivate() {
         let session = makeSession(
             program: "kitty",
+            bundleId: "net.kovidgoyal.kitty", socket: "unix:/tmp/kitty-1234",
+            binaryPaths: ["kitty": "/opt/homebrew/bin/kitty"]
+        )
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .activateByName("kitty"))
+    }
+
+    func testKittyWithoutBinaryPathFallsBackToActivate() {
+        let session = makeSession(
+            program: "kitty", sessionId: "1",
             bundleId: "net.kovidgoyal.kitty", socket: "unix:/tmp/kitty-1234"
         )
         let strategy = resolveFocusStrategy(session: session)
@@ -130,10 +145,13 @@ final class FocusStrategyTests: XCTestCase {
     func testKittyDetectedByBundleIdWhenProgramDiffers() {
         let session = makeSession(
             program: "zellij", sessionId: "1",
-            bundleId: "net.kovidgoyal.kitty", socket: "unix:/tmp/kitty-1234"
+            bundleId: "net.kovidgoyal.kitty", socket: "unix:/tmp/kitty-1234",
+            binaryPaths: ["kitty": "/opt/homebrew/bin/kitty"]
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .kitty(socket: "unix:/tmp/kitty-1234", windowId: "1"))
+        XCTAssertEqual(strategy, .kitty(
+            socket: "unix:/tmp/kitty-1234", windowId: "1", binaryPath: "/opt/homebrew/bin/kitty"
+        ))
     }
 
     // MARK: - Other terminals use activate

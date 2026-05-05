@@ -9,7 +9,7 @@ enum FocusStrategy: Equatable {
     /// Focus an iTerm2 session by its unique GUID, with a bundle ID fallback.
     case iTerm2(guid: String)
     /// Focus a Kitty window via remote control socket, with bundle ID fallback.
-    case kitty(socket: String, windowId: String)
+    case kitty(socket: String, windowId: String, binaryPath: String)
     /// Focus a Ghostty terminal by matching its working directory, with a bundle ID fallback.
     case ghostty(workingDirectory: String)
     /// Activate a running app by its localized name.
@@ -53,8 +53,9 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
     // Kitty → remote control to focus the specific window (pane in Kitty's terms)
     if hostApp == .kitty,
        let socket = terminal.socket,
-       let windowId = terminal.sessionId {
-        return .kitty(socket: socket, windowId: windowId)
+       let windowId = terminal.sessionId,
+       let binaryPath = terminal.binaryPaths?["kitty"] {
+        return .kitty(socket: socket, windowId: windowId, binaryPath: binaryPath)
     }
 
     if hostApp == .ghostty {
@@ -130,8 +131,8 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
             }
         }
 
-    case .kitty(let socket, let windowId):
-        if !executeKittyFocusWindow(socket: socket, windowId: windowId) {
+    case .kitty(let socket, let windowId, let binaryPath):
+        if !executeKittyFocusWindow(binaryPath: binaryPath, socket: socket, windowId: windowId) {
             if let bundleID = HostApp.kitty.bundleID {
                 activateAppByBundleID(bundleID)
             }
@@ -232,10 +233,10 @@ private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
 // MARK: - Kitty Remote Control
 // https://sw.kovidgoyal.net/kitty/remote-control/
 
-private func executeKittyFocusWindow(socket: String, windowId: String) -> Bool {
+private func executeKittyFocusWindow(binaryPath: String, socket: String, windowId: String) -> Bool {
     let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["kitty", "@", "--to", socket, "focus-window", "--match", "id:\(windowId)"]
+    process.executableURL = URL(fileURLWithPath: binaryPath)
+    process.arguments = ["@", "--to", socket, "focus-window", "--match", "id:\(windowId)"]
     process.standardOutput = FileHandle.nullDevice
     process.standardError = FileHandle.nullDevice
     do {

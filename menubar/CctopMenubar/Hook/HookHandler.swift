@@ -221,12 +221,21 @@ enum HookHandler {
         )
         let tty = env["TTY"] ?? findTTY()
         let bundleId = env["__CFBundleIdentifier"]
-        // Only Kitty exposes a remote-control socket for now (KITTY_LISTEN_ON).
+        // Remote-control socket for pane focusing.
+        // Currently only Kitty (https://sw.kovidgoyal.net/kitty/remote-control/).
+        // WezTerm also has a CLI (https://wezterm.org/cli/cli/index.html) — when
+        // added, socket will likely become an enum keyed by terminal.
         let socket = env["KITTY_LISTEN_ON"]
+        // binaryPaths is a map so it can grow to cover other socket-based terminals
+        // (e.g. wezterm) without a schema change.
+        let binaryPaths = socket.flatMap { _ in
+            resolveBinaryPath(env: env, name: "kitty").map { ["kitty": $0] }
+        }
         let multiplexer = captureMultiplexerInfo(env: env)
         return TerminalInfo(
             program: program, sessionId: sessionId, tty: tty,
-            bundleId: bundleId, socket: socket, multiplexer: multiplexer
+            bundleId: bundleId, socket: socket, multiplexer: multiplexer,
+            binaryPaths: binaryPaths
         )
     }
 
