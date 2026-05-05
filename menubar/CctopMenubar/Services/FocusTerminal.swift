@@ -10,6 +10,11 @@ enum FocusStrategy: Equatable {
     case iTerm2(guid: String)
     /// Focus a Kitty window via remote control socket, with bundle ID fallback.
     case kitty(socket: String, windowId: String)
+    /// Focus a Ghostty terminal by matching its working directory, with a bundle ID fallback.
+    /// Best-effort: Ghostty does not yet expose a per-surface env var inside the shell
+    /// (see ghostty-org/ghostty#9084, #10603), so we cannot do an exact-id match like
+    /// iTerm2/Kitty. When `GHOSTTY_SURFACE_ID` ships, switch to id-based matching here.
+    case ghostty(workingDirectory: String)
     /// Activate a running app by its localized name.
     case activateByName(String)
     /// Activate a running app by its bundle identifier.
@@ -53,6 +58,14 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
        let socket = terminal.socket,
        let windowId = terminal.sessionId {
         return .kitty(socket: socket, windowId: windowId)
+    }
+
+    // Ghostty → AppleScript match on working directory.
+    // Ambiguous when multiple Ghostty splits share the same cwd (picks first); breaks
+    // if the user `cd`s elsewhere in the shell. The script falls back to plain activation
+    // internally when no terminal matches.
+    if hostApp == .ghostty {
+        return .ghostty(workingDirectory: session.projectPath)
     }
 
     // Try activation by name, then bundle ID, then Finder
@@ -131,6 +144,13 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
             }
         }
 
+    case .ghostty(let workingDirectory):
+        if !executeGhosttyFocusScript(workingDirectory: workingDirectory) {
+            if let bundleID = HostApp.ghostty.bundleID {
+                activateAppByBundleID(bundleID)
+            }
+        }
+
     case .activateByName(let name):
         activateAppByName(name)
 
@@ -171,6 +191,37 @@ private func executeITerm2Script(guid: String) -> Bool {
                 end repeat
             end tell
         end repeat
+    end tell
+    """
+    var error: NSDictionary?
+    NSAppleScript(source: script)?.executeAndReturnError(&error)
+    return error == nil
+}
+
+// MARK: - Ghostty AppleScript
+// Ghostty 1.3.0+ exposes an AppleScript API (windows → tabs → terminals).
+// Each `terminal` (= one split/pane) has `id`, `name`, `working directory`.
+// No env var carries the terminal id into the shell yet, so we match on cwd.
+// FUTURE: when ghostty-org/ghostty#10603 ships GHOSTTY_SURFACE_ID, capture it
+// in HookHandler.captureTerminalInfo() and switch this script to `whose id is …`
+// for an exact, unambiguous match (analogous to iTerm2's GUID strategy).
+
+/// Escape a string for safe interpolation inside an AppleScript double-quoted literal.
+func escapeAppleScriptString(_ s: String) -> String {
+    s.replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "\"", with: "\\\"")
+}
+
+private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
+    let escaped = escapeAppleScriptString(workingDirectory)
+    let script = """
+    tell application "Ghostty"
+        activate
+        set matches to (every terminal whose working directory is "\(escaped)")
+        if (count of matches) > 0 then
+            focus (item 1 of matches)
+            return
+        end if
     end tell
     """
     var error: NSDictionary?
