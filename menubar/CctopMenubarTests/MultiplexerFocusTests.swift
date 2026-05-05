@@ -109,7 +109,8 @@ final class MultiplexerFocusTests: XCTestCase {
     // MARK: - Multiplexer focus is independent of emulator focus
 
     func testEmulatorStrategyUnaffectedByMultiplexer() {
-        // zellij inside Ghostty — emulator strategy should still be activateByName
+        // zellij inside Ghostty — emulator strategy and multiplexer focus are
+        // resolved independently from the same session.
         let session = Session.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
@@ -117,7 +118,7 @@ final class MultiplexerFocusTests: XCTestCase {
             )
         )
         let emulatorStrategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(emulatorStrategy, .activateByName("ghostty"))
+        XCTAssertEqual(emulatorStrategy, .ghostty(workingDirectory: "/Users/test/projects/cctop"))
 
         let muxStrategy = resolveMultiplexerFocus(session: session)
         XCTAssertEqual(muxStrategy, .zellij(sessionName: "dev", paneId: "terminal_1", binaryPath: "/usr/bin/zellij"))
