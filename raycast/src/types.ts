@@ -16,6 +16,7 @@ export interface TerminalInfo {
   program: string;
   session_id?: string | null;
   tty?: string | null;
+  bundle_id?: string | null;
 }
 
 export interface SubagentInfo {

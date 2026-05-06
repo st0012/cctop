@@ -102,7 +102,14 @@ export function getTerminalLabel(session: CctopSession): string {
 export async function jumpToSession(session: CctopSession): Promise<void> {
   try {
     const program = session.terminal?.program?.toLowerCase() ?? "";
+    const bundleId = session.terminal?.bundle_id ?? "";
     const target = session.workspace_file ?? session.project_path;
+
+    // Bundle ID is more reliable than TERM_PROGRAM: when a multiplexer (tmux,
+    // zellij) runs inside Ghostty, TERM_PROGRAM becomes the multiplexer name
+    // while __CFBundleIdentifier still identifies the host emulator. Mirrors
+    // HostApp.from(bundleIdentifier:) in the Swift menubar app.
+    const isGhostty = program.includes("ghostty") || bundleId === "com.mitchellh.ghostty";
 
     if (
       program.includes("code") ||
@@ -123,7 +130,7 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
       }
     } else if (program.includes("warp")) {
       execFileSync("open", ["-a", "Warp"]);
-    } else if (program.includes("ghostty")) {
+    } else if (isGhostty) {
       // Ghostty 1.3.0+ exposes AppleScript; match the terminal by working directory
       // and fall back to plain activation if no terminal matches or the script errors.
       try {
