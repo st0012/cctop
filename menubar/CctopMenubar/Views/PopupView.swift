@@ -11,6 +11,7 @@ enum PopupTab {
 }
 
 private let overlayAnimationDuration: TimeInterval = 0.2
+private let popupContentHeight: CGFloat = 290
 
 struct PopupView: View {
     let sessions: [Session]
@@ -55,6 +56,7 @@ struct PopupView: View {
                     case .recent: recentContent
                     }
                 }
+                .frame(maxWidth: .infinity)
                 .opacity(overlayController.hideContent ? 0 : 1)
                 .animation(.none, value: overlayController.hideContent)
                 if let overlay = overlayController.active {
@@ -71,6 +73,7 @@ struct PopupView: View {
                     }
                 }
             }
+            .frame(minHeight: overlayController.active != nil ? popupContentHeight : 0)
             .clipped()
             .animation(.easeInOut(duration: overlayAnimationDuration), value: overlayController.active)
             Divider()
@@ -161,7 +164,7 @@ struct PopupView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                    .frame(maxHeight: 290)
+                    .frame(maxHeight: popupContentHeight)
                     .onChange(of: selectedIndex) { newIndex in
                         guard selectedTab == .active,
                               let idx = newIndex, idx < sortedSessions.count else { return }
@@ -203,7 +206,7 @@ struct PopupView: View {
                     }
                     .padding(.vertical, 4)
                 }
-                .frame(maxHeight: 290)
+                .frame(maxHeight: popupContentHeight)
                 .onChange(of: selectedIndex) { newIndex in
                     guard selectedTab == .recent,
                           let idx = newIndex, idx < recentProjects.count else { return }
