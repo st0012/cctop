@@ -175,9 +175,8 @@ final class FocusStrategyTests: XCTestCase {
     }
 
     func testGhosttyEscapesBackslashesBeforeQuotes() {
-        // Backslashes must be escaped first so that an existing `\` doesn't pair up
-        // with the escape character we add for `"`, producing `\\"` (legal) rather
-        // than `\\\"` (also legal but produced by wrong order would yield `\"\"`).
+        // Backslashes must be escaped first; otherwise the second pass would
+        // re-escape the backslashes we just inserted to escape quotes.
         XCTAssertEqual(
             escapeAppleScriptString(#"a\b"c"#),
             #"a\\b\"c"#
