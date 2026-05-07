@@ -41,7 +41,12 @@ function escapeAppleScriptString(s: string): string {
  */
 function primeGhosttyCWD(tty: string, workingDirectory: string): void {
   try {
-    const encoded = encodeURI(workingDirectory);
+    // encodeURI leaves '#' and '?' unencoded; Ghostty's OSC 7 parser would
+    // treat them as URI fragment/query delimiters and drop everything after.
+    // Match Swift's `.urlPathAllowed` behavior by post-encoding both.
+    const encoded = encodeURI(workingDirectory)
+      .replace(/#/g, "%23")
+      .replace(/\?/g, "%3F");
     const osc = `\x1b]7;file://${hostname()}${encoded}\x07`;
     writeFileSync(tty, osc);
   } catch {

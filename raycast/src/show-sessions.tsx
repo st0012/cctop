@@ -61,7 +61,12 @@ function sessionAccessories(
     accessories.push({
       tag: {
         value: label,
-        color: label === "OC" ? Color.Blue : label === "Pi" ? Color.Green : Color.Orange,
+        color:
+          label === "OC"
+            ? Color.Blue
+            : label === "Pi"
+              ? Color.Green
+              : Color.Orange,
       },
     });
   }
