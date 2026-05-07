@@ -140,7 +140,16 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
             }
         }
 
-    case .ghostty(let workingDirectory, _):
+    case .ghostty(let workingDirectory, let tty):
+        // Prime Ghostty's AppleScript-tracked cwd before matching against it.
+        // Ghostty learns cwd via OSC 7 from the shell, but some shell setups
+        // (e.g. nix/Shopify-world bash→zsh wrappers) don't load Ghostty's
+        // shell integration, so the only cwd Ghostty knows is whatever the
+        // surface launched in. Without this prime, the match loop below fails
+        // and we fall back to plain `activate`, raising the wrong window/tab.
+        if let tty {
+            primeGhosttyCWD(tty: tty, workingDirectory: workingDirectory)
+        }
         if !executeGhosttyFocusScript(workingDirectory: workingDirectory) {
             if let bundleID = HostApp.ghostty.bundleID {
                 activateAppByBundleID(bundleID)
@@ -204,6 +213,12 @@ private func executeITerm2Script(guid: String) -> Bool {
 // best-effort: ambiguous when multiple Ghostty splits share the same cwd
 // (picks first), and breaks if the user `cd`s elsewhere after session start.
 //
+// Before running the AppleScript we write an OSC 7 cwd report directly to the
+// session's TTY (captured at hook time, e.g. /dev/ttys011). Ghostty parses OSC 7
+// off the PTY master and updates `working directory of term`. This makes the
+// match deterministic even when the shell never emits OSC 7 itself (e.g. when
+// Ghostty's shell integration isn't loaded by a wrapper-launched shell).
+//
 // We walk windows → tabs → terminals (instead of `every terminal whose …`) so
 // we keep a reference to the parent window, then call `activate window` on it
 // before focusing the surface. The leading `activate` only raises whichever
@@ -256,6 +271,19 @@ private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
         end repeat
     end tell
     """)
+}
+
+/// Write an OSC 7 cwd report to the given TTY device file.
+/// Bytes written to the slave (`/dev/ttysNNN`) appear on the PTY master where the
+/// emulator parses them — the shell does NOT see this write. Silently no-ops on
+/// any I/O failure (TTY may have closed if the session just ended).
+private func primeGhosttyCWD(tty: String, workingDirectory: String) {
+    let host = ProcessInfo.processInfo.hostName
+    let osc = buildOSC7CWD(host: host, workingDirectory: workingDirectory)
+    guard let data = osc.data(using: .utf8) else { return }
+    guard let handle = FileHandle(forWritingAtPath: tty) else { return }
+    defer { try? handle.close() }
+    try? handle.write(contentsOf: data)
 }
 
 // MARK: - Kitty Remote Control
