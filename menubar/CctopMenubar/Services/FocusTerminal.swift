@@ -224,6 +224,19 @@ func escapeAppleScriptString(_ value: String) -> String {
         .replacingOccurrences(of: "\"", with: "\\\"")
 }
 
+/// Build an OSC 7 escape sequence (`ESC ] 7 ; file://HOST/PATH BEL`) reporting cwd
+/// to a terminal emulator. Ghostty (and most modern terminals) tracks the per-window
+/// cwd from this sequence; the shell normally emits it on `chpwd`, but we emit it
+/// ourselves to handle environments where Ghostty's shell integration isn't loaded.
+///
+/// Path is URL-encoded so spaces / non-ASCII don't break the URI form.
+/// Internal (not private) so the unit tests can reach it.
+func buildOSC7CWD(host: String, workingDirectory: String) -> String {
+    let encoded = workingDirectory
+        .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? workingDirectory
+    return "\u{1B}]7;file://\(host)\(encoded)\u{07}"
+}
+
 private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
     let escaped = escapeAppleScriptString(workingDirectory)
     return runAppleScript("""

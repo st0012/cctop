@@ -256,4 +256,28 @@ final class FocusStrategyTests: XCTestCase {
     func testExtractGUIDFromEmpty() {
         XCTAssertNil(extractITermGUID(from: ""))
     }
+
+    // MARK: - OSC 7 builder
+
+    func testBuildOSC7WrapsPathInEscBELFrame() {
+        let osc = buildOSC7CWD(host: "machine.local", workingDirectory: "/Users/me/code")
+        XCTAssertEqual(osc, "\u{1B}]7;file://machine.local/Users/me/code\u{07}")
+    }
+
+    func testBuildOSC7URLEncodesSpaces() {
+        let osc = buildOSC7CWD(host: "h", workingDirectory: "/Users/me/My Code")
+        XCTAssertEqual(osc, "\u{1B}]7;file://h/Users/me/My%20Code\u{07}")
+    }
+
+    func testBuildOSC7PreservesPathSeparators() {
+        // Path separators must not be percent-encoded — Ghostty parses this as a URI.
+        let osc = buildOSC7CWD(host: "h", workingDirectory: "/a/b/c")
+        XCTAssertEqual(osc, "\u{1B}]7;file://h/a/b/c\u{07}")
+    }
+
+    func testBuildOSC7EmptyHostAllowed() {
+        // file:///path is valid (empty authority). Some terminals only care about path.
+        let osc = buildOSC7CWD(host: "", workingDirectory: "/x")
+        XCTAssertEqual(osc, "\u{1B}]7;file:///x\u{07}")
+    }
 }
