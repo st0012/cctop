@@ -35,9 +35,10 @@ function escapeAppleScriptString(s: string): string {
  */
 function primeGhosttyCWD(tty: string, workingDirectory: string): void {
   try {
-    // Refuse to write unless the path is a character device. Session files live
-    // under CCTOP_SESSIONS_DIR (user-writable); a malicious or stale tty pointing
-    // at a regular file would otherwise be opened and partially overwritten.
+    // Allow only PTY slaves (`/dev/ttys<digits>`) — that's the only shape
+    // cctop-hook captures from `ps -o tty=`. This rejects /dev/cu.*, /dev/console,
+    // and arbitrary file paths a tampered session JSON might supply.
+    if (!/^\/dev\/ttys\d+$/.test(tty)) return;
     if (!statSync(tty).isCharacterDevice()) return;
     // encodeURI leaves '#' and '?' unencoded; post-encode to match Swift's `.urlPathAllowed`.
     const encoded = encodeURI(workingDirectory)

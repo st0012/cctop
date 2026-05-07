@@ -264,9 +264,10 @@ private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
 /// parses them; the shell does not see them. Best-effort — silently no-ops if the TTY
 /// has closed (session just ended).
 private func primeGhosttyCWD(tty: String, workingDirectory: String) {
-    // Refuse to write unless the path is a character device. Session files live
-    // under CCTOP_SESSIONS_DIR (user-writable); a malicious or stale tty pointing
-    // at a regular file would otherwise be opened and partially overwritten.
+    // Allow only PTY slaves (`/dev/ttys<digits>`) — that's the only shape
+    // cctop-hook captures from `ps -o tty=`. This rejects /dev/cu.*, /dev/console,
+    // and arbitrary file paths a tampered session JSON might supply.
+    guard tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil else { return }
     guard let attrs = try? FileManager.default.attributesOfItem(atPath: tty),
           (attrs[.type] as? FileAttributeType) == .typeCharacterSpecial else { return }
     let host = ProcessInfo.processInfo.hostName
