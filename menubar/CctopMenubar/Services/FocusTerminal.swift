@@ -264,6 +264,11 @@ private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
 /// parses them; the shell does not see them. Best-effort — silently no-ops if the TTY
 /// has closed (session just ended).
 private func primeGhosttyCWD(tty: String, workingDirectory: String) {
+    // Refuse to write unless the path is a character device. Session files live
+    // under CCTOP_SESSIONS_DIR (user-writable); a malicious or stale tty pointing
+    // at a regular file would otherwise be opened and partially overwritten.
+    guard let attrs = try? FileManager.default.attributesOfItem(atPath: tty),
+          (attrs[.type] as? FileAttributeType) == .typeCharacterSpecial else { return }
     let host = ProcessInfo.processInfo.hostName
     let osc = buildOSC7CWD(host: host, workingDirectory: workingDirectory)
     guard let data = osc.data(using: .utf8) else { return }

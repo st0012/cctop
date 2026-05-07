@@ -1,6 +1,6 @@
 // Jump-to-session action logic, replicating FocusTerminal.swift behavior
 import { execFileSync } from "child_process";
-import { writeFileSync } from "node:fs";
+import { statSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
 import { closeMainWindow, popToRoot } from "@raycast/api";
 import { showFailureToast } from "@raycast/utils";
@@ -35,6 +35,10 @@ function escapeAppleScriptString(s: string): string {
  */
 function primeGhosttyCWD(tty: string, workingDirectory: string): void {
   try {
+    // Refuse to write unless the path is a character device. Session files live
+    // under CCTOP_SESSIONS_DIR (user-writable); a malicious or stale tty pointing
+    // at a regular file would otherwise be opened and partially overwritten.
+    if (!statSync(tty).isCharacterDevice()) return;
     // encodeURI leaves '#' and '?' unencoded; post-encode to match Swift's `.urlPathAllowed`.
     const encoded = encodeURI(workingDirectory)
       .replace(/#/g, "%23")
