@@ -30,6 +30,12 @@ function escapeAppleScriptString(s: string): string {
  * Build the AppleScript to focus a Ghostty terminal whose working directory matches.
  * Mirrors executeGhosttyFocusScript() in FocusTerminal.swift.
  *
+ * We walk windows → tabs → terminals so we keep a reference to the parent window
+ * and call `activate window w` on it before focusing the surface. Without the
+ * explicit window activation, the leading `activate` only raises whichever
+ * Ghostty window was most recently active — so a click on a session whose
+ * window is behind another Ghostty window leaves the wrong window on top.
+ *
  * Best-effort: Ghostty does not yet expose a per-surface env var inside the shell
  * (see ghostty-org/ghostty#9084, #10603), so we cannot do an exact-id match like
  * iTerm2/Kitty. When GHOSTTY_SURFACE_ID ships, switch to id-based matching.
@@ -39,11 +45,18 @@ function buildGhosttyScript(workingDirectory: string): string {
   return `
     tell application "Ghostty"
       activate
-      set matches to (every terminal whose working directory is "${escaped}")
-      if (count of matches) > 0 then
-        focus (item 1 of matches)
-        return
-      end if
+      repeat with w in windows
+        repeat with t in tabs of w
+          repeat with term in terminals of t
+            if working directory of term is "${escaped}" then
+              activate window w
+              select tab t
+              focus term
+              return
+            end if
+          end repeat
+        end repeat
+      end repeat
     end tell
   `;
 }

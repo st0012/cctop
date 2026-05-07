@@ -201,8 +201,14 @@ private func executeITerm2Script(guid: String) -> Bool {
 // No env var carries the terminal id into the shell yet, so we match on cwd —
 // best-effort: ambiguous when multiple Ghostty splits share the same cwd
 // (picks first), and breaks if the user `cd`s elsewhere after session start.
-// The script's leading `activate` covers the no-match case (plain app focus),
-// so a separate fallback isn't needed unless the script itself errors.
+//
+// We walk windows → tabs → terminals (instead of `every terminal whose …`) so
+// we keep a reference to the parent window, then call `activate window` on it
+// before focusing the surface. The leading `activate` only raises whichever
+// Ghostty window was most recently active, so without the explicit
+// `activate window w` the wrong window can stay on top when the user clicks
+// a session whose window is sitting behind another Ghostty window.
+//
 // Tracked upstream:
 //   - ghostty-org/ghostty#9084  (TERM_SESSION_ID request)
 //   - ghostty-org/ghostty#10603 (GHOSTTY_SURFACE_ID env var + URL scheme)
@@ -221,11 +227,18 @@ private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
     return runAppleScript("""
     tell application "Ghostty"
         activate
-        set matches to (every terminal whose working directory is "\(escaped)")
-        if (count of matches) > 0 then
-            focus (item 1 of matches)
-            return
-        end if
+        repeat with w in windows
+            repeat with t in tabs of w
+                repeat with term in terminals of t
+                    if working directory of term is "\(escaped)" then
+                        activate window w
+                        select tab t
+                        focus term
+                        return
+                    end if
+                end repeat
+            end repeat
+        end repeat
     end tell
     """)
 }
