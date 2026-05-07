@@ -11,7 +11,9 @@ enum FocusStrategy: Equatable {
     /// Focus a Kitty window via remote control socket, with bundle ID fallback.
     case kitty(socket: String, windowId: String, binaryPath: String)
     /// Focus a Ghostty terminal by matching its working directory, with a bundle ID fallback.
-    case ghostty(workingDirectory: String)
+    /// Carries the session's TTY so the executor can prime Ghostty's tracked cwd via OSC 7
+    /// before the AppleScript runs (Ghostty's shell integration may not fire in all environments).
+    case ghostty(workingDirectory: String, tty: String?)
     /// Activate a running app by its localized name.
     case activateByName(String)
     /// Activate a running app by its bundle identifier.
@@ -59,7 +61,7 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
     }
 
     if hostApp == .ghostty {
-        return .ghostty(workingDirectory: session.projectPath)
+        return .ghostty(workingDirectory: session.projectPath, tty: terminal.tty)
     }
 
     // Try activation by name, then bundle ID, then Finder
@@ -138,7 +140,7 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
             }
         }
 
-    case .ghostty(let workingDirectory):
+    case .ghostty(let workingDirectory, _):
         if !executeGhosttyFocusScript(workingDirectory: workingDirectory) {
             if let bundleID = HostApp.ghostty.bundleID {
                 activateAppByBundleID(bundleID)
