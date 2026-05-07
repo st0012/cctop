@@ -165,7 +165,7 @@ final class FocusStrategyTests: XCTestCase {
     func testGhosttyUsesAppleScriptWithWorkingDirectory() {
         let session = makeSession(program: "Ghostty")
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .ghostty(workingDirectory: projectPath, tty: nil))
+        XCTAssertEqual(strategy, .ghostty(workingDirectory: projectPath))
     }
 
     func testGhosttyDetectedByBundleIdWhenProgramDiffers() {
@@ -173,23 +173,7 @@ final class FocusStrategyTests: XCTestCase {
         // say "ghostty", but __CFBundleIdentifier still does.
         let session = makeSession(program: "tmux", bundleId: "com.mitchellh.ghostty")
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .ghostty(workingDirectory: projectPath, tty: nil))
-    }
-
-    func testGhosttyCarriesTTYFromTerminalInfo() {
-        // The captured TTY is needed so the executor can prime Ghostty's tracked cwd
-        // via OSC 7 before the AppleScript runs (Ghostty's shell integration doesn't
-        // fire in some environments, e.g. nix/Shopify-world bash→zsh wrappers).
-        let session = Session.mock(
-            id: "test",
-            project: "myapp",
-            terminal: TerminalInfo(
-                program: "Ghostty", sessionId: nil, tty: "/dev/ttys011",
-                bundleId: nil, socket: nil, binaryPaths: nil
-            )
-        )
-        let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .ghostty(workingDirectory: projectPath, tty: "/dev/ttys011"))
+        XCTAssertEqual(strategy, .ghostty(workingDirectory: projectPath))
     }
 
     // MARK: - AppleScript path escaping

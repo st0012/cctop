@@ -29,21 +29,13 @@ function escapeAppleScriptString(s: string): string {
 }
 
 /**
- * Write an OSC 7 cwd report to the given TTY device file. Mirrors
- * `primeGhosttyCWD` in the Swift menubar app (FocusTerminal.swift).
- *
- * Bytes written to the slave (`/dev/ttysNNN`) appear on the PTY master where
- * Ghostty parses them and updates `working directory of term`. Without this
- * prime, the AppleScript loop below may not match in environments where
- * Ghostty's shell integration isn't loaded (e.g. nix/world bash→zsh wrappers).
- *
- * Silently no-ops on any I/O failure — TTY may have closed if the session just ended.
+ * Bytes written to the slave (`/dev/ttysNNN`) appear on the PTY master where Ghostty
+ * parses them; the shell does not see them. Best-effort — silently no-ops if the TTY
+ * has closed. Mirrors `primeGhosttyCWD` in FocusTerminal.swift.
  */
 function primeGhosttyCWD(tty: string, workingDirectory: string): void {
   try {
-    // encodeURI leaves '#' and '?' unencoded; Ghostty's OSC 7 parser would
-    // treat them as URI fragment/query delimiters and drop everything after.
-    // Match Swift's `.urlPathAllowed` behavior by post-encoding both.
+    // encodeURI leaves '#' and '?' unencoded; post-encode to match Swift's `.urlPathAllowed`.
     const encoded = encodeURI(workingDirectory)
       .replace(/#/g, "%23")
       .replace(/\?/g, "%3F");
@@ -174,7 +166,6 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
       execFileSync("open", ["-a", "Warp"]);
     } else if (isGhostty) {
       // Ghostty 1.3.0+ exposes AppleScript; match the terminal by working directory.
-      // Prime Ghostty's tracked cwd via OSC 7 first — see primeGhosttyCWD comment.
       if (session.terminal?.tty) {
         primeGhosttyCWD(session.terminal.tty, session.project_path);
       }

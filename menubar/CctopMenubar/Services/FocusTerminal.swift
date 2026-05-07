@@ -11,9 +11,7 @@ enum FocusStrategy: Equatable {
     /// Focus a Kitty window via remote control socket, with bundle ID fallback.
     case kitty(socket: String, windowId: String, binaryPath: String)
     /// Focus a Ghostty terminal by matching its working directory, with a bundle ID fallback.
-    /// Carries the session's TTY so the executor can prime Ghostty's tracked cwd via OSC 7
-    /// before the AppleScript runs (Ghostty's shell integration may not fire in all environments).
-    case ghostty(workingDirectory: String, tty: String?)
+    case ghostty(workingDirectory: String)
     /// Activate a running app by its localized name.
     case activateByName(String)
     /// Activate a running app by its bundle identifier.
@@ -61,7 +59,7 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
     }
 
     if hostApp == .ghostty {
-        return .ghostty(workingDirectory: session.projectPath, tty: terminal.tty)
+        return .ghostty(workingDirectory: session.projectPath)
     }
 
     // Try activation by name, then bundle ID, then Finder
@@ -103,6 +101,9 @@ func resolveMultiplexerFocus(session: Session) -> MultiplexerFocusStrategy? {
 func focusTerminal(session: Session) {
     let strategy = resolveFocusStrategy(session: session)
     let muxStrategy = resolveMultiplexerFocus(session: session)
+    if case .ghostty(let cwd) = strategy, let tty = session.terminal?.tty {
+        primeGhosttyCWD(tty: tty, workingDirectory: cwd)
+    }
     executeFocusStrategy(strategy)
     if let mux = muxStrategy {
         DispatchQueue.global(qos: .userInitiated).async {
@@ -140,16 +141,7 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
             }
         }
 
-    case .ghostty(let workingDirectory, let tty):
-        // Prime Ghostty's AppleScript-tracked cwd before matching against it.
-        // Ghostty learns cwd via OSC 7 from the shell, but some shell setups
-        // (e.g. nix/Shopify-world bash→zsh wrappers) don't load Ghostty's
-        // shell integration, so the only cwd Ghostty knows is whatever the
-        // surface launched in. Without this prime, the match loop below fails
-        // and we fall back to plain `activate`, raising the wrong window/tab.
-        if let tty {
-            primeGhosttyCWD(tty: tty, workingDirectory: workingDirectory)
-        }
+    case .ghostty(let workingDirectory):
         if !executeGhosttyFocusScript(workingDirectory: workingDirectory) {
             if let bundleID = HostApp.ghostty.bundleID {
                 activateAppByBundleID(bundleID)
@@ -239,13 +231,8 @@ func escapeAppleScriptString(_ value: String) -> String {
         .replacingOccurrences(of: "\"", with: "\\\"")
 }
 
-/// Build an OSC 7 escape sequence (`ESC ] 7 ; file://HOST/PATH BEL`) reporting cwd
-/// to a terminal emulator. Ghostty (and most modern terminals) tracks the per-window
-/// cwd from this sequence; the shell normally emits it on `chpwd`, but we emit it
-/// ourselves to handle environments where Ghostty's shell integration isn't loaded.
-///
+/// Build the OSC 7 byte sequence (`ESC ] 7 ; file://HOST/PATH BEL`).
 /// Path is URL-encoded so spaces / non-ASCII don't break the URI form.
-/// Internal (not private) so the unit tests can reach it.
 func buildOSC7CWD(host: String, workingDirectory: String) -> String {
     let encoded = workingDirectory
         .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? workingDirectory
@@ -273,10 +260,9 @@ private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
     """)
 }
 
-/// Write an OSC 7 cwd report to the given TTY device file.
-/// Bytes written to the slave (`/dev/ttysNNN`) appear on the PTY master where the
-/// emulator parses them — the shell does NOT see this write. Silently no-ops on
-/// any I/O failure (TTY may have closed if the session just ended).
+/// Bytes written to the slave (`/dev/ttysNNN`) appear on the PTY master where Ghostty
+/// parses them; the shell does not see them. Best-effort — silently no-ops if the TTY
+/// has closed (session just ended).
 private func primeGhosttyCWD(tty: String, workingDirectory: String) {
     let host = ProcessInfo.processInfo.hostName
     let osc = buildOSC7CWD(host: host, workingDirectory: workingDirectory)

@@ -118,7 +118,7 @@ final class MultiplexerFocusTests: XCTestCase {
             )
         )
         let emulatorStrategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(emulatorStrategy, .ghostty(workingDirectory: "/Users/test/projects/cctop", tty: nil))
+        XCTAssertEqual(emulatorStrategy, .ghostty(workingDirectory: "/Users/test/projects/cctop"))
 
         let muxStrategy = resolveMultiplexerFocus(session: session)
         XCTAssertEqual(muxStrategy, .zellij(sessionName: "dev", paneId: "terminal_1", binaryPath: "/usr/bin/zellij"))
