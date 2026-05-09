@@ -544,9 +544,14 @@ Use `--dry-run` to verify signing order without actually signing:
 ### Multi-Arch Appcast
 
 `generate_appcast` (Sparkle's tool) cannot handle multiple ZIPs with the same bundle version. The script works around this by:
-1. Generating the appcast with only the arm64 ZIP
-2. Signing the x86_64 ZIP separately with `sign_update`
-3. Using Python3 to add the x86_64 enclosure with `sparkle:cpu` attributes
+1. Normalizing input ZIP order so the arm64 ZIP is primary
+2. Generating the appcast with only the arm64 ZIP
+3. Marking the arm64 item with `sparkle:hardwareRequirements`
+4. Signing the x86_64 ZIP separately with `sign_update`
+5. Duplicating the generated item for x86_64 with its own `sparkle:cpu` enclosure
+6. Validating that the latest appcast version has separate arm64 and x86_64 items
+
+Do not put arm64 and x86_64 enclosures in the same `<item>`. Sparkle treats hardware requirements at the item level and exposes one update file URL per item, so a shared item can make Intel clients download the arm64 archive.
 
 ### Homebrew Caskroom PATH
 

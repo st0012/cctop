@@ -99,6 +99,24 @@ detect_arch() {
     esac
 }
 
+# Normalize order for multi-arch releases. The arm64 item is hardware-restricted
+# and should appear before the unrestricted x86_64 item.
+if [[ ${#ZIPS[@]} -gt 1 ]]; then
+    ARM64_ZIP=""
+    X86_64_ZIP=""
+
+    for ZIP in "${ZIPS[@]}"; do
+        case "$(detect_arch "$(basename "$ZIP")")" in
+            arm64) ARM64_ZIP="$ZIP" ;;
+            x86_64) X86_64_ZIP="$ZIP" ;;
+        esac
+    done
+
+    if [[ -n "$ARM64_ZIP" && -n "$X86_64_ZIP" ]]; then
+        ZIPS=("$ARM64_ZIP" "$X86_64_ZIP")
+    fi
+fi
+
 # Generate appcast with the first ZIP only (generate_appcast can't handle
 # multiple ZIPs with the same version). We'll add the second arch manually.
 PRIMARY_ZIP="${ZIPS[0]}"

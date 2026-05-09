@@ -19,6 +19,7 @@ if channel is None:
     errors.append("missing channel")
 else:
     latest_title = None
+    latest_cpus = []
     for item in channel.findall("item"):
         title = (item.findtext("title") or "<untitled>").strip()
         if latest_title is None:
@@ -39,11 +40,16 @@ else:
 
         if cpu_enclosures:
             cpu = cpu_enclosures[0].get(f"{sparkle}cpu")
+            latest_cpus.append(cpu)
             hardware = (item.findtext(f"{sparkle}hardwareRequirements") or "").strip()
             if cpu == "arm64" and hardware != "arm64":
                 errors.append(f"{title}: arm64 enclosure must be in an arm64 hardware-restricted item")
             if cpu == "x86_64" and hardware:
                 errors.append(f"{title}: x86_64 enclosure must not inherit hardware requirements ({hardware})")
+
+    if latest_title is not None and set(latest_cpus) != {"arm64", "x86_64"}:
+        found = ", ".join(latest_cpus) if latest_cpus else "none"
+        errors.append(f"{latest_title}: latest version must have separate arm64 and x86_64 items (found: {found})")
 
 if errors:
     for error in errors:
