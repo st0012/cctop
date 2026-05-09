@@ -11,6 +11,14 @@
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure sparkle:cpu="arm64" url="https://github.com/st0012/cctop/releases/download/v0.15.2/cctop-macOS-arm64.zip" length="2166221" type="application/octet-stream" sparkle:edSignature="L+jwodBarasw1jfKRtQd9cjFjRTaoKcyky9ugLpSL0JJW1k+4ZTaX1Vwvn4BsZC4z1oOFLmx1b5F0z6DfYSgCA=="/>
+        </item>
+        <item>
+            <title>0.15.2</title>
+            <pubDate>Fri, 08 May 2026 14:02:29 +0000</pubDate>
+            <link>https://raw.githubusercontent.com/st0012/cctop/master/appcast.xml</link>
+            <sparkle:version>1502</sparkle:version>
+            <sparkle:shortVersionString>0.15.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <enclosure sparkle:cpu="x86_64" url="https://github.com/st0012/cctop/releases/download/v0.15.2/cctop-macOS-x86_64.zip" sparkle:edSignature="0CMfCl50djQFpdCG93AcVqksA57VpVy5JcndpqDfV1Rth6bdvm3QEmk1TiCaGzExWrVizPewoGrGZPn0RutwCQ==" length="2191508" type="application/octet-stream" sparkle:version="1502" sparkle:shortVersionString="0.15.2" />
         </item>
         <item>

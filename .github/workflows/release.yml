@@ -193,6 +193,9 @@ jobs:
             artifacts/cctop-macOS-arm64/cctop-macOS-arm64.zip \
             artifacts/cctop-macOS-x86_64/cctop-macOS-x86_64.zip
 
+      - name: Validate appcast
+        run: ./scripts/validate-appcast.sh
+
       - name: Commit and push appcast
         run: |
           git config user.name "github-actions[bot]"
