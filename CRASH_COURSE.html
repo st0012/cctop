@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>cctop crash course</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --bg-elev: #161922;
+    --bg-elev-2: #1c2030;
+    --border: #2a2f3e;
+    --fg: #e6e8ef;
+    --fg-muted: #8b91a7;
+    --fg-dim: #5e6478;
+    --accent: #d97757;          /* Claude orange */
+    --accent-soft: #d9775722;
+    --link: #8ab4ff;
+    --status-idle: #6b7280;
+    --status-working: #3b82f6;
+    --status-waiting: #f59e0b;
+    --status-attention: #ef4444;
+    --status-compact: #a78bfa;
+    --code-bg: #0b0d12;
+    --code-fg: #e6e8ef;
+    --code-comment: #6b7280;
+    --code-string: #98c379;
+    --code-keyword: #c678dd;
+    --code-fn: #61afef;
+    --code-num: #d19a66;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  [data-theme="light"] {
+    --bg: #fafafa;
+    --bg-elev: #ffffff;
+    --bg-elev-2: #f3f4f6;
+    --border: #e5e7eb;
+    --fg: #1f2330;
+    --fg-muted: #4b5160;
+    --fg-dim: #7a8194;
+    --accent: #c44a1f;
+    --accent-soft: #c44a1f15;
+    --link: #2563eb;
+    --code-bg: #f4f4f6;
+    --code-fg: #1f2330;
+    --code-comment: #8b91a7;
+    --code-string: #2f7a3b;
+    --code-keyword: #8b3aa7;
+    --code-fn: #1f5cb0;
+    --code-num: #b25500;
+    --shadow: 0 4px 16px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, pre, .mono { font-family: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+
+  /* Layout */
+  .app {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 100vh;
+  }
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: static !important; height: auto !important; border-right: 0 !important; border-bottom: 1px solid var(--border); }
+    .nav-list { max-height: none !important; }
+  }
+
+  /* Sidebar */
+  .sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    background: var(--bg-elev);
+    padding: 20px 16px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding: 0 6px;
+  }
+  .brand-icon {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, var(--accent), #f5a87f);
+    display: grid; place-items: center;
+    font-weight: 700; color: white;
+    font-size: 13px;
+    letter-spacing: -0.5px;
+  }
+  .brand-title { font-weight: 600; font-size: 15px; }
+  .brand-sub { font-size: 11px; color: var(--fg-dim); margin-left: auto; padding: 2px 7px; border: 1px solid var(--border); border-radius: 999px; }
+
+  .search {
+    width: 100%;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    margin-bottom: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search:focus { border-color: var(--accent); }
+
+  .nav-section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--fg-dim);
+    padding: 12px 6px 6px;
+  }
+  .nav-list { list-style: none; padding: 0; margin: 0; }
+  .nav-list li a {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    color: var(--fg-muted);
+    font-size: 13px;
+    line-height: 1.4;
+    transition: background 0.1s, color 0.1s;
+  }
+  .nav-list li a:hover { background: var(--bg-elev-2); color: var(--fg); text-decoration: none; }
+  .nav-list li a.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+  .nav-num { font-variant-numeric: tabular-nums; color: var(--fg-dim); font-size: 11px; min-width: 18px; }
+  .nav-list li a.active .nav-num { color: var(--accent); }
+
+  .sidebar-footer {
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .pill-btn {
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    color: var(--fg-muted);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .pill-btn:hover { color: var(--fg); border-color: var(--accent); }
+
+  /* Main content */
+  .content {
+    padding: 36px 48px 80px;
+    max-width: 920px;
+  }
+  @media (max-width: 700px) {
+    .content { padding: 24px 20px 60px; }
+  }
+
+  .hero {
+    margin-bottom: 36px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.5px;
+  }
+  .hero p { color: var(--fg-muted); margin: 0 0 16px; font-size: 15px; }
+  .hero-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    color: var(--fg-muted);
+  }
+  .badge-version { background: var(--accent-soft); color: var(--accent); border-color: transparent; font-weight: 500; }
+  .badge-dot::before {
+    content: "";
+    width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* Section card */
+  section.chapter {
+    margin: 0 0 18px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+    scroll-margin-top: 20px;
+  }
+  section.chapter.hidden { display: none; }
+  section.chapter:hover { border-color: #3a4255; }
+  [data-theme="light"] section.chapter:hover { border-color: #d4d8e0; }
+
+  .chapter-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    cursor: pointer;
+    user-select: none;
+    background: transparent;
+    transition: background 0.1s;
+  }
+  .chapter-head:hover { background: var(--bg-elev-2); }
+  .chapter-num {
+    font-family: "SF Mono", monospace;
+    font-size: 12px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .chapter-title {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0;
+    flex: 1;
+    letter-spacing: -0.2px;
+  }
+  .chapter-tag {
+    font-size: 11px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .chapter-toggle {
+    width: 24px; height: 24px;
+    display: grid; place-items: center;
+    color: var(--fg-dim);
+    transition: transform 0.2s;
+  }
+  section.chapter.collapsed .chapter-toggle { transform: rotate(-90deg); }
+  section.chapter.collapsed .chapter-body { display: none; }
+
+  .chapter-body {
+    padding: 0 24px 22px;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+  }
+  .chapter-body > :first-child { margin-top: 0; }
+  .chapter-body > :last-child { margin-bottom: 0; }
+  .chapter-body p { margin: 12px 0; color: var(--fg); }
+  .chapter-body p code, .chapter-body li code, .chapter-body td code {
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: var(--fg);
+  }
+  .chapter-body ul, .chapter-body ol { padding-left: 22px; margin: 12px 0; }
+  .chapter-body li { margin: 6px 0; }
+  .chapter-body strong { color: var(--fg); font-weight: 600; }
+  .chapter-body h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 22px 0 8px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13.5px;
+    background: var(--bg-elev-2);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  thead th {
+    background: var(--bg);
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--bg-elev); }
+
+  /* Code blocks */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.55;
+    margin: 14px 0;
+    position: relative;
+  }
+  pre code { color: var(--code-fg); }
+  .copy-btn {
+    position: absolute;
+    top: 8px; right: 8px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    color: var(--fg-muted);
+    padding: 3px 9px;
+    border-radius: 5px;
+    font-size: 10.5px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.1s;
+  }
+  pre:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { color: var(--accent); }
+  .copy-btn.copied { color: #6ee7b7; }
+
+  .ascii { white-space: pre; line-height: 1.4; }
+
+  /* Status pills */
+  .status-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 14px 0;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 500;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+  }
+  .status-pill::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--c, var(--fg-dim));
+  }
+
+  /* Callout */
+  .callout {
+    margin: 14px 0;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    font-size: 13.5px;
+  }
+  .callout strong { color: var(--accent); }
+
+  /* Diagram */
+  .diagram {
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    margin: 14px 0;
+    overflow-x: auto;
+  }
+  .diagram pre {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    color: var(--fg);
+  }
+
+  /* Toolbar at top */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .toolbar .stat {
+    font-size: 12px;
+    color: var(--fg-muted);
+  }
+  .progress {
+    flex: 1;
+    height: 4px;
+    background: var(--bg-elev-2);
+    border-radius: 2px;
+    overflow: hidden;
+    min-width: 100px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #f5a87f);
+    width: 0%;
+    transition: width 0.15s;
+  }
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--fg-dim);
+    background: var(--bg-elev);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    display: none;
+  }
+  .empty-state.show { display: block; }
+
+  /* Top right floating */
+  .keys {
+    position: fixed;
+    bottom: 14px;
+    right: 14px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 11.5px;
+    color: var(--fg-muted);
+    box-shadow: var(--shadow);
+    display: none;
+  }
+  .keys.show { display: block; }
+  .keys kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 10.5px;
+    color: var(--fg);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">cc</div>
+      <div class="brand-title">cctop</div>
+      <div class="brand-sub">v0.15.2</div>
+    </div>
+    <input type="search" class="search" id="search" placeholder="Filter sections… (/)" />
+    <div class="nav-section-label">Crash course</div>
+    <ul class="nav-list" id="navList"></ul>
+    <div class="sidebar-footer">
+      <button class="pill-btn" id="themeToggle">Theme</button>
+      <button class="pill-btn" id="expandAll">Expand</button>
+      <button class="pill-btn" id="collapseAll">Collapse</button>
+    </div>
+  </aside>
+
+  <main class="content">
+    <header class="hero">
+      <h1>cctop crash course</h1>
+      <p>A fast tour of the project as of v0.15.2 (May 2026). After reading this you should be able to find your way around the code, reason about why each piece exists, and know where to start when changing or debugging things.</p>
+      <div class="hero-meta">
+        <span class="badge badge-version">v0.15.2</span>
+        <span class="badge">macOS menubar app</span>
+        <span class="badge">Swift / SwiftUI</span>
+        <span class="badge">~6.7k LOC Swift</span>
+        <span class="badge">13 sections</span>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <span class="stat" id="readStat">0 / 13 chapters expanded</span>
+      <div class="progress"><div class="progress-fill" id="scrollProg"></div></div>
+      <button class="pill-btn" id="keysToggle">?</button>
+    </div>
+
+    <div id="chapters"></div>
+
+    <div class="empty-state" id="emptyState">
+      No sections match. Try a different search term.
+    </div>
+  </main>
+</div>
+
+<div class="keys" id="keys">
+  <div><kbd>/</kbd> focus search · <kbd>e</kbd> expand all · <kbd>c</kbd> collapse all</div>
+  <div><kbd>j</kbd> / <kbd>k</kbd> next/prev section · <kbd>t</kbd> theme</div>
+</div>
+
+<script>
+const CHAPTERS = [
+  {
+    n: 1, tag: "What",
+    title: "What cctop is",
+    body: `
+      <p>cctop is a <strong>macOS menubar app that monitors and lets you jump between AI coding sessions</strong> across multiple coding agents (Claude Code, opencode, pi, Codex CLI). It tells you at a glance which sessions are working, idle, or waiting on you, and clicking a card focuses the right editor / terminal window.</p>
+      <p>Three top-level constraints shape every decision:</p>
+      <ol>
+        <li><strong>No network. No telemetry.</strong> All state lives in <code>~/.cctop/</code> as plain JSON.</li>
+        <li><strong>Don't break running sessions.</strong> Plugin / hook changes must be backwards-compatible (see the <code>MIGRATION(...)</code> markers in code).</li>
+        <li><strong>Don't touch the user's tool config without consent.</strong> Plugin installs are explicit clicks.</li>
+      </ol>
+      <div class="status-pills">
+        <span class="status-pill" style="--c: var(--status-idle)">idle</span>
+        <span class="status-pill" style="--c: var(--status-working)">working</span>
+        <span class="status-pill" style="--c: var(--status-waiting)">waiting_input</span>
+        <span class="status-pill" style="--c: var(--status-attention)">waiting_permission</span>
+        <span class="status-pill" style="--c: var(--status-attention)">needs_attention</span>
+        <span class="status-pill" style="--c: var(--status-compact)">compacting</span>
+      </div>
+    `
+  },
+  {
+    n: 2, tag: "Mental model",
+    title: "The 60-second mental model",
+    body: `
+      <div class="diagram"><pre class="ascii">Coding agent fires an event ──► tool-specific plugin (thin shim) ──► cctop-hook (Swift CLI)
+                                                                          │
+                                                                          ▼
+                                                                ~/.cctop/sessions/{pid}.json
+                                                                          │
+                                                                          ▼
+                                                            Menubar app (file watcher → SwiftUI)</pre></div>
+      <p>Every supported coding agent normalizes through one binary: <strong><code>cctop-hook</code></strong>. It's the single source of truth for session-state writes. Plugins exist only to translate per-tool events into the hook's shape.</p>
+      <p>The menubar app <strong>never writes</strong> session files (except for archiving to history). It just watches the directory and renders.</p>
+    `
+  },
+  {
+    n: 3, tag: "Layout",
+    title: "Repo layout, in priority order",
+    body: `
+      <pre><code><span class="kw">menubar/</span>                  Swift/SwiftUI app + cctop-hook CLI (same Xcode project, two targets)
+  CctopMenubar/
+    <span class="kw">Models/</span>               Session, SessionStatus, HookEvent, Config — shared by both targets
+    <span class="kw">Hook/</span>                 cctop-hook target only (HookMain, HookHandler, HookInput, …)
+    <span class="kw">Services/</span>             SessionManager (watcher), FocusTerminal (jump logic), PluginManager, …
+    <span class="kw">Views/</span>                PopupView, SessionCardView, SettingsSection, NotchStatusView, …
+    Extensions/           NSScreen+Notch, etc.
+  CctopMenubarTests/      XCTest
+
+<span class="kw">plugins/</span>
+  cctop/                  Claude Code plugin (hooks.json + run-hook.sh shim)
+  opencode/               opencode JS plugin (in-process, calls cctop-hook via execFileSync)
+  pi/                     pi TS extension (same idea)
+  codex/                  Codex CLI: hooks.json + cctop-shim.sh
+
+raycast/                  Raycast extension — reads the same ~/.cctop/sessions/ files
+site/                     cctop.app static site (one HTML file, no build)
+scripts/                  bundle-macos.sh, sign-and-notarize.sh, generate-appcast.sh, bump-version.sh
+.github/workflows/        release.yml, pages.yml
+appcast.xml               Sparkle feed (root)
+packaging/homebrew-cask.rb</code></pre>
+      <p>Sizes (rough, in lines): Swift ~6.7k, all plugins combined a few hundred. The bulk of complexity is in <code>Services/</code> and <code>Hook/</code>.</p>
+    `
+  },
+  {
+    n: 4, tag: "Model",
+    title: "The data model",
+    body: `
+      <p><code>menubar/CctopMenubar/Models/Session.swift</code> — <strong>read this file once if you read nothing else.</strong></p>
+      <p>A <code>Session</code> has:</p>
+      <ul>
+        <li><strong>Identity.</strong> <code>pid</code> is the primary key on disk (file is <code>{pid}.json</code>). <code>pidStartTime</code> is captured via <code>sysctl</code> so PID reuse can be detected. <code>sessionId</code> is the agent's own UUID (kept for cross-referencing transcripts).</li>
+        <li><strong>Project context.</strong> <code>projectPath</code>, <code>projectName</code>, <code>branch</code>, optional <code>workspaceFile</code> (auto-detected <code>.code-workspace</code>).</li>
+        <li><strong>Live status.</strong> <code>status: SessionStatus</code>, <code>lastActivity</code>, <code>lastPrompt</code>, <code>lastTool</code> + <code>lastToolDetail</code>, <code>notificationMessage</code>.</li>
+        <li><strong>Source attribution.</strong> <code>source</code> field carries the harness name: <code>"cc"</code> (Claude Code, default), <code>"opencode"</code>, <code>"pi"</code>, <code>"codex"</code>. Legacy sessions without it are treated as Claude Code. There's a <code>MIGRATION(harness_name)</code> marker for the eventual rename to <code>harness_name</code>.</li>
+        <li><strong>Terminal info.</strong> <code>TerminalInfo</code> captures the host terminal's bundle ID, TTY, sessionID (iTerm2 GUID / Kitty window ID), remote-control socket (Kitty), and a multiplexer enum (<code>zellij</code> / <code>tmux</code>). All of this is what makes the "click → focus exact pane" behavior work.</li>
+        <li><strong>Subagents.</strong> <code>activeSubagents: [SubagentInfo]?</code> — <code>nil</code> means an old plugin that doesn't report; <code>[]</code> means none active; an array means an "N agents" badge appears.</li>
+      </ul>
+      <div class="callout">
+        <strong>SessionStatus is forward-compatible.</strong> Unknown values map to <code>.needsAttention</code> rather than throwing. Status sort order in the UI: waitingPermission → waitingInput / needsAttention → working → compacting → idle.
+      </div>
+    `
+  },
+  {
+    n: 5, tag: "Transitions",
+    title: "Status transitions",
+    body: `
+      <p>Centralized in <code>menubar/CctopMenubar/Models/HookEvent.swift</code>. There's exactly one transition table:</p>
+      <table>
+        <thead><tr><th>Event</th><th>New status</th></tr></thead>
+        <tbody>
+          <tr><td>SessionStart</td><td><code>idle</code></td></tr>
+          <tr><td>UserPromptSubmit / PreToolUse / PostToolUse / PostToolUseFailure</td><td><code>working</code></td></tr>
+          <tr><td>Stop, Notification(idle_prompt)</td><td><code>waiting_input</code></td></tr>
+          <tr><td>PermissionRequest</td><td><code>waiting_permission</code></td></tr>
+          <tr><td>PreCompact</td><td><code>compacting</code></td></tr>
+          <tr><td>PostCompact</td><td><code>idle</code></td></tr>
+          <tr><td>SessionError</td><td><code>needs_attention</code></td></tr>
+          <tr><td>SubagentStart / SubagentStop</td><td><em>preserve</em> — only mutates <code>activeSubagents</code></td></tr>
+          <tr><td>Notification(permission_prompt)</td><td><em>preserve</em> — <code>PermissionRequest</code> already won the race</td></tr>
+          <tr><td>SessionEnd</td><td><em>special</em> — stamps <code>endedAt</code> so the menubar can archive</td></tr>
+        </tbody>
+      </table>
+      <p>Each plugin maps its tool's events into these names — e.g. opencode's <code>tool.execute.before</code> → <code>PreToolUse</code>, pi's <code>agent_end</code> → <code>Stop</code>. The mapping tables are documented in <code>CLAUDE.md</code>.</p>
+      <h3>Display-side adjustments</h3>
+      <p>Two adjustments are layered on top in <code>SessionManager.swift</code> <strong>without touching the file on disk</strong>:</p>
+      <ul>
+        <li><code>adjustIdleTimeout</code> — a session stuck in <code>waitingInput</code> for &gt;60 minutes is rendered as <code>idle</code> (the user walked away).</li>
+        <li><code>adjustPermissionStatus</code> — if a session is <code>waitingPermission</code> but a child process started <em>after</em> the prompt fired, the user clearly granted permission, so render as <code>working</code>. Detected via <code>proc_listchildpids</code>.</li>
+      </ul>
+    `
+  },
+  {
+    n: 6, tag: "Hook",
+    title: "The hook binary (cctop-hook)",
+    body: `
+      <p>Entry point: <code>menubar/CctopMenubar/Hook/HookMain.swift</code>. It:</p>
+      <ol>
+        <li>Reads JSON from stdin (5s timeout).</li>
+        <li>Parses CLI args — first arg is the hook name; <code>--harness &lt;name&gt;</code> overrides the harness for tools (Codex) whose stdin we can't modify.</li>
+        <li>Hands off to <code>HookHandler.handleHook</code>.</li>
+      </ol>
+      <p><code>HookHandler.swift</code> is the heart of the project. The flow:</p>
+      <ul>
+        <li><strong>Resolve PID.</strong> <code>getParentPID()</code> walks past shell intermediaries (<code>sh</code>, <code>bash</code>, <code>zsh</code>, …) to find the real coding-agent process. This matters because Claude Code's hooks run via <code>run-hook.sh</code> and <code>getppid()</code> would otherwise return the shell.</li>
+        <li><strong>Acquire a flock</strong> on <code>{pid}.json.lock</code> for the entire read-modify-write cycle. Concurrent hooks (e.g. <code>SubagentStart</code> + <code>PreToolUse</code> firing at the same moment) used to clobber each other before this lock existed.</li>
+        <li><strong>Load or create</strong> the session, with PID-reuse detection (compare stored vs current <code>pidStartTime</code>).</li>
+        <li><strong>Apply the transition</strong> from <code>HookEvent.swift</code>, plus side effects (clear tool state on prompt submit, record <code>lastTool</code>/<code>lastToolDetail</code>, etc.).</li>
+        <li><strong>Atomic write</strong> via temp file + <code>rename(2)</code>. The temp file name includes the hook process's own PID to avoid concurrent-temp clashes.</li>
+        <li><strong>On <code>SessionStart</code>, run cleanup</strong> (outside the lock) — scan all sessions for the same project and remove anything whose PID is dead or has been reused.</li>
+        <li><strong>On <code>SessionEnd</code>, stamp <code>endedAt</code></strong> instead of deleting — the menubar app will archive it on the next poll.</li>
+      </ul>
+      <div class="callout">
+        <strong>captureTerminalInfo() is the env-capture choke point.</strong> It reads <code>TERM_PROGRAM</code>, <code>__CFBundleIdentifier</code>, <code>ITERM_SESSION_ID</code>, <code>KITTY_WINDOW_ID</code>, <code>KITTY_LISTEN_ON</code>, <code>ZELLIJ_*</code>, <code>TMUX_*</code>, etc. Anything you want to read from the agent's env, read it here — the menubar app can't see it later.
+      </div>
+    `
+  },
+  {
+    n: 7, tag: "Plugins",
+    title: "Plugin shapes",
+    body: `
+      <table>
+        <thead><tr><th>Plugin</th><th>Language</th><th>Runtime</th><th>Mechanism</th></tr></thead>
+        <tbody>
+          <tr><td>Claude Code</td><td>shell + Swift</td><td>hook subprocess</td><td><code>hooks.json</code> → <code>run-hook.sh</code> → <code>cctop-hook</code></td></tr>
+          <tr><td>opencode</td><td>JS</td><td>in-process (Bun)</td><td><code>plugin.js</code> calls <code>cctop-hook</code> via <code>execFileSync</code></td></tr>
+          <tr><td>pi</td><td>TS</td><td>in-process (Node/jiti)</td><td><code>cctop.ts</code> calls <code>cctop-hook</code>, <strong>skips</strong> when <code>ctx.hasUI === false</code></td></tr>
+          <tr><td>Codex CLI</td><td>shell</td><td>hook subprocess</td><td><code>hooks.json</code> + <code>cctop-shim.sh</code> → <code>cctop-hook --harness codex</code></td></tr>
+        </tbody>
+      </table>
+      <p>Each plugin's job is small: normalize the tool's event into the cctop-hook stdin contract (see <code>hook-input.schema.json</code> at the repo root) and call the binary. The opencode plugin also normalizes tool names (lowercase → PascalCase) and arg keys (camelCase → snake_case).</p>
+      <div class="callout">
+        <strong>Codex is the most fiddly:</strong> requires the experimental <code>codex_hooks = true</code> flag in <code>~/.codex/config.toml</code>, doesn't fire <code>SessionStart</code> until the first prompt, only emits <code>Pre/PostToolUse</code> for its <code>local_shell</code> tool, and has no <code>SessionEnd</code> (so cleanup falls back to PID liveness).
+      </div>
+      <p><code>PluginManager.swift</code> and <code>CodexPluginInstaller.swift</code> handle one-click install: copy bundled plugin files (in <code>.app/Contents/Resources/</code>) into the right tool dir.</p>
+    `
+  },
+  {
+    n: 8, tag: "App",
+    title: "The menubar app",
+    body: `
+      <p>Services worth knowing (all under <code>menubar/CctopMenubar/Services/</code>):</p>
+      <ul>
+        <li><strong><code>SessionManager</code></strong> — owns the <code>[Session]</code> published array. Watches <code>~/.cctop/sessions/</code> via a <code>DispatchSource</code> + a 2-second liveness timer. Decodes JSON, separates dead from alive (using PID liveness + <code>endedAt</code>), applies display-side adjustments, archives dead sessions to history, sends <code>UNUserNotification</code>s for new attention-required transitions. Importantly, only re-publishes when <code>newSessions != sessions</code> (the perf fix in PR #95).</li>
+        <li><strong><code>FocusTerminal</code></strong> — pure-logic <code>resolveFocusStrategy(session:)</code> returns a <code>FocusStrategy</code> enum (<code>openWithApp</code> / <code>iTerm2</code> / <code>kitty</code> / <code>ghostty</code> / <code>activateByName</code> / <code>activateByBundleID</code> / <code>openInFinder</code>). The pure resolution is unit-tested; the AppKit execution is separate. Multiplexer focus is a second strategy layered on top — first focus the app, then the pane.</li>
+        <li><strong><code>HistoryManager</code></strong> — archives ended sessions to <code>~/.cctop/history/</code> and rebuilds "Recent Projects".</li>
+        <li><strong><code>PanelCoordinator</code></strong> + <strong><code>FloatingPanel</code></strong> — owns the popup behavior. The panel stays open until the user clicks the menubar icon again (a custom <code>NSPanel</code> subclass, not the default popover).</li>
+        <li><strong><code>NavigateController</code></strong> — handles the global hotkey + numbered-badge overlay (1–9 to jump).</li>
+        <li><strong><code>NotchStatusController</code></strong> + <code>NotchStatusPanel</code> / <code>NotchStatusView</code> — on notch MacBooks where the menubar icon hides behind the camera notch, this draws a small clickable pill next to the notch. Detection via <code>NSScreen.builtin?.hasPhysicalNotch</code>. Re-evaluated on screen-parameter changes (clamshell mode, monitor connect/disconnect).</li>
+        <li><strong><code>SparkleUpdater</code></strong> — auto-updates from <code>appcast.xml</code>. Critical: the sign-and-notarize script signs Sparkle's framework components <strong>without</strong> the app's entitlements, only the main executable gets entitlements. Apple rejects bundles otherwise.</li>
+      </ul>
+      <p>Views are SwiftUI. Every view has a <code>#Preview</code> block with mock data from <code>Session+Mock.swift</code> — use Xcode Canvas for visual iteration.</p>
+    `
+  },
+  {
+    n: 9, tag: "Focus",
+    title: "How a session click becomes a focused window",
+    body: `
+      <p>This is one of the highest-leverage flows to understand:</p>
+      <ol>
+        <li>Menubar app calls <code>resolveFocusStrategy(session:)</code>.</li>
+        <li>Strategy resolution prefers <code>__CFBundleIdentifier</code> (unambiguous for VS Code forks) over <code>TERM_PROGRAM</code>. It builds a <code>HostApp</code> enum (vscode / cursor / windsurf / zed / iterm2 / warp / terminal / ghostty / kitty / unknown).</li>
+        <li><strong>Editors with a known bundle ID</strong> → <code>NSWorkspace.open(target, withApplicationAt: bundleID)</code>. Uses <code>workspaceFile</code> if present, else <code>projectPath</code>. Never shells out to <code>code</code> / <code>cursor</code> CLI — those break after Sparkle relaunches with a minimal PATH.</li>
+        <li><strong>iTerm2</strong> → AppleScript that matches the captured <code>ITERM_SESSION_ID</code> GUID against iTerm2's <code>unique id</code>, raises the right window/tab/pane. Falls back to plain activation if the GUID is stale.</li>
+        <li><strong>Kitty</strong> → <code>kitty @ --to &lt;socket&gt; focus-window --match id:&lt;windowId&gt;</code>. Requires <code>allow_remote_control socket-only</code> + <code>listen_on</code> in <code>kitty.conf</code>.</li>
+        <li><strong>Ghostty</strong> → AppleScript matches by working directory (Ghostty 1.3.0+; ambiguous if multiple splits share the same cwd). The latest fix (#102) primes the cwd via OSC 7 first.</li>
+        <li><strong>Otherwise</strong> → activate by name → activate by bundle ID → open in Finder.</li>
+        <li><strong>If the session has multiplexer info</strong>, run a second focus on the inner pane (<code>zellij action focus-pane-id</code> or <code>tmux select-window</code> + <code>select-pane</code>).</li>
+      </ol>
+      <div class="callout">
+        Knowing this, the answer to <em>"why did my click activate the wrong window?"</em> is almost always: the env vars at hook time didn't capture what we needed (e.g. Ghostty doesn't expose a per-surface env var, hence the cwd fallback).
+      </div>
+    `
+  },
+  {
+    n: 10, tag: "Filesystem",
+    title: "Filesystem surfaces",
+    body: `
+      <pre><code>~/.cctop/
+  sessions/{pid}.json       <span class="cm">Live session files (atomic writes via rename)</span>
+  sessions/{pid}.json.lock  <span class="cm">flock target (cleaned with the session)</span>
+  history/                  <span class="cm">Archived ended sessions</span>
+  logs/{session_id}.log     <span class="cm">Per-session SHIM + HOOK trace</span>
+  logs/_errors.log          <span class="cm">Pre-parse errors</span>
+  bin/cctop-hook            <span class="cm">Optional install location (used by `make install`)</span></code></pre>
+      <p>Plugin install locations:</p>
+      <pre><code>~/.claude/plugins/cache/cctop/             <span class="cm">Claude Code (via `claude plugin install`)</span>
+~/.config/opencode/plugins/cctop.js        <span class="cm">opencode</span>
+~/.pi/agent/extensions/cctop.ts            <span class="cm">pi</span>
+~/.codex/cctop-shim.sh + ~/.codex/hooks.json + config.toml feature flag</code></pre>
+    `
+  },
+  {
+    n: 11, tag: "Build",
+    title: "Build / test / release",
+    body: `
+      <h3>Day-to-day</h3>
+      <pre><code><span class="cm"># build both targets + copy plugin assets into Resources/</span>
+make build
+
+<span class="cm"># XCTest</span>
+make test
+
+<span class="cm"># swiftlint --strict (enforced by a pre-edit hook)</span>
+make lint
+
+<span class="cm"># build + open Debug app</span>
+make run
+
+<span class="cm"># build cctop-hook Release + copy to ~/.cctop/bin/</span>
+make install
+
+<span class="cm"># lint + build + test (default)</span>
+make all</code></pre>
+      <h3>Release pipeline</h3>
+      <p><code>.github/workflows/release.yml</code>, triggered by a <code>v*</code> tag:</p>
+      <ol>
+        <li>Build matrix (arm64 + x86_64) via <code>scripts/bundle-macos.sh</code>.</li>
+        <li>Sign + notarize per-arch via <code>scripts/sign-and-notarize.sh</code>. Inside-out signing order is critical (dylibs → inner executables → nested bundles → main executable → app). Sparkle's <code>Autoupdate</code> lives at <code>Sparkle.framework/Versions/B/Autoupdate</code> (no <code>MacOS/</code> subdir), which the discovery function specifically searches for.</li>
+        <li>Upload ZIPs to GitHub Releases.</li>
+        <li><code>scripts/generate-appcast.sh</code> updates <code>appcast.xml</code> (works around <code>generate_appcast</code> not handling multiple ZIPs at the same version by running it on arm64 only, then injecting the x86_64 enclosure with Python).</li>
+        <li>Update Homebrew tap.</li>
+      </ol>
+      <div class="callout">
+        <strong>Always use <code>scripts/bump-version.sh &lt;version&gt;</code></strong> to bump versions — it touches the Xcode project's <code>CURRENT_PROJECT_VERSION</code>, plugin manifests, the cask, and <code>site/index.html</code> together. Don't edit version numbers by hand.
+      </div>
+    `
+  },
+  {
+    n: 12, tag: "By task",
+    title: "Where to start, by task",
+    body: `
+      <table>
+        <thead><tr><th>Task</th><th>Read this first</th></tr></thead>
+        <tbody>
+          <tr><td>Add support for a new coding agent</td><td><code>plugins/opencode/plugin.js</code> (simplest reference), <code>Hook/HookInput.swift</code>, <code>Hook/HookHandler.swift</code>, mapping tables in <code>CLAUDE.md</code></td></tr>
+          <tr><td>Add support for a new editor / terminal</td><td><code>Models/HostApp.swift</code>, <code>Services/FocusTerminal.swift</code>, <code>Hook/HookHandler.swift::captureTerminalInfo</code></td></tr>
+          <tr><td>Add a new status or change a transition</td><td><code>Models/SessionStatus.swift</code>, <code>Models/HookEvent.swift</code> (transition table), then update display in <code>Views/SessionStatus+UI.swift</code></td></tr>
+          <tr><td>Change a UI thing</td><td>The relevant <code>Views/*.swift</code> — every view has a <code>#Preview</code>. Match <code>DESIGN.md</code></td></tr>
+          <tr><td>Debug "session not appearing"</td><td><code>~/.cctop/logs/{session_id}.log</code> — see the diagnosis table in <code>CLAUDE.md</code> §"Hook Delivery Debugging"</td></tr>
+          <tr><td>Touch the release pipeline</td><td><code>scripts/sign-and-notarize.sh</code> (try <code>--dry-run</code>), <code>scripts/generate-appcast.sh</code>, <code>.github/workflows/release.yml</code></td></tr>
+        </tbody>
+      </table>
+    `
+  },
+  {
+    n: 13, tag: "Gotchas",
+    title: "Project-specific gotchas worth memorizing",
+    body: `
+      <ul>
+        <li><strong>Don't break running sessions.</strong> New fields must be optional in <code>Session</code> and decoded with <code>decodeIfPresent</code>. Renames need a migration plan; see existing <code>MIGRATION(...)</code> markers.</li>
+        <li><strong>Session files are keyed by PID, not session_id.</strong> <code>Session.id</code> is <code>pid.map(String.init) ?? sessionId</code>. Do not assume one PID == one session_id forever (resume creates a new session_id within the same process — handled in <code>loadOrCreateSession</code>).</li>
+        <li><strong>The hook subprocess has no TTY.</strong> <code>findTTY()</code> walks ancestors to find the controlling terminal. Anything you want to read from the agent's env, read in <code>captureTerminalInfo()</code> — the menubar app can't see it later.</li>
+        <li><strong>swiftlint --strict is enforced.</strong> Max line length is 150. There's a Claude Code post-edit hook that auto-runs swiftlint, but <code>make lint</code> before commit anyway.</li>
+        <li><strong>Codex and Claude Code don't share a <code>--harness</code> story.</strong> Codex stdin is opaque, so the harness comes from <code>--harness codex</code> on argv. Other tools set <code>harness_name</code> in the JSON. Both paths converge in <code>HookMain.swift</code>.</li>
+        <li><strong><code>pid_start_time</code> matters.</strong> Without it, PID reuse across reboots (or fast PID rollover) would silently graft new processes onto stale sessions.</li>
+        <li><strong>The Raycast extension reads the same files.</strong> Any change to the on-disk schema must be reflected in <code>raycast/src/types.ts</code> and <code>raycast/src/sessions.ts</code>. Raycast also can't shell out to <code>code</code>/<code>cursor</code> (sandboxed PATH), so it uses <code>open -a</code>.</li>
+        <li><strong>The site auto-syncs some things and not others.</strong> Hero version, screenshots, DMG links auto-update. Tool tables, themes, FAQ — manual sync per the table in <code>CLAUDE.md</code>. After editing <code>site/og.html</code>, <strong>always</strong> re-run <code>scripts/render-og.sh</code> and commit <code>site/og.png</code> in the same commit (link unfurlers cache the PNG aggressively).</li>
+      </ul>
+      <div class="callout">
+        That's the project. The single most useful file to internalize is <code>Hook/HookHandler.swift</code> — once you understand its locking + transition + side-effect dance, the rest of the codebase is mostly straightforward SwiftUI and tool-specific shims layered around that core.
+      </div>
+    `
+  }
+];
+
+// Render
+const navList = document.getElementById("navList");
+const chapters = document.getElementById("chapters");
+const collapsedSet = new Set(JSON.parse(localStorage.getItem("cctop-collapsed") || "[]"));
+
+CHAPTERS.forEach(ch => {
+  const li = document.createElement("li");
+  li.innerHTML = `<a href="#ch${ch.n}" data-anchor="ch${ch.n}"><span class="nav-num">${String(ch.n).padStart(2,"0")}</span><span>${ch.title}</span></a>`;
+  navList.appendChild(li);
+
+  const sec = document.createElement("section");
+  sec.className = "chapter";
+  if (collapsedSet.has(ch.n)) sec.classList.add("collapsed");
+  sec.id = `ch${ch.n}`;
+  sec.dataset.search = (ch.title + " " + ch.tag + " " + ch.body).toLowerCase();
+  sec.innerHTML = `
+    <div class="chapter-head" data-num="${ch.n}">
+      <span class="chapter-num">${String(ch.n).padStart(2,"0")}</span>
+      <h2 class="chapter-title">${ch.title}</h2>
+      <span class="chapter-tag">${ch.tag}</span>
+      <span class="chapter-toggle">▼</span>
+    </div>
+    <div class="chapter-body">${ch.body}</div>
+  `;
+  chapters.appendChild(sec);
+});
+
+// Apply minimal syntax highlighting for our spans
+document.querySelectorAll("pre code").forEach(block => {
+  block.innerHTML = block.innerHTML
+    .replace(/<span class="kw">/g, '<span style="color: var(--code-keyword)">')
+    .replace(/<span class="cm">/g, '<span style="color: var(--code-comment); font-style: italic;">')
+    .replace(/<span class="str">/g, '<span style="color: var(--code-string)">')
+    .replace(/<span class="fn">/g, '<span style="color: var(--code-fn)">');
+});
+
+// Add copy buttons to <pre>
+document.querySelectorAll("pre").forEach(pre => {
+  if (pre.classList.contains("ascii")) return;
+  const btn = document.createElement("button");
+  btn.className = "copy-btn";
+  btn.textContent = "copy";
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    const text = pre.querySelector("code")?.innerText || pre.innerText;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = "copied";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "copy"; btn.classList.remove("copied"); }, 1200);
+    });
+  };
+  pre.appendChild(btn);
+});
+
+// Toggle chapters
+document.querySelectorAll(".chapter-head").forEach(head => {
+  head.addEventListener("click", () => {
+    const sec = head.parentElement;
+    sec.classList.toggle("collapsed");
+    const num = parseInt(head.dataset.num, 10);
+    if (sec.classList.contains("collapsed")) collapsedSet.add(num); else collapsedSet.delete(num);
+    localStorage.setItem("cctop-collapsed", JSON.stringify([...collapsedSet]));
+    updateStat();
+  });
+});
+
+// Search
+const search = document.getElementById("search");
+const emptyState = document.getElementById("emptyState");
+search.addEventListener("input", () => {
+  const q = search.value.trim().toLowerCase();
+  let visible = 0;
+  document.querySelectorAll("section.chapter").forEach(sec => {
+    const match = !q || sec.dataset.search.includes(q);
+    sec.classList.toggle("hidden", !match);
+    // also filter the nav
+    const navLink = document.querySelector(`a[data-anchor="${sec.id}"]`);
+    if (navLink) navLink.parentElement.style.display = match ? "" : "none";
+    if (match) visible++;
+  });
+  emptyState.classList.toggle("show", visible === 0);
+});
+
+// Expand / collapse all
+document.getElementById("expandAll").onclick = () => {
+  document.querySelectorAll("section.chapter").forEach(s => s.classList.remove("collapsed"));
+  collapsedSet.clear();
+  localStorage.setItem("cctop-collapsed", "[]");
+  updateStat();
+};
+document.getElementById("collapseAll").onclick = () => {
+  document.querySelectorAll("section.chapter").forEach(s => {
+    s.classList.add("collapsed");
+    collapsedSet.add(parseInt(s.id.replace("ch", ""), 10));
+  });
+  localStorage.setItem("cctop-collapsed", JSON.stringify([...collapsedSet]));
+  updateStat();
+};
+
+// Theme toggle
+const themeKey = "cctop-theme";
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  localStorage.setItem(themeKey, t);
+}
+applyTheme(localStorage.getItem(themeKey) || "dark");
+document.getElementById("themeToggle").onclick = () => {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+};
+
+// Keyboard nav
+const keysOverlay = document.getElementById("keys");
+document.getElementById("keysToggle").onclick = () => keysOverlay.classList.toggle("show");
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+    if (e.key === "Escape") e.target.blur();
+    return;
+  }
+  if (e.key === "/") { e.preventDefault(); search.focus(); }
+  else if (e.key === "e") document.getElementById("expandAll").click();
+  else if (e.key === "c") document.getElementById("collapseAll").click();
+  else if (e.key === "t") document.getElementById("themeToggle").click();
+  else if (e.key === "?") keysOverlay.classList.toggle("show");
+  else if (e.key === "j" || e.key === "k") {
+    const visible = [...document.querySelectorAll("section.chapter:not(.hidden)")];
+    const top = window.scrollY + 10;
+    const idx = visible.findIndex(s => s.offsetTop > top);
+    let target;
+    if (e.key === "j") target = visible[Math.max(0, idx)] || visible[visible.length - 1];
+    else target = visible[Math.max(0, (idx === -1 ? visible.length : idx) - 2)] || visible[0];
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
+
+// Active nav highlighting + scroll progress
+const navLinks = [...document.querySelectorAll(".nav-list a")];
+function updateActive() {
+  const scrollTop = window.scrollY;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  document.getElementById("scrollProg").style.width = Math.min(100, (scrollTop / Math.max(1, docHeight)) * 100) + "%";
+
+  let active = null;
+  document.querySelectorAll("section.chapter").forEach(sec => {
+    const top = sec.getBoundingClientRect().top;
+    if (top < 120) active = sec.id;
+  });
+  navLinks.forEach(a => a.classList.toggle("active", a.dataset.anchor === active));
+}
+function updateStat() {
+  const total = CHAPTERS.length;
+  const expanded = total - document.querySelectorAll("section.chapter.collapsed").length;
+  document.getElementById("readStat").textContent = `${expanded} / ${total} chapters expanded`;
+}
+window.addEventListener("scroll", updateActive, { passive: true });
+updateActive();
+updateStat();
+</script>
+</body>
+</html>
