@@ -168,6 +168,18 @@ appcast_path, version, primary_arch, sec_url, sec_len, sec_sig, sec_arch = sys.a
 with open(appcast_path) as f:
     content = f.read()
 
+# Strip item-level <sparkle:hardwareRequirements> from the newest item.
+# generate_appcast emits this tag when it inspects the single-slice primary
+# (arm64) ZIP. Left in place, it tells Sparkle the entire <item> requires
+# Apple Silicon and Intel Macs will skip the release entirely — they never
+# even reach the per-enclosure sparkle:cpu="x86_64" attribute.
+content, _ = re.subn(
+    r'[ \t]*<sparkle:hardwareRequirements>[^<]*</sparkle:hardwareRequirements>\n',
+    '',
+    content,
+    count=1
+)
+
 # Add sparkle:cpu to the primary enclosure (first <enclosure without sparkle:cpu)
 updated, count = re.subn(
     r'(<enclosure\s)',
@@ -233,6 +245,12 @@ if [[ ${#ZIPS[@]} -gt 1 ]]; then
     fi
     if ! grep -q 'sparkle:cpu=' "$APPCAST"; then
         echo "    FAIL: missing sparkle:cpu attributes" >&2
+        ERRORS=$((ERRORS + 1))
+    fi
+    # Catch regressions where generate_appcast re-emits hardwareRequirements
+    # on multi-arch releases (would block Intel Macs from the entire item).
+    if grep -q '<sparkle:hardwareRequirements>' "$APPCAST"; then
+        echo "    FAIL: item-level <sparkle:hardwareRequirements> present on multi-arch release" >&2
         ERRORS=$((ERRORS + 1))
     fi
 fi
