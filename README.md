@@ -157,6 +157,14 @@ cctop detects dead sessions automatically. It checks whether each session's proc
 **Why does the app need to be in /Applications/?**
 All plugins look for `cctop-hook` inside `/Applications/cctop.app` or `~/.cctop/bin/`. Installing elsewhere breaks the hook path.
 
+**I'm on an Intel Mac and the in-app updater installed the wrong architecture.**
+cctop releases up to and including v0.15.2 shipped an appcast that confused Sparkle's update picker, so Intel Macs could receive the Apple Silicon build. The structural fix is in place going forward, but the Sparkle framework already bundled inside any installed copy of cctop ≤ 0.15.2 doesn't know about the new appcast hints. To get back on the upgrade path, manually download the Intel build once:
+
+1. Quit cctop.
+2. Download [`cctop-macOS-x86_64.dmg`](https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg).
+3. Drag the new `cctop.app` into `/Applications/`, replacing the existing one.
+4. Relaunch cctop. Future updates will pick the correct architecture automatically.
+
 ## Uninstall
 
 ```bash

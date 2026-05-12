@@ -745,6 +745,16 @@
         <p>Plugins look for the cctop helper inside /Applications/cctop.app or ~/.cctop/bin/. Installing elsewhere breaks the integration.</p>
       </details>
       <details class="reveal">
+        <summary>I'm on an Intel Mac and the in-app updater installed the wrong architecture.</summary>
+        <p>cctop releases up to and including v0.15.2 shipped an appcast that confused Sparkle's update picker, so Intel Macs could receive the Apple Silicon build. The structural fix is in place going forward, but the Sparkle framework already bundled inside any installed copy of cctop &le; 0.15.2 doesn't know about the new appcast hints. Manually download the Intel build once to get back on the upgrade path:</p>
+        <ol>
+          <li>Quit cctop.</li>
+          <li>Download the Intel DMG: <a href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg">cctop-macOS-x86_64.dmg</a>.</li>
+          <li>Drag the new <code>cctop.app</code> into <code>/Applications/</code>, replacing the existing one.</li>
+          <li>Relaunch cctop. Future updates will pick the correct architecture automatically.</li>
+        </ol>
+      </details>
+      <details class="reveal">
         <summary>How do I uninstall?</summary>
         <ol>
           <li>Remove the app: <code>rm -rf /Applications/cctop.app</code></li>
