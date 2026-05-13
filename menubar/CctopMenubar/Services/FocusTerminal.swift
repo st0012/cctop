@@ -18,6 +18,8 @@ enum FocusStrategy: Equatable {
     case activateByName(String)
     /// Activate a running app by its bundle identifier.
     case activateByBundleID(String)
+    /// Open an app-specific deep link URL (e.g. claude://resume?session=...).
+    case openURL(URL)
     /// Open a path in Finder.
     case openInFinder(String)
 }
@@ -34,6 +36,12 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
     let hostApp = HostApp.from(bundleIdentifier: terminal.bundleId)
         ?? HostApp.from(editorName: terminal.program)
     let target = session.workspaceFile ?? session.projectPath
+
+    // Falls through to bundle-ID activation below if the session ID isn't a
+    // valid UUID, so the user still gets the app focused.
+    if let url = hostApp.sessionDeepLink(sessionId: session.sessionId) {
+        return .openURL(url)
+    }
 
     // Editors with a known bundle ID → open the project with that app.
     // Uses NSWorkspace instead of CLI (e.g., `code <path>`) to avoid PATH issues
@@ -157,6 +165,9 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
 
     case .activateByBundleID(let bundleID):
         activateAppByBundleID(bundleID)
+
+    case .openURL(let url):
+        NSWorkspace.shared.open(url)
 
     case .openInFinder(let path):
         NSWorkspace.shared.open(URL(fileURLWithPath: path))

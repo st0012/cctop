@@ -66,7 +66,8 @@ When you click a session card (or jump via Navigate mode), cctop focuses the hos
 | Kitty | Targets the specific window via remote control |
 | Ghostty | Targets a terminal whose working directory matches the project (best-effort) |
 | Terminal | Targets the specific tab by tty |
-| Warp | Activates the app (no per-tab targeting) |
+| Codex Desktop | Targets the specific thread |
+| Claude Desktop, Warp | Activates the app (no per-tab targeting) |
 | Other | Falls back to opening the project folder in Finder |
 
 > [!NOTE]

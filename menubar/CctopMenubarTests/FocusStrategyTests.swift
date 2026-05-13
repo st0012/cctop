@@ -11,10 +11,11 @@ final class FocusStrategyTests: XCTestCase {
         tty: String? = nil,
         bundleId: String? = nil,
         socket: String? = nil,
-        binaryPaths: [String: String]? = nil
+        binaryPaths: [String: String]? = nil,
+        sessionUuid: String = "test"
     ) -> Session {
         Session.mock(
-            id: "test",
+            id: sessionUuid,
             project: "myapp",
             terminal: TerminalInfo(
                 program: program, sessionId: sessionId, tty: tty,
@@ -229,6 +230,41 @@ final class FocusStrategyTests: XCTestCase {
         let session = makeSession(program: "Terminal", tty: "/dev/cu.usb\"oops")
         let strategy = resolveFocusStrategy(session: session)
         XCTAssertEqual(strategy, .activateByName("terminal"))
+    }
+
+    // MARK: - Desktop AI apps
+
+    func testClaudeDesktopUsesActivateByBundleID() {
+        // Claude Desktop has a claude://resume?session=... URL but it FORKS the
+        // conversation instead of focusing it — destructive, so we deliberately
+        // fall through to plain bundle-ID activation. See HostApp.sessionDeepLink.
+        let session = makeSession(
+            program: "", bundleId: "com.anthropic.claudefordesktop",
+            sessionUuid: "002fb6fa-eae0-4631-94bd-84071dbd21d8"
+        )
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .activateByBundleID("com.anthropic.claudefordesktop"))
+    }
+
+    func testCodexDesktopUsesDeepLinkWhenSessionIdIsUUID() {
+        // Codex's URL handler routes codex://threads/<uuid> to the conversation
+        // and rejects anything that's not a canonical UUID — we mirror that check.
+        let uuid = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        let session = makeSession(
+            program: "", bundleId: "com.openai.codex", sessionUuid: uuid
+        )
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .openURL(URL(string: "codex://threads/\(uuid)")!))
+    }
+
+    func testCodexDesktopFallsBackToActivateWhenSessionIdNotUUID() {
+        // Legacy or test sessions may not have UUID IDs — we should still focus
+        // the app rather than build a URL the handler will reject.
+        let session = makeSession(
+            program: "", bundleId: "com.openai.codex", sessionUuid: "not-a-uuid"
+        )
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .activateByBundleID("com.openai.codex"))
     }
 
     // MARK: - No terminal info falls back to Finder

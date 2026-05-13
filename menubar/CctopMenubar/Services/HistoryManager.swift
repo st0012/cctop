@@ -23,8 +23,14 @@ class HistoryManager: ObservableObject {
 
     /// Archive a dead session to the history directory.
     /// Sets `endedAt`, writes to history, prunes old files, and returns success.
+    /// Desktop-app sessions (Claude Desktop, Codex Desktop) are not archived — they
+    /// have no project folder worth reopening from Recent Projects.
     @discardableResult
     func archiveSession(_ session: Session) -> Bool {
+        if session.isHostedByDesktopApp {
+            logger.info("skipping archive for desktop-app session \(session.sessionId, privacy: .public)")
+            return false
+        }
         var archived = session
         archived.endedAt = archived.endedAt ?? Date()
 
@@ -68,6 +74,8 @@ class HistoryManager: ObservableObject {
     ) -> [RecentProject] {
         var grouped: [String: (latest: Session, count: Int)] = [:]
         for session in sessions {
+            // Drop on read too — catches archive files that predate the write-time skip.
+            if session.isHostedByDesktopApp { continue }
             if let existing = grouped[session.projectPath] {
                 let newer = session.effectiveEndDate > existing.latest.effectiveEndDate
                 grouped[session.projectPath] = (

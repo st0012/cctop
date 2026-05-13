@@ -27,7 +27,8 @@ final class HistoryManagerTests: XCTestCase {
     private func mockSession(
         project: String,
         endedAt: Date? = nil,
-        lastActivity: Date = Date()
+        lastActivity: Date = Date(),
+        terminal: TerminalInfo? = TerminalInfo(program: "Code")
     ) -> Session {
         Session(
             sessionId: UUID().uuidString,
@@ -38,7 +39,7 @@ final class HistoryManagerTests: XCTestCase {
             lastPrompt: nil,
             lastActivity: lastActivity,
             startedAt: lastActivity,
-            terminal: TerminalInfo(program: "Code"),
+            terminal: terminal,
             pid: nil,
             lastTool: nil,
             lastToolDetail: nil,
@@ -195,6 +196,40 @@ final class HistoryManagerTests: XCTestCase {
         // lastSessionAt should use endedAt (60s ago), not lastActivity (2h ago)
         let elapsed = Int(-result[0].lastSessionAt.timeIntervalSinceNow)
         XCTAssertTrue(elapsed < 120, "Should use endedAt, not lastActivity")
+    }
+
+    func testBuildRecentProjectsExcludesDesktopAppSessions() {
+        let desktopApps = [
+            (bundleId: "com.anthropic.claudefordesktop", project: "claude-thing"),
+            (bundleId: "com.openai.codex", project: "codex-thing"),
+        ]
+        for app in desktopApps {
+            let terminal = TerminalInfo(
+                program: "", sessionId: nil, tty: nil, bundleId: app.bundleId
+            )
+            let sessions = [
+                mockSession(project: app.project, endedAt: Date(), terminal: terminal),
+                mockSession(project: "vscode-thing", endedAt: Date()),
+            ]
+            let result = HistoryManager.buildRecentProjects(from: sessions)
+            XCTAssertEqual(result.map(\.projectName), ["vscode-thing"], "for \(app.bundleId)")
+        }
+    }
+
+    func testArchiveSessionSkipsDesktopAppSessions() {
+        let claudeTerminal = TerminalInfo(
+            program: "", sessionId: nil, tty: nil,
+            bundleId: "com.anthropic.claudefordesktop"
+        )
+        let session = mockSession(project: "claude-thing", terminal: claudeTerminal)
+        let archived = sut.archiveSession(session)
+        XCTAssertFalse(archived, "Desktop-app sessions must not be archived")
+
+        // No history file should have been written.
+        let files = try? FileManager.default.contentsOfDirectory(
+            at: historyDir, includingPropertiesForKeys: nil
+        )
+        XCTAssertEqual(files?.count, 0)
     }
 
     func testBuildRecentProjectsPopulatesLastEditor() {

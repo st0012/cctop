@@ -12,6 +12,10 @@ enum HostApp {
     case terminal
     case ghostty
     case kitty
+    /// Claude Desktop runs sessions inside the app itself — no terminal, no editor.
+    case claudeDesktop
+    /// Codex Desktop runs sessions inside the app itself — no terminal, no editor.
+    case codexDesktop
     case unknown
 
     /// Match a bundle identifier to a HostApp. Preferred over program name matching
@@ -50,11 +54,14 @@ enum HostApp {
         case .terminal: return "com.apple.Terminal"
         case .ghostty: return "com.mitchellh.ghostty"
         case .kitty: return "net.kovidgoyal.kitty"
+        case .claudeDesktop: return "com.anthropic.claudefordesktop"
+        case .codexDesktop: return "com.openai.codex"
         case .unknown: return nil
         }
     }
 
     /// Lowercased name for matching against `NSRunningApplication.localizedName`.
+    /// Nil for desktop AI apps — bundle ID is exact and avoids substring collisions.
     var activationName: String? {
         switch self {
         case .vscode: return "code"
@@ -66,7 +73,7 @@ enum HostApp {
         case .terminal: return "terminal"
         case .ghostty: return "ghostty"
         case .kitty: return "kitty"
-        case .unknown: return nil
+        case .claudeDesktop, .codexDesktop, .unknown: return nil
         }
     }
 
@@ -76,6 +83,8 @@ enum HostApp {
             return "chevron.left.forwardslash.chevron.right"
         case .iterm2, .warp, .terminal, .ghostty, .kitty, .unknown:
             return "terminal"
+        case .claudeDesktop, .codexDesktop:
+            return "sparkles"
         }
     }
 
@@ -83,13 +92,27 @@ enum HostApp {
     var usesWorkspaceFile: Bool {
         switch self {
         case .vscode, .cursor, .windsurf, .zed: return true
-        case .iterm2, .warp, .terminal, .ghostty, .kitty, .unknown: return false
+        case .iterm2, .warp, .terminal, .ghostty, .kitty,
+             .claudeDesktop, .codexDesktop, .unknown: return false
+        }
+    }
+
+    /// Apps that host AI coding sessions inside themselves (no project folder to reopen).
+    /// Used to: skip path-based focus, skip Recent Projects archival.
+    var isDesktopApp: Bool {
+        switch self {
+        case .claudeDesktop, .codexDesktop: return true
+        default: return false
         }
     }
 
     /// Reverse lookup: bundle ID → HostApp.
     static let allByBundleID: [String: HostApp] = {
-        let all: [HostApp] = [.vscode, .cursor, .windsurf, .zed, .iterm2, .warp, .terminal, .ghostty, .kitty]
+        let all: [HostApp] = [
+            .vscode, .cursor, .windsurf, .zed,
+            .iterm2, .warp, .terminal, .ghostty, .kitty,
+            .claudeDesktop, .codexDesktop
+        ]
         return Dictionary(uniqueKeysWithValues: all.compactMap { app in
             app.bundleID.map { ($0, app) }
         })
@@ -104,5 +127,43 @@ enum HostApp {
         case .zed: return "zed"
         default: return nil
         }
+    }
+}
+
+extension Session {
+    /// True when the session is hosted by an AI desktop app (Claude Desktop, Codex Desktop)
+    /// rather than a terminal/editor. These sessions have no project folder worth reopening,
+    /// so they're excluded from Recent Projects.
+    var isHostedByDesktopApp: Bool {
+        guard let bundleId = terminal?.bundleId else { return false }
+        return HostApp.from(bundleIdentifier: bundleId)?.isDesktopApp == true
+    }
+}
+
+extension HostApp {
+    /// Deep-link URL that focuses a specific session inside this app, if supported.
+    /// Returns nil when the app has no session-jump scheme, or `sessionId` isn't a
+    /// canonical UUID — the URL handler rejects non-UUID values, so we mirror its
+    /// validation client-side and fall back to plain app activation upstream.
+    /// - Codex Desktop: `codex://threads/<uuid>` — navigates to a local conversation.
+    /// - Claude Desktop: no deep link. `claude://resume?session=<uuid>` exists but
+    ///   forks the conversation rather than focusing the existing one, which would
+    ///   silently pollute the user's history. We just activate the app instead.
+    func sessionDeepLink(sessionId: String) -> URL? {
+        guard Self.isUUID(sessionId) else { return nil }
+        switch self {
+        case .codexDesktop:
+            return URL(string: "codex://threads/\(sessionId)")
+        default:
+            return nil
+        }
+    }
+
+    /// The host-app URL handler validates with this exact pattern (8-4-4-4-12 hex).
+    static func isUUID(_ value: String) -> Bool {
+        value.range(
+            of: #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
     }
 }

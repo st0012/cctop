@@ -91,6 +91,16 @@ class SessionManager: ObservableObject {
         for (url, session) in dead {
             let sid = session.sessionId
             let pid = session.pid.map(String.init) ?? "nil"
+
+            // Desktop-app sessions are deliberately skipped from archiving — drop the
+            // live file directly so it doesn't linger as a "dead" entry forever.
+            if session.isHostedByDesktopApp {
+                logger.info("dropping dead desktop-app session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
+                try? FileManager.default.removeItem(at: url)
+                try? FileManager.default.removeItem(at: url.appendingPathExtension("lock"))
+                continue
+            }
+
             logger.info("archiving dead session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
             let archived = historyManager.archiveSession(session)
             if archived {

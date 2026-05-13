@@ -23,6 +23,14 @@ function isValidGUID(s: string): boolean {
   return /^[0-9a-fA-F-]+$/.test(s);
 }
 
+/** Canonical 8-4-4-4-12 UUID — matches the validation Codex's URL handler runs. */
+function isUUID(s: string | null | undefined): boolean {
+  if (!s) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    s,
+  );
+}
+
 /** Escape a string for safe interpolation inside an AppleScript double-quoted literal. */
 function escapeAppleScriptString(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -116,11 +124,18 @@ function buildITermScript(guid: string): string {
   `;
 }
 
+/** Bundle IDs of AI desktop apps that host sessions inside themselves. */
+const CLAUDE_DESKTOP_BUNDLE_ID = "com.anthropic.claudefordesktop";
+const CODEX_DESKTOP_BUNDLE_ID = "com.openai.codex";
+
 /**
  * Return a human-readable label for the terminal program.
  * Used for contextual action labels like "Open in VS Code".
  */
 export function getTerminalLabel(session: CctopSession): string {
+  const bundleId = session.terminal?.bundle_id ?? "";
+  if (bundleId === CLAUDE_DESKTOP_BUNDLE_ID) return "Claude";
+  if (bundleId === CODEX_DESKTOP_BUNDLE_ID) return "Codex";
   const program = session.terminal?.program?.toLowerCase() ?? "";
   if (program.includes("cursor")) return "Cursor";
   if (program.includes("windsurf")) return "Windsurf";
@@ -150,7 +165,18 @@ export async function jumpToSession(session: CctopSession): Promise<void> {
     const isGhostty =
       program.includes("ghostty") || bundleId === "com.mitchellh.ghostty";
 
+    // Codex Desktop: deep-link to the specific thread (codex://threads/<uuid>).
+    // Claude Desktop: claude://resume forks the conversation, so we just activate.
     if (
+      bundleId === CODEX_DESKTOP_BUNDLE_ID ||
+      bundleId === CLAUDE_DESKTOP_BUNDLE_ID
+    ) {
+      if (bundleId === CODEX_DESKTOP_BUNDLE_ID && isUUID(session.session_id)) {
+        execFileSync("open", [`codex://threads/${session.session_id}`]);
+      } else {
+        execFileSync("open", ["-b", bundleId]);
+      }
+    } else if (
       program.includes("code") ||
       program.includes("cursor") ||
       program.includes("windsurf")
