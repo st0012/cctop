@@ -107,7 +107,15 @@ brew install --cask st0012/cctop/cctop
 
 ### Step 2: Connect your tools
 
-Follow the app's instructions to connect your tools. The app auto-detects installed tools and offers one-click plugin installation.
+The app auto-detects installed coding tools. For **opencode**, **pi**, and **Codex CLI**, click *Install Plugin* in Settings > Monitored Tools.
+
+For **Claude Code**, run this one-liner in your terminal (the app also exposes a *Copy Install Command* button under Settings > Monitored Tools):
+
+```bash
+claude plugin marketplace add st0012/cctop && claude plugin install cctop
+```
+
+Restart any running sessions to pick up the hooks.
 
 ## Themes
 
