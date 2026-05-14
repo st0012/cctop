@@ -346,6 +346,66 @@ private struct PluginRowView: View {
     }
 }
 
+private struct ClaudeCodePluginRowView: View {
+    @ObservedObject var pluginManager: PluginManager
+    @State private var justCopied = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("Claude Code")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.textPrimary)
+            Spacer()
+            if pluginManager.ccInstalled {
+                ConnectedBadge()
+            } else if justCopied {
+                copiedPill
+            } else {
+                copyButton
+            }
+        }
+        .padding(.vertical, 7)
+    }
+
+    private var copyButton: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(
+                PluginManager.ccInstallCommand, forType: .string
+            )
+            justCopied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                justCopied = false
+            }
+        } label: {
+            Text("Copy Install Command")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.segmentActiveText)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Color.amber)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var copiedPill: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.green)
+            Text("Copied \u{2014} paste in terminal")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.green)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(Color.green, lineWidth: 1)
+        )
+        .transition(.opacity)
+    }
+}
+
 private struct CodexPluginRowView: View {
     @ObservedObject var pluginManager: PluginManager
     @Binding var installFailed: Bool
@@ -386,6 +446,21 @@ private struct ConnectedBadge: View {
     } }
 }
 // MARK: - Previews
+@MainActor private func previewCCRow(installed: Bool) -> PluginManager {
+    let pm = PluginManager()
+    pm.ccInstalled = installed
+    return pm
+}
+
+#Preview("CC row - Not installed") {
+    ClaudeCodePluginRowView(pluginManager: previewCCRow(installed: false))
+        .frame(width: 320).padding()
+}
+#Preview("CC row - Connected") {
+    ClaudeCodePluginRowView(pluginManager: previewCCRow(installed: true))
+        .frame(width: 320).padding()
+}
+
 @MainActor private class MockUpdater: UpdaterBase { override var canCheckForUpdates: Bool { true } }
 @MainActor private func previewPM() -> PluginManager {
     let pm = PluginManager(); pm.ccInstalled = true; pm.ocInstalled = true

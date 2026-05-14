@@ -16,6 +16,9 @@ class PluginManager: ObservableObject {
     @Published var codexConfigExists: Bool = false
     @Published var codexFlagAlreadyEnabled: Bool = false
 
+    static let ccInstallCommand =
+        "claude plugin marketplace add st0012/cctop && claude plugin install cctop"
+
     private static let home = FileManager.default.homeDirectoryForCurrentUser
     private static let ocPluginPath = home.appendingPathComponent(
         ".config/opencode/plugins/cctop.js"
