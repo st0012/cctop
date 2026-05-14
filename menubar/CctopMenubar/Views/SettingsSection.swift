@@ -256,7 +256,7 @@ private struct MonitoredToolsView: View {
     @Binding var installFailed: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            toolStatusRow(name: "Claude Code", installed: pluginManager.ccInstalled)
+            ClaudeCodePluginRowView(installed: pluginManager.ccInstalled)
             if pluginManager.ocConfigExists {
                 PluginRowView(name: "opencode", installed: pluginManager.ocInstalled,
                     needsUpdate: pluginManager.ocNeedsUpdate, installFailed: $installFailed,
@@ -274,13 +274,74 @@ private struct MonitoredToolsView: View {
         }
         .padding(.horizontal, 14).padding(.bottom, 8)
     }
-    private func toolStatusRow(name: String, installed: Bool) -> some View {
-        HStack(spacing: 8) {
-            Text(name).font(.system(size: 11, weight: .medium)).foregroundStyle(Color.textPrimary)
-            Spacer()
-            if installed { ConnectedBadge()
-            } else { Text("Not installed").font(.system(size: 10)).foregroundStyle(Color.textMuted) }
-        }.padding(.vertical, 7)
+}
+
+private struct ClaudeCodePluginRowView: View {
+    let installed: Bool
+    @State private var showCommands = false
+    @State private var copiedIndex: Int?
+
+    private static let marketplaceCommand = "claude plugin marketplace add st0012/cctop"
+    private static let installCommand = "claude plugin install cctop"
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                Text("Claude Code")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.textPrimary)
+                Spacer()
+                if installed {
+                    ConnectedBadge()
+                } else {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) { showCommands.toggle() }
+                    } label: {
+                        Text(showCommands ? "Hide" : "Install via CLI")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.segmentActiveText)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Color.amber)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    }.buttonStyle(.plain)
+                }
+            }.padding(.vertical, 7)
+
+            if !installed && showCommands {
+                VStack(spacing: 4) {
+                    commandRow(Self.marketplaceCommand, index: 1)
+                    commandRow(Self.installCommand, index: 2)
+                }
+                .padding(.bottom, 4)
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private func commandRow(_ command: String, index: Int) -> some View {
+        HStack(spacing: 6) {
+            Text(command)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Color.textSecondary)
+                .lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 0)
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(command, forType: .string)
+                copiedIndex = index
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    if copiedIndex == index { copiedIndex = nil }
+                }
+            } label: {
+                Image(systemName: copiedIndex == index ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: 10))
+                    .foregroundStyle(copiedIndex == index ? .green : Color.textSecondary)
+                    .frame(width: 20, height: 20)
+            }.buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(Color.textPrimary.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
