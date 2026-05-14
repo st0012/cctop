@@ -392,15 +392,15 @@ private struct ClaudeCodePluginRowView: View {
         HStack(spacing: 4) {
             Image(systemName: "checkmark")
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.statusGreen)
             Text("Copied \u{2014} paste in terminal")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.statusGreen)
         }
         .padding(.horizontal, 8).padding(.vertical, 3)
         .overlay(
             RoundedRectangle(cornerRadius: 4)
-                .stroke(Color.green, lineWidth: 1)
+                .stroke(Color.statusGreen, lineWidth: 1)
         )
         .transition(.opacity)
     }
