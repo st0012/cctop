@@ -256,7 +256,7 @@ private struct MonitoredToolsView: View {
     @Binding var installFailed: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            toolStatusRow(name: "Claude Code", installed: pluginManager.ccInstalled)
+            ClaudeCodePluginRowView(pluginManager: pluginManager)
             if pluginManager.ocConfigExists {
                 PluginRowView(name: "opencode", installed: pluginManager.ocInstalled,
                     needsUpdate: pluginManager.ocNeedsUpdate, installFailed: $installFailed,
