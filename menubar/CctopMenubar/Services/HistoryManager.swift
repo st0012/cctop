@@ -74,7 +74,6 @@ class HistoryManager: ObservableObject {
     ) -> [RecentProject] {
         var grouped: [String: (latest: Session, count: Int)] = [:]
         for session in sessions {
-            // Drop on read too — catches archive files that predate the write-time skip.
             if session.isHostedByDesktopApp { continue }
             if let existing = grouped[session.projectPath] {
                 let newer = session.effectiveEndDate > existing.latest.effectiveEndDate

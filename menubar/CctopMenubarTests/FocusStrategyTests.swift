@@ -238,12 +238,13 @@ final class FocusStrategyTests: XCTestCase {
         // Claude Desktop has a claude://resume?session=... URL but it FORKS the
         // conversation instead of focusing it — destructive, so we deliberately
         // fall through to plain bundle-ID activation. See HostApp.sessionDeepLink.
+        let bundleID = HostApp.claudeDesktop.bundleID!
         let session = makeSession(
-            program: "", bundleId: "com.anthropic.claudefordesktop",
+            program: "", bundleId: bundleID,
             sessionUuid: "002fb6fa-eae0-4631-94bd-84071dbd21d8"
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .activateByBundleID("com.anthropic.claudefordesktop"))
+        XCTAssertEqual(strategy, .activateByBundleID(bundleID))
     }
 
     func testCodexDesktopUsesDeepLinkWhenSessionIdIsUUID() {
@@ -251,7 +252,7 @@ final class FocusStrategyTests: XCTestCase {
         // and rejects anything that's not a canonical UUID — we mirror that check.
         let uuid = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         let session = makeSession(
-            program: "", bundleId: "com.openai.codex", sessionUuid: uuid
+            program: "", bundleId: HostApp.codexDesktop.bundleID!, sessionUuid: uuid
         )
         let strategy = resolveFocusStrategy(session: session)
         XCTAssertEqual(strategy, .openURL(URL(string: "codex://threads/\(uuid)")!))
@@ -260,11 +261,12 @@ final class FocusStrategyTests: XCTestCase {
     func testCodexDesktopFallsBackToActivateWhenSessionIdNotUUID() {
         // Legacy or test sessions may not have UUID IDs — we should still focus
         // the app rather than build a URL the handler will reject.
+        let bundleID = HostApp.codexDesktop.bundleID!
         let session = makeSession(
-            program: "", bundleId: "com.openai.codex", sessionUuid: "not-a-uuid"
+            program: "", bundleId: bundleID, sessionUuid: "not-a-uuid"
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .activateByBundleID("com.openai.codex"))
+        XCTAssertEqual(strategy, .activateByBundleID(bundleID))
     }
 
     // MARK: - No terminal info falls back to Finder
