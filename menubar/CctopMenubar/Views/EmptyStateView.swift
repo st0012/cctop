@@ -2,7 +2,6 @@ import SwiftUI
 
 struct EmptyStateView: View {
     @ObservedObject var pluginManager: PluginManager
-    @State private var copied = false
     @State private var justInstalledOC = false
     @State private var justInstalledPi = false
 
@@ -147,7 +146,10 @@ struct EmptyStateView: View {
         VStack(spacing: 12) {
             VStack(spacing: 6) {
                 sectionHeader("Claude Code")
-                commandRow(PluginManager.ccInstallCommand)
+                HStack {
+                    Spacer()
+                    ClaudeCodeInstallButton()
+                }
             }
 
             if pluginManager.ocConfigExists {
@@ -175,36 +177,6 @@ struct EmptyStateView: View {
                 .foregroundStyle(Color.textSecondary)
             Spacer()
         }
-    }
-
-    private func commandRow(_ command: String) -> some View {
-        HStack(spacing: 6) {
-            Text(command)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(Color.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Spacer(minLength: 0)
-
-            Button {
-                NSPasteboard.copyToClipboard(command)
-                copied = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    copied = false
-                }
-            } label: {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 10))
-                    .foregroundStyle(copied ? .green : Color.textSecondary)
-                    .frame(width: 20, height: 20)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color.textPrimary.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     private func stepRow(text: String) -> some View {

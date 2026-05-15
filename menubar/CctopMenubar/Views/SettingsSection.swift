@@ -340,7 +340,6 @@ private struct PluginRowView: View {
 
 private struct ClaudeCodePluginRowView: View {
     @ObservedObject var pluginManager: PluginManager
-    @State private var justCopied = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -350,13 +349,25 @@ private struct ClaudeCodePluginRowView: View {
             Spacer()
             if pluginManager.ccInstalled {
                 ConnectedBadge()
-            } else if justCopied {
-                copiedPill
             } else {
-                copyButton
+                ClaudeCodeInstallButton()
             }
         }
         .padding(.vertical, 7)
+    }
+}
+
+/// Amber "Copy Install Command" button that flips to a green confirmation pill for 2s on click.
+/// Shared by the Settings row and the empty-state install prompt.
+struct ClaudeCodeInstallButton: View {
+    @State private var justCopied = false
+
+    var body: some View {
+        if justCopied {
+            copiedPill
+        } else {
+            copyButton
+        }
     }
 
     private var copyButton: some View {
