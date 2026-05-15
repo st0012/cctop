@@ -12,6 +12,8 @@ enum FocusStrategy: Equatable {
     case kitty(socket: String, windowId: String, binaryPath: String)
     /// Focus a Ghostty terminal by matching its working directory, with a bundle ID fallback.
     case ghostty(workingDirectory: String)
+    /// Focus an Apple Terminal tab by its tty (e.g. /dev/ttys003), with a bundle ID fallback.
+    case appleTerminal(tty: String)
     /// Activate a running app by its localized name.
     case activateByName(String)
     /// Activate a running app by its bundle identifier.
@@ -60,6 +62,15 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
 
     if hostApp == .ghostty {
         return .ghostty(workingDirectory: session.projectPath)
+    }
+
+    // Apple Terminal → AppleScript to focus the specific tab by tty.
+    // NSRunningApplication.activate() can't target a single tab, and on macOS
+    // Sonoma+ cooperative activation often fails to even raise the app.
+    if hostApp == .terminal,
+       let tty = terminal.tty,
+       tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil {
+        return .appleTerminal(tty: tty)
     }
 
     // Try activation by name, then bundle ID, then Finder
@@ -128,25 +139,18 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
         }
 
     case .iTerm2(let guid):
-        if !executeITerm2Script(guid: guid) {
-            if let bundleID = HostApp.iterm2.bundleID {
-                activateAppByBundleID(bundleID)
-            }
-        }
+        runScriptOrActivate(.iterm2) { executeITerm2Script(guid: guid) }
 
     case .kitty(let socket, let windowId, let binaryPath):
-        if !executeKittyFocusWindow(binaryPath: binaryPath, socket: socket, windowId: windowId) {
-            if let bundleID = HostApp.kitty.bundleID {
-                activateAppByBundleID(bundleID)
-            }
+        runScriptOrActivate(.kitty) {
+            executeKittyFocusWindow(binaryPath: binaryPath, socket: socket, windowId: windowId)
         }
 
     case .ghostty(let workingDirectory):
-        if !executeGhosttyFocusScript(workingDirectory: workingDirectory) {
-            if let bundleID = HostApp.ghostty.bundleID {
-                activateAppByBundleID(bundleID)
-            }
-        }
+        runScriptOrActivate(.ghostty) { executeGhosttyFocusScript(workingDirectory: workingDirectory) }
+
+    case .appleTerminal(let tty):
+        runScriptOrActivate(.terminal) { executeAppleTerminalScript(tty: tty) }
 
     case .activateByName(let name):
         activateAppByName(name)
@@ -156,6 +160,13 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
 
     case .openInFinder(let path):
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+}
+
+/// Run a focus script for `host`; if it fails, fall back to activating the host by bundle ID.
+private func runScriptOrActivate(_ host: HostApp, script: () -> Bool) {
+    if !script(), let bundleID = host.bundleID {
+        activateAppByBundleID(bundleID)
     }
 }
 
@@ -193,6 +204,31 @@ private func executeITerm2Script(guid: String) -> Bool {
                     end tell
                 end repeat
             end tell
+        end repeat
+    end tell
+    """)
+}
+
+// MARK: - Apple Terminal AppleScript
+// Each Terminal tab exposes its `tty` (e.g. /dev/ttys003) over AppleScript. For
+// a shell running directly in a tab the match is unambiguous. Under a multiplexer
+// (tmux, screen) the captured tty is the multiplexer pane's pty and won't appear
+// in Terminal's tab list — the loop no-ops, but the leading `activate` still
+// raises the app (the previous .activateByName behavior, more reliable on Sonoma+).
+
+private func executeAppleTerminalScript(tty: String) -> Bool {
+    runAppleScript("""
+    tell application "Terminal"
+        activate
+        repeat with w in windows
+            repeat with t in tabs of w
+                if tty of t is "\(tty)" then
+                    set miniaturized of w to false
+                    set selected of t to true
+                    set frontmost of w to true
+                    return
+                end if
+            end repeat
         end repeat
     end tell
     """)

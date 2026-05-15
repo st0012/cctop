@@ -8,6 +8,7 @@ final class FocusStrategyTests: XCTestCase {
     private func makeSession(
         program: String,
         sessionId: String? = nil,
+        tty: String? = nil,
         bundleId: String? = nil,
         socket: String? = nil,
         binaryPaths: [String: String]? = nil
@@ -16,7 +17,7 @@ final class FocusStrategyTests: XCTestCase {
             id: "test",
             project: "myapp",
             terminal: TerminalInfo(
-                program: program, sessionId: sessionId, tty: nil,
+                program: program, sessionId: sessionId, tty: tty,
                 bundleId: bundleId, socket: socket,
                 binaryPaths: binaryPaths
             )
@@ -201,8 +202,31 @@ final class FocusStrategyTests: XCTestCase {
         )
     }
 
-    func testAppleTerminalUsesActivateByName() {
+    // MARK: - Apple Terminal uses AppleScript with tty
+
+    func testAppleTerminalWithTTYUsesScript() {
+        let session = makeSession(program: "Apple_Terminal", tty: "/dev/ttys003")
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .appleTerminal(tty: "/dev/ttys003"))
+    }
+
+    func testAppleTerminalDetectedByBundleIdWhenProgramDiffers() {
+        // User runs a multiplexer (e.g. tmux) inside Terminal — TERM_PROGRAM may not
+        // say "Apple_Terminal", but __CFBundleIdentifier still does.
+        let session = makeSession(program: "tmux", tty: "/dev/ttys007", bundleId: "com.apple.Terminal")
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .appleTerminal(tty: "/dev/ttys007"))
+    }
+
+    func testAppleTerminalWithoutTTYFallsBackToActivate() {
         let session = makeSession(program: "Terminal")
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .activateByName("terminal"))
+    }
+
+    func testAppleTerminalWithInvalidTTYFallsBackToActivate() {
+        // Anything not matching /dev/ttys\d+ is rejected to keep AppleScript interpolation safe.
+        let session = makeSession(program: "Terminal", tty: "/dev/cu.usb\"oops")
         let strategy = resolveFocusStrategy(session: session)
         XCTAssertEqual(strategy, .activateByName("terminal"))
     }
