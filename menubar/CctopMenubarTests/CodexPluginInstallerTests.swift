@@ -193,7 +193,7 @@ final class CodexPluginInstallerTests: XCTestCase {
 
     // MARK: - isInstalled
 
-    func testIsInstalledRequiresFeatureFlag() throws {
+    func testIsInstalledRejectsExplicitOptOut() throws {
         let dir = makeTempCodexDir()
         let template = try loadCodexHooksTemplate()
         let shim = try loadCodexShim()
@@ -201,17 +201,20 @@ final class CodexPluginInstallerTests: XCTestCase {
             XCTAssertTrue(
                 CodexPluginInstaller.install(shimContents: shim, hooksTemplate: template)
             )
+            // Codex defaults `hooks` to true, so a clean install (no config.toml
+            // written) reports as installed.
             XCTAssertTrue(CodexPluginInstaller.isInstalled())
 
-            // Flip the feature flag off; install state should flip false even though
-            // the shim and hooks.json remain present.
-            try Data("[features]\ncodex_hooks = false\n".utf8)
+            // An explicit opt-out flips install state to false even though the
+            // shim and hooks.json are still in place.
+            try Data("[features]\nhooks = false\n".utf8)
                 .write(to: CodexPluginInstaller.configTomlPath, options: .atomic)
             XCTAssertFalse(CodexPluginInstaller.isInstalled())
 
-            // Deleting config.toml entirely also counts as not installed.
+            // Deleting config.toml removes the opt-out; the Codex default
+            // (`hooks = true`) kicks back in and install reads as installed.
             try FileManager.default.removeItem(at: CodexPluginInstaller.configTomlPath)
-            XCTAssertFalse(CodexPluginInstaller.isInstalled())
+            XCTAssertTrue(CodexPluginInstaller.isInstalled())
         }
     }
 

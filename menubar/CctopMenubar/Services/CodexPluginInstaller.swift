@@ -5,8 +5,11 @@ private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "Cod
 
 /// Installs, updates, and removes cctop's Codex CLI hook entries.
 /// Installs a shim to `~/.codex/cctop-shim.sh`, merges 5 hook entries into
-/// `~/.codex/hooks.json` (preserving user hooks), and enables the
-/// `codex_hooks` feature flag under `[features]` in `~/.codex/config.toml`.
+/// `~/.codex/hooks.json` (preserving user hooks), and patches
+/// `~/.codex/config.toml` only when needed — Codex defaults `[features].hooks`
+/// to true so cctop doesn't write the flag on a clean config. It removes any
+/// deprecated `codex_hooks` line (which would trigger Codex's startup warning)
+/// and overrides an explicit `hooks = false` opt-out.
 /// Ownership is tracked by substring-matching `cctop-shim.sh` inside hook commands,
 /// so reinstall is idempotent and uninstall never touches entries it did not create.
 enum CodexPluginInstaller {
@@ -40,8 +43,11 @@ enum CodexPluginInstaller {
         FileManager.default.fileExists(atPath: codexDir.path)
     }
 
-    /// Wired up to fire on Codex events? Requires shim + 5 hook entries + the
-    /// `[features].codex_hooks = true` flag (Codex won't load hooks.json without it).
+    /// Wired up to fire on Codex events? Requires shim + 5 hook entries + hooks
+    /// not explicitly disabled. A missing config.toml or an unset flag counts
+    /// as enabled because Codex defaults `[features].hooks` to true. Only an
+    /// explicit `hooks = false` (or `codex_hooks = false` with no overriding
+    /// `hooks` value) flips this to false.
     /// Staleness is reported separately via `needsUpdate(bundledShim:)`.
     static func isInstalled() -> Bool {
         guard FileManager.default.fileExists(atPath: shimPath.path) else { return false }
@@ -53,10 +59,10 @@ enum CodexPluginInstaller {
             guard let entries = hooks[event] as? [[String: Any]],
                   entries.contains(where: hasCctopCommand) else { return false }
         }
-        // Feature flag must be actually set — a missing or `false` flag means Codex
-        // won't load our hooks even though the files are in place.
-        guard let configText = try? String(contentsOf: configTomlPath, encoding: .utf8),
-              isFeatureFlagEnabled(configText) else {
+        // Only an explicit opt-out counts as not installed. Missing file or
+        // unset flag = Codex default (hooks enabled).
+        if let configText = try? String(contentsOf: configTomlPath, encoding: .utf8),
+           !isFeatureFlagEnabled(configText) {
             return false
         }
         return true
@@ -257,17 +263,13 @@ enum CodexPluginInstaller {
 
     // MARK: - config.toml feature flag
 
-    /// Ensure `codex_hooks = true` is present under a `[features]` table in config.toml.
-    /// Uses line-based editing to avoid adding a TOML parser dependency.
+    /// Patch config.toml to make Codex load cctop's hooks: remove any
+    /// deprecated `codex_hooks` line, override an explicit `hooks = false`.
+    /// No-op on a clean config (Codex defaults `hooks` to true). No-op when
+    /// config.toml doesn't exist (same reason).
     static func enableFeatureFlag() throws {
         let fm = FileManager.default
-        let path = configTomlPath.path
-
-        guard fm.fileExists(atPath: path) else {
-            let contents = "[features]\ncodex_hooks = true\n"
-            try contents.data(using: .utf8)?.write(to: configTomlPath, options: .atomic)
-            return
-        }
+        guard fm.fileExists(atPath: configTomlPath.path) else { return }
 
         guard let raw = try? String(contentsOf: configTomlPath, encoding: .utf8) else {
             throw InstallError.invalidConfigToml
@@ -278,14 +280,21 @@ enum CodexPluginInstaller {
         }
     }
 
-    /// TOML feature-flag patching. See `CodexConfigToml.patchEnableCodexHooks`.
+    /// TOML feature-flag patching. See `CodexConfigToml.patchEnableHooks`.
     static func patchConfigToml(_ input: String) -> String {
-        CodexConfigToml.patchEnableCodexHooks(input)
+        CodexConfigToml.patchEnableHooks(input)
     }
 
-    /// See `CodexConfigToml.isCodexHooksEnabled`.
+    /// See `CodexConfigToml.isHooksEnabled`.
     static func isFeatureFlagEnabled(_ input: String) -> Bool {
-        CodexConfigToml.isCodexHooksEnabled(input)
+        CodexConfigToml.isHooksEnabled(input)
+    }
+
+    /// True if config.toml still contains the deprecated `[features].codex_hooks`
+    /// line. Used to drive the "Update Available" UI for installs that predate
+    /// the rename.
+    static func configTomlHasLegacyKey(_ input: String) -> Bool {
+        CodexConfigToml.hasLegacyKey(input)
     }
 
     // MARK: - Errors
