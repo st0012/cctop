@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// First-run / no-sessions view. Shows a small branded hero, an install card
-/// listing every detected agent with its identity color and current state,
-/// and a discovery footer for any supported agents not detected on this
-/// machine.
+/// First-run / no-sessions view. Shows a small branded hero and a single
+/// install card that always lists every supported agent — Claude Code,
+/// opencode, pi, Codex CLI — with its identity color and current state.
+/// Agents not detected on this machine render with a muted "Not detected"
+/// trailing label so users always see the full set of supported tools.
 struct EmptyStateView: View {
     @ObservedObject var pluginManager: PluginManager
     @State private var justInstalled: Set<AgentKind> = []
-    @State private var installFailed = false
+    @State private var failedAgent: AgentKind?
     @State private var showCodexFlagAlert = false
     private static let codexFlagWarning =
         "Codex CLI requires the codex_hooks feature flag, which is "
@@ -18,9 +19,6 @@ struct EmptyStateView: View {
             heroMark
             heroCopy
             agentCard
-            if !undetectedAgents.isEmpty {
-                alsoWorksFooter
-            }
             if anyUninstalled {
                 restartHint
             }
@@ -81,7 +79,7 @@ struct EmptyStateView: View {
 
     private var agentCard: some View {
         VStack(spacing: 0) {
-            ForEach(Array(detectedAgents.enumerated()), id: \.element) { index, agent in
+            ForEach(Array(AgentKind.allCases.enumerated()), id: \.element) { index, agent in
                 if index > 0 {
                     Divider().padding(.horizontal, 0)
                 }
@@ -97,14 +95,16 @@ struct EmptyStateView: View {
     }
 
     private func agentRow(_ agent: AgentKind) -> some View {
-        VStack(spacing: 0) {
+        let detected = isDetected(agent)
+        return VStack(spacing: 0) {
             HStack(spacing: 10) {
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(agent.accentColor)
                     .frame(width: 3, height: 18)
+                    .opacity(detected ? 1.0 : 0.45)
                 Text(agent.displayName)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.textPrimary)
+                    .foregroundStyle(detected ? Color.textPrimary : Color.textMuted)
                 Spacer()
                 trailingControl(for: agent)
             }
@@ -113,6 +113,8 @@ struct EmptyStateView: View {
 
             if justInstalled.contains(agent) {
                 installedHint(for: agent)
+            } else if failedAgent == agent {
+                failedHint
             }
         }
     }
@@ -121,6 +123,8 @@ struct EmptyStateView: View {
     private func trailingControl(for agent: AgentKind) -> some View {
         if justInstalled.contains(agent) {
             EmptyView()
+        } else if !isDetected(agent) {
+            notDetectedBadge
         } else if isInstalled(agent) {
             if needsUpdate(agent) {
                 installButton(label: "Update", agent: agent)
@@ -132,6 +136,12 @@ struct EmptyStateView: View {
         } else {
             installButton(label: "Install", agent: agent)
         }
+    }
+
+    private var notDetectedBadge: some View {
+        Text("Not detected")
+            .font(.system(size: 10))
+            .foregroundStyle(Color.textMuted)
     }
 
     private var connectedBadge: some View {
@@ -173,29 +183,19 @@ struct EmptyStateView: View {
         .transition(.opacity)
     }
 
-    // MARK: - Also works with
-
-    private var alsoWorksFooter: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Also works with")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.textMuted)
-                .textCase(.uppercase)
-                .tracking(0.8)
-            HStack(spacing: 12) {
-                ForEach(undetectedAgents, id: \.self) { agent in
-                    HStack(spacing: 5) {
-                        Circle().fill(agent.accentColor).frame(width: 6, height: 6)
-                        Text(agent.displayName)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.textSecondary)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
+    private var failedHint: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 9))
+                .foregroundStyle(Color.amber)
+            Text("Install failed \u{2014} check file permissions and try again")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.amber)
+            Spacer()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+        .transition(.opacity)
     }
 
     // MARK: - Restart hint
@@ -243,34 +243,28 @@ struct EmptyStateView: View {
     private func handleInstallResult(agent: AgentKind, success: Bool) {
         if success {
             justInstalled.insert(agent)
-            installFailed = false
+            failedAgent = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 justInstalled.remove(agent)
             }
         } else {
-            installFailed = true
+            failedAgent = agent
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                installFailed = false
+                if failedAgent == agent { failedAgent = nil }
             }
         }
     }
 
     // MARK: - Derived state
 
-    private var detectedAgents: [AgentKind] {
-        AgentKind.allCases.filter { isDetected($0) }
-    }
-
-    private var undetectedAgents: [AgentKind] {
-        AgentKind.allCases.filter { !isDetected($0) }
-    }
-
     private var anyUninstalled: Bool {
-        detectedAgents.contains { !isInstalled($0) || needsUpdate($0) }
+        AgentKind.allCases.contains {
+            isDetected($0) && (!isInstalled($0) || needsUpdate($0))
+        }
     }
 
     private var allConnected: Bool {
-        !detectedAgents.contains { !isInstalled($0) || needsUpdate($0) }
+        !anyUninstalled
     }
 
     private func isDetected(_ agent: AgentKind) -> Bool {

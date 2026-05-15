@@ -25,10 +25,10 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-navigate.png")
     }
 
-    /// Renders the EmptyStateView in its first-run "nothing installed" form
-    /// (only Claude Code as the installable card, opencode/pi/Codex CLI surfaced
-    /// in the muted "Also works with" footer) for use in the README and marketing
-    /// site. This is the cleanest onboarding pitch — one CTA, three discovery dots.
+    /// Renders the EmptyStateView in its first-run "nothing installed yet" form
+    /// — all four supported agents (Claude Code, opencode, pi, Codex CLI) detected
+    /// on the machine with their respective install CTAs — for use in the README
+    /// and marketing site. Shows the full breadth of agent support in one shot.
     ///
     /// Run with:
     ///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
@@ -38,12 +38,12 @@ final class SnapshotTests: XCTestCase {
         let pm = PluginManager()
         pm.ccInstalled = false
         pm.ocInstalled = false
-        pm.ocConfigExists = false
+        pm.ocConfigExists = true
         pm.ocNeedsUpdate = false
         pm.piInstalled = false
-        pm.piConfigExists = false
+        pm.piConfigExists = true
         pm.codexInstalled = false
-        pm.codexConfigExists = false
+        pm.codexConfigExists = true
         pm.codexNeedsUpdate = false
         let view = EmptyStateView(pluginManager: pm)
         try renderScreenshot(view: view, colorScheme: .light, filename: "empty-state-light.png")
