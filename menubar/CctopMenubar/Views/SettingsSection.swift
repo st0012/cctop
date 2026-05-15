@@ -439,7 +439,7 @@ private struct CodexPluginRowView: View {
     }
 }
 
-private struct ConnectedBadge: View {
+struct ConnectedBadge: View {
     var body: some View { HStack(spacing: 4) {
         Circle().fill(Color.statusGreen).frame(width: 5, height: 5)
         Text("Connected").font(.system(size: 10)).foregroundStyle(Color.textMuted)

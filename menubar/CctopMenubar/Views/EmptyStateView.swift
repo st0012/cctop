@@ -125,12 +125,10 @@ struct EmptyStateView: View {
             EmptyView()
         } else if !isDetected(agent) {
             notDetectedBadge
+        } else if needsUpdate(agent) {
+            installButton(label: "Update", agent: agent)
         } else if isInstalled(agent) {
-            if needsUpdate(agent) {
-                installButton(label: "Update", agent: agent)
-            } else {
-                connectedBadge
-            }
+            ConnectedBadge()
         } else if agent == .claudeCode {
             ClaudeCodeInstallButton()
         } else {
@@ -142,15 +140,6 @@ struct EmptyStateView: View {
         Text("Not detected")
             .font(.system(size: 10))
             .foregroundStyle(Color.textMuted)
-    }
-
-    private var connectedBadge: some View {
-        HStack(spacing: 5) {
-            Circle().fill(Color.statusGreen).frame(width: 5, height: 5)
-            Text("Connected")
-                .font(.system(size: 10))
-                .foregroundStyle(Color.textMuted)
-        }
     }
 
     private func installButton(label: String, agent: AgentKind) -> some View {
@@ -169,28 +158,35 @@ struct EmptyStateView: View {
     }
 
     private func installedHint(for agent: AgentKind) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Color.statusGreen)
-            Text("Installed \u{2014} restart \(agent.displayName) to start tracking")
-                .font(.system(size: 10))
-                .foregroundStyle(Color.textMuted)
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
-        .transition(.opacity)
+        hintRow(
+            icon: "checkmark",
+            iconColor: Color.statusGreen,
+            text: "Installed \u{2014} restart \(agent.displayName) to start tracking",
+            textColor: Color.textMuted,
+            iconWeight: .bold
+        )
     }
 
     private var failedHint: some View {
+        hintRow(
+            icon: "exclamationmark.triangle.fill",
+            iconColor: Color.amber,
+            text: "Install failed \u{2014} check file permissions and try again",
+            textColor: Color.amber
+        )
+    }
+
+    private func hintRow(
+        icon: String, iconColor: Color, text: String, textColor: Color,
+        iconWeight: Font.Weight = .regular
+    ) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 9))
-                .foregroundStyle(Color.amber)
-            Text("Install failed \u{2014} check file permissions and try again")
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: iconWeight))
+                .foregroundStyle(iconColor)
+            Text(text)
                 .font(.system(size: 10))
-                .foregroundStyle(Color.amber)
+                .foregroundStyle(textColor)
             Spacer()
         }
         .padding(.horizontal, 12)
