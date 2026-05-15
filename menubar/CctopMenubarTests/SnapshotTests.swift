@@ -25,6 +25,31 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-navigate.png")
     }
 
+    /// Renders the EmptyStateView showcase (Claude Code + opencode + pi connected,
+    /// Codex CLI pending install) in light + dark for use in the README and marketing
+    /// site. The mixed state shows both `Connected` pills and the `Install` button so
+    /// every visual treatment is exercised in a single shot.
+    ///
+    /// Run with:
+    ///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
+    ///     -only-testing:CctopMenubarTests/SnapshotTests/testGenerateEmptyStateScreenshot \
+    ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+    func testGenerateEmptyStateScreenshot() throws {
+        let pm = PluginManager()
+        pm.ccInstalled = true
+        pm.ocInstalled = true
+        pm.ocConfigExists = true
+        pm.ocNeedsUpdate = false
+        pm.piInstalled = true
+        pm.piConfigExists = true
+        pm.codexInstalled = false
+        pm.codexConfigExists = true
+        pm.codexNeedsUpdate = false
+        let view = EmptyStateView(pluginManager: pm)
+        try renderScreenshot(view: view, colorScheme: .light, filename: "empty-state-light.png")
+        try renderScreenshot(view: view, colorScheme: .dark, filename: "empty-state-dark.png")
+    }
+
     func testGenerateRecentProjectsScreenshot() throws {
         let view = PopupView(
             sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
