@@ -274,14 +274,6 @@ private struct MonitoredToolsView: View {
         }
         .padding(.horizontal, 14).padding(.bottom, 8)
     }
-    private func toolStatusRow(name: String, installed: Bool) -> some View {
-        HStack(spacing: 8) {
-            Text(name).font(.system(size: 11, weight: .medium)).foregroundStyle(Color.textPrimary)
-            Spacer()
-            if installed { ConnectedBadge()
-            } else { Text("Not installed").font(.system(size: 10)).foregroundStyle(Color.textMuted) }
-        }.padding(.vertical, 7)
-    }
 }
 
 private struct PluginRowView: View {
@@ -369,10 +361,7 @@ private struct ClaudeCodePluginRowView: View {
 
     private var copyButton: some View {
         Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(
-                PluginManager.ccInstallCommand, forType: .string
-            )
+            NSPasteboard.copyToClipboard(PluginManager.ccInstallCommand)
             justCopied = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 justCopied = false

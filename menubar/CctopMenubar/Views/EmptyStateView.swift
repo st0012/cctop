@@ -188,8 +188,7 @@ struct EmptyStateView: View {
             Spacer(minLength: 0)
 
             Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(command, forType: .string)
+                NSPasteboard.copyToClipboard(command)
                 copied = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     copied = false

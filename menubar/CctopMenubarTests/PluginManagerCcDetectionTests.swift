@@ -1,7 +1,6 @@
 import XCTest
 @testable import CctopMenubar
 
-@MainActor
 final class PluginManagerCcDetectionTests: XCTestCase {
 
     func testReturnsFalseWhenCacheDirMissing() {
@@ -9,7 +8,7 @@ final class PluginManagerCcDetectionTests: XCTestCase {
         XCTAssertFalse(PluginManager.hasActiveClaudeCodePluginVersion(in: dir))
     }
 
-    func testReturnsFalseWhenCacheDirEmpty() throws {
+    func testReturnsFalseWhenCacheDirEmpty() {
         let dir = makeTempDir()
         XCTAssertFalse(PluginManager.hasActiveClaudeCodePluginVersion(in: dir))
     }
@@ -59,18 +58,15 @@ final class PluginManagerCcDetectionTests: XCTestCase {
             at: versionDir, withIntermediateDirectories: true
         )
         if manifest {
-            let claudePluginDir = versionDir.appendingPathComponent(".claude-plugin")
+            let manifestURL = versionDir.appendingPathComponent(PluginManager.ccPluginManifestPath)
             try FileManager.default.createDirectory(
-                at: claudePluginDir, withIntermediateDirectories: true
+                at: manifestURL.deletingLastPathComponent(), withIntermediateDirectories: true
             )
-            try "{}".write(
-                to: claudePluginDir.appendingPathComponent("plugin.json"),
-                atomically: true, encoding: .utf8
-            )
+            try "{}".write(to: manifestURL, atomically: true, encoding: .utf8)
         }
         if orphaned {
             try "2026-05-15T00:00:00Z".write(
-                to: versionDir.appendingPathComponent(".orphaned_at"),
+                to: versionDir.appendingPathComponent(PluginManager.ccOrphanedMarker),
                 atomically: true, encoding: .utf8
             )
         }
