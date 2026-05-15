@@ -25,10 +25,10 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-navigate.png")
     }
 
-    /// Renders the EmptyStateView showcase (Claude Code + opencode + pi connected,
-    /// Codex CLI pending install) in light + dark for use in the README and marketing
-    /// site. The mixed state shows both `Connected` pills and the `Install` button so
-    /// every visual treatment is exercised in a single shot.
+    /// Renders the EmptyStateView in its first-run "nothing installed" form
+    /// (only Claude Code as the installable card, opencode/pi/Codex CLI surfaced
+    /// in the muted "Also works with" footer) for use in the README and marketing
+    /// site. This is the cleanest onboarding pitch — one CTA, three discovery dots.
     ///
     /// Run with:
     ///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
@@ -36,14 +36,14 @@ final class SnapshotTests: XCTestCase {
     ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
     func testGenerateEmptyStateScreenshot() throws {
         let pm = PluginManager()
-        pm.ccInstalled = true
-        pm.ocInstalled = true
-        pm.ocConfigExists = true
+        pm.ccInstalled = false
+        pm.ocInstalled = false
+        pm.ocConfigExists = false
         pm.ocNeedsUpdate = false
-        pm.piInstalled = true
-        pm.piConfigExists = true
+        pm.piInstalled = false
+        pm.piConfigExists = false
         pm.codexInstalled = false
-        pm.codexConfigExists = true
+        pm.codexConfigExists = false
         pm.codexNeedsUpdate = false
         let view = EmptyStateView(pluginManager: pm)
         try renderScreenshot(view: view, colorScheme: .light, filename: "empty-state-light.png")
