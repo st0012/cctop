@@ -34,6 +34,7 @@
 		FX0000010000000000000001 /* HookInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FX0000020000000000000001 /* HookInputTests.swift */; };
 		CPT000010000000000000001 /* CodexPluginInstallerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPT000020000000000000001 /* CodexPluginInstallerTests.swift */; };
 		CPTOML010000000000000001 /* CodexPluginTomlTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPTOML020000000000000001 /* CodexPluginTomlTests.swift */; };
+		PMCCD0010000000000000001 /* PluginManagerCcDetectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PMCCD0020000000000000001 /* PluginManagerCcDetectionTests.swift */; };
 		FX0000030000000000000001 /* HookInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000040000000000000001 /* HookInput.swift */; };
 		HH0000010000000000000001 /* HookHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HH0000020000000000000001 /* HookHandlerTests.swift */; };
 		HH0000030000000000000001 /* HookHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000060000000000000001 /* HookHandler.swift */; };
@@ -133,6 +134,7 @@
 		FX0000020000000000000001 /* HookInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookInputTests.swift; sourceTree = "<group>"; };
 		CPT000020000000000000001 /* CodexPluginInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPluginInstallerTests.swift; sourceTree = "<group>"; };
 		CPTOML020000000000000001 /* CodexPluginTomlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPluginTomlTests.swift; sourceTree = "<group>"; };
+		PMCCD0020000000000000001 /* PluginManagerCcDetectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManagerCcDetectionTests.swift; sourceTree = "<group>"; };
 		HH0000020000000000000001 /* HookHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandlerTests.swift; sourceTree = "<group>"; };
 		HT0000020000000000000001 /* HookEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventTests.swift; sourceTree = "<group>"; };
 		J10000020000000000000001 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
@@ -346,6 +348,7 @@
 				FX0000020000000000000001 /* HookInputTests.swift */,
 				CPT000020000000000000001 /* CodexPluginInstallerTests.swift */,
 				CPTOML020000000000000001 /* CodexPluginTomlTests.swift */,
+				PMCCD0020000000000000001 /* PluginManagerCcDetectionTests.swift */,
 				HH0000020000000000000001 /* HookHandlerTests.swift */,
 				SN0000040000000000000001 /* SessionNameLookupTests.swift */,
 				FK0000020000000000000001 /* ForkSessionTests.swift */,
@@ -563,6 +566,7 @@
 				FX0000010000000000000001 /* HookInputTests.swift in Sources */,
 				CPT000010000000000000001 /* CodexPluginInstallerTests.swift in Sources */,
 				CPTOML010000000000000001 /* CodexPluginTomlTests.swift in Sources */,
+				PMCCD0010000000000000001 /* PluginManagerCcDetectionTests.swift in Sources */,
 				HH0000010000000000000001 /* HookHandlerTests.swift in Sources */,
 				SN0000030000000000000001 /* SessionNameLookupTests.swift in Sources */,
 				FK0000010000000000000001 /* ForkSessionTests.swift in Sources */,

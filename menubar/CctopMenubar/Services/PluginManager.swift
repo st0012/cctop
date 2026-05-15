@@ -26,6 +26,9 @@ class PluginManager: ObservableObject {
     private static let piPluginPath = home.appendingPathComponent(
         ".pi/agent/extensions/cctop.ts"
     )
+    private static let ccPluginCacheDir = home.appendingPathComponent(
+        ".claude/plugins/cache/cctop/cctop"
+    )
 
     init() {
         refresh()
@@ -35,10 +38,7 @@ class PluginManager: ObservableObject {
         let fm = FileManager.default
         let home = Self.home
 
-        let ccDir = home.appendingPathComponent(".claude/plugins/cache/cctop")
-        var isDir: ObjCBool = false
-        ccInstalled = fm.fileExists(atPath: ccDir.path, isDirectory: &isDir)
-            && isDir.boolValue
+        ccInstalled = Self.hasActiveClaudeCodePluginVersion(in: Self.ccPluginCacheDir)
 
         let ocConfigDir = home.appendingPathComponent(".config/opencode")
         ocConfigExists = fm.fileExists(atPath: ocConfigDir.path)
@@ -58,6 +58,25 @@ class PluginManager: ObservableObject {
             codexFlagAlreadyEnabled = CodexPluginInstaller.isFeatureFlagEnabled(text)
         } else {
             codexFlagAlreadyEnabled = false
+        }
+    }
+
+    /// Returns true if `baseDir` contains at least one version subdirectory that has a plugin
+    /// manifest and is not marked orphaned by Claude Code. The cache layout is
+    /// `<marketplace>/<plugin>/<version>/`, where each version dir may contain a `.orphaned_at`
+    /// marker after uninstall. Treating the marketplace cache dir alone as the install signal
+    /// causes false positives when only orphaned versions remain.
+    static func hasActiveClaudeCodePluginVersion(in baseDir: URL) -> Bool {
+        let fm = FileManager.default
+        guard let versions = try? fm.contentsOfDirectory(atPath: baseDir.path) else {
+            return false
+        }
+        return versions.contains { version in
+            let versionDir = baseDir.appendingPathComponent(version)
+            let orphaned = versionDir.appendingPathComponent(".orphaned_at")
+            let manifest = versionDir.appendingPathComponent(".claude-plugin/plugin.json")
+            return !fm.fileExists(atPath: orphaned.path)
+                && fm.fileExists(atPath: manifest.path)
         }
     }
 
