@@ -1,142 +1,138 @@
 import SwiftUI
 
-extension Session {
-    var sourceBadgeColor: Color {
-        switch source {
-        case "opencode": return .opencodeBadge
-        case "pi": return .piBadge
-        case "codex": return .codexBadge
-        default: return .amber
-        }
-    }
-}
-
 struct SessionCardView: View {
     let session: Session
-    /// 1-based index for navigate mode (1-9). nil = normal mode (show accent bar).
+    /// 1-based index for navigate mode (1-9). nil = normal mode.
     var navigateIndex: Int?
     var showSourceBadge = false
     var isSelected = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
-    @State private var pulsing = false
+    @State private var attentionPulse = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            // Left accent bar
-            accentBar
-                .accessibilityHidden(true)
-
-            // Content
-            VStack(alignment: .leading, spacing: 2) {
-                // Row 1: project name + badges
-                HStack(spacing: 6) {
-                    Text(session.projectName)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(
-                            session.status == .idle
-                                ? Color.textDimmed : Color.textPrimary
-                        )
-
-                    if session.subagentCount > 0 {
-                        let count = session.subagentCount
-                        Text("\(count) agent\(count == 1 ? "" : "s")")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.agentBadge)
-                    }
-
-                    if showSourceBadge {
-                        Text(session.sourceLabel)
-                            .font(.system(size: 9))
-                            .foregroundStyle(session.sourceBadgeColor)
-                    }
-
-                    Spacer()
-                }
-
-                // Row 2: branch / context
-                HStack(spacing: 5) {
-                    Text(session.branch)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(Color.textSecondary)
-                        .lineLimit(1)
-
-                    if let name = session.sessionName {
-                        Text("/")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.textMuted.opacity(0.6))
-                        Text(name)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.textSecondary)
-                            .lineLimit(1)
-                    } else if let context = session.contextLine {
-                        Text("/")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.textMuted.opacity(0.6))
-                        Text(context)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Color.textSecondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            // Right: status + time
-            VStack(alignment: .trailing, spacing: 1) {
-                statusLabel
-                TimelineView(.periodic(from: .now, by: 10)) { _ in
-                    Text(session.relativeTime)
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.textMuted)
-                }
-            }
+        VStack(alignment: .leading, spacing: 3) {
+            titleRow
+            metaRow
+            thirdRowContent
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .cardSelectionStyle(
             isSelected: isSelected, isHovered: isHovered, cornerRadius: 0
         )
+        .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(cardAccessibilityLabel)
-        .onAppear { updatePulsing(for: session.status) }
-        .onChange(of: session.status) { updatePulsing(for: $0) }
+        .onAppear { startAttentionPulseIfNeeded() }
+        .onChange(of: session.status) { _ in startAttentionPulseIfNeeded() }
+    }
+
+    // MARK: - Rows
+
+    private var titleRow: some View {
+        HStack(spacing: 8) {
+            if let idx = navigateIndex, idx <= 9 {
+                navigateChip(idx)
+            }
+            Text(session.displayName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(
+                    session.status == .idle ? Color.textSecondary : Color.textPrimary
+                )
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if session.subagentCount > 0 {
+                let count = session.subagentCount
+                Text("\(count) agent\(count == 1 ? "" : "s")")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.agentBadge)
+            }
+
+            statusLabel
+
+            Text("· \(session.relativeTime)")
+                .font(.system(size: 10))
+                .foregroundStyle(timeColor)
+        }
+    }
+
+    private var metaRow: some View {
+        HStack(spacing: 5) {
+            // Folder shown only when displayName != projectName (i.e. sessionName is set).
+            if session.sessionName != nil {
+                Text(session.projectName)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
+                Text("·")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted.opacity(0.6))
+            }
+            Text(session.branch)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Color.textMuted)
+                .lineLimit(1)
+            if showSourceBadge {
+                Text("·")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted.opacity(0.6))
+                SourceBadgeView(badge: session.agentBadge)
+            }
+            Spacer(minLength: 0)
+        }
     }
 
     @ViewBuilder
-    private var accentBar: some View {
-        if let idx = navigateIndex, idx <= 9 {
-            ZStack {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(session.status.color)
-                    .frame(width: 16, height: 16)
-                Text("\(idx)")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
+    private var thirdRowContent: some View {
+        if let cmd = workingCommandText {
+            HStack(spacing: 0) {
+                Text("› ")
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(Color.statusGreen.opacity(0.7))
+                Text(cmd)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if session.status == .working {
+                    BlinkingCaret().padding(.leading, 3)
+                }
+                Spacer(minLength: 0)
             }
-            .accessibilityLabel("Press \(idx) to jump")
-        } else {
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(session.status.color.opacity(accentOpacity))
-                .frame(width: 3)
-                .opacity(
-                    session.status.needsAttention && !pulsing ? 0.6 : 1.0
-                )
+            .padding(.top, 3)
+        } else if let note = attentionNoteText {
+            Text(note)
+                .font(.system(size: 11))
+                .italic()
+                .foregroundStyle(Color.statusAttention)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.top, 3)
         }
     }
 
-    private var accentOpacity: Double {
-        switch session.status {
-        case .waitingPermission, .waitingInput, .needsAttention: return 1.0
-        case .working, .compacting: return 0.4
-        case .idle: return 0.1
-        }
-    }
+    // MARK: - Status label
 
     private var statusLabel: some View {
         Text(statusLabelText)
-            .font(.system(size: 10, weight: .medium))
+            .font(.system(size: 10.5, weight: statusLabelWeight))
             .foregroundStyle(statusLabelColor)
+            .padding(.horizontal, isAttentionStatus ? 6 : 0)
+            .padding(.vertical, isAttentionStatus ? 1.5 : 0)
+            .background(
+                Group {
+                    if isAttentionStatus {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Color.statusAttention.opacity(attentionPulse ? 0.22 : 0.10))
+                    }
+                }
+            )
     }
 
     private var statusLabelText: String {
@@ -149,13 +145,72 @@ struct SessionCardView: View {
         }
     }
 
+    private var statusLabelWeight: Font.Weight {
+        switch session.status {
+        case .working, .waitingInput, .needsAttention, .waitingPermission: return .semibold
+        case .compacting, .idle: return .medium
+        }
+    }
+
     private var statusLabelColor: Color {
         switch session.status {
         case .waitingPermission: return Color.statusPermission
         case .waitingInput, .needsAttention: return Color.statusAttention
-        case .working, .compacting: return Color.textSecondary
+        case .working: return Color.statusGreen
+        case .compacting: return Color.textSecondary
         case .idle: return Color.textMuted
         }
+    }
+
+    private var isAttentionStatus: Bool {
+        switch session.status {
+        case .waitingInput, .needsAttention, .waitingPermission: return true
+        default: return false
+        }
+    }
+
+    // MARK: - Navigate chip
+
+    @ViewBuilder
+    private func navigateChip(_ idx: Int) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(session.status.color)
+                .frame(width: 16, height: 16)
+            Text("\(idx)")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.white)
+        }
+        .accessibilityLabel("Press \(idx) to jump")
+    }
+
+    // MARK: - Computed copy
+
+    /// Text for the third row when the session is working/compacting — the command stripe.
+    /// Reuses `Session.contextLine` formatting (Reading X.swift, Running: foo, etc.).
+    private var workingCommandText: String? {
+        guard session.status == .working || session.status == .compacting else { return nil }
+        return session.contextLine
+    }
+
+    /// Italic warm note for waiting/permission/needs-attention states.
+    private var attentionNoteText: String? {
+        switch session.status {
+        case .waitingPermission:
+            return session.notificationMessage ?? "Permission needed"
+        case .waitingInput, .needsAttention:
+            return session.contextLine ?? "Waiting for input"
+        default:
+            return nil
+        }
+    }
+
+    private var timeColor: Color {
+        // "just now" → accent (fresh); stale (>7d) → dimmer; otherwise muted.
+        let seconds = -session.lastActivity.timeIntervalSinceNow
+        if seconds <= 5 { return Color.statusGreen }
+        if seconds > 7 * 86_400 { return Color.textMuted.opacity(0.55) }
+        return Color.textMuted
     }
 
     private var cardAccessibilityLabel: String {
@@ -164,8 +219,8 @@ struct SessionCardView: View {
             parts.append("Press \(idx) to jump to")
         }
         parts += [
-            session.projectName, "on branch", session.branch,
-            session.status.accessibilityDescription,
+            session.displayName, "on branch", session.branch,
+            session.status.accessibilityDescription
         ]
         if session.subagentCount > 0 {
             parts.append(
@@ -178,136 +233,115 @@ struct SessionCardView: View {
         return parts.joined(separator: ", ")
     }
 
-    private func updatePulsing(for status: SessionStatus) {
-        if status.needsAttention {
-            withAnimation(
-                .easeInOut(duration: 1.5).repeatForever(autoreverses: true)
-            ) {
-                pulsing = true
-            }
-        } else {
-            withAnimation(.default) { pulsing = false }
+    // MARK: - Animations
+
+    private func startAttentionPulseIfNeeded() {
+        guard isAttentionStatus, !reduceMotion else {
+            attentionPulse = false
+            return
+        }
+        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+            attentionPulse = true
         }
     }
 }
 
-#Preview("Working") {
+// MARK: - Previews
+
+#Preview("Working — CC") {
     SessionCardView(
         session: .mock(
+            sessionName: "Review RDoc pull request",
+            status: .working, lastTool: "Read",
+            lastToolDetail: "/src/SessionCardView.swift",
+            source: "cc"
+        ),
+        showSourceBadge: true
+    )
+    .frame(width: 340).padding()
+}
+
+#Preview("Working — Claude Desktop") {
+    SessionCardView(
+        session: .mock(
+            sessionName: "Verify Ruby master build",
             status: .working, lastTool: "Bash",
-            lastToolDetail: "cargo test"
-        )
-    )
-    .frame(width: 300).padding()
-}
-#Preview("Permission") {
-    SessionCardView(
-        session: .mock(
-            status: .waitingPermission,
-            notificationMessage: "Allow Bash: rm -rf"
-        )
-    )
-    .frame(width: 300).padding()
-}
-#Preview("Idle") {
-    SessionCardView(session: .mock(status: .idle))
-        .frame(width: 300).padding()
-}
-#Preview("Compacting") {
-    SessionCardView(session: .mock(status: .compacting))
-        .frame(width: 300).padding()
-}
-#Preview("Named Session") {
-    SessionCardView(
-        session: .mock(
-            sessionName: "refactor auth flow", status: .working,
-            lastTool: "Edit", lastToolDetail: "/src/auth.ts"
-        )
-    )
-    .frame(width: 300).padding()
-}
-#Preview("Source Badge CC") {
-    SessionCardView(
-        session: .mock(
-            status: .working, lastTool: "Edit",
-            lastToolDetail: "/src/main.rs"
+            lastToolDetail: "cd build && source /opt/homebrew/share/chruby/chruby.sh",
+            terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
+            source: nil
         ),
         showSourceBadge: true
     )
-    .frame(width: 300).padding()
+    .frame(width: 340).padding()
 }
-#Preview("Source Badge OC") {
+
+#Preview("Waiting — Permission") {
     SessionCardView(
         session: .mock(
-            status: .working, lastTool: "bash",
-            lastToolDetail: "go test ./...", source: "opencode"
+            sessionName: "Verify migration safety",
+            status: .waitingPermission,
+            notificationMessage: "Allow Bash: rm -rf node_modules",
+            source: "cc"
         ),
         showSourceBadge: true
     )
-    .frame(width: 300).padding()
+    .frame(width: 340).padding()
 }
-#Preview("Navigate Badge") {
+
+#Preview("Idle — Codex Desktop") {
     SessionCardView(
         session: .mock(
-            status: .working, lastTool: "Edit",
-            lastToolDetail: "/src/auth.ts"
+            sessionName: "Investigate tanstack incident",
+            status: .idle,
+            terminal: TerminalInfo(bundleId: "com.openai.codex"),
+            source: "codex"
         ),
-        navigateIndex: 3
+        showSourceBadge: true
     )
-    .frame(width: 300).padding()
+    .frame(width: 340).padding()
 }
-#Preview("Navigate Attention") {
+
+#Preview("Idle — no session name") {
     SessionCardView(
         session: .mock(
-            status: .waitingPermission,
-            notificationMessage: "Allow Bash: rm -rf"
+            project: "relaxed-gauss-e8a8ec",
+            branch: "claude/relaxed-gauss-e8a8ec",
+            status: .idle,
+            source: "cc"
         ),
-        navigateIndex: 1
+        showSourceBadge: true
     )
-    .frame(width: 300).padding()
+    .frame(width: 340).padding()
 }
-#Preview("Navigate 10+") {
-    SessionCardView(
-        session: .mock(status: .idle),
-        navigateIndex: 10
-    )
-    .frame(width: 300).padding()
-}
-#Preview("1 Subagent") {
+
+#Preview("Navigate badge") {
     SessionCardView(
         session: .mock(
+            sessionName: "Review RDoc pull request",
             status: .working, lastTool: "Edit",
-            lastToolDetail: "/src/main.rs",
-            activeSubagents: [
-                SubagentInfo(
-                    agentId: "a1", agentType: "Explore",
-                    startedAt: Date()
-                )
-            ]
-        )
+            lastToolDetail: "/src/auth.ts",
+            source: "cc"
+        ),
+        navigateIndex: 3,
+        showSourceBadge: true
     )
-    .frame(width: 300).padding()
+    .frame(width: 340).padding()
 }
-#Preview("3 Subagents") {
+
+#Preview("3 subagents") {
     SessionCardView(
         session: .mock(
+            sessionName: "Refactor auth flow",
             status: .working, lastTool: "Agent",
             lastToolDetail: "Research API endpoints",
+            source: "cc",
             activeSubagents: [
-                SubagentInfo(
-                    agentId: "a1", agentType: "Explore",
-                    startedAt: Date()
-                ),
-                SubagentInfo(
-                    agentId: "a2", agentType: "Explore",
-                    startedAt: Date()
-                ),
-                SubagentInfo(
-                    agentId: "a3", agentType: "Plan",
-                    startedAt: Date()
-                ),
+                SubagentInfo(agentId: "a1", agentType: "Explore", startedAt: Date()),
+                SubagentInfo(agentId: "a2", agentType: "Explore", startedAt: Date()),
+                SubagentInfo(agentId: "a3", agentType: "Plan", startedAt: Date())
             ]
-        )
+        ),
+        showSourceBadge: true
     )
-    .frame(width: 300).padding()
+    .frame(width: 340).padding()
 }
