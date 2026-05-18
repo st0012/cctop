@@ -136,32 +136,58 @@ extension Session {
         .mock(id: "1", project: "solo-project", branch: "main", status: .working, lastTool: "Task", lastToolDetail: "Running tests"),
     ]
 
-    /// Showcase sessions for README screenshots — diverse projects, mixed sources.
-    static let qaShowcase: [Session] = [
-        .mock(id: "1", project: "cctop", branch: "main",
-              status: .waitingPermission,
-              notificationMessage: "Allow Bash: npm test"),
-        .mock(id: "2", project: "my-app", branch: "feature/auth",
-              sessionName: "refactor auth flow",
-              status: .working, lastTool: "Edit",
-              lastToolDetail: "/src/auth.ts",
-              activeSubagents: [
-                  SubagentInfo(agentId: "a1", agentType: "Explore", startedAt: Date()),
-                  SubagentInfo(agentId: "a2", agentType: "Explore", startedAt: Date()),
-                  SubagentInfo(agentId: "a3", agentType: "Plan", startedAt: Date()),
-              ]),
-        .mock(id: "3", project: "api-server", branch: "fix/timeout",
-              status: .working, lastTool: "bash",
-              lastToolDetail: "go test ./...",
-              source: "opencode"),
-        .mock(id: "4", project: "web-app", branch: "main",
-              status: .waitingInput,
-              lastPrompt: "Should I also update the retry logic?",
-              source: "opencode"),
-        .mock(id: "5", project: "terraform-infra", branch: "main",
-              status: .working, lastTool: "Bash",
-              lastToolDetail: "terraform plan -out=tfplan",
-              source: "codex"),
-        .mock(id: "6", project: "docs", branch: "main", status: .idle),
-    ]
+    /// Showcase sessions for README screenshots — diverse projects, mixed sources,
+    /// covers all 4 distinct agent badge variants (CC, Claude Desktop, Codex, Codex Desktop).
+    static let qaShowcase: [Session] = {
+        var s1 = mock(
+            id: "1", project: "cctop", branch: "main",
+            sessionName: "Review RDoc pull request",
+            status: .working, lastTool: "Read",
+            lastToolDetail: "/src/SessionCardView.swift",
+            source: "cc"
+        )
+        // s1.lastActivity is Date() → "just now"
+
+        var s2 = mock(
+            id: "2", project: "billing-service", branch: "feat/zero-downtime-migration",
+            sessionName: "Verify migration safety",
+            status: .waitingInput,
+            lastPrompt: "Claude is waiting for your input",
+            notificationMessage: "Claude is waiting for your input",
+            source: "cc"
+        )
+        s2.lastActivity = Date().addingTimeInterval(-180) // "3m ago"
+
+        var s3 = mock(
+            id: "3", project: "dazzling-dirac-0ac413", branch: "unknown",
+            sessionName: "Verify Ruby master build",
+            status: .working, lastTool: "Bash",
+            lastToolDetail: "cd build && source /opt/homebrew/share/chruby/chruby.sh",
+            terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
+            source: nil
+        )
+        s3.lastActivity = Date().addingTimeInterval(-345_600) // "4d ago"
+
+        var s4 = mock(
+            id: "4", project: "goal-there-s-a-tanstack-security", branch: "main",
+            sessionName: "Investigate tanstack incident",
+            status: .idle,
+            terminal: TerminalInfo(bundleId: "com.openai.codex"),
+            source: "codex"
+        )
+        s4.lastActivity = Date().addingTimeInterval(-86_400) // "1d ago"
+
+        var s5 = mock(
+            id: "5", project: "terraform-infra", branch: "main",
+            status: .working, lastTool: "Bash",
+            lastToolDetail: "terraform plan -out=tfplan",
+            source: "codex"
+        )
+        s5.lastActivity = Date().addingTimeInterval(-30) // "30s ago"
+
+        var s6 = mock(id: "6", project: "cctop", branch: "master", status: .idle, source: "cc")
+        s6.lastActivity = Date().addingTimeInterval(-1_296_000) // "15d ago"
+
+        return [s1, s2, s3, s4, s5, s6]
+    }()
 }
