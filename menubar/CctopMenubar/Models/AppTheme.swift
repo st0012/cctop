@@ -34,6 +34,8 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
     var opencodeBadge: ColorPair { Self.opencodeBadges[self]! }
     var piBadge: ColorPair { Self.piBadges[self]! }
     var codexBadge: ColorPair { Self.codexBadges[self]! }
+    var claudeDesktopBadge: ColorPair { Self.claudeDesktopBadges[self]! }
+    var codexDesktopBadge: ColorPair { Self.codexDesktopBadges[self]! }
 
     var segmentText: ColorPair { textMuted }
     var segmentActiveText: ColorPair { textPrimary }
@@ -175,5 +177,22 @@ private extension AppTheme {
         .tokyoNight: ColorPair(dark: hex(0xE0, 0xAF, 0x68), light: hex(0x7B, 0x5A, 0x1F)),
         .gruvbox: ColorPair(dark: hex(0xC5, 0x89, 0x40), light: hex(0x7A, 0x4F, 0x0E)),
         .nord: ColorPair(dark: hex(0xEB, 0xCB, 0x8B), light: hex(0x8B, 0x69, 0x14)),
+    ]
+
+    // Claude Desktop — same warm family as the accent (CC) but shifted darker
+    // so the Desktop chip background tints distinctly from CLI bare text.
+    static let claudeDesktopBadges: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0xB0, 0x60, 0x36), light: hex(0xA8, 0x4A, 0x1F)),
+        .tokyoNight: ColorPair(dark: hex(0xE0, 0x5A, 0x70), light: hex(0xB0, 0x3A, 0x55)),
+        .gruvbox: ColorPair(dark: hex(0xC2, 0x57, 0x00), light: hex(0x82, 0x2B, 0x00)),
+        .nord: ColorPair(dark: hex(0xA3, 0x51, 0x58), light: hex(0x8A, 0x3F, 0x46)),
+    ]
+
+    // Codex Desktop — deeper variant of the CLI codex bronze.
+    static let codexDesktopBadges: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0xB8, 0x8A, 0x2E), light: hex(0x6B, 0x4E, 0x0A)),
+        .tokyoNight: ColorPair(dark: hex(0xC2, 0x8F, 0x4B), light: hex(0x5C, 0x42, 0x14)),
+        .gruvbox: ColorPair(dark: hex(0xA8, 0x6E, 0x2C), light: hex(0x5C, 0x39, 0x06)),
+        .nord: ColorPair(dark: hex(0xCD, 0xAE, 0x6D), light: hex(0x6B, 0x4E, 0x0A)),
     ]
 }

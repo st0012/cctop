@@ -141,4 +141,18 @@ extension Color {
             ThemeManager.shared.current.codexBadge.resolve(appearance)
         })
     }
+
+    /// Source badge — Claude Desktop.
+    static var claudeDesktopBadge: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.claudeDesktopBadge.resolve(appearance)
+        })
+    }
+
+    /// Source badge — Codex Desktop.
+    static var codexDesktopBadge: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.codexDesktopBadge.resolve(appearance)
+        })
+    }
 }
