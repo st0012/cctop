@@ -35,6 +35,10 @@ enum AgentBadge: Equatable {
 extension Session {
     /// Classify the session's source + host app into one of six badge kinds.
     /// Legacy CC sessions (`source == nil`, no Desktop bundle ID) classify as `.cc`.
+    ///
+    /// `("cc", true)` is defensive: today Claude Desktop sessions always have
+    /// `source == nil` (the Desktop hook integration predates the `harness_name`
+    /// migration), but if that ever changes the bundle ID should still win.
     var agentBadge: AgentBadge {
         let isDesktop = isHostedByDesktopApp
         switch (source, isDesktop) {
@@ -42,7 +46,7 @@ extension Session {
         case ("pi", _): return .pi
         case ("codex", true): return .codexDesktop
         case ("codex", _): return .codex
-        case (nil, true): return .claudeDesktop
+        case ("cc", true), (nil, true): return .claudeDesktop
         default: return .cc
         }
     }

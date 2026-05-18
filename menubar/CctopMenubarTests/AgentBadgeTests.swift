@@ -23,6 +23,16 @@ final class AgentBadgeTests: XCTestCase {
         XCTAssertEqual(session.agentBadge, .claudeDesktop)
     }
 
+    func testClaudeDesktopBundle_withExplicitCCSource_returnsClaudeDesktop() {
+        // Defensive: if Claude Desktop ever starts setting `source: "cc"`,
+        // the bundle ID should still win and classify as Desktop.
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
+            source: "cc"
+        )
+        XCTAssertEqual(session.agentBadge, .claudeDesktop)
+    }
+
     func testCodexSource_withTerminalBundle_returnsCodex() {
         let session = Session.mock(
             terminal: TerminalInfo(program: "iTerm", bundleId: "com.googlecode.iterm2"),

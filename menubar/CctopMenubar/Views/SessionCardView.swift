@@ -56,16 +56,22 @@ struct SessionCardView: View {
 
             statusLabel
 
-            Text("· \(session.relativeTime)")
-                .font(.system(size: 10))
-                .foregroundStyle(timeColor)
+            // TimelineView re-evaluates the closure every 10s so "just now / 5s /
+            // 2m" labels (and the fresh/stale color transitions in `timeColor`)
+            // stay live even when no session-file write triggers a re-render.
+            TimelineView(.periodic(from: .now, by: 10)) { _ in
+                Text("· \(session.relativeTime)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(timeColor)
+            }
         }
     }
 
     private var metaRow: some View {
         HStack(spacing: 5) {
-            // Folder shown only when displayName != projectName (i.e. sessionName is set).
-            if session.sessionName != nil {
+            // Folder shown only when sessionName is set AND differs from projectName,
+            // otherwise the headline title would already display the folder name.
+            if let name = session.sessionName, name != session.projectName {
                 Text(session.projectName)
                     .font(.system(size: 11))
                     .foregroundStyle(Color.textSecondary)

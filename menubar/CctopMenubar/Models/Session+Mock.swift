@@ -138,25 +138,30 @@ extension Session {
 
     /// Showcase sessions for README screenshots — diverse projects, mixed sources,
     /// covers all 4 distinct agent badge variants (CC, Claude Desktop, Codex, Codex Desktop).
+    /// Ordered so the visible top 4 includes one of each variant; an idle session at the
+    /// bottom contributes to the gray count badge without taking space in the visible area.
     static let qaShowcase: [Session] = {
+        // Top of list — waitingInput sorts above working. Codex Desktop placed here so
+        // the pulsing "Waiting" pill is paired with the most distinctive Desktop badge.
         var s1 = mock(
-            id: "1", project: "cctop", branch: "main",
+            id: "1", project: "goal-there-s-a-tanstack-security", branch: "main",
+            sessionName: "Investigate tanstack incident",
+            status: .waitingInput,
+            lastPrompt: "Claude is waiting for your input",
+            notificationMessage: "Claude is waiting for your input",
+            terminal: TerminalInfo(bundleId: "com.openai.codex"),
+            source: "codex"
+        )
+        s1.lastActivity = Date().addingTimeInterval(-180) // "3m ago"
+
+        var s2 = mock(
+            id: "2", project: "cctop", branch: "main",
             sessionName: "Review RDoc pull request",
             status: .working, lastTool: "Read",
             lastToolDetail: "/src/SessionCardView.swift",
             source: "cc"
         )
-        // s1.lastActivity is Date() → "just now"
-
-        var s2 = mock(
-            id: "2", project: "billing-service", branch: "feat/zero-downtime-migration",
-            sessionName: "Verify migration safety",
-            status: .waitingInput,
-            lastPrompt: "Claude is waiting for your input",
-            notificationMessage: "Claude is waiting for your input",
-            source: "cc"
-        )
-        s2.lastActivity = Date().addingTimeInterval(-180) // "3m ago"
+        // s2.lastActivity is Date() → "just now"
 
         var s3 = mock(
             id: "3", project: "dazzling-dirac-0ac413", branch: "unknown",
@@ -166,28 +171,19 @@ extension Session {
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: nil
         )
-        s3.lastActivity = Date().addingTimeInterval(-345_600) // "4d ago"
+        s3.lastActivity = Date().addingTimeInterval(-30) // "30s ago"
 
         var s4 = mock(
-            id: "4", project: "goal-there-s-a-tanstack-security", branch: "main",
-            sessionName: "Investigate tanstack incident",
-            status: .idle,
-            terminal: TerminalInfo(bundleId: "com.openai.codex"),
-            source: "codex"
-        )
-        s4.lastActivity = Date().addingTimeInterval(-86_400) // "1d ago"
-
-        var s5 = mock(
-            id: "5", project: "terraform-infra", branch: "main",
+            id: "4", project: "terraform-infra", branch: "main",
             status: .working, lastTool: "Bash",
             lastToolDetail: "terraform plan -out=tfplan",
             source: "codex"
         )
-        s5.lastActivity = Date().addingTimeInterval(-30) // "30s ago"
+        s4.lastActivity = Date().addingTimeInterval(-300) // "5m ago"
 
-        var s6 = mock(id: "6", project: "cctop", branch: "master", status: .idle, source: "cc")
-        s6.lastActivity = Date().addingTimeInterval(-1_296_000) // "15d ago"
+        var s5 = mock(id: "5", project: "cctop", branch: "master", status: .idle, source: "cc")
+        s5.lastActivity = Date().addingTimeInterval(-1_296_000) // "15d ago"
 
-        return [s1, s2, s3, s4, s5, s6]
+        return [s1, s2, s3, s4, s5]
     }()
 }
