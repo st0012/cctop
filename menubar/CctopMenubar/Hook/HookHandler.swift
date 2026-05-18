@@ -97,9 +97,15 @@ enum HookHandler {
         if let name = input.sessionName {
             session.sessionName = name
         } else if event == .sessionStart || event == .userPromptSubmit {
-            session.sessionName = SessionNameLookup.lookupSessionName(
+            // Only overwrite when the lookup succeeds. Previously this clobbered
+            // sessionName with nil on every UserPromptSubmit whose transcript
+            // didn't yet contain a `custom-title` entry, regressing any name set
+            // by an earlier event.
+            if let name = SessionNameLookup.lookupSessionName(
                 transcriptPath: input.transcriptPath, sessionId: input.sessionId
-            )
+            ) {
+                session.sessionName = name
+            }
         }
         return (oldStatus, newStatus)
     }

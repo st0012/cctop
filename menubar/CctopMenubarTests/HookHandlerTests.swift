@@ -239,6 +239,23 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.sessionName, "Refactor auth module")
     }
 
+    // MARK: - Session name preservation across events
+
+    /// Regression: previously, UserPromptSubmit re-looked up the session name from
+    /// the transcript and overwrote `sessionName` with nil when no `custom-title`
+    /// entry was present. Subsequent prompts kept clobbering it. The fix: only
+    /// overwrite sessionName when the lookup actually returns a value.
+    func testUserPromptSubmit_doesNotClobberSessionName_whenLookupFails() throws {
+        try handleFixture("SessionStart-opencode")  // sets sessionName = "Fix login bug"
+        XCTAssertEqual(try loadSession().sessionName, "Fix login bug")
+
+        // UserPromptSubmit fixture has no session_name and no transcript path,
+        // so the lookup will return nil. sessionName should be preserved.
+        try handleFixture("UserPromptSubmit")
+        XCTAssertEqual(try loadSession().sessionName, "Fix login bug",
+                       "sessionName should be preserved when lookup returns nil")
+    }
+
     // MARK: - Full lifecycle sequence
 
     func testFullLifecycle() throws {
