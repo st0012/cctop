@@ -221,15 +221,16 @@ body type, and never used in the app.
 
 | Size · Weight     | Usage                                                                |
 |-------------------|----------------------------------------------------------------------|
+| 14 · semibold     | Session card title (displayName) — the headline                      |
 | 13 · semibold     | Header title ("cctop")                                               |
-| 13 · medium       | Project name in session card                                         |
 | 12                | Empty-state copy, install banner body                                |
-| 11                | Settings labels, session context line                                |
+| 11                | Settings labels, meta row folder                                     |
 | 11 · medium mono  | Shortcut badge ("⇧⌘N")                                               |
-| 10                | Subagent badge, branch (mono), timestamp, hint text                  |
-| 10 · medium       | Status label ("Working" / "Permission" / "Waiting")                  |
+| 10.5 · semibold   | Status label ("Working" / "Waiting" / "Permission")                  |
+| 10.5 mono         | Command stripe (working session row 3)                               |
+| 10                | Subagent badge, branch (mono), timestamp                             |
 | 10 · medium       | Segmented picker labels                                              |
-| 9                 | Source badge ("opencode", "pi", "codex")                             |
+| 9.5 · medium      | Source badge — six variants (CC, Claude Desktop, Codex, Codex Desktop, OC, Pi) |
 
 The 9 / 10 / 11 / 12 / 13 ladder is intentionally narrow. A panel that's
 ~320 px wide can't afford a 7-step type scale; restraint is the point.
@@ -270,22 +271,43 @@ glance at it from peripheral vision.
 
 ### Session card (`SessionCardView.swift`)
 
-Three columns: accent bar · content · status/time.
+"Headline" layout — title leads, meta is quiet, third row is conditional. No left accent bar.
 
-| Property           | Value                                                          |
-|--------------------|----------------------------------------------------------------|
-| Padding            | 8 px horizontal · 9 px vertical                                |
-| Accent bar (default)| 3 px wide, 1.5 px radius, opacity by status (1.0 / 0.4 / 0.1)|
-| Accent bar (navigate mode) | 16×16 status-colored square, radius 2 px, white digit |
-| Project name       | 13 px medium · `textPrimary` (or `textDimmed` if idle)         |
-| Subagent count     | 10 px · `agentBadge` (purple)                                  |
-| Source badge       | 9 px · per-source token color                                  |
-| Branch             | 10 px monospaced · `textSecondary`                             |
-| Context / session name | 11 px · `textSecondary`                                    |
-| Status label       | 10 px medium · status-tinted                                   |
-| Timestamp          | 10 px · `textMuted` · refreshes every 10 s                     |
-| Selected/hover     | `cardSelectionStyle` overlay (no shadow)                       |
-| Attention pulse    | 1.5 s ease-in-out, autoreverse on `needsAttention` statuses    |
+```
+┌──────────────────────────────────────────────────────────┐
+│ Session name (14 px semibold)         Status · 5s ago    │  ← row 1
+│ folder · branch · src                                    │  ← row 2 (CLI)
+│ › Reading SessionCardView.swift ▌                        │  ← row 3 (working only)
+└──────────────────────────────────────────────────────────┘
+```
+
+| Property                  | Value                                                          |
+|---------------------------|----------------------------------------------------------------|
+| Padding                   | 14 px horizontal · 9 px vertical                               |
+| **Row 1 — title**         | 14 px semibold · `textPrimary` (`textSecondary` when idle)     |
+| Navigate chip (row 1 lead)| 16×16 status-colored square, 3 px radius, white digit (1–9)   |
+| Subagent count            | 10 px · `agentBadge` (purple)                                  |
+| Status label              | 10.5 px semibold · status-tinted; "Waiting" / "Permission" rendered as a softly pulsing pill (`statusAttention` bg 0.10 ↔ 0.22, 1.5 s ease-in-out, autoreverse) |
+| Timestamp                 | 10 px · refreshes every 10 s via `TimelineView`. "Just now" (≤ 5 s) → `statusGreen`; > 7 d → `textMuted` at 0.55 |
+| **Row 2 — meta (CLI)**    | `folder · branch · source` — folder shown only when `sessionName != projectName`. Branch 10 px monospaced, separators muted dots. |
+| **Row 2 — meta (Desktop)**| Source badge only. Folder + branch are dropped because Desktop sessions often run in auto-generated worktree dirs (`focused-dirac-1baeb9`) and the wider "Claude Desktop" chip causes wrapping when combined with them. |
+| **Row 3 — working**       | Monospace command stripe with `›` prompt (`statusGreen` @ 0.7) + `Session.contextLine`, ending in a `BlinkingCaret` (6×11 pt, 0.55 s hard blink, hidden under `accessibilityReduceMotion`) |
+| **Row 3 — waiting**       | Italic `statusAttention` note: `notificationMessage ?? contextLine ?? "Waiting for input"` |
+| Selected / hover          | `cardSelectionStyle` overlay (no shadow)                       |
+| Source badge visibility   | Shown only when `Set(sessions.map(\.agentBadge)).count > 1` (keyed on `agentBadge`, not `sourceLabel`, so CC + Claude Desktop counts as multiple sources) |
+
+#### Source badge (`SourceBadgeView.swift`) — six variants
+
+| Variant         | Render                                  | Color token              |
+|-----------------|-----------------------------------------|--------------------------|
+| `cc`            | Bare uppercase text                     | `amber` (accent)         |
+| `claudeDesktop` | Filled chip with leading `✦` marker     | `claudeDesktopBadge`     |
+| `codex`         | Bare uppercase text                     | `codexBadge`             |
+| `codexDesktop`  | Filled chip with leading `✦` marker     | `codexDesktopBadge`      |
+| `opencode`      | Bare uppercase text ("OC")              | `opencodeBadge`          |
+| `pi`            | Bare uppercase text ("Pi")              | `piBadge`                |
+
+CLI = bare text, Desktop = filled chip. The `✦` marker mirrors `HostApp.sfSymbol`'s `"sparkles"` for Desktop apps elsewhere in the app. Classification logic lives in `Session.agentBadge` (`Models/AgentBadge.swift`).
 
 ### Header bar (`HeaderView.swift`)
 
