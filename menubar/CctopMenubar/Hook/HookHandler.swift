@@ -91,8 +91,8 @@ enum HookHandler {
         if event != .notificationPermission { session.lastActivity = Date() }
         session.branch = branch; session.terminal = terminal
         // MIGRATION(harness_name): The session JSON file still uses the `source` key.
-        // Renaming the JSON key would require a reader-side migration in SessionManager +
-        // the Raycast extension. Do that in a future PR once `harness_name` is settled.
+        // Renaming the JSON key would require a reader-side migration in SessionManager.
+        // Do that in a future PR once `harness_name` is settled.
         if let harness = input.resolvedHarnessName { session.source = harness }
         if let name = input.sessionName {
             session.sessionName = name
