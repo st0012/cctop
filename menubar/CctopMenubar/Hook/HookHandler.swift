@@ -182,9 +182,17 @@ enum HookHandler {
            abs(storedStart - currentStart) > 1.0 {
             return fresh
         }
-        // Same process but CC assigned a new session_id (e.g. resume) — carry over state
+        // Same PID, different session_id — the OS process is now hosting a new
+        // conversation. Common for Codex Desktop, which keeps one long-lived
+        // process and spawns a new session_id per "new chat". Drop all
+        // conversation-specific state (project, name, prompt, tools, etc.) and
+        // only carry over PID liveness metadata so the process-alive check
+        // keeps working.
         guard existing.sessionId == fresh.sessionId else {
-            return existing.withSessionId(fresh.sessionId, branch: fresh.branch, terminal: fresh.terminal)
+            var carried = fresh
+            carried.pid = existing.pid
+            carried.pidStartTime = existing.pidStartTime
+            return carried
         }
         return existing
     }

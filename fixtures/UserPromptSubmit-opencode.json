@@ -1,0 +1,7 @@
+{
+  "session_id": "opencode-12345",
+  "cwd": "/tmp/test-project",
+  "hook_event_name": "UserPromptSubmit",
+  "harness_name": "opencode",
+  "prompt": "Help me debug this"
+}

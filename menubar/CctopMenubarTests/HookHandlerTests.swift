@@ -249,11 +249,37 @@ final class HookHandlerTests: XCTestCase {
         try handleFixture("SessionStart-opencode")  // sets sessionName = "Fix login bug"
         XCTAssertEqual(try loadSession().sessionName, "Fix login bug")
 
-        // UserPromptSubmit fixture has no session_name and no transcript path,
-        // so the lookup will return nil. sessionName should be preserved.
-        try handleFixture("UserPromptSubmit")
+        // Same session_id, UserPromptSubmit with no `session_name` field and no
+        // transcript_path. Lookup will return nil. sessionName should be preserved.
+        try handleFixture("UserPromptSubmit-opencode")
         XCTAssertEqual(try loadSession().sessionName, "Fix login bug",
-                       "sessionName should be preserved when lookup returns nil")
+                       "sessionName should be preserved when lookup returns nil within the same session")
+    }
+
+    /// Regression: same OS process, new session_id (Codex Desktop's "new chat"
+    /// flow) used to carry over all conversation state — name, project, prompt,
+    /// tool detail — from the previous conversation, surfacing the old chat's
+    /// title under the new one. The fix drops conversation-specific state and
+    /// keeps only PID liveness metadata.
+    func testSessionIdChange_inSamePID_resetsConversationState() throws {
+        try handleFixture("SessionStart-opencode")
+        let first = try loadSession()
+        XCTAssertEqual(first.sessionId, "opencode-12345")
+        XCTAssertEqual(first.sessionName, "Fix login bug")
+        XCTAssertEqual(first.projectName, "test-project")
+
+        // Same PID (test runner), different session_id. Simulates Codex Desktop
+        // spawning a new conversation inside the same OS process.
+        try handleFixture("SessionStart")
+        let second = try loadSession()
+        XCTAssertEqual(second.sessionId, "test-session-001",
+                       "session_id should update to the new conversation's id")
+        XCTAssertNil(second.sessionName,
+                     "sessionName should be reset — not carried over from the previous conversation")
+        XCTAssertEqual(second.pid, first.pid,
+                       "PID liveness metadata should carry over")
+        XCTAssertEqual(second.pidStartTime, first.pidStartTime,
+                       "pidStartTime should carry over for the process-alive check")
     }
 
     // MARK: - Full lifecycle sequence
