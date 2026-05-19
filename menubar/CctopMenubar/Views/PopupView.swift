@@ -318,7 +318,7 @@ extension PopupView {
         } else { EmptyView() }
     }
     private var isNavigateActive: Bool { navigate?.isActive ?? false }
-    private var hasMultipleSources: Bool { Set(sessions.map(\.sourceLabel)).count > 1 }
+    private var hasMultipleSources: Bool { Set(sessions.map(\.agentBadge)).count > 1 }
     private var sortedSessions: [Session] {
         if isNavigateActive, let frozen = navigate?.frozenSessions, !frozen.isEmpty {
             return frozen
