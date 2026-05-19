@@ -67,30 +67,43 @@ struct SessionCardView: View {
         }
     }
 
+    @ViewBuilder
     private var metaRow: some View {
-        HStack(spacing: 5) {
-            // Folder shown only when sessionName is set AND differs from projectName,
-            // otherwise the headline title would already display the folder name.
-            if let name = session.sessionName, name != session.projectName {
-                Text(session.projectName)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.textSecondary)
-                    .lineLimit(1)
-                Text("·")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted.opacity(0.6))
-            }
-            Text(session.branch)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(Color.textMuted)
-                .lineLimit(1)
+        // For Desktop sessions, folder + branch are usually noise (worktree dirs,
+        // "unknown" branches), and the long "Claude Desktop" chip causes the row
+        // to wrap when combined with them. Show just the source badge instead.
+        if session.agentBadge.isDesktop {
             if showSourceBadge {
-                Text("·")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted.opacity(0.6))
-                SourceBadgeView(badge: session.agentBadge)
+                HStack(spacing: 5) {
+                    SourceBadgeView(badge: session.agentBadge)
+                    Spacer(minLength: 0)
+                }
             }
-            Spacer(minLength: 0)
+        } else {
+            HStack(spacing: 5) {
+                // Folder shown only when sessionName is set AND differs from projectName,
+                // otherwise the headline title would already display the folder name.
+                if let name = session.sessionName, name != session.projectName {
+                    Text(session.projectName)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.textSecondary)
+                        .lineLimit(1)
+                    Text("·")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.textMuted.opacity(0.6))
+                }
+                Text(session.branch)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(Color.textMuted)
+                    .lineLimit(1)
+                if showSourceBadge {
+                    Text("·")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.textMuted.opacity(0.6))
+                    SourceBadgeView(badge: session.agentBadge)
+                }
+                Spacer(minLength: 0)
+            }
         }
     }
 
