@@ -101,9 +101,18 @@ enum HookHandler {
             // sessionName with nil on every UserPromptSubmit whose transcript
             // didn't yet contain a `custom-title` entry, regressing any name set
             // by an earlier event.
-            if let name = SessionNameLookup.lookupSessionName(
-                transcriptPath: input.transcriptPath, sessionId: input.sessionId
-            ) {
+            //
+            // Codex sessions use a different local source: `~/.codex/session_index.jsonl`
+            // — Codex Desktop writes the user-visible thread name there, keyed by session_id.
+            let lookedUp: String?
+            if session.source == "codex" {
+                lookedUp = SessionNameLookup.lookupCodexThreadName(sessionId: input.sessionId)
+            } else {
+                lookedUp = SessionNameLookup.lookupSessionName(
+                    transcriptPath: input.transcriptPath, sessionId: input.sessionId
+                )
+            }
+            if let name = lookedUp {
                 session.sessionName = name
             }
         }

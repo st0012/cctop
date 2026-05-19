@@ -183,4 +183,86 @@ final class SessionNameLookupTests: XCTestCase {
         )
         XCTAssertEqual(result, "from transcript")
     }
+
+    // MARK: - Codex session_index.jsonl lookup
+
+    func testCodex_findsThreadNameByExactSessionId() {
+        let indexPath = tmpDir + "/session_index.jsonl"
+        let content = """
+        {"id":"019e1ef6-0cde-77a2-a873-ddcb33240005","thread_name":"Help me create a zh-tw draft","updated_at":"2026-05-13T01:31:42.415727Z"}
+        {"id":"019e1eff-3374-74b0-8d3d-6fba94e7d75f","thread_name":"Investigate tanstack incident","updated_at":"2026-05-13T01:42:01.071611Z"}
+        {"id":"019e415d-b7a1-77d2-b019-1288a45e57f3","thread_name":"Review project architecture","updated_at":"2026-05-19T17:52:37.293141Z"}
+        """
+        try! content.write(toFile: indexPath, atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupCodexThreadName(
+            sessionId: "019e415d-b7a1-77d2-b019-1288a45e57f3",
+            indexPath: indexPath
+        )
+        XCTAssertEqual(result, "Review project architecture")
+    }
+
+    func testCodex_returnsLatestEntryWhenSessionIdAppearsTwice() {
+        let indexPath = tmpDir + "/session_index.jsonl"
+        let content = """
+        {"id":"s1","thread_name":"original","updated_at":"2026-05-19T17:00:00Z"}
+        {"id":"other","thread_name":"unrelated","updated_at":"2026-05-19T17:30:00Z"}
+        {"id":"s1","thread_name":"renamed","updated_at":"2026-05-19T18:00:00Z"}
+        """
+        try! content.write(toFile: indexPath, atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupCodexThreadName(
+            sessionId: "s1", indexPath: indexPath
+        )
+        XCTAssertEqual(result, "renamed")
+    }
+
+    func testCodex_missingFileReturnsNil() {
+        let result = SessionNameLookup.lookupCodexThreadName(
+            sessionId: "s1", indexPath: tmpDir + "/nonexistent.jsonl"
+        )
+        XCTAssertNil(result)
+    }
+
+    func testCodex_noMatchingSessionIdReturnsNil() {
+        let indexPath = tmpDir + "/session_index.jsonl"
+        let content = """
+        {"id":"other","thread_name":"unrelated","updated_at":"2026-05-19T17:00:00Z"}
+        """
+        try! content.write(toFile: indexPath, atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupCodexThreadName(
+            sessionId: "s1", indexPath: indexPath
+        )
+        XCTAssertNil(result)
+    }
+
+    func testCodex_emptyThreadNameIsIgnored() {
+        let indexPath = tmpDir + "/session_index.jsonl"
+        let content = """
+        {"id":"s1","thread_name":"","updated_at":"2026-05-19T17:00:00Z"}
+        """
+        try! content.write(toFile: indexPath, atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupCodexThreadName(
+            sessionId: "s1", indexPath: indexPath
+        )
+        XCTAssertNil(result)
+    }
+
+    func testCodex_skipsLinesContainingIdSubstringButDifferentId() {
+        // Guard against the contains() shortcut matching the wrong line —
+        // e.g. a session_id that's a prefix of another.
+        let indexPath = tmpDir + "/session_index.jsonl"
+        let content = """
+        {"id":"s1-prefix-of-something-else","thread_name":"wrong match","updated_at":"2026-05-19T17:00:00Z"}
+        {"id":"s1","thread_name":"correct match","updated_at":"2026-05-19T18:00:00Z"}
+        """
+        try! content.write(toFile: indexPath, atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupCodexThreadName(
+            sessionId: "s1", indexPath: indexPath
+        )
+        XCTAssertEqual(result, "correct match")
+    }
 }
