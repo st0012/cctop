@@ -34,19 +34,26 @@ enum AgentBadge: Equatable {
 
 extension Session {
     /// Classify the session's source + host app into one of six badge kinds.
-    /// Legacy CC sessions (`source == nil`, no Desktop bundle ID) classify as `.cc`.
     ///
-    /// `("cc", true)` is defensive: today Claude Desktop sessions always have
-    /// `source == nil` (the Desktop hook integration predates the `harness_name`
-    /// migration), but if that ever changes the bundle ID should still win.
+    /// The bundle ID is the most authoritative signal — it tells us exactly
+    /// which Desktop app is hosting the session. We check it first so a
+    /// Codex Desktop session whose `harness_name` field is missing (e.g. the
+    /// shim didn't pass `--harness codex`, or the hook fired before the
+    /// harness was established) still classifies as `.codexDesktop` instead
+    /// of falling into the `.claudeDesktop` default. The `source` string is
+    /// only consulted for non-Desktop sessions.
     var agentBadge: AgentBadge {
-        let isDesktop = isHostedByDesktopApp
-        switch (source, isDesktop) {
-        case ("opencode", _): return .opencode
-        case ("pi", _): return .pi
-        case ("codex", true): return .codexDesktop
-        case ("codex", _): return .codex
-        case ("cc", true), (nil, true): return .claudeDesktop
+        // Desktop bundle ID wins — it's the most authoritative signal.
+        switch HostApp.from(bundleIdentifier: terminal?.bundleId) {
+        case .claudeDesktop: return .claudeDesktop
+        case .codexDesktop: return .codexDesktop
+        default: break
+        }
+        // Non-Desktop: dispatch on the source harness.
+        switch source {
+        case "opencode": return .opencode
+        case "pi": return .pi
+        case "codex": return .codex
         default: return .cc
         }
     }

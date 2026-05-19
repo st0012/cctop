@@ -49,6 +49,37 @@ final class AgentBadgeTests: XCTestCase {
         XCTAssertEqual(session.agentBadge, .codexDesktop)
     }
 
+    func testCodexDesktopBundle_withNilSource_returnsCodexDesktop() {
+        // Regression: previously, (nil source, isDesktop=true) was hard-coded to
+        // .claudeDesktop. A Codex Desktop session whose harness_name didn't
+        // make it into the hook payload would be mislabelled. The bundle ID
+        // should always win.
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.openai.codex"),
+            source: nil
+        )
+        XCTAssertEqual(session.agentBadge, .codexDesktop)
+    }
+
+    func testCodexDesktopBundle_overridesMismatchedSource() {
+        // Defensive: bundle ID wins even if source disagrees. Shouldn't happen
+        // in practice, but guarantees the visual classification matches the
+        // host app the user actually sees on screen.
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.openai.codex"),
+            source: "cc"
+        )
+        XCTAssertEqual(session.agentBadge, .codexDesktop)
+    }
+
+    func testClaudeDesktopBundle_overridesMismatchedSource() {
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
+            source: "codex"
+        )
+        XCTAssertEqual(session.agentBadge, .claudeDesktop)
+    }
+
     func testOpencodeSource_returnsOpencode() {
         let session = Session.mock(source: "opencode")
         XCTAssertEqual(session.agentBadge, .opencode)
