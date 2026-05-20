@@ -29,6 +29,11 @@ struct SessionCardView: View {
         .accessibilityLabel(cardAccessibilityLabel)
         .onAppear { startAttentionPulseIfNeeded() }
         .onChange(of: session.status) { _ in startAttentionPulseIfNeeded() }
+        // Without this, toggling macOS Reduce Motion while a waiting/permission
+        // card is already on screen leaves attentionPulse stuck in its previous
+        // state — the env value updates, but the @State pulse flag doesn't get
+        // re-evaluated until the next status transition.
+        .onChange(of: reduceMotion) { _ in startAttentionPulseIfNeeded() }
     }
 
     // MARK: - Rows
