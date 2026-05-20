@@ -144,14 +144,12 @@ struct SessionCardView: View {
             .foregroundStyle(statusLabelColor)
             .padding(.horizontal, isAttentionStatus ? 6 : 0)
             .padding(.vertical, isAttentionStatus ? 1.5 : 0)
-            .background(
-                Group {
-                    if isAttentionStatus {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.statusAttention.opacity(attentionPulse ? 0.22 : 0.10))
-                    }
+            .background {
+                if isAttentionStatus {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.statusAttention.opacity(attentionPulse ? 0.22 : 0.10))
                 }
-            )
+            }
     }
 
     private var statusLabelText: String {
