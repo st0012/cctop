@@ -137,14 +137,27 @@ extension Session {
     ]
 
     /// Showcase sessions for README screenshots — diverse projects, mixed sources,
-    /// covers all 4 distinct agent badge variants (CC, Claude Desktop, Codex, Codex Desktop).
-    /// Ordered so the visible top 4 includes one of each variant; an idle session at the
-    /// bottom contributes to the gray count badge without taking space in the visible area.
+    /// covers all 4 distinct agent badge variants (CC, Claude Desktop, Codex, Codex Desktop)
+    /// and both attention pills (Permission + Waiting). Permission sorts above
+    /// waitingInput, so the top card always shows the dedicated red-orange "Permission"
+    /// pill alongside its italic notification note.
     static let qaShowcase: [Session] = {
-        // Top of list — waitingInput sorts above working. Codex Desktop placed here so
-        // the pulsing "Waiting" pill is paired with the most distinctive Desktop badge.
+        // Top of list — waitingPermission sorts above everything else.
+        // Demos the dedicated "Permission" pill + italic permission note.
         var s1 = mock(
-            id: "1", project: "goal-there-s-a-tanstack-security", branch: "main",
+            id: "1", project: "cctop", branch: "redesign",
+            sessionName: "Verify migration safety",
+            status: .waitingPermission,
+            notificationMessage: "Allow Bash: rm -rf node_modules",
+            source: "cc"
+        )
+        s1.lastActivity = Date().addingTimeInterval(-10) // "10s ago"
+
+        // waitingInput sits just under permission. Codex Desktop placed here so
+        // the pulsing amber "Waiting" pill is paired with the most distinctive
+        // Desktop badge.
+        var s2 = mock(
+            id: "2", project: "goal-there-s-a-tanstack-security", branch: "main",
             sessionName: "Investigate tanstack incident",
             status: .waitingInput,
             lastPrompt: "Claude is waiting for your input",
@@ -152,38 +165,38 @@ extension Session {
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "codex"
         )
-        s1.lastActivity = Date().addingTimeInterval(-180) // "3m ago"
+        s2.lastActivity = Date().addingTimeInterval(-180) // "3m ago"
 
-        var s2 = mock(
-            id: "2", project: "cctop", branch: "main",
+        var s3 = mock(
+            id: "3", project: "cctop", branch: "main",
             sessionName: "Review RDoc pull request",
             status: .working, lastTool: "Read",
             lastToolDetail: "/src/SessionCardView.swift",
             source: "cc"
         )
-        // s2.lastActivity is Date() → "just now"
+        // s3.lastActivity is Date() → "just now"
 
-        var s3 = mock(
-            id: "3", project: "dazzling-dirac-0ac413", branch: "unknown",
+        var s4 = mock(
+            id: "4", project: "dazzling-dirac-0ac413", branch: "unknown",
             sessionName: "Verify Ruby master build",
             status: .working, lastTool: "Bash",
             lastToolDetail: "cd build && source /opt/homebrew/share/chruby/chruby.sh",
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: nil
         )
-        s3.lastActivity = Date().addingTimeInterval(-30) // "30s ago"
+        s4.lastActivity = Date().addingTimeInterval(-30) // "30s ago"
 
-        var s4 = mock(
-            id: "4", project: "terraform-infra", branch: "main",
+        var s5 = mock(
+            id: "5", project: "terraform-infra", branch: "main",
             status: .working, lastTool: "Bash",
             lastToolDetail: "terraform plan -out=tfplan",
             source: "codex"
         )
-        s4.lastActivity = Date().addingTimeInterval(-300) // "5m ago"
+        s5.lastActivity = Date().addingTimeInterval(-300) // "5m ago"
 
-        var s5 = mock(id: "5", project: "cctop", branch: "master", status: .idle, source: "cc")
-        s5.lastActivity = Date().addingTimeInterval(-1_296_000) // "15d ago"
+        var s6 = mock(id: "6", project: "cctop", branch: "master", status: .idle, source: "cc")
+        s6.lastActivity = Date().addingTimeInterval(-1_296_000) // "15d ago"
 
-        return [s1, s2, s3, s4, s5]
+        return [s1, s2, s3, s4, s5, s6]
     }()
 }

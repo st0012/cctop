@@ -19,4 +19,15 @@ final class QaShowcaseCoverageTests: XCTestCase {
             || statuses.contains(.needsAttention)
         XCTAssertTrue(hasWaiting, "qaShowcase should include at least one waiting/attention session")
     }
+
+    func testShowcaseIncludesPermissionSession() {
+        // Permission is the only status that renders the dedicated red-orange
+        // "Permission" pill (everything else uses amber "Waiting"). Lock it
+        // into the showcase so README screenshots always demonstrate it.
+        let statuses = Session.qaShowcase.map { $0.status }
+        XCTAssertTrue(
+            statuses.contains(.waitingPermission),
+            "qaShowcase must include a waitingPermission session so the dedicated Permission pill is visible in screenshots"
+        )
+    }
 }
