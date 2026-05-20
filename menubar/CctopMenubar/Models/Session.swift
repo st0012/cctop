@@ -409,7 +409,10 @@ struct Session: Codable, Identifiable, Equatable {
         guard let detail else { return "\(tool)..." }
         let fileName = URL(fileURLWithPath: detail).lastPathComponent
         switch tool.lowercased() {
-        case "bash": return "Running: \(detail.prefix(30))"
+        // "local_shell" is Codex's equivalent of Claude Code's Bash tool —
+        // route both through the same "Running: ..." formatting so Codex
+        // sessions don't show a raw "local_shell: ..." in the meta row.
+        case "bash", "local_shell": return "Running: \(detail.prefix(30))"
         case "edit": return "Editing \(fileName)"
         case "write": return "Writing \(fileName)"
         case "read": return "Reading \(fileName)"

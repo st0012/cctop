@@ -157,11 +157,10 @@ extension Session {
         // the pulsing amber "Waiting" pill is paired with the most distinctive
         // Desktop badge.
         var s2 = mock(
-            id: "2", project: "goal-there-s-a-tanstack-security", branch: "main",
-            sessionName: "Investigate tanstack incident",
+            id: "2", project: "billing-api", branch: "main",
+            sessionName: "Investigate staging deploy regression",
             status: .waitingInput,
-            lastPrompt: "Claude is waiting for your input",
-            notificationMessage: "Claude is waiting for your input",
+            lastPrompt: "Should we retry on 5xx or surface to the user?",
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "codex"
         )
@@ -169,7 +168,7 @@ extension Session {
 
         var s3 = mock(
             id: "3", project: "cctop", branch: "main",
-            sessionName: "Review RDoc pull request",
+            sessionName: "Review session card redesign",
             status: .working, lastTool: "Read",
             lastToolDetail: "/src/SessionCardView.swift",
             source: "cc"
@@ -177,19 +176,22 @@ extension Session {
         // s3.lastActivity is Date() → "just now"
 
         var s4 = mock(
-            id: "4", project: "dazzling-dirac-0ac413", branch: "unknown",
-            sessionName: "Verify Ruby master build",
+            id: "4", project: "infra-tools", branch: "main",
+            sessionName: "Trace flaky integration test",
             status: .working, lastTool: "Bash",
-            lastToolDetail: "cd build && source /opt/homebrew/share/chruby/chruby.sh",
+            lastToolDetail: "./scripts/run-integration-tests.sh --filter staging",
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: nil
         )
         s4.lastActivity = Date().addingTimeInterval(-30) // "30s ago"
 
+        // lastTool: "local_shell" matches what Codex actually emits (its only
+        // tool-tracked event). formatToolDisplay routes "local_shell" through
+        // the same "Running: ..." rendering as "bash".
         var s5 = mock(
-            id: "5", project: "terraform-infra", branch: "main",
-            status: .working, lastTool: "Bash",
-            lastToolDetail: "terraform plan -out=tfplan",
+            id: "5", project: "deploy-pipeline", branch: "main",
+            status: .working, lastTool: "local_shell",
+            lastToolDetail: "./scripts/deploy.sh --plan staging",
             source: "codex"
         )
         s5.lastActivity = Date().addingTimeInterval(-300) // "5m ago"
