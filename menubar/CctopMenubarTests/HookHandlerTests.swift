@@ -304,4 +304,51 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertTrue(sessionFileExists())
         XCTAssertNotNil(try loadSession().endedAt)
     }
+
+    // MARK: - Claude Desktop session naming (claude-code-sessions lookup)
+
+    func testClaudeDesktop_namesSessionFromClaudeCodeSessions() throws {
+        let ccsDir = NSTemporaryDirectory() + "cctop-ccs-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: ccsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: ccsDir) }
+
+        let content = """
+        {"cliSessionId":"test-session-001","title":"Investigate RBS RDoc plugin","lastActivityAt":1779281104333}
+        """
+        try content.write(toFile: ccsDir + "/local_x.json", atomically: true, encoding: .utf8)
+
+        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", ccsDir, 1)
+        setenv("__CFBundleIdentifier", "com.anthropic.claudefordesktop", 1)
+        defer { unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR"); unsetenv("__CFBundleIdentifier") }
+
+        try handleFixture("SessionStart")  // session_id test-session-001, no session_name
+        XCTAssertEqual(try loadSession().sessionName, "Investigate RBS RDoc plugin")
+    }
+
+    /// A just-started Desktop session has no title yet at SessionStart; Claude Desktop
+    /// auto-titles after the first turn. The lookup must re-run on Stop so the name
+    /// appears without waiting for the next prompt.
+    func testClaudeDesktop_refreshesNameOnStop() throws {
+        let ccsDir = NSTemporaryDirectory() + "cctop-ccs-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: ccsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: ccsDir) }
+
+        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", ccsDir, 1)
+        setenv("__CFBundleIdentifier", "com.anthropic.claudefordesktop", 1)
+        defer { unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR"); unsetenv("__CFBundleIdentifier") }
+
+        // No title file yet → name stays nil at SessionStart.
+        try handleFixture("SessionStart")
+        XCTAssertNil(try loadSession().sessionName)
+
+        // Claude Desktop writes the auto title after the first turn.
+        let content = """
+        {"cliSessionId":"test-session-001","title":"Auto title","lastActivityAt":1}
+        """
+        try content.write(toFile: ccsDir + "/local_x.json", atomically: true, encoding: .utf8)
+
+        // Stop re-runs the lookup and picks it up.
+        try handleFixture("Stop")
+        XCTAssertEqual(try loadSession().sessionName, "Auto title")
+    }
 }

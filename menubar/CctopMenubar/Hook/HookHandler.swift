@@ -3,6 +3,10 @@ import Foundation
 private let maxToolDetailLen = 120
 
 enum HookHandler {
+    // Claude Desktop's app bundle id. Mirrors HostApp.claudeDesktop.bundleID, which
+    // isn't compiled into the cctop-hook target — keep the two values in sync.
+    private static let claudeDesktopBundleID = "com.anthropic.claudefordesktop"
+
     // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
     private static let noPIDMaxAge: TimeInterval = 300
 
@@ -96,17 +100,21 @@ enum HookHandler {
         if let harness = input.resolvedHarnessName { session.source = harness }
         if let name = input.sessionName {
             session.sessionName = name
-        } else if event == .sessionStart || event == .userPromptSubmit {
-            // Only overwrite when the lookup succeeds. Previously this clobbered
-            // sessionName with nil on every UserPromptSubmit whose transcript
-            // didn't yet contain a `custom-title` entry, regressing any name set
-            // by an earlier event.
+        } else if event == .sessionStart || event == .userPromptSubmit || event == .stop {
+            // Only overwrite when the lookup succeeds (preserve-on-fail). Re-running on
+            // .stop lets a just-started session pick up its title as soon as the first
+            // turn completes, instead of waiting for the next prompt.
             //
-            // Codex sessions use a different local source: `~/.codex/session_index.jsonl`
-            // — Codex Desktop writes the user-visible thread name there, keyed by session_id.
+            // Each harness exposes the title from a different local source:
+            //   - codex:          ~/.codex/session_index.jsonl (keyed by session_id)
+            //   - Claude Desktop: claude-code-sessions/**/local_*.json (keyed by cliSessionId);
+            //                     Desktop never writes a `custom-title` to the CC transcript
+            //   - terminal CC:    the transcript JSONL `custom-title` entry
             let lookedUp: String?
             if session.source == "codex" {
                 lookedUp = SessionNameLookup.lookupCodexThreadName(sessionId: input.sessionId)
+            } else if session.terminal?.bundleId == claudeDesktopBundleID {
+                lookedUp = SessionNameLookup.lookupClaudeDesktopTitle(cliSessionId: input.sessionId)
             } else {
                 lookedUp = SessionNameLookup.lookupSessionName(
                     transcriptPath: input.transcriptPath, sessionId: input.sessionId
