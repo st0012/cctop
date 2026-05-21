@@ -351,4 +351,38 @@ final class HookHandlerTests: XCTestCase {
         try handleFixture("Stop")
         XCTAssertEqual(try loadSession().sessionName, "Auto title")
     }
+
+    /// Codex never fires Stop and titles its thread mid-turn, so the name lookup must
+    /// re-run on non-prompt events (e.g. PreToolUse) while sessionName is still nil —
+    /// otherwise the name wouldn't appear until the user's next prompt.
+    func testCodex_fillsNameOnToolEventWhileNil() throws {
+        let idx = NSTemporaryDirectory() + "cctop-codex-\(UUID().uuidString).jsonl"
+        defer { try? FileManager.default.removeItem(atPath: idx) }
+        setenv("CCTOP_CODEX_SESSION_INDEX", idx, 1)
+        defer { unsetenv("CCTOP_CODEX_SESSION_INDEX") }
+
+        func handle(_ json: String, _ hook: String) throws {
+            let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
+            try HookHandler.handleHook(hookName: hook, input: input)
+        }
+
+        // SessionStart before Codex has titled the thread → name stays nil.
+        let startJSON = """
+        {"session_id":"codex-1","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"codex"}
+        """
+        try handle(startJSON, "SessionStart")
+        XCTAssertNil(try loadSession().sessionName)
+
+        // Codex writes the thread name to its index mid-turn.
+        try """
+        {"id":"codex-1","thread_name":"Investigate session name capture"}
+        """.write(toFile: idx, atomically: true, encoding: .utf8)
+
+        // A tool event (not a prompt boundary) picks it up because the name is still nil.
+        let toolJSON = """
+        {"session_id":"codex-1","cwd":"/tmp/p","hook_event_name":"PreToolUse","harness_name":"codex","tool_name":"Bash"}
+        """
+        try handle(toolJSON, "PreToolUse")
+        XCTAssertEqual(try loadSession().sessionName, "Investigate session name capture")
+    }
 }

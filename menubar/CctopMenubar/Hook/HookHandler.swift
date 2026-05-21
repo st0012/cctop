@@ -100,10 +100,13 @@ enum HookHandler {
         if let harness = input.resolvedHarnessName { session.source = harness }
         if let name = input.sessionName {
             session.sessionName = name
-        } else if event == .sessionStart || event == .userPromptSubmit || event == .stop {
-            // Only overwrite when the lookup succeeds (preserve-on-fail). Re-running on
-            // .stop lets a just-started session pick up its title as soon as the first
-            // turn completes, instead of waiting for the next prompt.
+        } else if event == .sessionStart || event == .userPromptSubmit || event == .stop
+                    || (session.source == "codex" && session.sessionName == nil) {
+            // Only overwrite when the lookup succeeds (preserve-on-fail). Re-run on prompt
+            // boundaries (and .stop, for Claude Code) to catch renames. Codex additionally
+            // re-runs on ANY event while the name is still missing: it never fires .stop and
+            // titles its thread mid-turn, and its index is a single small file — so this
+            // fills the name within seconds, without a per-tool-call directory scan.
             //
             // Each harness exposes the title from a different local source:
             //   - codex:          ~/.codex/session_index.jsonl (keyed by session_id)

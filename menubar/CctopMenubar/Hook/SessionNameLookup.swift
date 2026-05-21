@@ -46,7 +46,7 @@ enum SessionNameLookup {
     /// titles server-side.
     static func lookupCodexThreadName(
         sessionId: String,
-        indexPath: String = NSString(string: "~/.codex/session_index.jsonl").expandingTildeInPath
+        indexPath: String = Config.codexSessionIndexPath()
     ) -> String? {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: indexPath)),
               let content = String(data: data, encoding: .utf8)
