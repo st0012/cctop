@@ -70,7 +70,7 @@ enum SessionNameLookup {
     /// Claude Desktop writes one JSON file per session with the user-visible `title`,
     /// keyed by `cliSessionId` (the Claude Code session_id). Unlike terminal Claude Code
     /// it never writes a `custom-title` entry to the transcript JSONL, so the transcript
-    /// lookup always fails for these sessions. Latest entry (by `lastActivityAt`) wins.
+    /// lookup always fails for these sessions. One file per session, so the first match wins.
     static func lookupClaudeDesktopTitle(
         cliSessionId: String,
         baseDir: String = Config.claudeCodeSessionsDir()
@@ -80,24 +80,19 @@ enum SessionNameLookup {
             at: URL(fileURLWithPath: baseDir), includingPropertiesForKeys: nil
         ) else { return nil }
 
-        var bestTitle: String?
-        var bestActivity = -Double.greatestFiniteMagnitude
         for case let url as URL in enumerator where url.pathExtension == "json" {
             guard let data = try? Data(contentsOf: url),
-                  // Cheap pre-filter before the full JSON parse.
+                  // Substring pre-filter skips the JSON parse for files that can't
+                  // match — these files are large (system prompt, MCP config, etc.).
                   let content = String(data: data, encoding: .utf8),
                   content.contains(cliSessionId),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   json["cliSessionId"] as? String == cliSessionId,
                   let title = json["title"] as? String, !title.isEmpty
             else { continue }
-            let activity = (json["lastActivityAt"] as? Double) ?? 0
-            if activity > bestActivity {
-                bestActivity = activity
-                bestTitle = title
-            }
+            return title
         }
-        return bestTitle
+        return nil
     }
 
     private static func lookupNameFromIndex(indexPath: String, sessionId: String) -> String? {

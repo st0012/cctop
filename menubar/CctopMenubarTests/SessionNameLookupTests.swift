@@ -293,18 +293,18 @@ final class SessionNameLookupTests: XCTestCase {
         XCTAssertEqual(result, "nested title")
     }
 
-    func testClaudeDesktop_latestByLastActivityWins() {
-        let older = """
-        {"cliSessionId":"s1","title":"older title","lastActivityAt":1000}
+    func testClaudeDesktop_picksFileMatchingCliSessionId() {
+        let other = """
+        {"cliSessionId":"other","title":"other title","lastActivityAt":1}
         """
-        let newer = """
-        {"cliSessionId":"s1","title":"newer title","lastActivityAt":2000}
+        let mine = """
+        {"cliSessionId":"s1","title":"my title","lastActivityAt":1}
         """
-        try! older.write(toFile: tmpDir + "/local_a.json", atomically: true, encoding: .utf8)
-        try! newer.write(toFile: tmpDir + "/local_b.json", atomically: true, encoding: .utf8)
+        try! other.write(toFile: tmpDir + "/local_a.json", atomically: true, encoding: .utf8)
+        try! mine.write(toFile: tmpDir + "/local_b.json", atomically: true, encoding: .utf8)
 
         let result = SessionNameLookup.lookupClaudeDesktopTitle(cliSessionId: "s1", baseDir: tmpDir)
-        XCTAssertEqual(result, "newer title")
+        XCTAssertEqual(result, "my title")
     }
 
     func testClaudeDesktop_missingBaseDirReturnsNil() {
