@@ -27,6 +27,18 @@ enum Config {
         return dir
     }
 
+    /// Directory where Claude Desktop stores per-session metadata (incl. the
+    /// user-visible `title`), keyed by `cliSessionId`. Read-only — never created.
+    static func claudeCodeSessionsDir() -> String {
+        if let override = ProcessInfo.processInfo.environment["CCTOP_CLAUDE_CODE_SESSIONS_DIR"],
+           !override.isEmpty {
+            return override
+        }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return (home as NSString)
+            .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions")
+    }
+
     private static func ensureDirectoryExists(_ path: String) {
         let fm = FileManager.default
         if !fm.fileExists(atPath: path) {

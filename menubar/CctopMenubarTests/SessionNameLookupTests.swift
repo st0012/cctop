@@ -265,4 +265,84 @@ final class SessionNameLookupTests: XCTestCase {
         )
         XCTAssertEqual(result, "correct match")
     }
+
+    // MARK: - Claude Desktop claude-code-sessions lookup
+
+    func testClaudeDesktop_findsTitleByCliSessionId() {
+        let content = """
+        {"cliSessionId":"a879e259-4cc5-4c27-b490-61ac8a18e86c","title":"Investigate RBS RDoc plugin","lastActivityAt":1779281104333}
+        """
+        try! content.write(toFile: tmpDir + "/local_x.json", atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupClaudeDesktopTitle(
+            cliSessionId: "a879e259-4cc5-4c27-b490-61ac8a18e86c", baseDir: tmpDir
+        )
+        XCTAssertEqual(result, "Investigate RBS RDoc plugin")
+    }
+
+    func testClaudeDesktop_findsTitleInNestedSubdirs() {
+        // Real layout nests files two levels deep: <acct>/<org>/local_*.json
+        let nested = tmpDir + "/acct-123/org-456"
+        try! FileManager.default.createDirectory(atPath: nested, withIntermediateDirectories: true)
+        let content = """
+        {"cliSessionId":"s1","title":"nested title","lastActivityAt":1}
+        """
+        try! content.write(toFile: nested + "/local_x.json", atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupClaudeDesktopTitle(cliSessionId: "s1", baseDir: tmpDir)
+        XCTAssertEqual(result, "nested title")
+    }
+
+    func testClaudeDesktop_latestByLastActivityWins() {
+        let older = """
+        {"cliSessionId":"s1","title":"older title","lastActivityAt":1000}
+        """
+        let newer = """
+        {"cliSessionId":"s1","title":"newer title","lastActivityAt":2000}
+        """
+        try! older.write(toFile: tmpDir + "/local_a.json", atomically: true, encoding: .utf8)
+        try! newer.write(toFile: tmpDir + "/local_b.json", atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupClaudeDesktopTitle(cliSessionId: "s1", baseDir: tmpDir)
+        XCTAssertEqual(result, "newer title")
+    }
+
+    func testClaudeDesktop_missingBaseDirReturnsNil() {
+        let result = SessionNameLookup.lookupClaudeDesktopTitle(
+            cliSessionId: "s1", baseDir: tmpDir + "/does-not-exist"
+        )
+        XCTAssertNil(result)
+    }
+
+    func testClaudeDesktop_noMatchingCliSessionIdReturnsNil() {
+        let content = """
+        {"cliSessionId":"other","title":"other title","lastActivityAt":1}
+        """
+        try! content.write(toFile: tmpDir + "/local_x.json", atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupClaudeDesktopTitle(cliSessionId: "s1", baseDir: tmpDir)
+        XCTAssertNil(result)
+    }
+
+    func testClaudeDesktop_emptyTitleIsIgnored() {
+        let content = """
+        {"cliSessionId":"s1","title":"","lastActivityAt":1}
+        """
+        try! content.write(toFile: tmpDir + "/local_x.json", atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupClaudeDesktopTitle(cliSessionId: "s1", baseDir: tmpDir)
+        XCTAssertNil(result)
+    }
+
+    func testClaudeDesktop_ignoresUnrelatedJsonFiles() {
+        // Files without cliSessionId (e.g. spaces.json) must not throw off the match.
+        try! "{\"spaces\":[]}".write(toFile: tmpDir + "/spaces.json", atomically: true, encoding: .utf8)
+        let content = """
+        {"cliSessionId":"s1","title":"real title","lastActivityAt":1}
+        """
+        try! content.write(toFile: tmpDir + "/local_x.json", atomically: true, encoding: .utf8)
+
+        let result = SessionNameLookup.lookupClaudeDesktopTitle(cliSessionId: "s1", baseDir: tmpDir)
+        XCTAssertEqual(result, "real title")
+    }
 }

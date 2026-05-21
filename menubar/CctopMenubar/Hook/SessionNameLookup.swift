@@ -65,6 +65,41 @@ enum SessionNameLookup {
         return nil
     }
 
+    /// Look up a Claude Desktop conversation title from
+    /// `~/Library/Application Support/Claude/claude-code-sessions/<acct>/<org>/local_*.json`.
+    /// Claude Desktop writes one JSON file per session with the user-visible `title`,
+    /// keyed by `cliSessionId` (the Claude Code session_id). Unlike terminal Claude Code
+    /// it never writes a `custom-title` entry to the transcript JSONL, so the transcript
+    /// lookup always fails for these sessions. Latest entry (by `lastActivityAt`) wins.
+    static func lookupClaudeDesktopTitle(
+        cliSessionId: String,
+        baseDir: String = Config.claudeCodeSessionsDir()
+    ) -> String? {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(
+            at: URL(fileURLWithPath: baseDir), includingPropertiesForKeys: nil
+        ) else { return nil }
+
+        var bestTitle: String?
+        var bestActivity = -Double.greatestFiniteMagnitude
+        for case let url as URL in enumerator where url.pathExtension == "json" {
+            guard let data = try? Data(contentsOf: url),
+                  // Cheap pre-filter before the full JSON parse.
+                  let content = String(data: data, encoding: .utf8),
+                  content.contains(cliSessionId),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  json["cliSessionId"] as? String == cliSessionId,
+                  let title = json["title"] as? String, !title.isEmpty
+            else { continue }
+            let activity = (json["lastActivityAt"] as? Double) ?? 0
+            if activity > bestActivity {
+                bestActivity = activity
+                bestTitle = title
+            }
+        }
+        return bestTitle
+    }
+
     private static func lookupNameFromIndex(indexPath: String, sessionId: String) -> String? {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: indexPath)),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
