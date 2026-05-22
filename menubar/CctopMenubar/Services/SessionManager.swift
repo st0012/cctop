@@ -139,7 +139,25 @@ class SessionManager: ObservableObject {
     private func adjustDisplayStatus(_ session: Session) -> Session {
         var result = adjustPermissionStatus(session)
         result = Self.adjustIdleTimeout(result)
+        result = Self.adjustCodexStaleWorking(result)
         return result
+    }
+
+    // Codex emits no Stop/SessionEnd; treat this much silence as "turn finished".
+    // Display-only and reversible — the next event flips the card back to working.
+    private static let codexWorkingStaleSeconds: TimeInterval = 300 // 5 minutes
+
+    /// Codex never fires Stop, so a finished conversation would otherwise sit on
+    /// `working` until its host process exits. After `codexWorkingStaleSeconds` of no
+    /// events, show it as `idle`. The on-disk file is NOT modified.
+    nonisolated static func adjustCodexStaleWorking(_ session: Session) -> Session {
+        guard session.source == "codex", session.status == .working,
+              -session.lastActivity.timeIntervalSinceNow > Self.codexWorkingStaleSeconds else {
+            return session
+        }
+        var adjusted = session
+        adjusted.status = .idle
+        return adjusted
     }
 
     private static let idleTimeoutSeconds: TimeInterval = 3600 // 60 minutes
