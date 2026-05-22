@@ -2,9 +2,9 @@ PROJECT = menubar/CctopMenubar.xcodeproj
 DERIVED = menubar/build
 SIGN = CODE_SIGN_IDENTITY="-"
 
-.PHONY: all build test lint clean install run restart
+.PHONY: all build test lint contract clean install run restart
 
-all: lint build test
+all: lint contract build test
 
 build:
 	xcodebuild build -project $(PROJECT) -scheme CctopMenubar -configuration Debug -derivedDataPath $(DERIVED) $(SIGN)
@@ -20,6 +20,10 @@ test:
 
 lint:
 	swiftlint lint --strict
+
+contract:
+	scripts/validate-fixtures.sh
+	scripts/validate-hooks-coverage.sh
 
 clean:
 	xcodebuild clean -project $(PROJECT) -scheme CctopMenubar -derivedDataPath $(DERIVED)

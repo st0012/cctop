@@ -4,14 +4,17 @@ import XCTest
 final class HookInputTests: XCTestCase {
 
     private func loadFixture(_ name: String) throws -> Data {
+        try Data(contentsOf: fixturesDirectory().appendingPathComponent("\(name).json"))
+    }
+
+    private func fixturesDirectory() -> URL {
         let projectDir = ProcessInfo.processInfo.environment["PROJECT_DIR"]
             ?? URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()  // CctopMenubarTests/
                 .deletingLastPathComponent()  // menubar/
                 .deletingLastPathComponent()  // repo root
                 .path
-        let path = (projectDir as NSString).appendingPathComponent("fixtures/\(name).json")
-        return try Data(contentsOf: URL(fileURLWithPath: path))
+        return URL(fileURLWithPath: projectDir).appendingPathComponent("fixtures")
     }
 
     // MARK: - SessionStart
@@ -167,32 +170,21 @@ final class HookInputTests: XCTestCase {
         XCTAssertEqual(input.sessionId, "test")
     }
 
-    // MARK: - Schema coverage
+    // MARK: - Fixture coverage
 
-    func testAllFixturesHaveValidEventNames() throws {
-        let validEvents: Set<String> = [
-            "SessionStart", "SessionEnd", "UserPromptSubmit", "Stop",
-            "PreToolUse", "PostToolUse", "PostToolUseFailure",
-            "PermissionRequest", "Notification",
-            "SubagentStart", "SubagentStop", "PreCompact",
-            "PostCompact", "SessionError"
-        ]
+    func testAllFixturesDecode() throws {
+        let fixtureURLs = try FileManager.default.contentsOfDirectory(
+            at: fixturesDirectory(),
+            includingPropertiesForKeys: nil
+        )
+        .filter { $0.pathExtension == "json" }
 
-        let fixtureNames = [
-            "SessionStart", "SessionEnd", "UserPromptSubmit", "Stop",
-            "PreToolUse", "PostToolUse", "PostToolUseFailure",
-            "PermissionRequest", "Notification-idle", "Notification-permission",
-            "SubagentStart", "SubagentStop", "PreCompact",
-            "PostCompact", "SessionError",
-            "SessionStart-opencode",
-            "codex-SessionStart"
-        ]
+        XCTAssertFalse(fixtureURLs.isEmpty)
 
-        for name in fixtureNames {
-            let input = try JSONDecoder().decode(HookInput.self, from: loadFixture(name))
-            XCTAssertTrue(
-                validEvents.contains(input.hookEventName),
-                "Fixture \(name) has unexpected event: \(input.hookEventName)"
+        for url in fixtureURLs {
+            XCTAssertNoThrow(
+                try JSONDecoder().decode(HookInput.self, from: Data(contentsOf: url)),
+                "Fixture \(url.lastPathComponent) should decode"
             )
         }
     }

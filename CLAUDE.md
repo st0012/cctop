@@ -182,6 +182,9 @@ make test
 # Lint with swiftlint --strict
 make lint
 
+# Validate the hook input contract against fixtures, Swift parsing, and plugins
+make contract
+
 # Build + lint + test (default)
 make all
 
@@ -205,6 +208,10 @@ scripts/bundle-macos.sh
 ```
 
 **IMPORTANT:** Always use `scripts/bump-version.sh <version>` to bump versions. Never edit version numbers manually — the script updates all files including `CURRENT_PROJECT_VERSION` in the Xcode project.
+
+### Hook Contract Validation
+
+Use `make contract` as the single validation entry point for hook contract work. It runs the fixture schema checks and hook/plugin drift checks together. Treat `scripts/validate-fixtures.sh`, `scripts/validate-hooks-coverage.sh`, and `scripts/validate-hook-contract.py` as implementation details or narrower debugging tools, not as separate commands agents need to remember for normal verification.
 
 ### Linting
 

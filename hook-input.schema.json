@@ -42,7 +42,60 @@
     "agent_id":         { "type": "string" },
     "agent_type":       { "type": "string" },
     "source":           { "type": "string", "description": "Tool that created this session (e.g. \"opencode\")" },
+    "harness_name":     {
+      "type": "string",
+      "enum": ["cc", "codex", "opencode", "pi"],
+      "description": "Tool harness that produced this payload. Legacy plugins may still send this value in source."
+    },
     "session_name":     { "type": "string", "description": "Display name for the session" }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "x-cctop": {
+    "harnesses": ["cc", "codex", "opencode", "pi"],
+    "events_by_harness": {
+      "cc": [
+        "SessionStart",
+        "SessionEnd",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "Stop",
+        "PreCompact",
+        "Notification",
+        "PermissionRequest",
+        "SubagentStart",
+        "SubagentStop"
+      ],
+      "codex": [
+        "SessionStart",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "Stop"
+      ],
+      "opencode": [
+        "SessionStart",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "Stop",
+        "PreCompact",
+        "PermissionRequest",
+        "PostCompact",
+        "SessionError"
+      ],
+      "pi": [
+        "SessionStart",
+        "SessionEnd",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "Stop",
+        "PreCompact",
+        "PostCompact"
+      ]
+    }
+  }
 }
