@@ -158,15 +158,16 @@ class SessionManager: ObservableObject {
         return result
     }
 
-    // Codex emits no Stop/SessionEnd; treat this much silence as "turn finished".
-    // Display-only and reversible — the next event flips the card back to working.
+    // Codex has no SessionEnd and its Stop hook isn't always delivered, so a finished
+    // conversation can be stranded on `working`. Treat this much silence as turn-done.
     private static let codexWorkingStaleSeconds: TimeInterval = 300 // 5 minutes
 
-    /// Codex never fires Stop, so a finished conversation would otherwise sit on
-    /// `working` until its host process exits. After `codexWorkingStaleSeconds` of no
-    /// events, show it as `idle`. The on-disk file is NOT modified.
+    /// Codex has no SessionEnd and may not deliver Stop, so a finished conversation can sit
+    /// on `working` until its host process exits. After `codexWorkingStaleSeconds` of no
+    /// events, show it as `idle` (display-only and reversible — the next event flips it back
+    /// to working). The on-disk file is NOT modified.
     nonisolated static func adjustCodexStaleWorking(_ session: Session) -> Session {
-        guard session.source == "codex", session.status == .working,
+        guard session.isCodex, session.status == .working,
               -session.lastActivity.timeIntervalSinceNow > Self.codexWorkingStaleSeconds else {
             return session
         }

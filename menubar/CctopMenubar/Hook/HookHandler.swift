@@ -433,7 +433,7 @@ func withSessionLock(sessionPath: String, body: () throws -> Void) throws {
 /// file. The `codex-` prefix keeps the name non-UUID so the menubar's legacy-file
 /// cleanup (which deletes bare pre-PID UUID files) leaves it alone.
 func sessionFileName(input: HookInput, pid: UInt32, safeSessionId: String) -> String {
-    if input.resolvedHarnessName == "codex" {
+    if input.resolvedHarnessName == Session.codexSource {
         return "codex-\(safeSessionId).json"
     }
     return "\(pid).json"

@@ -168,11 +168,16 @@ struct Session: Codable, Identifiable, Equatable {
     var endedAt: Date?
     var activeSubagents: [SubagentInfo]?
 
-    // Codex Desktop multiplexes many conversations onto a single host process, so the PID
-    // is not unique per conversation — identify Codex sessions by their session_id (which
-    // matches their codex-<id> file key). Every other source runs one session per PID.
+    /// Harness id Codex reports (CLI and Desktop both pass `--harness codex`).
+    static let codexSource = "codex"
+
+    var isCodex: Bool { source == Self.codexSource }
+
+    // Codex multiplexes many conversations onto one host process, so the PID is not unique
+    // per conversation — identify Codex sessions by session_id (matching their codex-<id>
+    // file key). Every other source runs one session per PID.
     var id: String {
-        if source == "codex" { return sessionId }
+        if isCodex { return sessionId }
         return pid.map { String($0) } ?? sessionId
     }
 
