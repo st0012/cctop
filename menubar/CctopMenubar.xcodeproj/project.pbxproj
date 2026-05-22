@@ -77,6 +77,7 @@
 		SN0000050000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
 		SP0000010000000000000001 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = SP0000020000000000000001 /* SparkleUpdater.swift */; };
 		T10000010000000000000001 /* SessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000020000000000000001 /* SessionTests.swift */; };
+		SFF000010000000000000001 /* SessionFileFormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SFF000020000000000000001 /* SessionFileFormatTests.swift */; };
 		AGT000010000000000000001 /* AgentBadgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGT000020000000000000001 /* AgentBadgeTests.swift */; };
 		QSC000010000000000000001 /* QaShowcaseCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = QSC000020000000000000001 /* QaShowcaseCoverageTests.swift */; };
 		T10000030000000000000001 /* SessionStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000040000000000000001 /* SessionStatusTests.swift */; };
@@ -177,6 +178,7 @@
 		SN0000040000000000000001 /* SessionNameLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNameLookupTests.swift; sourceTree = "<group>"; };
 		SP0000020000000000000001 /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
 		T10000020000000000000001 /* SessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionTests.swift; sourceTree = "<group>"; };
+		SFF000020000000000000001 /* SessionFileFormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionFileFormatTests.swift; sourceTree = "<group>"; };
 		AGT000020000000000000001 /* AgentBadgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBadgeTests.swift; sourceTree = "<group>"; };
 		QSC000020000000000000001 /* QaShowcaseCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QaShowcaseCoverageTests.swift; sourceTree = "<group>"; };
 		T10000040000000000000001 /* SessionStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatusTests.swift; sourceTree = "<group>"; };
@@ -355,6 +357,7 @@
 			isa = PBXGroup;
 			children = (
 				T10000020000000000000001 /* SessionTests.swift */,
+				SFF000020000000000000001 /* SessionFileFormatTests.swift */,
 				AGT000020000000000000001 /* AgentBadgeTests.swift */,
 				QSC000020000000000000001 /* QaShowcaseCoverageTests.swift */,
 				T10000040000000000000001 /* SessionStatusTests.swift */,
@@ -580,6 +583,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				T10000010000000000000001 /* SessionTests.swift in Sources */,
+				SFF000010000000000000001 /* SessionFileFormatTests.swift in Sources */,
 				AGT000010000000000000001 /* AgentBadgeTests.swift in Sources */,
 				QSC000010000000000000001 /* QaShowcaseCoverageTests.swift in Sources */,
 				T10000030000000000000001 /* SessionStatusTests.swift in Sources */,

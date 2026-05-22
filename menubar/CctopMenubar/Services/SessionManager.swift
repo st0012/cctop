@@ -115,13 +115,20 @@ class SessionManager: ObservableObject {
         )
     }
 
+    /// A pre-PID session file was keyed by a bare session UUID. Today's files are either
+    /// numeric (PID) or `codex-<uuid>` (one Codex conversation per file); neither is a bare
+    /// UUID, so only genuinely old files match and get cleaned up.
+    nonisolated static func isLegacyUUIDFilename(_ stem: String) -> Bool {
+        HostApp.isUUID(stem)
+    }
+
     // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
     /// Remove old-format UUID-keyed session files (pre-PID migration).
     /// PID-keyed filenames are purely numeric; UUID filenames contain letters/hyphens.
     private func cleanupOldFormatFiles(_ jsonFiles: [URL]) {
         for url in jsonFiles {
             let stem = url.deletingPathExtension().lastPathComponent
-            if stem.rangeOfCharacter(from: CharacterSet.decimalDigits.inverted) != nil {
+            if Self.isLegacyUUIDFilename(stem) {
                 logger.info("removing old-format session file: \(stem, privacy: .public)")
                 try? FileManager.default.removeItem(at: url)
             }
