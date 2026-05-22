@@ -54,8 +54,8 @@ enum HostApp {
         case .terminal: return "com.apple.Terminal"
         case .ghostty: return "com.mitchellh.ghostty"
         case .kitty: return "net.kovidgoyal.kitty"
-        case .claudeDesktop: return "com.anthropic.claudefordesktop"
-        case .codexDesktop: return "com.openai.codex"
+        case .claudeDesktop: return HostAppBundleID.claudeDesktop
+        case .codexDesktop: return HostAppBundleID.codexDesktop
         case .unknown: return nil
         }
     }

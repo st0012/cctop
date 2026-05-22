@@ -2,11 +2,12 @@ import Foundation
 
 private let maxToolDetailLen = 120
 
-enum HookHandler {
-    // Claude Desktop's app bundle id. Mirrors HostApp.claudeDesktop.bundleID, which
-    // isn't compiled into the cctop-hook target — keep the two values in sync.
-    private static let claudeDesktopBundleID = "com.anthropic.claudefordesktop"
+enum HostAppBundleID {
+    static let claudeDesktop = "com.anthropic.claudefordesktop"
+    static let codexDesktop = "com.openai.codex"
+}
 
+enum HookHandler {
     // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
     private static let noPIDMaxAge: TimeInterval = 300
 
@@ -113,7 +114,7 @@ enum HookHandler {
             let lookedUp: String?
             if session.source == "codex" {
                 lookedUp = SessionNameLookup.lookupCodexThreadName(sessionId: input.sessionId)
-            } else if session.terminal?.bundleId == claudeDesktopBundleID {
+            } else if session.terminal?.bundleId == HostAppBundleID.claudeDesktop {
                 lookedUp = SessionNameLookup.lookupClaudeDesktopTitle(cliSessionId: input.sessionId)
             } else {
                 lookedUp = SessionNameLookup.lookupSessionName(

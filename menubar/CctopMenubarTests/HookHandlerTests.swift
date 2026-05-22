@@ -54,6 +54,13 @@ final class HookHandlerTests: XCTestCase {
         return entries.contains { $0.hasSuffix(".json") }
     }
 
+    // MARK: - Shared host app bundle IDs
+
+    func testDesktopBundleIDsAreSharedWithHostApp() {
+        XCTAssertEqual(HostApp.claudeDesktop.bundleID, HostAppBundleID.claudeDesktop)
+        XCTAssertEqual(HostApp.codexDesktop.bundleID, HostAppBundleID.codexDesktop)
+    }
+
     // MARK: - SessionStart creates idle session
 
     func testSessionStartCreatesIdleSession() throws {
@@ -318,7 +325,7 @@ final class HookHandlerTests: XCTestCase {
         try content.write(toFile: ccsDir + "/local_x.json", atomically: true, encoding: .utf8)
 
         setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", ccsDir, 1)
-        setenv("__CFBundleIdentifier", "com.anthropic.claudefordesktop", 1)
+        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
         defer { unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR"); unsetenv("__CFBundleIdentifier") }
 
         try handleFixture("SessionStart")  // session_id test-session-001, no session_name
@@ -334,7 +341,7 @@ final class HookHandlerTests: XCTestCase {
         defer { try? FileManager.default.removeItem(atPath: ccsDir) }
 
         setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", ccsDir, 1)
-        setenv("__CFBundleIdentifier", "com.anthropic.claudefordesktop", 1)
+        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
         defer { unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR"); unsetenv("__CFBundleIdentifier") }
 
         // No title file yet → name stays nil at SessionStart.
