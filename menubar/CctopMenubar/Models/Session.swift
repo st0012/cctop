@@ -168,7 +168,13 @@ struct Session: Codable, Identifiable, Equatable {
     var endedAt: Date?
     var activeSubagents: [SubagentInfo]?
 
-    var id: String { pid.map { String($0) } ?? sessionId }
+    // Codex Desktop multiplexes many conversations onto a single host process, so the PID
+    // is not unique per conversation — identify Codex sessions by their session_id (which
+    // matches their codex-<id> file key). Every other source runs one session per PID.
+    var id: String {
+        if source == "codex" { return sessionId }
+        return pid.map { String($0) } ?? sessionId
+    }
 
     var displayName: String {
         sessionName ?? projectName

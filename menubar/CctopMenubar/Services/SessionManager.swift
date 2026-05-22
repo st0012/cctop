@@ -39,7 +39,9 @@ class SessionManager: ObservableObject {
             return
         }
 
-        let oldStatuses = Dictionary(uniqueKeysWithValues: sessions.map { ($0.id, $0.status) })
+        // Tolerate duplicate ids defensively — `sessions` is deduped below, but a transient
+        // double-file must never trap here (uniqueKeysWithValues crashes on a dup key).
+        let oldStatuses = Dictionary(sessions.map { ($0.id, $0.status) }, uniquingKeysWith: { first, _ in first })
 
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
         let allDecoded = jsonFiles
@@ -62,9 +64,7 @@ class SessionManager: ObservableObject {
             if entry.1.endedAt != nil || !entry.1.isAlive { dead.append(entry) } else { alive.append(entry) }
         }
         logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead")
-        let newSessions = alive.map(\.1).map { session in
-            adjustDisplayStatus(session)
-        }.sorted { $0.id < $1.id }
+        let newSessions = Self.dedupedByID(alive.map(\.1).map { adjustDisplayStatus($0) })
 
         // Side effects: run before the equality guard so they always execute.
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
@@ -133,6 +133,21 @@ class SessionManager: ObservableObject {
                 try? FileManager.default.removeItem(at: url)
             }
         }
+    }
+
+    /// Distinct sessions can transiently share an `id`: Codex multiplexes conversations
+    /// onto one host PID, and a migration window can briefly leave two files for the same
+    /// conversation. Collapse by `id` (keeping the most recently active) so the published
+    /// list — and everything keyed by id (SwiftUI identity, the status map) — stays unique.
+    nonisolated static func dedupedByID(_ sessions: [Session]) -> [Session] {
+        var byID: [String: Session] = [:]
+        for session in sessions {
+            if let existing = byID[session.id], existing.lastActivity >= session.lastActivity {
+                continue
+            }
+            byID[session.id] = session
+        }
+        return byID.values.sorted { $0.id < $1.id }
     }
 
     /// Apply display-side status adjustments. The session file on disk is NOT modified.
