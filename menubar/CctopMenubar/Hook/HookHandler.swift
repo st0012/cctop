@@ -23,7 +23,7 @@ enum HookHandler {
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
         let pid = getParentPID()
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
-        let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(pid).json")
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
 
         let branch = getCurrentBranch(cwd: input.cwd)
         let terminal = captureTerminalInfo()
@@ -194,12 +194,10 @@ enum HookHandler {
            abs(storedStart - currentStart) > 1.0 {
             return fresh
         }
-        // Same PID, different session_id — the OS process is now hosting a new
-        // conversation. Common for Codex Desktop, which keeps one long-lived
-        // process and spawns a new session_id per "new chat". Drop all
-        // conversation-specific state (project, name, prompt, tools, etc.) and
-        // only carry over PID liveness metadata so the process-alive check
-        // keeps working.
+        // Same PID, different session_id — a PID-keyed source (opencode/pi) reused the
+        // process for a new conversation. Drop conversation-specific state (project, name,
+        // prompt, tools, etc.) and carry over only PID liveness metadata. (Codex no longer
+        // reaches this: it is keyed by session_id, so each conversation has its own file.)
         guard existing.sessionId == fresh.sessionId else {
             var carried = fresh
             carried.pid = existing.pid
@@ -340,7 +338,7 @@ enum HookHandler {
     private static func handleSessionEnd(hookName: String, input: HookInput) {
         let pid = getParentPID()
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
-        let path = (Config.sessionsDir() as NSString).appendingPathComponent("\(pid).json")
+        let path = (Config.sessionsDir() as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
         // Stamp endedAt instead of deleting — the menubar app archives to history on next poll.
         try? withSessionLock(sessionPath: path) {
@@ -425,6 +423,20 @@ func withSessionLock(sessionPath: String, body: () throws -> Void) throws {
     }
     defer { flock(fd, LOCK_UN) }
     try body()
+}
+
+// MARK: - Session File Naming
+
+/// Session files are keyed by PID, except Codex. Codex Desktop fires every
+/// conversation's hooks from one shared host process, so PID keying would collapse
+/// them into a single slot — key Codex by session_id so each conversation is its own
+/// file. The `codex-` prefix keeps the name non-UUID so the menubar's legacy-file
+/// cleanup (which deletes bare pre-PID UUID files) leaves it alone.
+func sessionFileName(input: HookInput, pid: UInt32, safeSessionId: String) -> String {
+    if input.resolvedHarnessName == "codex" {
+        return "codex-\(safeSessionId).json"
+    }
+    return "\(pid).json"
 }
 
 // MARK: - Git Branch

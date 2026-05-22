@@ -392,4 +392,29 @@ final class HookHandlerTests: XCTestCase {
         try handle(toolJSON, "PreToolUse")
         XCTAssertEqual(try loadSession().sessionName, "Investigate session name capture")
     }
+
+    /// Codex Desktop fires every conversation's hooks from one shared host process, so
+    /// PID keying collapses them into a single file. Keyed by session_id, two concurrent
+    /// Codex conversations (same host PID — here the test runner's PID) get two files.
+    func testCodex_keepsSeparateFilePerSessionId() throws {
+        func handle(_ json: String, _ hook: String) throws {
+            let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
+            try HookHandler.handleHook(hookName: hook, input: input)
+        }
+        let convoA = """
+        {"session_id":"019e0000-aaaa-7000-8000-000000000001","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"codex"}
+        """
+        let convoB = """
+        {"session_id":"019e0000-bbbb-7000-8000-000000000002","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"codex"}
+        """
+        try handle(convoA, "SessionStart")
+        try handle(convoB, "SessionStart")
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: sessionsDir)
+            .filter { $0.hasSuffix(".json") }.sorted()
+        XCTAssertEqual(files, [
+            "codex-019e0000-aaaa-7000-8000-000000000001.json",
+            "codex-019e0000-bbbb-7000-8000-000000000002.json"
+        ])
+    }
 }
