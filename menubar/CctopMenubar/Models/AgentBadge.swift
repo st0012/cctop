@@ -10,7 +10,7 @@ enum AgentBadge: Equatable {
     case opencode
     case pi
 
-    /// Short user-facing label rendered in the meta row.
+    /// The single user-facing source label API for badge rendering.
     var label: String {
         switch self {
         case .cc: return "CC"

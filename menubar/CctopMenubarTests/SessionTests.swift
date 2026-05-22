@@ -241,7 +241,7 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.projectName, "api-server")
         XCTAssertEqual(session.status, .working)
         XCTAssertEqual(session.source, "opencode")
-        XCTAssertEqual(session.sourceLabel, "OC")
+        XCTAssertEqual(session.agentBadge.label, "OC")
         XCTAssertEqual(session.pid, 54321)
         XCTAssertNil(session.pidStartTime)
     }
@@ -261,27 +261,27 @@ final class SessionTests: XCTestCase {
         """
         let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
         XCTAssertNil(session.source)
-        XCTAssertEqual(session.sourceLabel, "CC")
+        XCTAssertEqual(session.agentBadge.label, "CC")
     }
 
-    func testSourceLabelOpencode() {
+    func testAgentBadgeLabelOpencode() {
         let session = Session.mock(source: "opencode")
-        XCTAssertEqual(session.sourceLabel, "OC")
+        XCTAssertEqual(session.agentBadge.label, "OC")
     }
 
-    func testSourceLabelDefault() {
+    func testAgentBadgeLabelDefault() {
         let session = Session.mock()
-        XCTAssertEqual(session.sourceLabel, "CC")
+        XCTAssertEqual(session.agentBadge.label, "CC")
     }
 
-    func testSourceLabelPi() {
+    func testAgentBadgeLabelPi() {
         let session = Session.mock(source: "pi")
-        XCTAssertEqual(session.sourceLabel, "Pi")
+        XCTAssertEqual(session.agentBadge.label, "Pi")
     }
 
-    func testSourceLabelUnknownValue() {
+    func testAgentBadgeLabelUnknownValue() {
         let session = Session.mock(source: "aider")
-        XCTAssertEqual(session.sourceLabel, "CC")
+        XCTAssertEqual(session.agentBadge.label, "CC")
     }
 
     func testSourceCarriedInWithSessionId() {

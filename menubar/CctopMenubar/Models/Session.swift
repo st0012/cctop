@@ -174,15 +174,6 @@ struct Session: Codable, Identifiable, Equatable {
         sessionName ?? projectName
     }
 
-    var sourceLabel: String {
-        switch source {
-        case "opencode": return "OC"
-        case "pi": return "Pi"
-        case "codex": return "Codex"
-        default: return "CC"
-        }
-    }
-
     var subagentCount: Int {
         activeSubagents?.count ?? 0
     }
