@@ -6,5 +6,16 @@
 	<string>https://raw.githubusercontent.com/st0012/cctop/master/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>7Ts0HFX10tBXROh8uS9x2Gvuy+K5g3WT48FFYSIR51g=</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.st0012.CctopMenubar</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>cctop</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

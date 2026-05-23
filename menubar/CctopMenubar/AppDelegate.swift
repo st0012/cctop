@@ -1,5 +1,6 @@
 // swiftlint:disable file_length
 import AppKit
+import Carbon
 import Combine
 import KeyboardShortcuts
 import SwiftUI
@@ -73,6 +74,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         applyAppearance()
         registerShortcuts()
+        registerURLHandler()
         observeSessionUpdates()
         observeThemeChanges()
     }
@@ -617,5 +619,34 @@ extension AppDelegate {
             }
             try fm.createSymbolicLink(at: symlinkPath, withDestinationURL: bundledHook)
         } catch {}
+    }
+}
+// MARK: - URL scheme handling (cctop://)
+extension AppDelegate {
+    /// Registers a handler for the `cctop://` URL scheme so the panel can be
+    /// toggled programmatically — e.g. `open cctop://toggle` from the shell or
+    /// any automation tool. This avoids needing a global hotkey or a menubar click.
+    @MainActor func registerURLHandler() {
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleURLEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
+    }
+
+    @objc private func handleURLEvent(
+        _ event: NSAppleEventDescriptor, withReplyEvent _: NSAppleEventDescriptor
+    ) {
+        guard let string = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
+              let url = URL(string: string) else { return }
+        // Command lives in the host (cctop://toggle) or path (cctop:toggle).
+        let command = url.host ?? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        switch command {
+        case "toggle":
+            DispatchQueue.main.async { [weak self] in self?.togglePanel() }
+        default:
+            break
+        }
     }
 }
