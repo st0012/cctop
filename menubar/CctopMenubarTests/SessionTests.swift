@@ -27,6 +27,25 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.status, .working)
         XCTAssertEqual(session.lastTool, "Bash")
         XCTAssertEqual(session.pid, 12345)
+        XCTAssertFalse(session.hidden)
+    }
+
+    func testDecodesHiddenSessionJSON() throws {
+        let json = """
+        {
+            "session_id": "hidden-1",
+            "project_path": "/Users/test/projects/myapp",
+            "project_name": "myapp",
+            "branch": "main",
+            "status": "working",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "Code"},
+            "hidden": true
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertTrue(session.hidden)
     }
 
     func testDecodesDateWithFractionalSeconds() throws {

@@ -5,6 +5,8 @@ import UserNotifications
 import os.log
 
 private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
+private typealias SessionFile = (url: URL, session: Session)
+private typealias SessionBuckets = (hidden: [SessionFile], memoryMaintenance: [SessionFile], alive: [SessionFile], dead: [SessionFile])
 
 @MainActor
 class SessionManager: ObservableObject {
@@ -44,27 +46,13 @@ class SessionManager: ObservableObject {
         let oldStatuses = Dictionary(sessions.map { ($0.id, $0.status) }, uniquingKeysWith: { first, _ in first })
 
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
-        let allDecoded = jsonFiles
-            .compactMap { url -> (URL, Session)? in
-                guard let data = try? Data(contentsOf: url) else {
-                    logger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
-                    return nil
-                }
-                do {
-                    let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
-                    return (url, session)
-                } catch {
-                    logger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
-                    return nil
-                }
-            }
-        var alive: [(URL, Session)] = []
-        var dead: [(URL, Session)] = []
-        for entry in allDecoded {
-            if entry.1.endedAt != nil || !entry.1.isAlive { dead.append(entry) } else { alive.append(entry) }
-        }
-        logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded, \(alive.count) alive, \(dead.count) dead")
-        let newSessions = Self.dedupedByID(alive.map(\.1).map { adjustDisplayStatus($0) })
+        let allDecoded = decodedSessions(from: jsonFiles)
+        let partition = partitionSessions(allDecoded)
+        logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded")
+        logger.info(
+            "loadSessions: \(partition.alive.count) alive, \(partition.dead.count) dead, \(partition.hidden.count) hidden"
+        )
+        let newSessions = Self.dedupedByID(partition.alive.map(\.1).map { adjustDisplayStatus($0) })
 
         // Side effects: run before the equality guard so they always execute.
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
@@ -83,8 +71,57 @@ class SessionManager: ObservableObject {
             sessions = newSessions
         }
 
-        archiveAndRemoveDeadSessions(dead)
+        hideCodexMemoryMaintenanceSessions(partition.memoryMaintenance)
+        archiveAndRemoveDeadSessions(partition.dead)
         cleanupOldFormatFiles(jsonFiles)
+    }
+
+    private func decodedSessions(from jsonFiles: [URL]) -> [SessionFile] {
+        jsonFiles.compactMap { url in
+            guard let data = try? Data(contentsOf: url) else {
+                logger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
+                return nil
+            }
+            do {
+                let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+                return (url, session)
+            } catch {
+                logger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
+                return nil
+            }
+        }
+    }
+
+    private func partitionSessions(_ entries: [SessionFile]) -> SessionBuckets {
+        var hidden: [SessionFile] = []
+        var memoryMaintenance: [SessionFile] = []
+        var alive: [SessionFile] = []
+        var dead: [SessionFile] = []
+
+        for entry in entries {
+            if entry.session.hidden {
+                hidden.append(entry)
+            } else if entry.session.isCodexMemoryMaintenanceSession {
+                memoryMaintenance.append(entry)
+            } else if entry.session.endedAt != nil || !entry.session.isAlive {
+                dead.append(entry)
+            } else {
+                alive.append(entry)
+            }
+        }
+
+        return (hidden, memoryMaintenance, alive, dead)
+    }
+
+    private func hideCodexMemoryMaintenanceSessions(_ sessions: [(URL, Session)]) {
+        for (url, session) in sessions {
+            logger.info(
+                "hiding Codex memory maintenance session \(session.sessionId, privacy: .public)"
+            )
+            var hiddenSession = session
+            hiddenSession.hidden = true
+            try? hiddenSession.writeToFile(path: url.path)
+        }
     }
 
     private func archiveAndRemoveDeadSessions(_ dead: [(URL, Session)]) {
@@ -96,16 +133,14 @@ class SessionManager: ObservableObject {
             // live file directly so it doesn't linger as a "dead" entry forever.
             if session.isHostedByDesktopApp {
                 logger.info("dropping dead desktop-app session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
-                try? FileManager.default.removeItem(at: url)
-                try? FileManager.default.removeItem(at: url.appendingPathExtension("lock"))
+                removeSessionFile(at: url)
                 continue
             }
 
             logger.info("archiving dead session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
             let archived = historyManager.archiveSession(session)
             if archived {
-                try? FileManager.default.removeItem(at: url)
-                try? FileManager.default.removeItem(at: url.appendingPathExtension("lock"))
+                removeSessionFile(at: url)
             } else {
                 logger.warning("skipping removal of \(sid, privacy: .public) — archive failed")
             }
@@ -113,6 +148,11 @@ class SessionManager: ObservableObject {
         historyManager.rebuildRecentProjects(
             excludingActive: Set(sessions.map(\.projectPath))
         )
+    }
+
+    private func removeSessionFile(at url: URL) {
+        try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: url.appendingPathExtension("lock"))
     }
 
     /// A pre-PID session file was keyed by a bare session UUID. Today's files are either

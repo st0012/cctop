@@ -2,6 +2,19 @@ import XCTest
 @testable import CctopMenubar
 
 final class SessionFileFormatTests: XCTestCase {
+    private func codexDesktopSession(sessionId: String, projectPath: String) -> Session {
+        var session = Session(
+            sessionId: sessionId,
+            projectPath: projectPath,
+            branch: "main",
+            terminal: TerminalInfo(bundleId: "com.openai.codex")
+        )
+        session.source = Session.codexSource
+        session.pid = UInt32(ProcessInfo.processInfo.processIdentifier)
+        session.status = .waitingInput
+        return session
+    }
+
     func testLegacyUUIDFilenameClassification() {
         // Pre-PID files were keyed by a bare session UUID → should be removed.
         XCTAssertTrue(SessionManager.isLegacyUUIDFilename("019e4b0c-9473-7a33-a4b9-749fd2c83a9e"))
@@ -54,5 +67,128 @@ final class SessionFileFormatTests: XCTestCase {
         // Two distinct ids survive; the duplicate id keeps the most recently active entry.
         XCTAssertEqual(result.map(\.id).sorted(), ["conv-a", "conv-b"])
         XCTAssertEqual(result.first { $0.id == "conv-a" }?.sessionName, "current")
+    }
+
+    // MARK: - Codex memory maintenance sessions
+
+    func testCodexMemoryMaintenanceSessionUsesConfiguredDirectory() {
+        let root = NSTemporaryDirectory() + "cctop-memory-\(UUID().uuidString)"
+        let memoriesDir = (root as NSString).appendingPathComponent("alice/.codex/memories")
+        setenv("CCTOP_CODEX_MEMORIES_DIR", memoriesDir + "/", 1)
+        defer {
+            unsetenv("CCTOP_CODEX_MEMORIES_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let normalizedEquivalent = (root as NSString)
+            .appendingPathComponent("alice/.codex/../.codex/memories")
+        let session = codexDesktopSession(sessionId: "codex-memory", projectPath: normalizedEquivalent)
+
+        XCTAssertEqual(Config.codexMemoriesDir(), memoriesDir + "/")
+        XCTAssertTrue(session.isCodexMemoryMaintenanceSession)
+    }
+
+    func testCodexMemoryMaintenanceClassificationIsNarrow() {
+        let root = NSTemporaryDirectory() + "cctop-memory-\(UUID().uuidString)"
+        let memoriesDir = (root as NSString).appendingPathComponent("bob/.codex/memories")
+        setenv("CCTOP_CODEX_MEMORIES_DIR", memoriesDir, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_MEMORIES_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let normalProject = codexDesktopSession(
+            sessionId: "normal-codex",
+            projectPath: (root as NSString).appendingPathComponent("bob/projects/cctop")
+        )
+        XCTAssertFalse(normalProject.isCodexMemoryMaintenanceSession)
+
+        var nonDesktopMemory = Session(
+            sessionId: "codex-cli-memory",
+            projectPath: memoriesDir,
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        nonDesktopMemory.source = Session.codexSource
+        XCTAssertFalse(nonDesktopMemory.isCodexMemoryMaintenanceSession)
+
+        var nonCodexMemory = codexDesktopSession(sessionId: "other-memory", projectPath: memoriesDir)
+        nonCodexMemory.source = "cc"
+        XCTAssertFalse(nonCodexMemory.isCodexMemoryMaintenanceSession)
+
+        XCTAssertEqual(normalProject.projectName, "cctop")
+    }
+
+    @MainActor
+    func testSessionManagerHidesCodexMemoryMaintenanceSessionsWithoutRemovingFiles() throws {
+        let root = NSTemporaryDirectory() + "cctop-memory-cleanup-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let memoriesDir = (root as NSString).appendingPathComponent("carol/.codex/memories")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_MEMORIES_DIR", memoriesDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_MEMORIES_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let memorySession = codexDesktopSession(sessionId: "memory-session", projectPath: memoriesDir)
+        let memoryPath = (sessionsDir as NSString).appendingPathComponent("codex-memory-session.json")
+        try memorySession.writeToFile(path: memoryPath)
+        FileManager.default.createFile(atPath: memoryPath + ".lock", contents: nil)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: memoryPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: memoryPath + ".lock"))
+        XCTAssertTrue(try Session.fromFile(path: memoryPath).hidden)
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerSkipsAlreadyHiddenSessionsWithoutArchivingOrRemovingThem() throws {
+        let root = NSTemporaryDirectory() + "cctop-hidden-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        var hidden = Session(
+            sessionId: "hidden-review",
+            projectPath: (root as NSString).appendingPathComponent("reviews/cctop"),
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        hidden.hidden = true
+        hidden.pid = 999_999
+        let hiddenPath = (sessionsDir as NSString).appendingPathComponent("999999.json")
+        try hidden.writeToFile(path: hiddenPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: hiddenPath))
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
     }
 }

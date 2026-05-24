@@ -138,6 +138,14 @@ extension Session {
         guard let bundleId = terminal?.bundleId else { return false }
         return HostApp.from(bundleIdentifier: bundleId)?.isDesktopApp == true
     }
+
+    /// True for Codex Desktop's local memory-consolidation runs. These are maintenance
+    /// artifacts, not user workspace sessions, so cctop hides and removes their live files.
+    var isCodexMemoryMaintenanceSession: Bool {
+        source == Session.codexSource
+            && HostApp.from(bundleIdentifier: terminal?.bundleId) == .codexDesktop
+            && Config.standardizedPath(projectPath) == Config.standardizedPath(Config.codexMemoriesDir())
+    }
 }
 
 extension HostApp {

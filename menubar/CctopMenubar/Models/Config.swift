@@ -39,6 +39,16 @@ enum Config {
             .appendingPathComponent("Library/Application Support/Claude/claude-code-sessions")
     }
 
+    /// Codex's local memory folder. Read-only — never created.
+    static func codexMemoriesDir() -> String {
+        if let override = ProcessInfo.processInfo.environment["CCTOP_CODEX_MEMORIES_DIR"],
+           !override.isEmpty {
+            return override
+        }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return (home as NSString).appendingPathComponent(".codex/memories")
+    }
+
     /// Codex's session index (JSONL), which maps `id` (session_id) to the
     /// user-visible `thread_name`. Read-only — never created.
     static func codexSessionIndexPath() -> String {
@@ -47,6 +57,10 @@ enum Config {
             return override
         }
         return NSString(string: "~/.codex/session_index.jsonl").expandingTildeInPath
+    }
+
+    static func standardizedPath(_ path: String) -> String {
+        NSString(string: NSString(string: path).expandingTildeInPath).standardizingPath
     }
 
     private static func ensureDirectoryExists(_ path: String) {

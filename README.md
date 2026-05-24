@@ -151,6 +151,8 @@ ls ~/.cctop/sessions/
 cat ~/.cctop/sessions/*.json | python3 -m json.tool
 ```
 
+The session-file fields are documented in [`docs/session-files.md`](docs/session-files.md).
+
 ## FAQ
 
 **Does cctop slow down my coding tool?**
@@ -163,7 +165,7 @@ No. Once the plugin is installed, all sessions are automatically tracked. No per
 By default, the project directory name (e.g. `/path/to/my-app` shows as "my-app"). In Claude Code, you can rename a session with `/rename` and cctop picks that up.
 
 **No sessions are showing up — what do I check?**
-First, make sure you restarted sessions after installing the plugin. Then check if session files exist: `ls ~/.cctop/sessions/`. If the directory is empty, the plugin isn't writing data — verify it's installed correctly (see Step 2). If files exist but the menubar shows nothing, try restarting the cctop app.
+First, make sure you restarted sessions after installing the plugin. Then check if session files exist: `ls ~/.cctop/sessions/`. If the directory is empty, the plugin isn't writing data — verify it's installed correctly (see Step 2). If files exist but the menubar shows nothing, check whether those JSON files have `"hidden": true`, then try restarting the cctop app.
 
 **What happens if a coding tool crashes?**
 cctop detects dead sessions automatically. It checks whether each session's process is still running and removes stale entries. No manual cleanup needed.

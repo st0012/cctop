@@ -167,6 +167,7 @@ struct Session: Codable, Identifiable, Equatable {
     var source: String?
     var endedAt: Date?
     var activeSubagents: [SubagentInfo]?
+    var hidden: Bool
 
     /// Harness id Codex reports (CLI and Desktop both pass `--harness codex`).
     static let codexSource = "codex"
@@ -207,9 +208,34 @@ struct Session: Codable, Identifiable, Equatable {
         case source
         case endedAt = "ended_at"
         case activeSubagents = "active_subagents"
+        case hidden
     }
 
     // MARK: - Constructors
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sessionId = try container.decode(String.self, forKey: .sessionId)
+        projectPath = try container.decode(String.self, forKey: .projectPath)
+        projectName = try container.decode(String.self, forKey: .projectName)
+        branch = try container.decode(String.self, forKey: .branch)
+        status = try container.decode(SessionStatus.self, forKey: .status)
+        lastPrompt = try container.decodeIfPresent(String.self, forKey: .lastPrompt)
+        lastActivity = try container.decode(Date.self, forKey: .lastActivity)
+        startedAt = try container.decode(Date.self, forKey: .startedAt)
+        terminal = try container.decodeIfPresent(TerminalInfo.self, forKey: .terminal)
+        pid = try container.decodeIfPresent(UInt32.self, forKey: .pid)
+        pidStartTime = try container.decodeIfPresent(TimeInterval.self, forKey: .pidStartTime)
+        lastTool = try container.decodeIfPresent(String.self, forKey: .lastTool)
+        lastToolDetail = try container.decodeIfPresent(String.self, forKey: .lastToolDetail)
+        notificationMessage = try container.decodeIfPresent(String.self, forKey: .notificationMessage)
+        sessionName = try container.decodeIfPresent(String.self, forKey: .sessionName)
+        workspaceFile = try container.decodeIfPresent(String.self, forKey: .workspaceFile)
+        source = try container.decodeIfPresent(String.self, forKey: .source)
+        endedAt = try container.decodeIfPresent(Date.self, forKey: .endedAt)
+        activeSubagents = try container.decodeIfPresent([SubagentInfo].self, forKey: .activeSubagents)
+        hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
+    }
 
     /// Full memberwise init (used by mocks and tests).
     init(
@@ -231,7 +257,8 @@ struct Session: Codable, Identifiable, Equatable {
         workspaceFile: String? = nil,
         source: String? = nil,
         endedAt: Date? = nil,
-        activeSubagents: [SubagentInfo]? = nil
+        activeSubagents: [SubagentInfo]? = nil,
+        hidden: Bool = false
     ) {
         self.sessionId = sessionId
         self.projectPath = projectPath
@@ -252,6 +279,7 @@ struct Session: Codable, Identifiable, Equatable {
         self.source = source
         self.endedAt = endedAt
         self.activeSubagents = activeSubagents
+        self.hidden = hidden
     }
 
     /// Convenience init for creating new sessions (used by cctop-hook).
@@ -275,6 +303,7 @@ struct Session: Codable, Identifiable, Equatable {
         self.source = nil
         self.endedAt = nil
         self.activeSubagents = nil
+        self.hidden = false
     }
 
     // MARK: - File I/O
@@ -338,7 +367,8 @@ struct Session: Codable, Identifiable, Equatable {
             workspaceFile: workspaceFile,
             source: source,
             endedAt: endedAt,
-            activeSubagents: activeSubagents
+            activeSubagents: activeSubagents,
+            hidden: hidden
         )
     }
 
