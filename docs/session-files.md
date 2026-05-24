@@ -14,6 +14,6 @@ Default: `false` when omitted.
 
 When `hidden` is `true`, cctop reads the session file but does not show that session in the active list, does not archive it into Recent Projects, and does not remove it during dead-session cleanup.
 
-Use `hidden` for real session records that should remain on disk for liveness, debugging, or ownership tracking, but should not appear as user-facing work. Current examples include Codex Desktop memory-maintenance sessions. Future cases can use the same attribute for background or delegated review sessions, such as Codex sessions summoned by Claude for review.
+Use `hidden` for real session records that should remain on disk for liveness, debugging, or ownership tracking, but should not appear as user-facing work. Current examples include Codex Desktop memory-maintenance sessions and Codex Desktop title-generation helper sessions. Future cases can use the same attribute for background or delegated review sessions, such as Codex sessions summoned by Claude for review.
 
 Do not use file deletion as the hiding signal. Delete a session file only when the session is genuinely obsolete and no longer useful as state.

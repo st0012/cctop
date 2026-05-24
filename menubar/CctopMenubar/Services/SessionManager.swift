@@ -6,7 +6,7 @@ import os.log
 
 private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
 private typealias SessionFile = (url: URL, session: Session)
-private typealias SessionBuckets = (hidden: [SessionFile], memoryMaintenance: [SessionFile], alive: [SessionFile], dead: [SessionFile])
+private typealias SessionBuckets = (hidden: [SessionFile], autoHidden: [SessionFile], alive: [SessionFile], dead: [SessionFile])
 
 @MainActor
 class SessionManager: ObservableObject {
@@ -71,7 +71,7 @@ class SessionManager: ObservableObject {
             sessions = newSessions
         }
 
-        hideCodexMemoryMaintenanceSessions(partition.memoryMaintenance)
+        hideAutoHiddenSessions(partition.autoHidden)
         archiveAndRemoveDeadSessions(partition.dead)
         cleanupOldFormatFiles(jsonFiles)
     }
@@ -94,15 +94,15 @@ class SessionManager: ObservableObject {
 
     private func partitionSessions(_ entries: [SessionFile]) -> SessionBuckets {
         var hidden: [SessionFile] = []
-        var memoryMaintenance: [SessionFile] = []
+        var autoHidden: [SessionFile] = []
         var alive: [SessionFile] = []
         var dead: [SessionFile] = []
 
         for entry in entries {
             if entry.session.hidden {
                 hidden.append(entry)
-            } else if entry.session.isCodexMemoryMaintenanceSession {
-                memoryMaintenance.append(entry)
+            } else if entry.session.shouldAutoHide {
+                autoHidden.append(entry)
             } else if entry.session.endedAt != nil || !entry.session.isAlive {
                 dead.append(entry)
             } else {
@@ -110,18 +110,24 @@ class SessionManager: ObservableObject {
             }
         }
 
-        return (hidden, memoryMaintenance, alive, dead)
+        return (hidden, autoHidden, alive, dead)
     }
 
-    private func hideCodexMemoryMaintenanceSessions(_ sessions: [(URL, Session)]) {
+    private func hideAutoHiddenSessions(_ sessions: [(URL, Session)]) {
         for (url, session) in sessions {
             logger.info(
-                "hiding Codex memory maintenance session \(session.sessionId, privacy: .public)"
+                "hiding \(self.autoHideReason(for: session), privacy: .public) session \(session.sessionId, privacy: .public)"
             )
             var hiddenSession = session
             hiddenSession.hidden = true
             try? hiddenSession.writeToFile(path: url.path)
         }
+    }
+
+    private func autoHideReason(for session: Session) -> String {
+        if session.isCodexMemoryMaintenanceSession { return "Codex memory maintenance" }
+        if session.isCodexDesktopTitleGenerationSession { return "Codex title generation" }
+        return "maintenance"
     }
 
     private func archiveAndRemoveDeadSessions(_ dead: [(URL, Session)]) {
