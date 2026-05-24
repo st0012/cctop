@@ -475,4 +475,11 @@ final class SessionFileFormatTests: XCTestCase {
     func testLifecycleCodexCliTerminalUsesRealPidNotRecency() {
         XCTAssertEqual(life(lifeSession(source: "codex", agoSeconds: 600), .terminal, alive: true), .active)
     }
+
+    // Ambiguous + Codex with a LIVE pid stays active: ambiguous is the safety bucket, and a Codex
+    // CLI without a recognized bundle id still has a real per-process PID — the shared-PID recency
+    // carve-out applies ONLY to Codex Desktop (hostClass == .desktop), not to ambiguous.
+    func testLifecycleAmbiguousCodexWithLivePidStaysActive() {
+        XCTAssertEqual(life(lifeSession(source: "codex", agoSeconds: 600), .ambiguous, alive: true), .active)
+    }
 }

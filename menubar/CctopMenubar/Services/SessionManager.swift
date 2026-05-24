@@ -245,10 +245,12 @@ class SessionManager: ObservableObject {
         for session: Session, hostClass: SessionHostClass, processAlive: Bool,
         now: Date, windows: LifecycleWindows
     ) -> SessionLifecycle {
-        // Non-terminal Codex shares one host PID across conversations, so processAlive can't
-        // speak to a single conversation — use recent activity. Codex CLI (terminal) keeps the
-        // real per-process PID so a long-running silent CLI is never treated as finished.
-        let useRecency = session.isCodex && hostClass != .terminal
+        // Codex DESKTOP multiplexes conversations onto one shared host PID, so processAlive
+        // can't speak to a single conversation — use recent activity instead. This applies
+        // ONLY to confident Codex Desktop (hostClass == .desktop). Codex CLI (terminal) and
+        // ambiguous Codex both have a real per-process PID, so they keep processAlive — a
+        // live but quiet CLI session must never be discarded by the recency-only path.
+        let useRecency = session.isCodex && hostClass == .desktop
         let alive = useRecency ? (now.timeIntervalSince(session.lastActivity) < windows.active) : processAlive
         if alive { return .active }
         if hostClass == .terminal { return .finished }
