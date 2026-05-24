@@ -345,4 +345,93 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.sessionId, "old-session")
         XCTAssertEqual(session.status, .working)
     }
+
+    // MARK: - Host classification (Phase 1, file-local, bundle-id only)
+
+    func testHostClassClaudeDesktopIsDesktop() {
+        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"))
+        XCTAssertEqual(session.hostClass, .desktop)
+    }
+
+    func testHostClassCodexDesktopIsDesktop() {
+        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.openai.codex"))
+        XCTAssertEqual(session.hostClass, .desktop)
+    }
+
+    func testHostClassITerm2IsTerminal() {
+        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"))
+        XCTAssertEqual(session.hostClass, .terminal)
+    }
+
+    func testHostClassVSCodeIsTerminal() {
+        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.microsoft.VSCode"))
+        XCTAssertEqual(session.hostClass, .terminal)
+    }
+
+    func testHostClassNilTerminalIsAmbiguous() {
+        let session = Session.mock(terminal: nil)
+        XCTAssertEqual(session.hostClass, .ambiguous)
+    }
+
+    func testHostClassMissingBundleIdIsAmbiguous() {
+        let session = Session.mock(terminal: TerminalInfo(program: "weird-term"))
+        XCTAssertEqual(session.hostClass, .ambiguous)
+    }
+
+    func testHostClassEmptyBundleIdIsAmbiguous() {
+        let session = Session.mock(terminal: TerminalInfo(bundleId: ""))
+        XCTAssertEqual(session.hostClass, .ambiguous)
+    }
+
+    func testHostClassUnknownBundleIdIsAmbiguous() {
+        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.example.unknownterm"))
+        XCTAssertEqual(session.hostClass, .ambiguous)
+    }
+
+    // `source` must NEVER classify: it cannot tell desktop from CLI.
+    func testHostClassSourceCodexWithoutBundleIdIsAmbiguous() {
+        let session = Session.mock(terminal: nil, source: "codex")
+        XCTAssertEqual(session.hostClass, .ambiguous)
+    }
+
+    func testHostClassSourceCcWithoutBundleIdIsAmbiguous() {
+        let session = Session.mock(terminal: nil, source: "cc")
+        XCTAssertEqual(session.hostClass, .ambiguous)
+    }
+
+    // bundle id wins over source: Codex CLI running inside iTerm2 is terminal.
+    func testHostClassCodexCliInTerminalIsTerminal() {
+        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"), source: "codex")
+        XCTAssertEqual(session.hostClass, .terminal)
+    }
+
+    // Desktop bundle id takes precedence over a (contrived) multiplexer.
+    func testHostClassDesktopBundleIdWinsOverMultiplexer() {
+        let term = TerminalInfo(bundleId: "com.anthropic.claudefordesktop",
+                                multiplexer: .tmux(socket: "/tmp/s", paneId: "%1", binaryPath: nil))
+        XCTAssertEqual(Session.mock(terminal: term).hostClass, .desktop)
+    }
+
+    // A multiplexer is hard terminal evidence (desktop is returned first, so this can't be desktop).
+    func testHostClassTmuxWithoutBundleIdIsTerminal() {
+        let term = TerminalInfo(multiplexer: .tmux(socket: "/tmp/s", paneId: "%1", binaryPath: nil))
+        XCTAssertEqual(Session.mock(terminal: term).hostClass, .terminal)
+    }
+
+    func testHostClassZellijWithoutBundleIdIsTerminal() {
+        let term = TerminalInfo(multiplexer: .zellij(sessionName: "main", paneId: "0", binaryPath: nil))
+        XCTAssertEqual(Session.mock(terminal: term).hostClass, .terminal)
+    }
+
+    // tty alone is NOT hard evidence — it can be env-copied (env["TTY"]) and inherited by GUI children.
+    func testHostClassTtyOnlyIsAmbiguous() {
+        let term = TerminalInfo(tty: "/dev/ttys003")
+        XCTAssertEqual(Session.mock(terminal: term).hostClass, .ambiguous)
+    }
+
+    // program name alone is env-only and leaks to GUI children → must not classify terminal.
+    func testHostClassProgramOnlyIsAmbiguous() {
+        let term = TerminalInfo(program: "iTerm.app")
+        XCTAssertEqual(Session.mock(terminal: term).hostClass, .ambiguous)
+    }
 }

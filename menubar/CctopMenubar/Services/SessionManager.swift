@@ -8,6 +8,16 @@ private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "Ses
 private typealias SessionFile = (url: URL, session: Session)
 private typealias SessionBuckets = (hidden: [SessionFile], autoHidden: [SessionFile], alive: [SessionFile], dead: [SessionFile])
 
+/// Ordering inputs for desktop dedup, kept separate from `Session`'s stored fields so the
+/// total order is unit-testable without disk or process probing. `mtime` is `.distantPast`
+/// when unknown so the comparison stays total.
+struct DedupCandidate {
+    let session: Session
+    let lifecycleRank: Int   // 0 = active, 1 = dormant, 2 = finished (lower = preferred)
+    let mtime: Date
+    let path: String         // absolute file path; final, total tiebreak
+}
+
 @MainActor
 class SessionManager: ObservableObject {
     @Published var sessions: [Session] = []
@@ -201,6 +211,35 @@ class SessionManager: ObservableObject {
             byID[session.id] = session
         }
         return byID.values.sorted { $0.id < $1.id }
+    }
+
+    /// Collapse multiple files for one conversation. Key: `sessionId` for desktop/ambiguous
+    /// hosts; PID-based `id` for confident-terminal (preserving today's terminal identity).
+    /// Within a key, pick by a TOTAL order: lifecycle rank asc, lastActivity desc,
+    /// effectiveEndDate desc, mtime desc, absolute path asc. Never PID as a clock.
+    nonisolated static func dedupedBySessionId(_ candidates: [DedupCandidate]) -> [Session] {
+        var byKey: [String: DedupCandidate] = [:]
+        for candidate in candidates {
+            let key = candidate.session.conversationKey
+            if let existing = byKey[key], prefersFirst(existing, over: candidate) { continue }
+            byKey[key] = candidate
+        }
+        return byKey.values
+            .sorted { $0.session.conversationKey < $1.session.conversationKey }
+            .map(\.session)
+    }
+
+    /// Strict total order: true when `lhs` should be kept over `rhs`. Never uses PID as a clock.
+    private nonisolated static func prefersFirst(_ lhs: DedupCandidate, over rhs: DedupCandidate) -> Bool {
+        if lhs.lifecycleRank != rhs.lifecycleRank { return lhs.lifecycleRank < rhs.lifecycleRank }
+        if lhs.session.lastActivity != rhs.session.lastActivity {
+            return lhs.session.lastActivity > rhs.session.lastActivity
+        }
+        if lhs.session.effectiveEndDate != rhs.session.effectiveEndDate {
+            return lhs.session.effectiveEndDate > rhs.session.effectiveEndDate
+        }
+        if lhs.mtime != rhs.mtime { return lhs.mtime > rhs.mtime }
+        return lhs.path < rhs.path
     }
 
     /// Apply display-side status adjustments. The session file on disk is NOT modified.

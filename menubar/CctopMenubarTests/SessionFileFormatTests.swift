@@ -321,4 +321,100 @@ final class SessionFileFormatTests: XCTestCase {
 
         manager = nil
     }
+
+    // MARK: - Desktop dedup by session_id (Phase 1, total order)
+
+    private static let desktopBundle = "com.anthropic.claudefordesktop"
+
+    private func candidate(
+        sessionId: String, pid: UInt32, bundleId: String?, lifecycleRank: Int,
+        lastActivity: Date = Date(timeIntervalSince1970: 1000),
+        endedAt: Date? = nil, mtime: Date = .distantPast, path: String = "/x.json"
+    ) -> DedupCandidate {
+        var s = Session(sessionId: sessionId, projectPath: "/tmp/p", branch: "main",
+                        terminal: TerminalInfo(bundleId: bundleId))
+        s.pid = pid
+        s.lastActivity = lastActivity
+        s.endedAt = endedAt
+        return DedupCandidate(session: s, lifecycleRank: lifecycleRank, mtime: mtime, path: path)
+    }
+
+    func testDedupDesktopCollapsesSameSessionIdDifferentPid() {
+        let dead = candidate(sessionId: "conv-a", pid: 100, bundleId: Self.desktopBundle, lifecycleRank: 1)
+        let live = candidate(sessionId: "conv-a", pid: 200, bundleId: Self.desktopBundle, lifecycleRank: 0)
+        let result = SessionManager.dedupedBySessionId([dead, live])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.pid, 200) // live (rank 0) wins, NOT the dead/newer-file one
+    }
+
+    func testDedupLiveBeatsDormantEvenIfDormantNewer() {
+        let dormantNewer = candidate(sessionId: "c", pid: 1, bundleId: Self.desktopBundle,
+                                     lifecycleRank: 1, lastActivity: Date(timeIntervalSince1970: 9999))
+        let liveOlder = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
+                                  lifecycleRank: 0, lastActivity: Date(timeIntervalSince1970: 1))
+        let result = SessionManager.dedupedBySessionId([dormantNewer, liveOlder])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.pid, 2) // lifecycle rank dominates lastActivity
+    }
+
+    func testDedupDormantBeatsFinished() {
+        let finished = candidate(sessionId: "c", pid: 1, bundleId: Self.desktopBundle, lifecycleRank: 2)
+        let dormant = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle, lifecycleRank: 1)
+        XCTAssertEqual(SessionManager.dedupedBySessionId([finished, dormant]).first?.pid, 2)
+    }
+
+    func testDedupSameRankNewerLastActivityWins() {
+        let older = candidate(sessionId: "c", pid: 1, bundleId: Self.desktopBundle,
+                              lifecycleRank: 1, lastActivity: Date(timeIntervalSince1970: 1))
+        let newer = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
+                              lifecycleRank: 1, lastActivity: Date(timeIntervalSince1970: 2))
+        XCTAssertEqual(SessionManager.dedupedBySessionId([older, newer]).first?.pid, 2)
+    }
+
+    func testDedupTieBreaksByEffectiveEndDate() {
+        let t = Date(timeIntervalSince1970: 5)
+        let a = candidate(sessionId: "c", pid: 1, bundleId: Self.desktopBundle,
+                          lifecycleRank: 1, lastActivity: t, endedAt: Date(timeIntervalSince1970: 10))
+        let b = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
+                          lifecycleRank: 1, lastActivity: t, endedAt: Date(timeIntervalSince1970: 20))
+        XCTAssertEqual(SessionManager.dedupedBySessionId([a, b]).first?.pid, 2) // newer effectiveEndDate
+    }
+
+    func testDedupFinalTieBreakByPathIsDeterministic() {
+        let t = Date(timeIntervalSince1970: 5)
+        let a = candidate(sessionId: "c", pid: 1, bundleId: Self.desktopBundle,
+                          lifecycleRank: 1, lastActivity: t, mtime: t, path: "/a.json")
+        let b = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
+                          lifecycleRank: 1, lastActivity: t, mtime: t, path: "/b.json")
+        // Smaller path wins, regardless of input order (total, stable).
+        XCTAssertEqual(SessionManager.dedupedBySessionId([b, a]).first?.pid, 1)
+        XCTAssertEqual(SessionManager.dedupedBySessionId([a, b]).first?.pid, 1)
+    }
+
+    func testDedupMissingMtimeLosesToRealMtime() {
+        let t = Date(timeIntervalSince1970: 5)
+        let noMtime = candidate(sessionId: "c", pid: 1, bundleId: Self.desktopBundle,
+                                lifecycleRank: 1, lastActivity: t, mtime: .distantPast)
+        let realMtime = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
+                                  lifecycleRank: 1, lastActivity: t, mtime: t)
+        XCTAssertEqual(SessionManager.dedupedBySessionId([noMtime, realMtime]).first?.pid, 2)
+    }
+
+    // H2: the same conversation collapses regardless of how each file classifies — even if an
+    // env flicker on restart makes one file look terminal (bundle id present) and one ambiguous
+    // (absent). A hostClass-dependent key would split these into different buckets → duplicate card.
+    func testDedupMixedClassSameSessionIdCollapsesToLive() {
+        let deadTerminal = candidate(sessionId: "shared", pid: 100, bundleId: "com.googlecode.iterm2", lifecycleRank: 1)
+        let liveAmbiguous = candidate(sessionId: "shared", pid: 200, bundleId: nil, lifecycleRank: 0)
+        let result = SessionManager.dedupedBySessionId([deadTerminal, liveAmbiguous])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.pid, 200) // live wins
+    }
+
+    // Distinct conversations never collapse.
+    func testDedupDifferentSessionIdsStaySeparate() {
+        let one = candidate(sessionId: "conv-1", pid: 1, bundleId: Self.desktopBundle, lifecycleRank: 0)
+        let two = candidate(sessionId: "conv-2", pid: 2, bundleId: Self.desktopBundle, lifecycleRank: 0)
+        XCTAssertEqual(SessionManager.dedupedBySessionId([one, two]).count, 2)
+    }
 }

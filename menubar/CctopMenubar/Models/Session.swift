@@ -182,6 +182,13 @@ struct Session: Codable, Identifiable, Equatable {
         return pid.map { String($0) } ?? sessionId
     }
 
+    /// Stable per-conversation key for dedup and notification grouping. Unlike `id` (PID-based
+    /// for non-Codex), this never changes when a desktop conversation's subprocess is respawned
+    /// with a new PID across a host-app restart, so the old dead-PID file and the new live-PID
+    /// file collapse to one card. Class-independent on purpose: a file's `hostClass` can flicker
+    /// between loads (bundle id present/absent), but its `session_id` does not.
+    var conversationKey: String { sessionId }
+
     var displayName: String {
         sessionName ?? projectName
     }

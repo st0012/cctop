@@ -140,6 +140,34 @@ extension Session {
     }
 }
 
+/// File-local classification of a session's host, used by the Phase-1 lifecycle GC to decide
+/// whether a dead-PID session may be destructively deleted. Deliberately strict: `source`
+/// never classifies (terminal Claude Code and Codex CLI share `source` strings with their
+/// desktop counterparts), and env-only signals are not trusted — only a recognized
+/// `bundle_id` is. Anything we can't confidently place is `ambiguous` and must be kept.
+enum SessionHostClass: Equatable {
+    case desktop    // confident: a desktop AI app (Claude Desktop, Codex Desktop)
+    case terminal   // confident: a known terminal or editor
+    case ambiguous  // unknown — keep; never destructively delete on the fast path
+}
+
+extension Session {
+    /// Phase-1 host classification from file-local signals only.
+    /// Precedence: a recognized bundle id (`__CFBundleIdentifier`, the same trusted signal
+    /// `isHostedByDesktopApp` uses) classifies desktop vs terminal. Failing that, a terminal
+    /// multiplexer (tmux/zellij) is hard terminal evidence — desktop is already returned
+    /// above, so a leaked `TMUX` env can't misclassify a desktop session here. Everything
+    /// else (no/unknown bundle id, only env-copyable `tty` or program name) → ambiguous,
+    /// which is kept and never destructively deleted on the fast path.
+    var hostClass: SessionHostClass {
+        if let app = HostApp.from(bundleIdentifier: terminal?.bundleId) {
+            return app.isDesktopApp ? .desktop : .terminal
+        }
+        if terminal?.multiplexer != nil { return .terminal }
+        return .ambiguous
+    }
+}
+
 extension HostApp {
     /// Deep-link URL that focuses a specific session inside this app, if supported.
     /// Returns nil when the app has no session-jump scheme, or `sessionId` isn't a
