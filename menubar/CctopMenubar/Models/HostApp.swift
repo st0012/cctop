@@ -131,37 +131,12 @@ enum HostApp {
 }
 
 extension Session {
-    private static let codexTitleGenerationPromptPrefix =
-        "You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title"
-
     /// True when the session is hosted by an AI desktop app (Claude Desktop, Codex Desktop)
     /// rather than a terminal/editor. These sessions have no project folder worth reopening,
     /// so they're excluded from Recent Projects.
     var isHostedByDesktopApp: Bool {
         guard let bundleId = terminal?.bundleId else { return false }
         return HostApp.from(bundleIdentifier: bundleId)?.isDesktopApp == true
-    }
-
-    /// True for Codex Desktop's local memory-consolidation runs. These are maintenance
-    /// artifacts, not user workspace sessions, so cctop marks their live files hidden.
-    var isCodexMemoryMaintenanceSession: Bool {
-        source == Session.codexSource
-            && HostApp.from(bundleIdentifier: terminal?.bundleId) == .codexDesktop
-            && Config.standardizedPath(projectPath) == Config.standardizedPath(Config.codexMemoriesDir())
-    }
-
-    /// True for Codex Desktop's internal title-generation helper runs. They briefly create
-    /// hook-visible conversations in the current project, but are not user workspace sessions.
-    var isCodexDesktopTitleGenerationSession: Bool {
-        source == Session.codexSource
-            && HostApp.from(bundleIdentifier: terminal?.bundleId) == .codexDesktop
-            && (sessionName?.isEmpty ?? true)
-            && (lastPrompt?.hasPrefix(Self.codexTitleGenerationPromptPrefix) == true)
-            && (lastPrompt?.contains("Generate a concise UI title") == true)
-    }
-
-    var shouldAutoHide: Bool {
-        isCodexMemoryMaintenanceSession || isCodexDesktopTitleGenerationSession
     }
 }
 

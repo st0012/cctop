@@ -73,3 +73,31 @@ enum Config {
         }
     }
 }
+
+extension Session {
+    private static let codexDesktopBundleID = "com.openai.codex"
+    private static let codexTitleGenerationPromptPrefix =
+        "You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title"
+
+    /// True for Codex Desktop's local memory-consolidation runs. These are maintenance
+    /// artifacts, not user workspace sessions, so cctop marks their live files hidden.
+    var isCodexMemoryMaintenanceSession: Bool {
+        source == Session.codexSource
+            && terminal?.bundleId == Self.codexDesktopBundleID
+            && Config.standardizedPath(projectPath) == Config.standardizedPath(Config.codexMemoriesDir())
+    }
+
+    /// True for Codex Desktop's internal title-generation helper runs. They briefly create
+    /// hook-visible conversations in the current project, but are not user workspace sessions.
+    var isCodexDesktopTitleGenerationSession: Bool {
+        source == Session.codexSource
+            && terminal?.bundleId == Self.codexDesktopBundleID
+            && (sessionName?.isEmpty ?? true)
+            && (lastPrompt?.hasPrefix(Self.codexTitleGenerationPromptPrefix) == true)
+            && (lastPrompt?.contains("Generate a concise UI title") == true)
+    }
+
+    var shouldAutoHide: Bool {
+        isCodexMemoryMaintenanceSession || isCodexDesktopTitleGenerationSession
+    }
+}
