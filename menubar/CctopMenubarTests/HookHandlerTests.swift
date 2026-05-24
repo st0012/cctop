@@ -393,6 +393,37 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(try loadSession().sessionName, "Investigate session name capture")
     }
 
+    func testCodexDesktopTitleGenerationPromptWritesHiddenSession() throws {
+        setenv("__CFBundleIdentifier", HostAppBundleID.codexDesktop, 1)
+        defer { unsetenv("__CFBundleIdentifier") }
+
+        func handle(_ json: String, _ hook: String) throws {
+            let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
+            try HookHandler.handleHook(hookName: hook, input: input)
+        }
+
+        let startJSON = """
+        {"session_id":"title-helper","cwd":"/tmp/cctop","hook_event_name":"SessionStart","harness_name":"codex"}
+        """
+        try handle(startJSON, "SessionStart")
+        XCTAssertFalse(try loadSession().hidden)
+
+        let titlePrompt = """
+        You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title for a task that will be created from that prompt.
+        The tasks typically have to do with coding-related tasks, for example requests for bug fixes or questions about a codebase. The title you generate will be shown in the UI to represent the prompt.
+        Generate a concise UI title (up to 36 characters) for this task.
+        Fill the structured title field with plain text.
+
+        User prompt:
+        You are the navigator for a cctop implementation task.
+        """
+        let promptJSON = """
+        {"session_id":"title-helper","cwd":"/tmp/cctop","hook_event_name":"UserPromptSubmit","harness_name":"codex","prompt":\(try jsonString(titlePrompt))}
+        """
+        try handle(promptJSON, "UserPromptSubmit")
+        XCTAssertTrue(try loadSession().hidden)
+    }
+
     /// Codex Desktop fires every conversation's hooks from one shared host process, so
     /// PID keying collapses them into a single file. Keyed by session_id, two concurrent
     /// Codex conversations (same host PID — here the test runner's PID) get two files.
@@ -416,5 +447,10 @@ final class HookHandlerTests: XCTestCase {
             "codex-019e0000-aaaa-7000-8000-000000000001.json",
             "codex-019e0000-bbbb-7000-8000-000000000002.json"
         ])
+    }
+
+    private func jsonString(_ value: String) throws -> String {
+        let data = try JSONEncoder().encode(value)
+        return String(decoding: data, as: UTF8.self)
     }
 }

@@ -44,6 +44,7 @@ enum HookHandler {
 
             let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
             applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
+            if session.shouldAutoHide { session.hidden = true }
 
             let suffix = newStatus == nil ? " (preserved)" : ""
             HookLogger.appendHookLog(
@@ -59,6 +60,7 @@ enum HookHandler {
             cleanupSessionsForProject(sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: pid)
         }
     }
+
     private static func clearToolState(_ session: inout Session) {
         session.lastTool = nil
         session.lastToolDetail = nil
