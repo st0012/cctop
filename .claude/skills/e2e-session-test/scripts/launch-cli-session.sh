@@ -18,13 +18,16 @@
 # terminal, adjust the launch command for its "run this command" flag.
 
 set -euo pipefail
+# nullglob: an empty sessions dir must expand to nothing, not abort the script —
+# the "no existing sessions" case is a valid baseline this test must support.
+shopt -s nullglob
 
 agent="${1:-claude}"
 workdir="${2:-$PWD}"
 terminal="${3:-Ghostty}"
 sessions="$HOME/.cctop/sessions"
 
-snapshot() { ls "$sessions"/*.json 2>/dev/null | xargs -n1 basename 2>/dev/null | sort; }
+snapshot() { local f; for f in "$sessions"/*.json; do basename "$f"; done | sort; }
 
 before="$(snapshot)"
 
