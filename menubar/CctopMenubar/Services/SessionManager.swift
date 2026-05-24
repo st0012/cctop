@@ -18,6 +18,12 @@ struct DedupCandidate {
     let path: String         // absolute file path; final, total tiebreak
 }
 
+/// Tunable windows for lifecycle derivation.
+struct LifecycleWindows {
+    let active: TimeInterval     // Codex Desktop "recent activity counts as active" threshold
+    let retention: TimeInterval  // dormant → finished age-out
+}
+
 @MainActor
 class SessionManager: ObservableObject {
     @Published var sessions: [Session] = []
@@ -227,6 +233,26 @@ class SessionManager: ObservableObject {
         return byKey.values
             .sorted { $0.session.conversationKey < $1.session.conversationKey }
             .map(\.session)
+    }
+
+    /// Pure lifecycle derivation. `processAlive` is the caller's raw PID-liveness result; it is
+    /// IGNORED for non-terminal Codex (Codex Desktop multiplexes conversations onto one shared
+    /// host PID, so it can't indicate a single conversation's liveness) — there "active" means
+    /// recent hook activity within `activeWindow`. A dead terminal session is `finished` (no
+    /// dormant — it's genuinely over); desktop/ambiguous stay `dormant` while within
+    /// `retentionWindow`, then `finished`.
+    nonisolated static func lifecycle(
+        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
+        now: Date, windows: LifecycleWindows
+    ) -> SessionLifecycle {
+        // Non-terminal Codex shares one host PID across conversations, so processAlive can't
+        // speak to a single conversation — use recent activity. Codex CLI (terminal) keeps the
+        // real per-process PID so a long-running silent CLI is never treated as finished.
+        let useRecency = session.isCodex && hostClass != .terminal
+        let alive = useRecency ? (now.timeIntervalSince(session.lastActivity) < windows.active) : processAlive
+        if alive { return .active }
+        if hostClass == .terminal { return .finished }
+        return now.timeIntervalSince(session.lastActivity) <= windows.retention ? .dormant : .finished
     }
 
     /// Strict total order: true when `lhs` should be kept over `rhs`. Never uses PID as a clock.

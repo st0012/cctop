@@ -417,4 +417,62 @@ final class SessionFileFormatTests: XCTestCase {
         let two = candidate(sessionId: "conv-2", pid: 2, bundleId: Self.desktopBundle, lifecycleRank: 0)
         XCTAssertEqual(SessionManager.dedupedBySessionId([one, two]).count, 2)
     }
+
+    // MARK: - Lifecycle derivation (Phase 1)
+
+    private static let lifeNow = Date(timeIntervalSince1970: 1_000_000)
+    private static let activeWin: TimeInterval = 300        // 5 min
+    private static let retentionWin: TimeInterval = 86_400  // 24h
+
+    private func lifeSession(source: String? = nil, agoSeconds: TimeInterval) -> Session {
+        var session = Session(sessionId: "s", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        session.source = source
+        session.lastActivity = Self.lifeNow.addingTimeInterval(-agoSeconds)
+        return session
+    }
+
+    private func life(_ session: Session, _ hostClass: SessionHostClass, alive: Bool) -> SessionLifecycle {
+        SessionManager.lifecycle(for: session, hostClass: hostClass, processAlive: alive, now: Self.lifeNow,
+                                 windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin))
+    }
+
+    func testLifecycleDesktopAliveIsActive() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 0), .desktop, alive: true), .active)
+    }
+
+    func testLifecycleDesktopDeadButRecentIsDormant() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 60), .desktop, alive: false), .dormant)
+    }
+
+    func testLifecycleDesktopDeadAndAgedIsFinished() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 100_000), .desktop, alive: false), .finished)
+    }
+
+    func testLifecycleAmbiguousDeadButRecentIsDormant() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 60), .ambiguous, alive: false), .dormant)
+    }
+
+    func testLifecycleTerminalAliveIsActive() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 0), .terminal, alive: true), .active)
+    }
+
+    // A dead terminal session is over — no dormant, even when recent.
+    func testLifecycleTerminalDeadIsFinishedEvenIfRecent() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 60), .terminal, alive: false), .finished)
+    }
+
+    // Codex Desktop carve-out: a live SHARED host PID must not keep a stale conversation active.
+    func testLifecycleCodexDesktopIgnoresSharedPidWhenStale() {
+        XCTAssertEqual(life(lifeSession(source: "codex", agoSeconds: 600), .desktop, alive: true), .dormant)
+    }
+
+    // Codex Desktop active comes from recent activity, even with a dead/irrelevant PID.
+    func testLifecycleCodexDesktopRecentIsActiveDespiteDeadPid() {
+        XCTAssertEqual(life(lifeSession(source: "codex", agoSeconds: 30), .desktop, alive: false), .active)
+    }
+
+    // Codex CLI (terminal) uses its REAL per-process PID, not recency — never remove a live silent CLI.
+    func testLifecycleCodexCliTerminalUsesRealPidNotRecency() {
+        XCTAssertEqual(life(lifeSession(source: "codex", agoSeconds: 600), .terminal, alive: true), .active)
+    }
 }

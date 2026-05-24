@@ -434,4 +434,29 @@ final class SessionTests: XCTestCase {
         let term = TerminalInfo(program: "iTerm.app")
         XCTAssertEqual(Session.mock(terminal: term).hostClass, .ambiguous)
     }
+
+    // MARK: - Transient lifecycle field
+
+    // Decoding a normal session file leaves lifecycle at its default (never persisted).
+    func testDecodeDefaultsLifecycleToActive() throws {
+        let json = """
+        {
+            "session_id": "life-1", "project_path": "/tmp", "project_name": "test",
+            "branch": "main", "status": "idle",
+            "last_activity": "2026-02-08T12:00:00Z", "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "Code"}
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertEqual(session.lifecycle, .active)
+    }
+
+    // The transient field participates in Equatable, so a dormant flip re-renders the card.
+    func testLifecycleParticipatesInEquatable() {
+        let base = Session.mock(id: "life-eq")
+        var dormant = base
+        dormant.lifecycle = .dormant
+        XCTAssertNotEqual(base, dormant)
+        XCTAssertEqual(base.lifecycle, .active)
+    }
 }

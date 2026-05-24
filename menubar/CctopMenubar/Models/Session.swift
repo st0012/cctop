@@ -147,6 +147,17 @@ struct SubagentInfo: Codable, Equatable {
     }
 }
 
+/// Display-only lifecycle of a session, derived on each load and never persisted (a new
+/// persisted `SessionStatus` would decode to `.working` on older app builds). Orthogonal to
+/// `SessionStatus`: a dormant card keeps its last-known status for context but is excluded
+/// from attention counts and notifications. The raw value is the dedup preference rank
+/// (lower = preferred): active beats dormant beats finished.
+enum SessionLifecycle: Int, Equatable {
+    case active = 0    // backing process alive, or (Codex Desktop) recent hook activity
+    case dormant = 1   // process gone, but the conversation is recent and may resume
+    case finished = 2  // ended or aged out → eligible for GC
+}
+
 struct Session: Codable, Identifiable, Equatable {
     let sessionId: String
     let projectPath: String
@@ -168,6 +179,13 @@ struct Session: Codable, Identifiable, Equatable {
     var endedAt: Date?
     var activeSubagents: [SubagentInfo]?
     var hidden: Bool
+
+    /// Display-only lifecycle, derived on each load. Deliberately NOT in `CodingKeys`, so the
+    /// synthesized `Codable` skips it and decode defaults it to `.active` (never persisted —
+    /// a persisted lifecycle would decode to `.working` on older builds via SessionStatus).
+    /// It IS a stored property, so it joins synthesized `Equatable` — a dormant flip changes
+    /// equality and re-renders.
+    var lifecycle: SessionLifecycle = .active
 
     /// Harness id Codex reports (CLI and Desktop both pass `--harness codex`).
     static let codexSource = "codex"
