@@ -424,8 +424,10 @@ struct Session: Codable, Identifiable, Equatable {
     }
 
     static func sorted(_ sessions: [Session]) -> [Session] {
+        // Live (active) sessions first, then dormant; within each tier by status, then recency.
         sessions.sorted {
-            ($0.status.sortOrder, $1.lastActivity) < ($1.status.sortOrder, $0.lastActivity)
+            ($0.lifecycle.rawValue, $0.status.sortOrder, $1.lastActivity)
+                < ($1.lifecycle.rawValue, $1.status.sortOrder, $0.lastActivity)
         }
     }
 

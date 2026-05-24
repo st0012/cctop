@@ -359,6 +359,12 @@ enum HookHandler {
         forEachSession(in: sessionsDir) { path, session in
             guard session.projectPath == projectPath, session.pid != currentPid else { return }
 
+            // Desktop-app conversations survive host-app restarts as dormant cards in the menubar
+            // app and are reaped only by its lock-held GC. The hook must NOT delete them here, or
+            // resuming one conversation would reap its dormant same-project siblings.
+            let bundleId = session.terminal?.bundleId
+            guard bundleId != HostAppBundleID.claudeDesktop, bundleId != HostAppBundleID.codexDesktop else { return }
+
             let isStale: Bool
             if let pid = session.pid {
                 if !isPIDAlive(pid) {
@@ -393,7 +399,9 @@ enum HookHandler {
 
     private static func removeSession(at path: String, sessionId: String) {
         try? FileManager.default.removeItem(atPath: path)
-        try? FileManager.default.removeItem(atPath: path + ".lock")
+        // Never remove the .lock here: a concurrent hook may hold it, and unlinking a held lock
+        // splits the flock inode (a recreated path gets a different lock), defeating the mutex.
+        // Orphan .lock files are 0-byte and harmless; the app's GC also leaves them in place.
         HookLogger.cleanupSessionLog(sessionId: sessionId)
     }
 

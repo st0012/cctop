@@ -6,7 +6,6 @@ import os.log
 
 private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
 private typealias SessionFile = (url: URL, session: Session)
-private typealias SessionBuckets = (hidden: [SessionFile], autoHidden: [SessionFile], alive: [SessionFile], dead: [SessionFile])
 
 /// Ordering inputs for desktop dedup, kept separate from `Session`'s stored fields so the
 /// total order is unit-testable without disk or process probing. `mtime` is `.distantPast`
@@ -21,7 +20,12 @@ struct DedupCandidate {
 /// Tunable windows for lifecycle derivation.
 struct LifecycleWindows {
     let active: TimeInterval     // Codex Desktop "recent activity counts as active" threshold
-    let retention: TimeInterval  // dormant → finished age-out
+    let retention: TimeInterval  // dormant desktop → finished age-out from disconnected_at
+}
+
+enum SessionConnectionState: Equatable {
+    case connected
+    case disconnected
 }
 
 @MainActor
@@ -34,47 +38,67 @@ class SessionManager: ObservableObject {
     private var source: DispatchSourceFileSystemObject?
     private var debounceTask: DispatchWorkItem?
     private var livenessTimer: Timer?
+    private var gcTimer: Timer?
+
+    /// Lifecycle windows: Codex Desktop counts as active within `active` of last activity;
+    /// a non-active desktop session stays dormant within `retention` after first observed disconnect.
+    nonisolated static let lifecycleWindows = LifecycleWindows(active: 600, retention: 1_209_600)
 
     init(historyManager: HistoryManager) {
         self.historyManager = historyManager
         self.sessionsDir = URL(fileURLWithPath: Config.sessionsDir())
         loadSessions()
         startWatching()
+        // Pass 1 (fast): read, derive lifecycle, dedup, publish.
         livenessTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.loadSessions()
-            }
+            Task { @MainActor in self?.loadSessions() }
+        }
+        // Pass 2 (slow): GC finished desktop files under the per-session lock.
+        gcTimer = Timer.scheduledTimer(withTimeInterval: 45, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.garbageCollectFinished() }
         }
     }
 
     func loadSessions() {
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: sessionsDir,
-            includingPropertiesForKeys: nil
+            includingPropertiesForKeys: [.contentModificationDateKey]
         ) else {
             logger.warning("loadSessions: could not read directory")
             sessions = []
             return
         }
 
-        // Tolerate duplicate ids defensively — `sessions` is deduped below, but a transient
-        // double-file must never trap here (uniqueKeysWithValues crashes on a dup key).
-        let oldStatuses = Dictionary(sessions.map { ($0.id, $0.status) }, uniquingKeysWith: { first, _ in first })
+        // Transition guard for notifications uses the same identity policy as dedup: desktop
+        // conversations are stable by session_id, terminal/unknown sessions keep PID identity.
+        let oldStatuses = Dictionary(
+            sessions.map { (Self.dedupKey(for: $0), $0.status) }, uniquingKeysWith: { first, _ in first }
+        )
 
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
         let allDecoded = decodedSessions(from: jsonFiles)
-        let partition = partitionSessions(allDecoded)
+        let hidden = allDecoded.filter { $0.session.hidden }
+        let autoHidden = allDecoded.filter { !$0.session.hidden && $0.session.shouldAutoHide }
+        let visibleFiles = allDecoded
+            .filter { !$0.session.hidden && !$0.session.shouldAutoHide }
+            .map(\.url)
+        let candidates = Self.buildCandidates(visibleFiles, now: Date())
         logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded")
         logger.info(
-            "loadSessions: \(partition.alive.count) alive, \(partition.dead.count) dead, \(partition.hidden.count) hidden"
+            "loadSessions: \(candidates.count) visible candidates, \(hidden.count) hidden, \(autoHidden.count) auto-hidden"
         )
-        let newSessions = Self.dedupedByID(partition.alive.map(\.1).map { adjustDisplayStatus($0) })
 
-        // Side effects: run before the equality guard so they always execute.
+        // Publish active + dormant; finished are hidden (swept below / by GC).
+        let winners = Self.dedupedCandidatesByLifecycleKey(candidates)
+        let newSessions = winners
+            .filter { $0.session.lifecycle != .finished }
+            .map { adjustDisplayStatus($0.session) }
+
+        // Notifications: only a LIVE (active) session that NEWLY needs attention. Dormant never notifies.
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
-            for session in newSessions {
+            for session in newSessions where session.lifecycle == .active {
                 guard session.status.needsAttention,
-                      let oldStatus = oldStatuses[session.id],
+                      let oldStatus = oldStatuses[Self.dedupKey(for: session)],
                       !oldStatus.needsAttention else { continue }
                 sendNotification(for: session)
             }
@@ -82,14 +106,19 @@ class SessionManager: ObservableObject {
         // Only publish when data actually changed to avoid unnecessary SwiftUI re-renders.
         if newSessions != sessions {
             if newSessions.count != sessions.count {
-                logger.info("loadSessions: session count changed \(self.sessions.count) -> \(newSessions.count)")
+                logger.info("loadSessions: session count \(self.sessions.count) -> \(newSessions.count)")
             }
             sessions = newSessions
         }
 
-        hideAutoHiddenSessions(partition.autoHidden)
-        archiveAndRemoveDeadSessions(partition.dead)
-        cleanupOldFormatFiles(jsonFiles)
+        hideAutoHiddenSessions(autoHidden)
+        stampDisconnectedDesktopSessions(candidates, now: Date())
+
+        // Non-desktop finished sessions keep today's behavior: archive to Recent Projects and
+        // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped
+        // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
+        archiveAndRemoveFinishedNonDesktop(winners)
+        historyManager.rebuildRecentProjects(excludingActive: Set(sessions.map(\.projectPath)))
     }
 
     private func decodedSessions(from jsonFiles: [URL]) -> [SessionFile] {
@@ -106,27 +135,6 @@ class SessionManager: ObservableObject {
                 return nil
             }
         }
-    }
-
-    private func partitionSessions(_ entries: [SessionFile]) -> SessionBuckets {
-        var hidden: [SessionFile] = []
-        var autoHidden: [SessionFile] = []
-        var alive: [SessionFile] = []
-        var dead: [SessionFile] = []
-
-        for entry in entries {
-            if entry.session.hidden {
-                hidden.append(entry)
-            } else if entry.session.shouldAutoHide {
-                autoHidden.append(entry)
-            } else if entry.session.endedAt != nil || !entry.session.isAlive {
-                dead.append(entry)
-            } else {
-                alive.append(entry)
-            }
-        }
-
-        return (hidden, autoHidden, alive, dead)
     }
 
     private func hideAutoHiddenSessions(_ sessions: [(URL, Session)]) {
@@ -153,35 +161,74 @@ class SessionManager: ObservableObject {
         return "maintenance"
     }
 
-    private func archiveAndRemoveDeadSessions(_ dead: [(URL, Session)]) {
-        for (url, session) in dead {
-            let sid = session.sessionId
-            let pid = session.pid.map(String.init) ?? "nil"
-
-            // Desktop-app sessions are deliberately skipped from archiving — drop the
-            // live file directly so it doesn't linger as a "dead" entry forever.
-            if session.isHostedByDesktopApp {
-                logger.info("dropping dead desktop-app session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
-                removeSessionFile(at: url)
-                continue
-            }
-
-            logger.info("archiving dead session \(sid, privacy: .public) pid=\(pid, privacy: .public)")
-            let archived = historyManager.archiveSession(session)
-            if archived {
-                removeSessionFile(at: url)
+    private func archiveAndRemoveFinishedNonDesktop(_ winners: [DedupCandidate]) {
+        for winner in winners where winner.session.lifecycle == .finished && winner.session.hostClass != .desktop {
+            let session = winner.session
+            // A dead non-desktop process holds no lock, so removing its .json needs no flock. Remove
+            // the .json ONLY — never the .lock (unlinking a lock a hook still holds splits the inode).
+            if historyManager.archiveSession(session) {
+                try? FileManager.default.removeItem(atPath: winner.path)
             } else {
-                logger.warning("skipping removal of \(sid, privacy: .public) — archive failed")
+                logger.warning("skipping removal of \(session.sessionId, privacy: .public) — archive failed")
             }
         }
-        historyManager.rebuildRecentProjects(
-            excludingActive: Set(sessions.map(\.projectPath))
-        )
     }
 
-    private func removeSessionFile(at url: URL) {
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.removeItem(at: url.appendingPathExtension("lock"))
+    private func stampDisconnectedDesktopSessions(_ candidates: [DedupCandidate], now: Date) {
+        for candidate in candidates {
+            guard candidate.session.hostClass == .desktop,
+                  candidate.session.lifecycle == .dormant,
+                  candidate.session.disconnectedAt == nil else { continue }
+            try? withSessionLock(sessionPath: candidate.path) {
+                guard var session = try? Session.fromFile(path: candidate.path),
+                      session.hostClass == .desktop,
+                      session.disconnectedAt == nil else {
+                    return
+                }
+                let lifecycle = Self.lifecycle(
+                    for: session, hostClass: .desktop, processAlive: session.isAlive,
+                    now: now, windows: Self.lifecycleWindows
+                )
+                guard lifecycle == .dormant else { return }
+                session.disconnectedAt = now
+                try? session.writeToFile(path: candidate.path)
+            }
+        }
+    }
+
+    /// Pass 2: reap finished desktop files (non-desktop is handled on the fast path). Acquires
+    /// the per-session lock, re-validates under it, and unlinks the `.json` ONLY (never the `.lock`).
+    /// A decode failure is never treated as finished. Also sweeps pre-PID legacy files.
+    private func garbageCollectFinished() {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
+        let now = Date()
+        var removedAny = false
+        for url in files where url.pathExtension == "json" && !url.lastPathComponent.hasSuffix(".tmp") {
+            if Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) {
+                try? fm.removeItem(at: url)   // pre-PID legacy file; no live writer to race
+                continue
+            }
+            try? withSessionLock(sessionPath: url.path) {
+                guard let data = try? Data(contentsOf: url),
+                      let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
+                    return   // decode failure → never treat as finished
+                }
+                guard !session.hidden, !session.shouldAutoHide else { return }
+                let hostClass = session.hostClass
+                guard hostClass == .desktop else { return }   // non-desktop handled on the fast path
+                let life = Self.lifecycle(
+                    for: session, hostClass: hostClass, processAlive: session.isAlive,
+                    now: now, windows: Self.lifecycleWindows
+                )
+                guard life == .finished else { return }
+                try? fm.removeItem(at: url)   // .json ONLY — never the .lock
+                removedAny = true
+            }
+        }
+        if removedAny {
+            historyManager.rebuildRecentProjects(excludingActive: Set(sessions.map(\.projectPath)))
+        }
     }
 
     /// A pre-PID session file was keyed by a bare session UUID. Today's files are either
@@ -189,19 +236,6 @@ class SessionManager: ObservableObject {
     /// UUID, so only genuinely old files match and get cleaned up.
     nonisolated static func isLegacyUUIDFilename(_ stem: String) -> Bool {
         HostApp.isUUID(stem)
-    }
-
-    // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
-    /// Remove old-format UUID-keyed session files (pre-PID migration).
-    /// PID-keyed filenames are purely numeric; UUID filenames contain letters/hyphens.
-    private func cleanupOldFormatFiles(_ jsonFiles: [URL]) {
-        for url in jsonFiles {
-            let stem = url.deletingPathExtension().lastPathComponent
-            if Self.isLegacyUUIDFilename(stem) {
-                logger.info("removing old-format session file: \(stem, privacy: .public)")
-                try? FileManager.default.removeItem(at: url)
-            }
-        }
     }
 
     /// Distinct sessions can transiently share an `id`: Codex multiplexes conversations
@@ -219,42 +253,53 @@ class SessionManager: ObservableObject {
         return byID.values.sorted { $0.id < $1.id }
     }
 
-    /// Collapse multiple files for one conversation. Key: `sessionId` for desktop/ambiguous
-    /// hosts; PID-based `id` for confident-terminal (preserving today's terminal identity).
-    /// Within a key, pick by a TOTAL order: lifecycle rank asc, lastActivity desc,
-    /// effectiveEndDate desc, mtime desc, absolute path asc. Never PID as a clock.
-    nonisolated static func dedupedBySessionId(_ candidates: [DedupCandidate]) -> [Session] {
+    /// Collapse multiple files for one conversation only for confident desktop hosts.
+    nonisolated static func dedupedCandidatesByLifecycleKey(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
         var byKey: [String: DedupCandidate] = [:]
         for candidate in candidates {
-            let key = candidate.session.conversationKey
+            let key = dedupKey(for: candidate.session)
             if let existing = byKey[key], prefersFirst(existing, over: candidate) { continue }
             byKey[key] = candidate
         }
-        return byKey.values
-            .sorted { $0.session.conversationKey < $1.session.conversationKey }
-            .map(\.session)
+        return byKey.values.sorted { dedupKey(for: $0.session) < dedupKey(for: $1.session) }
     }
 
-    /// Pure lifecycle derivation. `processAlive` is the caller's raw PID-liveness result; it is
-    /// IGNORED for non-terminal Codex (Codex Desktop multiplexes conversations onto one shared
-    /// host PID, so it can't indicate a single conversation's liveness) — there "active" means
-    /// recent hook activity within `activeWindow`. A dead terminal session is `finished` (no
-    /// dormant — it's genuinely over); desktop/ambiguous stay `dormant` while within
-    /// `retentionWindow`, then `finished`.
+    nonisolated static func dedupedByLifecycleKey(_ candidates: [DedupCandidate]) -> [Session] {
+        dedupedCandidatesByLifecycleKey(candidates).map(\.session)
+    }
+
+    /// Pure connection derivation. Every host class goes through this same first step:
+    /// decide whether the session record still represents a connected session.
+    nonisolated static func connectionState(
+        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
+        now: Date, windows: LifecycleWindows
+    ) -> SessionConnectionState {
+        if session.endedAt != nil { return .disconnected }
+        let useRecency = session.isCodex && hostClass == .desktop
+        let connected = useRecency ? (now.timeIntervalSince(session.lastActivity) < windows.active) : processAlive
+        return connected ? .connected : .disconnected
+    }
+
+    /// Pure lifecycle derivation. Connection is detected uniformly first; host policy then decides
+    /// what disconnected means for desktop versus non-desktop sessions.
     nonisolated static func lifecycle(
         for session: Session, hostClass: SessionHostClass, processAlive: Bool,
         now: Date, windows: LifecycleWindows
     ) -> SessionLifecycle {
-        // Codex DESKTOP multiplexes conversations onto one shared host PID, so processAlive
-        // can't speak to a single conversation — use recent activity instead. This applies
-        // ONLY to confident Codex Desktop (hostClass == .desktop). Codex CLI (terminal) and
-        // ambiguous Codex both have a real per-process PID, so they keep processAlive — a
-        // live but quiet CLI session must never be discarded by the recency-only path.
-        let useRecency = session.isCodex && hostClass == .desktop
-        let alive = useRecency ? (now.timeIntervalSince(session.lastActivity) < windows.active) : processAlive
-        if alive { return .active }
-        if hostClass == .terminal { return .finished }
-        return now.timeIntervalSince(session.lastActivity) <= windows.retention ? .dormant : .finished
+        let connection = connectionState(
+            for: session, hostClass: hostClass, processAlive: processAlive, now: now, windows: windows
+        )
+        if connection == .connected { return .active }
+        guard hostClass == .desktop else { return .finished }
+        guard let disconnectedAt = session.disconnectedAt else { return .dormant }
+        return now.timeIntervalSince(disconnectedAt) <= windows.retention ? .dormant : .finished
+    }
+
+    private nonisolated static func dedupKey(for session: Session) -> String {
+        if session.hostClass == .desktop {
+            return "desktop:\(session.sessionId)"
+        }
+        return "active:\(session.id)"
     }
 
     /// Strict total order: true when `lhs` should be kept over `rhs`. Never uses PID as a clock.
@@ -272,6 +317,14 @@ class SessionManager: ObservableObject {
 
     /// Apply display-side status adjustments. The session file on disk is NOT modified.
     private func adjustDisplayStatus(_ session: Session) -> Session {
+        // A dormant (backgrounded) session isn't actively in any state — render it neutral (idle)
+        // so it never shows a false "waiting"/"permission" pill. It's already excluded from counts
+        // and notifications; this keeps the card itself honest.
+        if session.lifecycle == .dormant {
+            var result = session
+            result.status = .idle
+            return result
+        }
         var result = adjustPermissionStatus(session)
         result = Self.adjustIdleTimeout(result)
         return result
@@ -439,6 +492,34 @@ class SessionManager: ObservableObject {
     deinit {
         source?.cancel()
         livenessTimer?.invalidate()
+        gcTimer?.invalidate()
+    }
+}
+
+extension SessionManager {
+    /// Decode each session file, derive its lifecycle, and capture mtime — the inputs the dedup
+    /// comparator needs. Pure (no published state), kept off the main class body.
+    nonisolated static func buildCandidates(_ jsonFiles: [URL], now: Date) -> [DedupCandidate] {
+        var candidates: [DedupCandidate] = []
+        for url in jsonFiles {
+            guard let data = try? Data(contentsOf: url) else {
+                logger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
+                continue
+            }
+            guard var session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
+                logger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public)")
+                continue
+            }
+            session.lifecycle = lifecycle(
+                for: session, hostClass: session.hostClass, processAlive: session.isAlive,
+                now: now, windows: lifecycleWindows
+            )
+            let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate ?? .distantPast
+            candidates.append(DedupCandidate(session: session, lifecycleRank: session.lifecycle.rawValue,
+                                             mtime: mtime, path: url.path))
+        }
+        return candidates
     }
 }
 

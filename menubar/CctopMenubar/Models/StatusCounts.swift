@@ -18,7 +18,9 @@ struct StatusCounts: Equatable {
     /// Create counts by aggregating session statuses.
     init(sessions: [Session]) {
         var perm = 0, attn = 0, work = 0, idleCount = 0
-        for session in sessions {
+        // Only live (active) sessions drive the menubar badge. Dormant cards are reachable
+        // history, not live work, so they never inflate counts or trigger the attention pill.
+        for session in sessions where session.lifecycle == .active {
             switch session.status {
             case .idle: idleCount += 1
             case .working, .compacting: work += 1

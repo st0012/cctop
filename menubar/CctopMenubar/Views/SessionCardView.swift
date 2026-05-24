@@ -22,6 +22,8 @@ struct SessionCardView: View {
         .cardSelectionStyle(
             isSelected: isSelected, isHovered: isHovered, cornerRadius: 0
         )
+        // Dormant = backgrounded (no live process); mute it so live work reads first.
+        .opacity(session.lifecycle == .dormant ? 0.62 : 1.0)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
@@ -158,6 +160,7 @@ struct SessionCardView: View {
     }
 
     private var statusLabelText: String {
+        if session.lifecycle == .dormant { return "Dormant" }
         switch session.status {
         case .idle: return "Idle"
         case .working: return "Working"
