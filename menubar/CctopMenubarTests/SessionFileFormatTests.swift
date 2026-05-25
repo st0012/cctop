@@ -235,6 +235,56 @@ final class SessionFileFormatTests: XCTestCase {
         manager = nil
     }
 
+    func testAutoHiddenSessionSnapshotPreservesLatestFileFields() throws {
+        let root = NSTemporaryDirectory() + "cctop-auto-hide-merge-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let memoriesDir = (root as NSString).appendingPathComponent("carol/.codex/memories")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_CODEX_MEMORIES_DIR", memoriesDir, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_MEMORIES_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        var latest = codexDesktopSession(sessionId: "memory-session", projectPath: memoriesDir)
+        latest.status = .working
+        latest.lastTool = "Read"
+        latest.lastToolDetail = "Sources.swift"
+        latest.lastPrompt = "Summarize project state"
+        latest.activeSubagents = [
+            SubagentInfo(agentId: "agent-1", agentType: "reviewer", startedAt: Date(timeIntervalSince1970: 100))
+        ]
+
+        let memoryPath = (sessionsDir as NSString).appendingPathComponent("codex-memory-session.json")
+        try latest.writeToFile(path: memoryPath)
+
+        let hidden = try XCTUnwrap(SessionManager.autoHiddenSessionSnapshot(path: memoryPath))
+
+        XCTAssertTrue(hidden.hidden)
+        XCTAssertEqual(hidden.status, .working)
+        XCTAssertEqual(hidden.lastTool, "Read")
+        XCTAssertEqual(hidden.lastToolDetail, "Sources.swift")
+        XCTAssertEqual(hidden.lastPrompt, "Summarize project state")
+        XCTAssertEqual(hidden.activeSubagents, latest.activeSubagents)
+    }
+
+    func testAutoHiddenSessionSnapshotSkipsFilesThatNoLongerNeedHiding() throws {
+        let root = NSTemporaryDirectory() + "cctop-auto-hide-skip-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let normalSession = codexDesktopSession(
+            sessionId: "normal-codex",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        )
+        let path = (sessionsDir as NSString).appendingPathComponent("codex-normal.json")
+        try normalSession.writeToFile(path: path)
+
+        XCTAssertNil(try SessionManager.autoHiddenSessionSnapshot(path: path))
+    }
+
     @MainActor
     func testSessionManagerSkipsAlreadyHiddenSessionsWithoutArchivingOrRemovingThem() throws {
         let root = NSTemporaryDirectory() + "cctop-hidden-\(UUID().uuidString)"

@@ -118,9 +118,16 @@ class SessionManager: ObservableObject {
             logger.info(
                 "hiding \(self.autoHideReason(for: session), privacy: .public) session \(session.sessionId, privacy: .public)"
             )
-            var hiddenSession = session
-            hiddenSession.hidden = true
-            try? hiddenSession.writeToFile(path: url.path)
+            do {
+                try withSessionLock(sessionPath: url.path) {
+                    guard let hiddenSession = try Self.autoHiddenSessionSnapshot(path: url.path) else { return }
+                    try hiddenSession.writeToFile(path: url.path)
+                }
+            } catch {
+                logger.warning(
+                    "skipping auto-hide update for \(session.sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+            }
         }
     }
 
@@ -365,5 +372,15 @@ class SessionManager: ObservableObject {
     deinit {
         source?.cancel()
         livenessTimer?.invalidate()
+    }
+}
+
+extension SessionManager {
+    nonisolated static func autoHiddenSessionSnapshot(path: String) throws -> Session? {
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        var latest = try Session.fromFile(path: path)
+        guard !latest.hidden, latest.shouldAutoHide else { return nil }
+        latest.hidden = true
+        return latest
     }
 }
