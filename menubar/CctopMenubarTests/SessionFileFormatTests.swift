@@ -497,6 +497,15 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(life(lifeSession(agoSeconds: 100_000), .desktop, alive: false), .dormant)
     }
 
+    func testLifecycleClaudeDesktopUsesDesktopDormantPolicy() {
+        var session = lifeSession(agoSeconds: 100_000, disconnectedAgoSeconds: 60)
+        session.terminal = TerminalInfo(bundleId: HostAppBundleID.claudeDesktop)
+
+        XCTAssertEqual(session.hostClass, .desktop)
+        XCTAssertEqual(life(session, session.hostClass, alive: false), .dormant)
+        XCTAssertEqual(life(session, session.hostClass, alive: true), .active)
+    }
+
     func testLifecycleUnknownHostDeadIsFinishedEvenIfRecent() {
         XCTAssertEqual(life(lifeSession(agoSeconds: 60), .ambiguous, alive: false), .finished)
     }
