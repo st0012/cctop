@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AppKit
 import Darwin.libproc
 import Foundation
@@ -29,6 +30,7 @@ enum SessionConnectionState: Equatable {
 }
 
 @MainActor
+// swiftlint:disable:next type_body_length
 class SessionManager: ObservableObject {
     @Published var sessions: [Session] = []
 
@@ -231,90 +233,6 @@ class SessionManager: ObservableObject {
         }
     }
 
-    /// A pre-PID session file was keyed by a bare session UUID. Today's files are either
-    /// numeric (PID) or `codex-<uuid>` (one Codex conversation per file); neither is a bare
-    /// UUID, so only genuinely old files match and get cleaned up.
-    nonisolated static func isLegacyUUIDFilename(_ stem: String) -> Bool {
-        HostApp.isUUID(stem)
-    }
-
-    /// Distinct sessions can transiently share an `id`: Codex multiplexes conversations
-    /// onto one host PID, and a migration window can briefly leave two files for the same
-    /// conversation. Collapse by `id` (keeping the most recently active) so the published
-    /// list — and everything keyed by id (SwiftUI identity, the status map) — stays unique.
-    nonisolated static func dedupedByID(_ sessions: [Session]) -> [Session] {
-        var byID: [String: Session] = [:]
-        for session in sessions {
-            if let existing = byID[session.id], existing.lastActivity >= session.lastActivity {
-                continue
-            }
-            byID[session.id] = session
-        }
-        return byID.values.sorted { $0.id < $1.id }
-    }
-
-    /// Collapse multiple files for one conversation only for confident desktop hosts.
-    nonisolated static func dedupedCandidatesByLifecycleKey(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
-        var byKey: [String: DedupCandidate] = [:]
-        for candidate in candidates {
-            let key = dedupKey(for: candidate.session)
-            if let existing = byKey[key], prefersFirst(existing, over: candidate) { continue }
-            byKey[key] = candidate
-        }
-        return byKey.values.sorted { dedupKey(for: $0.session) < dedupKey(for: $1.session) }
-    }
-
-    nonisolated static func dedupedByLifecycleKey(_ candidates: [DedupCandidate]) -> [Session] {
-        dedupedCandidatesByLifecycleKey(candidates).map(\.session)
-    }
-
-    /// Pure connection derivation. Every host class goes through this same first step:
-    /// decide whether the session record still represents a connected session.
-    nonisolated static func connectionState(
-        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
-        now: Date, windows: LifecycleWindows
-    ) -> SessionConnectionState {
-        if session.endedAt != nil { return .disconnected }
-        let useRecency = session.isCodex && hostClass == .desktop
-        let connected = useRecency ? (now.timeIntervalSince(session.lastActivity) < windows.active) : processAlive
-        return connected ? .connected : .disconnected
-    }
-
-    /// Pure lifecycle derivation. Connection is detected uniformly first; host policy then decides
-    /// what disconnected means for desktop versus non-desktop sessions.
-    nonisolated static func lifecycle(
-        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
-        now: Date, windows: LifecycleWindows
-    ) -> SessionLifecycle {
-        let connection = connectionState(
-            for: session, hostClass: hostClass, processAlive: processAlive, now: now, windows: windows
-        )
-        if connection == .connected { return .active }
-        guard hostClass == .desktop else { return .finished }
-        guard let disconnectedAt = session.disconnectedAt else { return .dormant }
-        return now.timeIntervalSince(disconnectedAt) <= windows.retention ? .dormant : .finished
-    }
-
-    private nonisolated static func dedupKey(for session: Session) -> String {
-        if session.hostClass == .desktop {
-            return "desktop:\(session.sessionId)"
-        }
-        return "active:\(session.id)"
-    }
-
-    /// Strict total order: true when `lhs` should be kept over `rhs`. Never uses PID as a clock.
-    private nonisolated static func prefersFirst(_ lhs: DedupCandidate, over rhs: DedupCandidate) -> Bool {
-        if lhs.lifecycleRank != rhs.lifecycleRank { return lhs.lifecycleRank < rhs.lifecycleRank }
-        if lhs.session.lastActivity != rhs.session.lastActivity {
-            return lhs.session.lastActivity > rhs.session.lastActivity
-        }
-        if lhs.session.effectiveEndDate != rhs.session.effectiveEndDate {
-            return lhs.session.effectiveEndDate > rhs.session.effectiveEndDate
-        }
-        if lhs.mtime != rhs.mtime { return lhs.mtime > rhs.mtime }
-        return lhs.path < rhs.path
-    }
-
     /// Apply display-side status adjustments. The session file on disk is NOT modified.
     private func adjustDisplayStatus(_ session: Session) -> Session {
         // A dormant (backgrounded) session isn't actively in any state — render it neutral (idle)
@@ -497,6 +415,85 @@ class SessionManager: ObservableObject {
 }
 
 extension SessionManager {
+    /// A pre-PID session file was keyed by a bare session UUID. Today's files are either
+    /// numeric (PID) or `codex-<uuid>`, so only genuinely old files match.
+    nonisolated static func isLegacyUUIDFilename(_ stem: String) -> Bool {
+        HostApp.isUUID(stem)
+    }
+
+    /// Collapse duplicate ids during migration, keeping the most recently active copy.
+    nonisolated static func dedupedByID(_ sessions: [Session]) -> [Session] {
+        var byID: [String: Session] = [:]
+        for session in sessions {
+            if let existing = byID[session.id], existing.lastActivity >= session.lastActivity {
+                continue
+            }
+            byID[session.id] = session
+        }
+        return byID.values.sorted { $0.id < $1.id }
+    }
+
+    /// Collapse multiple files for one conversation only for confident desktop hosts.
+    nonisolated static func dedupedCandidatesByLifecycleKey(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
+        var byKey: [String: DedupCandidate] = [:]
+        for candidate in candidates {
+            let key = dedupKey(for: candidate.session)
+            if let existing = byKey[key], prefersFirst(existing, over: candidate) { continue }
+            byKey[key] = candidate
+        }
+        return byKey.values.sorted { dedupKey(for: $0.session) < dedupKey(for: $1.session) }
+    }
+
+    nonisolated static func dedupedByLifecycleKey(_ candidates: [DedupCandidate]) -> [Session] {
+        dedupedCandidatesByLifecycleKey(candidates).map(\.session)
+    }
+
+    /// Pure connection derivation. Every host class goes through this same first step:
+    /// decide whether the session record still represents a connected session.
+    nonisolated static func connectionState(
+        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
+        now: Date, windows: LifecycleWindows
+    ) -> SessionConnectionState {
+        if session.endedAt != nil { return .disconnected }
+        let useRecency = session.isCodex && hostClass == .desktop
+        let connected = useRecency ? (now.timeIntervalSince(session.lastActivity) < windows.active) : processAlive
+        return connected ? .connected : .disconnected
+    }
+
+    /// Pure lifecycle derivation. Connection is detected uniformly first; host policy then decides
+    /// what disconnected means for desktop versus non-desktop sessions.
+    nonisolated static func lifecycle(
+        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
+        now: Date, windows: LifecycleWindows
+    ) -> SessionLifecycle {
+        let connection = connectionState(
+            for: session, hostClass: hostClass, processAlive: processAlive, now: now, windows: windows
+        )
+        if connection == .connected { return .active }
+        guard hostClass == .desktop else { return .finished }
+        guard let disconnectedAt = session.disconnectedAt else { return .dormant }
+        return now.timeIntervalSince(disconnectedAt) <= windows.retention ? .dormant : .finished
+    }
+
+    private nonisolated static func dedupKey(for session: Session) -> String {
+        if session.hostClass == .desktop {
+            return "desktop:\(session.sessionId)"
+        }
+        return "active:\(session.id)"
+    }
+
+    private nonisolated static func prefersFirst(_ lhs: DedupCandidate, over rhs: DedupCandidate) -> Bool {
+        if lhs.lifecycleRank != rhs.lifecycleRank { return lhs.lifecycleRank < rhs.lifecycleRank }
+        if lhs.session.lastActivity != rhs.session.lastActivity {
+            return lhs.session.lastActivity > rhs.session.lastActivity
+        }
+        if lhs.session.effectiveEndDate != rhs.session.effectiveEndDate {
+            return lhs.session.effectiveEndDate > rhs.session.effectiveEndDate
+        }
+        if lhs.mtime != rhs.mtime { return lhs.mtime > rhs.mtime }
+        return lhs.path < rhs.path
+    }
+
     /// Decode each session file, derive its lifecycle, and capture mtime — the inputs the dedup
     /// comparator needs. Pure (no published state), kept off the main class body.
     nonisolated static func buildCandidates(_ jsonFiles: [URL], now: Date) -> [DedupCandidate] {

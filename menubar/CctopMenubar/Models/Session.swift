@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 
 // MARK: - Shared date formatting
@@ -177,6 +178,7 @@ struct Session: Codable, Identifiable, Equatable {
     var workspaceFile: String?
     var source: String?
     var endedAt: Date?
+    var disconnectedAt: Date?
     var activeSubagents: [SubagentInfo]?
     var hidden: Bool
 
@@ -199,13 +201,6 @@ struct Session: Codable, Identifiable, Equatable {
         if isCodex { return sessionId }
         return pid.map { String($0) } ?? sessionId
     }
-
-    /// Stable per-conversation key for dedup and notification grouping. Unlike `id` (PID-based
-    /// for non-Codex), this never changes when a desktop conversation's subprocess is respawned
-    /// with a new PID across a host-app restart, so the old dead-PID file and the new live-PID
-    /// file collapse to one card. Class-independent on purpose: a file's `hostClass` can flicker
-    /// between loads (bundle id present/absent), but its `session_id` does not.
-    var conversationKey: String { sessionId }
 
     var displayName: String {
         sessionName ?? projectName
@@ -232,6 +227,7 @@ struct Session: Codable, Identifiable, Equatable {
         case workspaceFile = "workspace_file"
         case source
         case endedAt = "ended_at"
+        case disconnectedAt = "disconnected_at"
         case activeSubagents = "active_subagents"
         case hidden
     }
@@ -258,6 +254,7 @@ struct Session: Codable, Identifiable, Equatable {
         workspaceFile = try container.decodeIfPresent(String.self, forKey: .workspaceFile)
         source = try container.decodeIfPresent(String.self, forKey: .source)
         endedAt = try container.decodeIfPresent(Date.self, forKey: .endedAt)
+        disconnectedAt = try container.decodeIfPresent(Date.self, forKey: .disconnectedAt)
         activeSubagents = try container.decodeIfPresent([SubagentInfo].self, forKey: .activeSubagents)
         hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
     }
@@ -282,6 +279,7 @@ struct Session: Codable, Identifiable, Equatable {
         workspaceFile: String? = nil,
         source: String? = nil,
         endedAt: Date? = nil,
+        disconnectedAt: Date? = nil,
         activeSubagents: [SubagentInfo]? = nil,
         hidden: Bool = false
     ) {
@@ -303,6 +301,7 @@ struct Session: Codable, Identifiable, Equatable {
         self.workspaceFile = workspaceFile
         self.source = source
         self.endedAt = endedAt
+        self.disconnectedAt = disconnectedAt
         self.activeSubagents = activeSubagents
         self.hidden = hidden
     }
@@ -327,6 +326,7 @@ struct Session: Codable, Identifiable, Equatable {
         self.workspaceFile = nil
         self.source = nil
         self.endedAt = nil
+        self.disconnectedAt = nil
         self.activeSubagents = nil
         self.hidden = false
     }
@@ -392,6 +392,7 @@ struct Session: Codable, Identifiable, Equatable {
             workspaceFile: workspaceFile,
             source: source,
             endedAt: endedAt,
+            disconnectedAt: disconnectedAt,
             activeSubagents: activeSubagents,
             hidden: hidden
         )
@@ -435,9 +436,9 @@ struct Session: Codable, Identifiable, Equatable {
         URL(fileURLWithPath: path).lastPathComponent
     }
 
-    /// The best available end-of-session timestamp: `endedAt` if archived, otherwise `lastActivity`.
+    /// The best available inactive timestamp for ordering retained files.
     var effectiveEndDate: Date {
-        endedAt ?? lastActivity
+        disconnectedAt ?? endedAt ?? lastActivity
     }
 
     var relativeTime: String {

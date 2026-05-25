@@ -284,4 +284,23 @@ final class ForkSessionTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: termPath),
                        "Dead terminal session should still be reaped")
     }
+
+    func testCleanupLeavesLockFileWhenRemovingDeadTerminalSession() throws {
+        let project = "/tmp/cctop-lock-\(UUID().uuidString)"
+        let deadPID: UInt32 = 999_997
+        var term = Session(sessionId: "term-lock", projectPath: project, branch: "main",
+                           terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"))
+        term.pid = deadPID
+        let termPath = sessionsDir + "\(deadPID).json"
+        let lockPath = termPath + ".lock"
+        try term.writeToFile(path: termPath)
+        FileManager.default.createFile(atPath: lockPath, contents: Data())
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: UInt32(getpid())
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: termPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: lockPath))
+    }
 }

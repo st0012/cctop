@@ -221,6 +221,36 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertNotNil(try loadSession().endedAt)
     }
 
+    func testDesktopSessionEndStampsDisconnectedAt() throws {
+        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
+        defer { unsetenv("__CFBundleIdentifier") }
+
+        try handleFixture("SessionStart")
+        XCTAssertNil(try loadSession().disconnectedAt)
+
+        try handleFixture("SessionEnd")
+
+        let session = try loadSession()
+        XCTAssertNotNil(session.endedAt)
+        XCTAssertNotNil(session.disconnectedAt)
+    }
+
+    func testSessionStartClearsEndedAndDisconnectedAt() throws {
+        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
+        defer { unsetenv("__CFBundleIdentifier") }
+
+        try handleFixture("SessionStart")
+        try handleFixture("SessionEnd")
+        XCTAssertNotNil(try loadSession().endedAt)
+        XCTAssertNotNil(try loadSession().disconnectedAt)
+
+        try handleFixture("SessionStart")
+
+        let session = try loadSession()
+        XCTAssertNil(session.endedAt)
+        XCTAssertNil(session.disconnectedAt)
+    }
+
     // MARK: - Source passthrough (opencode)
 
     func testSourcePassthrough() throws {

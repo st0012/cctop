@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 
 private let maxToolDetailLen = 120
@@ -96,6 +97,8 @@ enum HookHandler {
         // Skip lastActivity for notificationPermission — PermissionRequest already set it,
         // and the menubar app needs the original timestamp for child-process-start-time comparison.
         if event != .notificationPermission { session.lastActivity = Date() }
+        session.endedAt = nil
+        session.disconnectedAt = nil
         session.branch = branch; session.terminal = terminal
         // MIGRATION(harness_name): The session JSON file still uses the `source` key.
         // Renaming the JSON key would require a reader-side migration in SessionManager.
@@ -335,6 +338,9 @@ enum HookHandler {
         return "/dev/" + String(cString: name)
     }
 
+}
+
+extension HookHandler {
     // MARK: - Cleanup
 
     private static func handleSessionEnd(hookName: String, input: HookInput) {
@@ -345,7 +351,11 @@ enum HookHandler {
         // Stamp endedAt instead of deleting — the menubar app archives to history on next poll.
         try? withSessionLock(sessionPath: path) {
             if var session = try? Session.fromFile(path: path) {
-                session.endedAt = Date()
+                let endedAt = Date()
+                session.endedAt = endedAt
+                if session.hostClass == .desktop {
+                    session.disconnectedAt = session.disconnectedAt ?? endedAt
+                }
                 try? session.writeToFile(path: path)
                 HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
             } else {
@@ -399,9 +409,7 @@ enum HookHandler {
 
     private static func removeSession(at path: String, sessionId: String) {
         try? FileManager.default.removeItem(atPath: path)
-        // Never remove the .lock here: a concurrent hook may hold it, and unlinking a held lock
-        // splits the flock inode (a recreated path gets a different lock), defeating the mutex.
-        // Orphan .lock files are 0-byte and harmless; the app's GC also leaves them in place.
+        // Never remove the .lock here: unlinking a held lock splits the flock inode.
         HookLogger.cleanupSessionLog(sessionId: sessionId)
     }
 
@@ -437,11 +445,8 @@ func withSessionLock(sessionPath: String, body: () throws -> Void) throws {
 
 // MARK: - Session File Naming
 
-/// Session files are keyed by PID, except Codex. Codex Desktop fires every
-/// conversation's hooks from one shared host process, so PID keying would collapse
-/// them into a single slot — key Codex by session_id so each conversation is its own
-/// file. The `codex-` prefix keeps the name non-UUID so the menubar's legacy-file
-/// cleanup (which deletes bare pre-PID UUID files) leaves it alone.
+/// Session files are keyed by PID, except Codex where one host process can emit hooks
+/// for multiple conversations. The `codex-` prefix avoids legacy UUID-file cleanup.
 func sessionFileName(input: HookInput, pid: UInt32, safeSessionId: String) -> String {
     if input.resolvedHarnessName == Session.codexSource {
         return "codex-\(safeSessionId).json"
@@ -475,7 +480,6 @@ func getCurrentBranch(cwd: String) -> String {
 }
 
 // MARK: - Tool Detail Extraction
-
 func extractToolDetail(toolName: String, toolInput: [String: String]?) -> String? {
     guard let toolInput else { return nil }
 

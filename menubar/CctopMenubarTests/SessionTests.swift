@@ -188,6 +188,37 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(session.pidStartTime)
     }
 
+    func testDecodesDisconnectedAt() throws {
+        let json = """
+        {
+            "session_id": "desktop-disconnected",
+            "project_path": "/tmp",
+            "project_name": "test",
+            "branch": "main",
+            "status": "idle",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "", "bundle_id": "com.anthropic.claudefordesktop"},
+            "disconnected_at": "2026-02-08T12:05:00Z"
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertEqual(
+            session.disconnectedAt,
+            ISO8601DateFormatter().date(from: "2026-02-08T12:05:00Z")
+        )
+    }
+
+    func testEncodesDisconnectedAt() throws {
+        let disconnectedAt = ISO8601DateFormatter().date(from: "2026-02-08T12:05:00Z")!
+        var session = Session.mock(terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop))
+        session.disconnectedAt = disconnectedAt
+
+        let data = try JSONEncoder.sessionEncoder.encode(session)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertEqual(object?["disconnected_at"] as? String, "2026-02-08T12:05:00.000Z")
+    }
+
     func testProcessStartTimeReturnsValueForCurrentProcess() {
         let pid = UInt32(getpid())
         let startTime = Session.processStartTime(pid: pid)

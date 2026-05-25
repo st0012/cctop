@@ -329,20 +329,21 @@ final class SessionFileFormatTests: XCTestCase {
     private func candidate(
         sessionId: String, pid: UInt32, bundleId: String?, lifecycleRank: Int,
         lastActivity: Date = Date(timeIntervalSince1970: 1000),
-        endedAt: Date? = nil, mtime: Date = .distantPast, path: String = "/x.json"
+        endedAt: Date? = nil, disconnectedAt: Date? = nil, mtime: Date = .distantPast, path: String = "/x.json"
     ) -> DedupCandidate {
         var s = Session(sessionId: sessionId, projectPath: "/tmp/p", branch: "main",
                         terminal: TerminalInfo(bundleId: bundleId))
         s.pid = pid
         s.lastActivity = lastActivity
         s.endedAt = endedAt
+        s.disconnectedAt = disconnectedAt
         return DedupCandidate(session: s, lifecycleRank: lifecycleRank, mtime: mtime, path: path)
     }
 
     func testDedupDesktopCollapsesSameSessionIdDifferentPid() {
         let dead = candidate(sessionId: "conv-a", pid: 100, bundleId: Self.desktopBundle, lifecycleRank: 1)
         let live = candidate(sessionId: "conv-a", pid: 200, bundleId: Self.desktopBundle, lifecycleRank: 0)
-        let result = SessionManager.dedupedBySessionId([dead, live])
+        let result = SessionManager.dedupedByLifecycleKey([dead, live])
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.pid, 200) // live (rank 0) wins, NOT the dead/newer-file one
     }
@@ -352,7 +353,7 @@ final class SessionFileFormatTests: XCTestCase {
                                      lifecycleRank: 1, lastActivity: Date(timeIntervalSince1970: 9999))
         let liveOlder = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                                   lifecycleRank: 0, lastActivity: Date(timeIntervalSince1970: 1))
-        let result = SessionManager.dedupedBySessionId([dormantNewer, liveOlder])
+        let result = SessionManager.dedupedByLifecycleKey([dormantNewer, liveOlder])
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.pid, 2) // lifecycle rank dominates lastActivity
     }
@@ -360,7 +361,7 @@ final class SessionFileFormatTests: XCTestCase {
     func testDedupDormantBeatsFinished() {
         let finished = candidate(sessionId: "c", pid: 1, bundleId: Self.desktopBundle, lifecycleRank: 2)
         let dormant = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle, lifecycleRank: 1)
-        XCTAssertEqual(SessionManager.dedupedBySessionId([finished, dormant]).first?.pid, 2)
+        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([finished, dormant]).first?.pid, 2)
     }
 
     func testDedupSameRankNewerLastActivityWins() {
@@ -368,7 +369,7 @@ final class SessionFileFormatTests: XCTestCase {
                               lifecycleRank: 1, lastActivity: Date(timeIntervalSince1970: 1))
         let newer = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                               lifecycleRank: 1, lastActivity: Date(timeIntervalSince1970: 2))
-        XCTAssertEqual(SessionManager.dedupedBySessionId([older, newer]).first?.pid, 2)
+        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([older, newer]).first?.pid, 2)
     }
 
     func testDedupTieBreaksByEffectiveEndDate() {
@@ -377,7 +378,7 @@ final class SessionFileFormatTests: XCTestCase {
                           lifecycleRank: 1, lastActivity: t, endedAt: Date(timeIntervalSince1970: 10))
         let b = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                           lifecycleRank: 1, lastActivity: t, endedAt: Date(timeIntervalSince1970: 20))
-        XCTAssertEqual(SessionManager.dedupedBySessionId([a, b]).first?.pid, 2) // newer effectiveEndDate
+        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([a, b]).first?.pid, 2) // newer effectiveEndDate
     }
 
     func testDedupFinalTieBreakByPathIsDeterministic() {
@@ -387,8 +388,8 @@ final class SessionFileFormatTests: XCTestCase {
         let b = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                           lifecycleRank: 1, lastActivity: t, mtime: t, path: "/b.json")
         // Smaller path wins, regardless of input order (total, stable).
-        XCTAssertEqual(SessionManager.dedupedBySessionId([b, a]).first?.pid, 1)
-        XCTAssertEqual(SessionManager.dedupedBySessionId([a, b]).first?.pid, 1)
+        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([b, a]).first?.pid, 1)
+        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([a, b]).first?.pid, 1)
     }
 
     func testDedupMissingMtimeLosesToRealMtime() {
@@ -397,25 +398,28 @@ final class SessionFileFormatTests: XCTestCase {
                                 lifecycleRank: 1, lastActivity: t, mtime: .distantPast)
         let realMtime = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                                   lifecycleRank: 1, lastActivity: t, mtime: t)
-        XCTAssertEqual(SessionManager.dedupedBySessionId([noMtime, realMtime]).first?.pid, 2)
+        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([noMtime, realMtime]).first?.pid, 2)
     }
 
-    // H2: the same conversation collapses regardless of how each file classifies — even if an
-    // env flicker on restart makes one file look terminal (bundle id present) and one ambiguous
-    // (absent). A hostClass-dependent key would split these into different buckets → duplicate card.
-    func testDedupMixedClassSameSessionIdCollapsesToLive() {
-        let deadTerminal = candidate(sessionId: "shared", pid: 100, bundleId: "com.googlecode.iterm2", lifecycleRank: 1)
-        let liveAmbiguous = candidate(sessionId: "shared", pid: 200, bundleId: nil, lifecycleRank: 0)
-        let result = SessionManager.dedupedBySessionId([deadTerminal, liveAmbiguous])
-        XCTAssertEqual(result.count, 1)
-        XCTAssertEqual(result.first?.pid, 200) // live wins
+    func testDedupTerminalKeepsPidIdentityEvenWithSameSessionId() {
+        let oldPid = candidate(sessionId: "shared", pid: 100, bundleId: "com.googlecode.iterm2", lifecycleRank: 0)
+        let newPid = candidate(sessionId: "shared", pid: 200, bundleId: "com.googlecode.iterm2", lifecycleRank: 0)
+        let result = SessionManager.dedupedByLifecycleKey([oldPid, newPid])
+        XCTAssertEqual(result.compactMap(\.pid).sorted(), [100, 200])
+    }
+
+    func testDedupUnknownHostKeepsPidIdentityEvenWithSameSessionId() {
+        let oldPid = candidate(sessionId: "shared", pid: 100, bundleId: nil, lifecycleRank: 0)
+        let newPid = candidate(sessionId: "shared", pid: 200, bundleId: nil, lifecycleRank: 0)
+        let result = SessionManager.dedupedByLifecycleKey([oldPid, newPid])
+        XCTAssertEqual(result.compactMap(\.pid).sorted(), [100, 200])
     }
 
     // Distinct conversations never collapse.
     func testDedupDifferentSessionIdsStaySeparate() {
         let one = candidate(sessionId: "conv-1", pid: 1, bundleId: Self.desktopBundle, lifecycleRank: 0)
         let two = candidate(sessionId: "conv-2", pid: 2, bundleId: Self.desktopBundle, lifecycleRank: 0)
-        XCTAssertEqual(SessionManager.dedupedBySessionId([one, two]).count, 2)
+        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([one, two]).count, 2)
     }
 
     // MARK: - Lifecycle derivation (Phase 1)
@@ -424,16 +428,47 @@ final class SessionFileFormatTests: XCTestCase {
     private static let activeWin: TimeInterval = 300        // 5 min
     private static let retentionWin: TimeInterval = 86_400  // 24h
 
-    private func lifeSession(source: String? = nil, agoSeconds: TimeInterval) -> Session {
+    private func lifeSession(
+        source: String? = nil,
+        agoSeconds: TimeInterval,
+        disconnectedAgoSeconds: TimeInterval? = nil
+    ) -> Session {
         var session = Session(sessionId: "s", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
         session.source = source
         session.lastActivity = Self.lifeNow.addingTimeInterval(-agoSeconds)
+        if let disconnectedAgoSeconds {
+            session.disconnectedAt = Self.lifeNow.addingTimeInterval(-disconnectedAgoSeconds)
+        }
         return session
     }
 
     private func life(_ session: Session, _ hostClass: SessionHostClass, alive: Bool) -> SessionLifecycle {
         SessionManager.lifecycle(for: session, hostClass: hostClass, processAlive: alive, now: Self.lifeNow,
                                  windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin))
+    }
+
+    private func connection(_ session: Session, _ hostClass: SessionHostClass, alive: Bool) -> SessionConnectionState {
+        SessionManager.connectionState(
+            for: session, hostClass: hostClass, processAlive: alive, now: Self.lifeNow,
+            windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin)
+        )
+    }
+
+    func testConnectionStateUsesEndedAtForAllHosts() {
+        var session = lifeSession(agoSeconds: 60)
+        session.endedAt = Self.lifeNow.addingTimeInterval(-30)
+
+        XCTAssertEqual(connection(session, .desktop, alive: true), .disconnected)
+        XCTAssertEqual(connection(session, .terminal, alive: true), .disconnected)
+        XCTAssertEqual(connection(session, .ambiguous, alive: true), .disconnected)
+    }
+
+    func testLifecycleMapsSameDisconnectedStateByHostPolicy() {
+        let session = lifeSession(agoSeconds: 60, disconnectedAgoSeconds: 30)
+
+        XCTAssertEqual(life(session, .desktop, alive: false), .dormant)
+        XCTAssertEqual(life(session, .terminal, alive: false), .finished)
+        XCTAssertEqual(life(session, .ambiguous, alive: false), .finished)
     }
 
     func testLifecycleDesktopAliveIsActive() {
@@ -445,11 +480,25 @@ final class SessionFileFormatTests: XCTestCase {
     }
 
     func testLifecycleDesktopDeadAndAgedIsFinished() {
-        XCTAssertEqual(life(lifeSession(agoSeconds: 100_000), .desktop, alive: false), .finished)
+        XCTAssertEqual(
+            life(lifeSession(agoSeconds: 100_000, disconnectedAgoSeconds: 100_000), .desktop, alive: false),
+            .finished
+        )
     }
 
-    func testLifecycleAmbiguousDeadButRecentIsDormant() {
-        XCTAssertEqual(life(lifeSession(agoSeconds: 60), .ambiguous, alive: false), .dormant)
+    func testLifecycleDesktopDeadUsesDisconnectedAtInsteadOfLastActivityForRetention() {
+        XCTAssertEqual(
+            life(lifeSession(agoSeconds: 100_000, disconnectedAgoSeconds: 60), .desktop, alive: false),
+            .dormant
+        )
+    }
+
+    func testLifecycleDesktopDeadWithoutDisconnectedAtStartsDormant() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 100_000), .desktop, alive: false), .dormant)
+    }
+
+    func testLifecycleUnknownHostDeadIsFinishedEvenIfRecent() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 60), .ambiguous, alive: false), .finished)
     }
 
     func testLifecycleTerminalAliveIsActive() {
@@ -459,6 +508,24 @@ final class SessionFileFormatTests: XCTestCase {
     // A dead terminal session is over — no dormant, even when recent.
     func testLifecycleTerminalDeadIsFinishedEvenIfRecent() {
         XCTAssertEqual(life(lifeSession(agoSeconds: 60), .terminal, alive: false), .finished)
+    }
+
+    func testLifecycleTerminalEndedAtIsFinishedEvenIfPidStillAlive() {
+        var session = lifeSession(agoSeconds: 60)
+        session.endedAt = Self.lifeNow.addingTimeInterval(-30)
+        XCTAssertEqual(life(session, .terminal, alive: true), .finished)
+    }
+
+    func testLifecycleDesktopEndedAtUsesDesktopDormantRules() {
+        var session = lifeSession(agoSeconds: 60, disconnectedAgoSeconds: 30)
+        session.endedAt = Self.lifeNow.addingTimeInterval(-30)
+        XCTAssertEqual(life(session, .desktop, alive: false), .dormant)
+    }
+
+    func testLifecycleDesktopEndedAtBeatsPidLiveness() {
+        var session = lifeSession(agoSeconds: 60, disconnectedAgoSeconds: 30)
+        session.endedAt = Self.lifeNow.addingTimeInterval(-30)
+        XCTAssertEqual(life(session, .desktop, alive: true), .dormant)
     }
 
     // Codex Desktop carve-out: a live SHARED host PID must not keep a stale conversation active.
