@@ -353,7 +353,7 @@ extension HookHandler {
             if var session = try? Session.fromFile(path: path) {
                 let endedAt = Date()
                 session.endedAt = endedAt
-                if session.hostClass == .desktop {
+                if isDesktopBundleId(session.terminal?.bundleId) {
                     session.disconnectedAt = session.disconnectedAt ?? endedAt
                 }
                 try? session.writeToFile(path: path)
@@ -372,8 +372,7 @@ extension HookHandler {
             // Desktop-app conversations survive host-app restarts as dormant cards in the menubar
             // app and are reaped only by its lock-held GC. The hook must NOT delete them here, or
             // resuming one conversation would reap its dormant same-project siblings.
-            let bundleId = session.terminal?.bundleId
-            guard bundleId != HostAppBundleID.claudeDesktop, bundleId != HostAppBundleID.codexDesktop else { return }
+            guard !isDesktopBundleId(session.terminal?.bundleId) else { return }
 
             let isStale: Bool
             if let pid = session.pid {
@@ -395,6 +394,10 @@ extension HookHandler {
                 removeSession(at: path, sessionId: session.sessionId)
             }
         }
+    }
+
+    private static func isDesktopBundleId(_ bundleId: String?) -> Bool {
+        bundleId == HostAppBundleID.claudeDesktop || bundleId == HostAppBundleID.codexDesktop
     }
 
     private static func forEachSession(in dir: String, body: (String, Session) -> Void) {
