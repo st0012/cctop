@@ -71,8 +71,8 @@ class SessionManager: ObservableObject {
             return
         }
 
-        // Transition guard for notifications uses the same identity policy as dedup: desktop
-        // conversations are stable by session_id, terminal/unknown sessions keep PID identity.
+        // Notification transition guards use the same identity policy as dedup: Codex and
+        // desktop conversations are stable by session_id; other sessions keep PID identity.
         let oldStatuses = Dictionary(
             sessions.map { (Self.dedupKey(for: $0), $0.status) }, uniquingKeysWith: { first, _ in first }
         )
@@ -433,7 +433,7 @@ extension SessionManager {
         return byID.values.sorted { $0.id < $1.id }
     }
 
-    /// Collapse multiple files for one conversation only for confident desktop hosts.
+    /// Collapse multiple files for one conversation only for hosts with stable conversation identity.
     nonisolated static func dedupedCandidatesByLifecycleKey(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
         var byKey: [String: DedupCandidate] = [:]
         for candidate in candidates {
@@ -476,6 +476,9 @@ extension SessionManager {
     }
 
     private nonisolated static func dedupKey(for session: Session) -> String {
+        if session.isCodex {
+            return "codex:\(session.sessionId)"
+        }
         if session.hostClass == .desktop {
             return "desktop:\(session.sessionId)"
         }

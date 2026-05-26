@@ -59,4 +59,16 @@ enum Transition {
         case .notificationPermission, .notificationOther, .sessionEnd, .unknown: return nil
         }
     }
+
+    /// True when a hook is strong evidence that a previously ended/dormant session resumed.
+    static func clearsInactiveMarkers(event: HookEvent) -> Bool {
+        switch event {
+        case .sessionStart, .userPromptSubmit, .preToolUse, .postToolUse, .postToolUseFailure,
+             .stop, .notificationIdle, .permissionRequest, .subagentStart, .subagentStop,
+             .preCompact, .postCompact, .sessionError:
+            return true
+        case .notificationPermission, .notificationOther, .sessionEnd, .unknown:
+            return false
+        }
+    }
 }

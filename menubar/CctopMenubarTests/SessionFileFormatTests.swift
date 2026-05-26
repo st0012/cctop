@@ -328,12 +328,14 @@ final class SessionFileFormatTests: XCTestCase {
 
     private func candidate(
         sessionId: String, pid: UInt32, bundleId: String?, lifecycleRank: Int,
+        source: String? = nil,
         lastActivity: Date = Date(timeIntervalSince1970: 1000),
         endedAt: Date? = nil, disconnectedAt: Date? = nil, mtime: Date = .distantPast, path: String = "/x.json"
     ) -> DedupCandidate {
         var s = Session(sessionId: sessionId, projectPath: "/tmp/p", branch: "main",
                         terminal: TerminalInfo(bundleId: bundleId))
         s.pid = pid
+        s.source = source
         s.lastActivity = lastActivity
         s.endedAt = endedAt
         s.disconnectedAt = disconnectedAt
@@ -413,6 +415,21 @@ final class SessionFileFormatTests: XCTestCase {
         let newPid = candidate(sessionId: "shared", pid: 200, bundleId: nil, lifecycleRank: 0)
         let result = SessionManager.dedupedByLifecycleKey([oldPid, newPid])
         XCTAssertEqual(result.compactMap(\.pid).sorted(), [100, 200])
+    }
+
+    func testDedupMigratedCodexSessionUsesStableConversationIdAcrossHostClass() {
+        let oldPidKeyed = candidate(
+            sessionId: "conv-a", pid: 100, bundleId: nil, lifecycleRank: 2,
+            source: Session.codexSource, path: "/100.json"
+        )
+        let desktopKeyed = candidate(
+            sessionId: "conv-a", pid: 200, bundleId: HostAppBundleID.codexDesktop,
+            lifecycleRank: 0, source: Session.codexSource, path: "/codex-conv-a.json"
+        )
+
+        let result = SessionManager.dedupedByLifecycleKey([oldPidKeyed, desktopKeyed])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.pid, 200)
     }
 
     // Distinct conversations never collapse.

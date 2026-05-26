@@ -97,8 +97,10 @@ enum HookHandler {
         // Skip lastActivity for notificationPermission — PermissionRequest already set it,
         // and the menubar app needs the original timestamp for child-process-start-time comparison.
         if event != .notificationPermission { session.lastActivity = Date() }
-        session.endedAt = nil
-        session.disconnectedAt = nil
+        if Transition.clearsInactiveMarkers(event: event) {
+            session.endedAt = nil
+            session.disconnectedAt = nil
+        }
         session.branch = branch; session.terminal = terminal
         // MIGRATION(harness_name): The session JSON file still uses the `source` key.
         // Renaming the JSON key would require a reader-side migration in SessionManager.
