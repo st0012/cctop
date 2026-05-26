@@ -432,6 +432,51 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(result.first?.pid, 200)
     }
 
+    @MainActor
+    func testSessionManagerRemovesFinishedCodexDedupLoserWithoutArchiving() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-dedup-cleanup-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        var oldPidKeyed = Session(
+            sessionId: "conv-a", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo()
+        )
+        oldPidKeyed.source = Session.codexSource
+        oldPidKeyed.pid = 999_999
+        oldPidKeyed.endedAt = Date(timeIntervalSince1970: 100)
+        let oldPath = (sessionsDir as NSString).appendingPathComponent("999999.json")
+        try oldPidKeyed.writeToFile(path: oldPath)
+
+        var desktopKeyed = Session(
+            sessionId: "conv-a", projectPath: "/tmp/p", branch: "main",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        )
+        desktopKeyed.source = Session.codexSource
+        desktopKeyed.lastActivity = Date()
+        let desktopPath = (sessionsDir as NSString).appendingPathComponent("codex-conv-a.json")
+        try desktopKeyed.writeToFile(path: desktopPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.loadSessions()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oldPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: desktopPath))
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["conv-a"])
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
     // Distinct conversations never collapse.
     func testDedupDifferentSessionIdsStaySeparate() {
         let one = candidate(sessionId: "conv-1", pid: 1, bundleId: Self.desktopBundle, lifecycleRank: 0)

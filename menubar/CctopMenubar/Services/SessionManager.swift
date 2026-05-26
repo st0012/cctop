@@ -119,7 +119,7 @@ class SessionManager: ObservableObject {
         // Non-desktop finished sessions keep today's behavior: archive to Recent Projects and
         // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped
         // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
-        archiveAndRemoveFinishedNonDesktop(winners)
+        archiveAndRemoveFinishedNonDesktop(candidates, winners: winners)
         historyManager.rebuildRecentProjects(excludingActive: Set(sessions.map(\.projectPath)))
     }
 
@@ -163,17 +163,35 @@ class SessionManager: ObservableObject {
         return "maintenance"
     }
 
-    private func archiveAndRemoveFinishedNonDesktop(_ winners: [DedupCandidate]) {
-        for winner in winners where winner.session.lifecycle == .finished && winner.session.hostClass != .desktop {
-            let session = winner.session
-            // A dead non-desktop process holds no lock, so removing its .json needs no flock. Remove
-            // the .json ONLY — never the .lock (unlinking a lock a hook still holds splits the inode).
-            if historyManager.archiveSession(session) {
-                try? FileManager.default.removeItem(atPath: winner.path)
+    private func archiveAndRemoveFinishedNonDesktop(_ candidates: [DedupCandidate], winners: [DedupCandidate]) {
+        let winnerPaths = Set(winners.map(\.path))
+        for candidate in candidates where candidate.session.lifecycle == .finished
+                                    && candidate.session.hostClass != .desktop {
+            // A finished dedup winner is a real completed non-desktop session, so keep today's
+            // Recent Projects behavior. A finished duplicate loser is stale migration debris;
+            // remove it without archiving so it cannot later surface as a separate session.
+            if winnerPaths.contains(candidate.path) {
+                archiveAndRemove(candidate)
             } else {
-                logger.warning("skipping removal of \(session.sessionId, privacy: .public) — archive failed")
+                removeStaleDuplicate(candidate)
             }
         }
+    }
+
+    private func archiveAndRemove(_ candidate: DedupCandidate) {
+        let session = candidate.session
+        // A dead non-desktop process holds no lock, so removing its .json needs no flock. Remove
+        // the .json ONLY — never the .lock (unlinking a lock a hook still holds splits the inode).
+        if historyManager.archiveSession(session) {
+            try? FileManager.default.removeItem(atPath: candidate.path)
+        } else {
+            logger.warning("skipping removal of \(session.sessionId, privacy: .public) — archive failed")
+        }
+    }
+
+    private func removeStaleDuplicate(_ candidate: DedupCandidate) {
+        logger.info("removing stale duplicate session file \(candidate.path, privacy: .public)")
+        try? FileManager.default.removeItem(atPath: candidate.path)
     }
 
     private func stampDisconnectedDesktopSessions(_ candidates: [DedupCandidate], now: Date) {
