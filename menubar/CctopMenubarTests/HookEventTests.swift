@@ -164,6 +164,13 @@ final class HookEventTests: XCTestCase {
         XCTAssertNil(Transition.forEvent(.idle, event: .unknown))
     }
 
+    // MARK: - Transition.clearsInactiveMarkers()
+
+    func testSubagentHooksDoNotClearInactiveMarkers() {
+        XCTAssertFalse(Transition.clearsInactiveMarkers(event: .subagentStart))
+        XCTAssertFalse(Transition.clearsInactiveMarkers(event: .subagentStop))
+    }
+
     // MARK: - Exhaustive transition test
 
     func testAllTransitionsExhaustive() {
@@ -171,7 +178,8 @@ final class HookEventTests: XCTestCase {
         let allEvents: [HookEvent] = [
             .sessionStart, .userPromptSubmit, .preToolUse, .postToolUse, .postToolUseFailure,
             .stop, .notificationIdle, .notificationPermission, .notificationOther,
-            .permissionRequest, .preCompact, .postCompact, .sessionError, .sessionEnd, .unknown
+            .permissionRequest, .subagentStart, .subagentStop, .preCompact, .postCompact,
+            .sessionError, .sessionEnd, .unknown
         ]
 
         // Every event x status combination should not crash
@@ -200,6 +208,8 @@ final class HookEventTests: XCTestCase {
             XCTAssertNotNil(Transition.forEvent(status, event: .sessionError))
             XCTAssertNil(Transition.forEvent(status, event: .notificationPermission))
             XCTAssertNil(Transition.forEvent(status, event: .notificationOther))
+            XCTAssertNil(Transition.forEvent(status, event: .subagentStart))
+            XCTAssertNil(Transition.forEvent(status, event: .subagentStop))
             XCTAssertNil(Transition.forEvent(status, event: .sessionEnd))
             XCTAssertNil(Transition.forEvent(status, event: .unknown))
         }

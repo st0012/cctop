@@ -64,10 +64,10 @@ enum Transition {
     static func clearsInactiveMarkers(event: HookEvent) -> Bool {
         switch event {
         case .sessionStart, .userPromptSubmit, .preToolUse, .postToolUse, .postToolUseFailure,
-             .stop, .notificationIdle, .permissionRequest, .subagentStart, .subagentStop,
-             .preCompact, .postCompact, .sessionError:
+             .stop, .notificationIdle, .permissionRequest, .preCompact, .postCompact, .sessionError:
             return true
-        case .notificationPermission, .notificationOther, .sessionEnd, .unknown:
+        case .notificationPermission, .notificationOther, .subagentStart, .subagentStop,
+             .sessionEnd, .unknown:
             return false
         }
     }

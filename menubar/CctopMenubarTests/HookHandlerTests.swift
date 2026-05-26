@@ -275,6 +275,28 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(try loadSession().disconnectedAt, disconnectedAt)
     }
 
+    func testSubagentHooksPreserveEndedAndDisconnectedAt() throws {
+        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
+        defer { unsetenv("__CFBundleIdentifier") }
+
+        try handleFixture("SessionStart")
+        try handleFixture("SessionEnd")
+        let endedAt = try XCTUnwrap(try loadSession().endedAt)
+        let disconnectedAt = try XCTUnwrap(try loadSession().disconnectedAt)
+
+        try handleFixture("SubagentStart")
+        var session = try loadSession()
+        XCTAssertEqual(session.endedAt, endedAt)
+        XCTAssertEqual(session.disconnectedAt, disconnectedAt)
+        XCTAssertEqual(session.activeSubagents?.count, 1)
+
+        try handleFixture("SubagentStop")
+        session = try loadSession()
+        XCTAssertEqual(session.endedAt, endedAt)
+        XCTAssertEqual(session.disconnectedAt, disconnectedAt)
+        XCTAssertEqual(session.activeSubagents?.count, 0)
+    }
+
     // MARK: - Source passthrough (opencode)
 
     func testSourcePassthrough() throws {
