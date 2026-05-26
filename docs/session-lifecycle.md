@@ -48,13 +48,27 @@ flowchart TD
     R -->|no| Q
     R -->|yes| S["Lifecycle: finished"]
 
-    Q --> T["Show dormant session"]
-    Q --> U["No notifications; neutral display status"]
-    S --> V["Desktop GC removes stale .json later"]
-    O --> W["Archive and remove .json promptly"]
+    L --> Y["Deduplicate by stable lifecycle key"]
+    Q --> Y
+    S --> Y
+    O --> Y
+
+    Y --> Z{"Survives dedup?"}
+    Z -->|yes| AA{"Lifecycle after dedup"}
+    Z -->|no| AB{"Finished non-desktop duplicate?"}
+
+    AA -->|"active"| AC["Show active session"]
+    AA -->|"dormant"| T["Show dormant session"]
+    AA -->|"finished desktop"| V["Desktop GC removes stale .json later"]
+    AA -->|"finished terminal / ambiguous"| W["Archive and remove .json promptly"]
+
+    T --> U["No notifications; neutral display status"]
+    AB -->|yes| AD["Remove stale duplicate .json without archiving"]
+    AB -->|no| AE["Ignore duplicate; winner owns display/cleanup"]
 
     V --> X["Never remove .lock files"]
     W --> X
+    AD --> X
 ```
 
 ## Field Meanings
@@ -75,6 +89,12 @@ It can be set in two ways:
 - The menubar app stamps it when it first observes a known desktop session as dormant and the field is missing.
 
 CLI sessions do not need `disconnected_at` because disconnected CLI sessions become finished immediately.
+
+## Dedup and Cleanup
+
+Session files are deduplicated by a lifecycle key before publishing. Codex sessions use `session_id` as a stable conversation key across both old PID-keyed files and newer `codex-<session_id>` files. Known desktop sessions also use `session_id`; other terminal or ambiguous sessions keep PID identity.
+
+Finished terminal or ambiguous sessions that survive dedup are archived to Recent Projects and then removed. Finished non-desktop duplicates that lose dedup are migration debris, so cctop removes their stale `.json` files without archiving them as separate recent sessions.
 
 ## Desktop Host Coverage
 
