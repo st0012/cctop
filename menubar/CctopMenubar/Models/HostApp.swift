@@ -158,11 +158,7 @@ extension Session {
     /// above, so a leaked `TMUX` env can't misclassify a desktop session here. Everything
     /// else (no/unknown bundle id, only env-copyable `tty` or program name) → ambiguous.
     var hostClass: SessionHostClass {
-        if let app = HostApp.from(bundleIdentifier: terminal?.bundleId) {
-            return app.isDesktopApp ? .desktop : .terminal
-        }
-        if terminal?.multiplexer != nil { return .terminal }
-        return .ambiguous
+        SessionIdentityPolicy.hostClass(for: self)
     }
 }
 

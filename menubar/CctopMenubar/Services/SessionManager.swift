@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import AppKit
 import Darwin.libproc
 import Foundation
@@ -7,27 +6,6 @@ import os.log
 
 private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
 private typealias SessionFile = (url: URL, session: Session)
-
-/// Ordering inputs for desktop dedup, kept separate from `Session`'s stored fields so the
-/// total order is unit-testable without disk or process probing. `mtime` is `.distantPast`
-/// when unknown so the comparison stays total.
-struct DedupCandidate {
-    let session: Session
-    let lifecycleRank: Int   // 0 = active, 1 = dormant, 2 = finished (lower = preferred)
-    let mtime: Date
-    let path: String         // absolute file path; final, total tiebreak
-}
-
-/// Tunable windows for lifecycle derivation.
-struct LifecycleWindows {
-    let active: TimeInterval     // Codex Desktop "recent activity counts as active" threshold
-    let retention: TimeInterval  // dormant desktop → finished age-out from disconnected_at
-}
-
-enum SessionConnectionState: Equatable {
-    case connected
-    case disconnected
-}
 
 @MainActor
 // swiftlint:disable:next type_body_length
@@ -74,7 +52,8 @@ class SessionManager: ObservableObject {
         // Notification transition guards use the same identity policy as dedup: Codex and
         // desktop conversations are stable by session_id; other sessions keep PID identity.
         let oldStatuses = Dictionary(
-            sessions.map { (Self.dedupKey(for: $0), $0.status) }, uniquingKeysWith: { first, _ in first }
+            sessions.map { (SessionIdentityPolicy.stableKey(for: $0), $0.status) },
+            uniquingKeysWith: { first, _ in first }
         )
 
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
@@ -91,7 +70,7 @@ class SessionManager: ObservableObject {
         )
 
         // Publish active + dormant; finished are hidden (swept below / by GC).
-        let winners = Self.dedupedCandidatesByLifecycleKey(candidates)
+        let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(candidates)
         let newSessions = winners
             .filter { $0.session.lifecycle != .finished }
             .map { adjustDisplayStatus($0.session) }
@@ -100,7 +79,7 @@ class SessionManager: ObservableObject {
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
             for session in newSessions where session.lifecycle == .active {
                 guard session.status.needsAttention,
-                      let oldStatus = oldStatuses[Self.dedupKey(for: session)],
+                      let oldStatus = oldStatuses[SessionIdentityPolicy.stableKey(for: session)],
                       !oldStatus.needsAttention else { continue }
                 sendNotification(for: session)
             }
@@ -205,8 +184,8 @@ class SessionManager: ObservableObject {
                       session.disconnectedAt == nil else {
                     return
                 }
-                let lifecycle = Self.lifecycle(
-                    for: session, hostClass: .desktop, processAlive: session.isAlive,
+                let lifecycle = SessionLifecyclePolicy.lifecycle(
+                    for: session, hostClass: SessionHostClass.desktop, processAlive: session.isAlive,
                     now: now, windows: Self.lifecycleWindows
                 )
                 guard lifecycle == .dormant else { return }
@@ -237,7 +216,7 @@ class SessionManager: ObservableObject {
                 guard !session.hidden, !session.shouldAutoHide else { return }
                 let hostClass = session.hostClass
                 guard hostClass == .desktop else { return }   // non-desktop handled on the fast path
-                let life = Self.lifecycle(
+                let life = SessionLifecyclePolicy.lifecycle(
                     for: session, hostClass: hostClass, processAlive: session.isAlive,
                     now: now, windows: Self.lifecycleWindows
                 )
@@ -439,82 +418,6 @@ extension SessionManager {
         HostApp.isUUID(stem)
     }
 
-    /// Collapse duplicate ids during migration, keeping the most recently active copy.
-    nonisolated static func dedupedByID(_ sessions: [Session]) -> [Session] {
-        var byID: [String: Session] = [:]
-        for session in sessions {
-            if let existing = byID[session.id], existing.lastActivity >= session.lastActivity {
-                continue
-            }
-            byID[session.id] = session
-        }
-        return byID.values.sorted { $0.id < $1.id }
-    }
-
-    /// Collapse multiple files for one conversation only for hosts with stable conversation identity.
-    nonisolated static func dedupedCandidatesByLifecycleKey(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
-        var byKey: [String: DedupCandidate] = [:]
-        for candidate in candidates {
-            let key = dedupKey(for: candidate.session)
-            if let existing = byKey[key], prefersFirst(existing, over: candidate) { continue }
-            byKey[key] = candidate
-        }
-        return byKey.values.sorted { dedupKey(for: $0.session) < dedupKey(for: $1.session) }
-    }
-
-    nonisolated static func dedupedByLifecycleKey(_ candidates: [DedupCandidate]) -> [Session] {
-        dedupedCandidatesByLifecycleKey(candidates).map(\.session)
-    }
-
-    /// Pure connection derivation. Every host class goes through this same first step:
-    /// decide whether the session record still represents a connected session.
-    nonisolated static func connectionState(
-        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
-        now: Date, windows: LifecycleWindows
-    ) -> SessionConnectionState {
-        if session.endedAt != nil { return .disconnected }
-        let useRecency = session.isCodex && hostClass == .desktop
-        let connected = useRecency ? (now.timeIntervalSince(session.lastActivity) < windows.active) : processAlive
-        return connected ? .connected : .disconnected
-    }
-
-    /// Pure lifecycle derivation. Connection is detected uniformly first; host policy then decides
-    /// what disconnected means for desktop versus non-desktop sessions.
-    nonisolated static func lifecycle(
-        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
-        now: Date, windows: LifecycleWindows
-    ) -> SessionLifecycle {
-        let connection = connectionState(
-            for: session, hostClass: hostClass, processAlive: processAlive, now: now, windows: windows
-        )
-        if connection == .connected { return .active }
-        guard hostClass == .desktop else { return .finished }
-        guard let disconnectedAt = session.disconnectedAt else { return .dormant }
-        return now.timeIntervalSince(disconnectedAt) <= windows.retention ? .dormant : .finished
-    }
-
-    private nonisolated static func dedupKey(for session: Session) -> String {
-        if session.isCodex {
-            return "codex:\(session.sessionId)"
-        }
-        if session.hostClass == .desktop {
-            return "desktop:\(session.sessionId)"
-        }
-        return "active:\(session.id)"
-    }
-
-    private nonisolated static func prefersFirst(_ lhs: DedupCandidate, over rhs: DedupCandidate) -> Bool {
-        if lhs.lifecycleRank != rhs.lifecycleRank { return lhs.lifecycleRank < rhs.lifecycleRank }
-        if lhs.session.lastActivity != rhs.session.lastActivity {
-            return lhs.session.lastActivity > rhs.session.lastActivity
-        }
-        if lhs.session.effectiveEndDate != rhs.session.effectiveEndDate {
-            return lhs.session.effectiveEndDate > rhs.session.effectiveEndDate
-        }
-        if lhs.mtime != rhs.mtime { return lhs.mtime > rhs.mtime }
-        return lhs.path < rhs.path
-    }
-
     /// Decode each session file, derive its lifecycle, and capture mtime — the inputs the dedup
     /// comparator needs. Pure (no published state), kept off the main class body.
     nonisolated static func buildCandidates(_ jsonFiles: [URL], now: Date) -> [DedupCandidate] {
@@ -528,7 +431,7 @@ extension SessionManager {
                 logger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public)")
                 continue
             }
-            session.lifecycle = lifecycle(
+            session.lifecycle = SessionLifecyclePolicy.lifecycle(
                 for: session, hostClass: session.hostClass, processAlive: session.isAlive,
                 now: now, windows: lifecycleWindows
             )

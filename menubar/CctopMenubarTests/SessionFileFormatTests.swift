@@ -75,7 +75,7 @@ final class SessionFileFormatTests: XCTestCase {
         var other = Session(sessionId: "conv-b", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
         other.source = "codex"; other.pid = 31349
 
-        let result = SessionManager.dedupedByID([old, fresh, other])
+        let result = SessionIdentityPolicy.dedupedByDisplayID([old, fresh, other])
         // Two distinct ids survive; the duplicate id keeps the most recently active entry.
         XCTAssertEqual(result.map(\.id).sorted(), ["conv-a", "conv-b"])
         XCTAssertEqual(result.first { $0.id == "conv-a" }?.sessionName, "current")
@@ -342,10 +342,14 @@ final class SessionFileFormatTests: XCTestCase {
         return DedupCandidate(session: s, lifecycleRank: lifecycleRank, mtime: mtime, path: path)
     }
 
+    private func deduped(_ candidates: [DedupCandidate]) -> [Session] {
+        SessionIdentityPolicy.dedupedCandidatesByStableKey(candidates).map(\.session)
+    }
+
     func testDedupDesktopCollapsesSameSessionIdDifferentPid() {
         let dead = candidate(sessionId: "conv-a", pid: 100, bundleId: Self.desktopBundle, lifecycleRank: 1)
         let live = candidate(sessionId: "conv-a", pid: 200, bundleId: Self.desktopBundle, lifecycleRank: 0)
-        let result = SessionManager.dedupedByLifecycleKey([dead, live])
+        let result = deduped([dead, live])
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.pid, 200) // live (rank 0) wins, NOT the dead/newer-file one
     }
@@ -355,7 +359,7 @@ final class SessionFileFormatTests: XCTestCase {
                                      lifecycleRank: 1, lastActivity: Date(timeIntervalSince1970: 9999))
         let liveOlder = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                                   lifecycleRank: 0, lastActivity: Date(timeIntervalSince1970: 1))
-        let result = SessionManager.dedupedByLifecycleKey([dormantNewer, liveOlder])
+        let result = deduped([dormantNewer, liveOlder])
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.pid, 2) // lifecycle rank dominates lastActivity
     }
@@ -363,7 +367,7 @@ final class SessionFileFormatTests: XCTestCase {
     func testDedupDormantBeatsFinished() {
         let finished = candidate(sessionId: "c", pid: 1, bundleId: Self.desktopBundle, lifecycleRank: 2)
         let dormant = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle, lifecycleRank: 1)
-        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([finished, dormant]).first?.pid, 2)
+        XCTAssertEqual(deduped([finished, dormant]).first?.pid, 2)
     }
 
     func testDedupSameRankNewerLastActivityWins() {
@@ -371,7 +375,7 @@ final class SessionFileFormatTests: XCTestCase {
                               lifecycleRank: 1, lastActivity: Date(timeIntervalSince1970: 1))
         let newer = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                               lifecycleRank: 1, lastActivity: Date(timeIntervalSince1970: 2))
-        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([older, newer]).first?.pid, 2)
+        XCTAssertEqual(deduped([older, newer]).first?.pid, 2)
     }
 
     func testDedupTieBreaksByEffectiveEndDate() {
@@ -380,7 +384,7 @@ final class SessionFileFormatTests: XCTestCase {
                           lifecycleRank: 1, lastActivity: t, endedAt: Date(timeIntervalSince1970: 10))
         let b = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                           lifecycleRank: 1, lastActivity: t, endedAt: Date(timeIntervalSince1970: 20))
-        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([a, b]).first?.pid, 2) // newer effectiveEndDate
+        XCTAssertEqual(deduped([a, b]).first?.pid, 2) // newer effectiveEndDate
     }
 
     func testDedupFinalTieBreakByPathIsDeterministic() {
@@ -390,8 +394,8 @@ final class SessionFileFormatTests: XCTestCase {
         let b = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                           lifecycleRank: 1, lastActivity: t, mtime: t, path: "/b.json")
         // Smaller path wins, regardless of input order (total, stable).
-        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([b, a]).first?.pid, 1)
-        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([a, b]).first?.pid, 1)
+        XCTAssertEqual(deduped([b, a]).first?.pid, 1)
+        XCTAssertEqual(deduped([a, b]).first?.pid, 1)
     }
 
     func testDedupMissingMtimeLosesToRealMtime() {
@@ -400,20 +404,20 @@ final class SessionFileFormatTests: XCTestCase {
                                 lifecycleRank: 1, lastActivity: t, mtime: .distantPast)
         let realMtime = candidate(sessionId: "c", pid: 2, bundleId: Self.desktopBundle,
                                   lifecycleRank: 1, lastActivity: t, mtime: t)
-        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([noMtime, realMtime]).first?.pid, 2)
+        XCTAssertEqual(deduped([noMtime, realMtime]).first?.pid, 2)
     }
 
     func testDedupTerminalKeepsPidIdentityEvenWithSameSessionId() {
         let oldPid = candidate(sessionId: "shared", pid: 100, bundleId: "com.googlecode.iterm2", lifecycleRank: 0)
         let newPid = candidate(sessionId: "shared", pid: 200, bundleId: "com.googlecode.iterm2", lifecycleRank: 0)
-        let result = SessionManager.dedupedByLifecycleKey([oldPid, newPid])
+        let result = deduped([oldPid, newPid])
         XCTAssertEqual(result.compactMap(\.pid).sorted(), [100, 200])
     }
 
     func testDedupUnknownHostKeepsPidIdentityEvenWithSameSessionId() {
         let oldPid = candidate(sessionId: "shared", pid: 100, bundleId: nil, lifecycleRank: 0)
         let newPid = candidate(sessionId: "shared", pid: 200, bundleId: nil, lifecycleRank: 0)
-        let result = SessionManager.dedupedByLifecycleKey([oldPid, newPid])
+        let result = deduped([oldPid, newPid])
         XCTAssertEqual(result.compactMap(\.pid).sorted(), [100, 200])
     }
 
@@ -427,7 +431,7 @@ final class SessionFileFormatTests: XCTestCase {
             lifecycleRank: 0, source: Session.codexSource, path: "/codex-conv-a.json"
         )
 
-        let result = SessionManager.dedupedByLifecycleKey([oldPidKeyed, desktopKeyed])
+        let result = deduped([oldPidKeyed, desktopKeyed])
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result.first?.pid, 200)
     }
@@ -481,7 +485,7 @@ final class SessionFileFormatTests: XCTestCase {
     func testDedupDifferentSessionIdsStaySeparate() {
         let one = candidate(sessionId: "conv-1", pid: 1, bundleId: Self.desktopBundle, lifecycleRank: 0)
         let two = candidate(sessionId: "conv-2", pid: 2, bundleId: Self.desktopBundle, lifecycleRank: 0)
-        XCTAssertEqual(SessionManager.dedupedByLifecycleKey([one, two]).count, 2)
+        XCTAssertEqual(deduped([one, two]).count, 2)
     }
 
     // MARK: - Lifecycle derivation (Phase 1)
@@ -505,15 +509,42 @@ final class SessionFileFormatTests: XCTestCase {
     }
 
     private func life(_ session: Session, _ hostClass: SessionHostClass, alive: Bool) -> SessionLifecycle {
-        SessionManager.lifecycle(for: session, hostClass: hostClass, processAlive: alive, now: Self.lifeNow,
-                                 windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin))
+        SessionLifecyclePolicy.lifecycle(
+            for: session,
+            hostClass: hostClass,
+            processAlive: alive,
+            now: Self.lifeNow,
+            windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin)
+        )
     }
 
     private func connection(_ session: Session, _ hostClass: SessionHostClass, alive: Bool) -> SessionConnectionState {
-        SessionManager.connectionState(
+        SessionLifecyclePolicy.connectionState(
             for: session, hostClass: hostClass, processAlive: alive, now: Self.lifeNow,
             windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin)
         )
+    }
+
+    func testIdentityPolicyNamesStableGroupingRules() {
+        var codex = Session(sessionId: "codex-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        codex.source = Session.codexSource
+        codex.lastActivity = Self.lifeNow.addingTimeInterval(-60)
+        codex.pid = 31349
+
+        var desktop = Session(sessionId: "desktop-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        desktop.source = "cc"
+        desktop.lastActivity = Self.lifeNow.addingTimeInterval(-60)
+        desktop.terminal = TerminalInfo(bundleId: HostAppBundleID.claudeDesktop)
+        desktop.pid = 99
+
+        var terminal = Session(sessionId: "terminal-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        terminal.source = "cc"
+        terminal.lastActivity = Self.lifeNow.addingTimeInterval(-60)
+        terminal.pid = 42
+
+        XCTAssertEqual(SessionIdentityPolicy.stableKey(for: codex), "codex:codex-conversation")
+        XCTAssertEqual(SessionIdentityPolicy.stableKey(for: desktop), "desktop:desktop-conversation")
+        XCTAssertEqual(SessionIdentityPolicy.stableKey(for: terminal), "active:42")
     }
 
     func testConnectionStateUsesEndedAtForAllHosts() {
