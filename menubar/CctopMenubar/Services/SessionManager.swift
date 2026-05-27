@@ -426,7 +426,7 @@ extension SessionManager {
     nonisolated static func archivedCodexDesktopThreadIDs(in sessions: [Session]) -> Set<String> {
         let threadIDs = Set(
             sessions
-                .filter { $0.isCodex && $0.hostClass == .desktop }
+                .filter { isCodexDesktopHost($0) }
                 .map(\.sessionId)
         )
         return CodexThreadArchiveLookup().archivedThreadIDs(matching: threadIDs)
@@ -436,7 +436,11 @@ extension SessionManager {
         _ session: Session,
         archivedThreadIDs: Set<String>
     ) -> Bool {
-        session.isCodex && session.hostClass == .desktop && archivedThreadIDs.contains(session.sessionId)
+        isCodexDesktopHost(session) && archivedThreadIDs.contains(session.sessionId)
+    }
+
+    nonisolated private static func isCodexDesktopHost(_ session: Session) -> Bool {
+        HostApp.from(bundleIdentifier: session.terminal?.bundleId) == .codexDesktop
     }
 
     /// A pre-PID session file was keyed by a bare session UUID. Today's files are either
