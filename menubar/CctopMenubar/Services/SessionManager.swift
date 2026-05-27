@@ -64,26 +64,23 @@ class SessionManager: ObservableObject {
             .filter { !$0.session.hidden && !$0.session.shouldAutoHide }
             .map(\.url)
         let candidates = Self.buildCandidates(visibleFiles, now: Date())
+        let archivedCodexThreadIDs = Self.archivedCodexDesktopThreadIDs(in: candidates.map(\.session))
+        let liveCandidates = candidates.filter {
+            !Self.isArchivedCodexDesktopSession($0.session, archivedThreadIDs: archivedCodexThreadIDs)
+        }
         logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded")
         logger.info(
-            "loadSessions: \(candidates.count) visible candidates, \(hidden.count) hidden, \(autoHidden.count) auto-hidden"
+            "loadSessions: \(liveCandidates.count) visible candidates, \(hidden.count) hidden, \(autoHidden.count) auto-hidden"
         )
+        logger.info("loadSessions: \(archivedCodexThreadIDs.count) codex-archived")
 
         // Publish active + dormant; finished are hidden (swept below / by GC).
-        let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(candidates)
+        let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(liveCandidates)
         let newSessions = winners
             .filter { $0.session.lifecycle != .finished }
             .map { adjustDisplayStatus($0.session) }
 
-        // Notifications: only a LIVE (active) session that NEWLY needs attention. Dormant never notifies.
-        if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
-            for session in newSessions where session.lifecycle == .active {
-                guard session.status.needsAttention,
-                      let oldStatus = oldStatuses[SessionIdentityPolicy.stableKey(for: session)],
-                      !oldStatus.needsAttention else { continue }
-                sendNotification(for: session)
-            }
-        }
+        sendTransitionNotifications(for: newSessions, oldStatuses: oldStatuses)
         // Only publish when data actually changed to avoid unnecessary SwiftUI re-renders.
         if newSessions != sessions {
             if newSessions.count != sessions.count {
@@ -93,13 +90,24 @@ class SessionManager: ObservableObject {
         }
 
         hideAutoHiddenSessions(autoHidden)
-        stampDisconnectedDesktopSessions(candidates, now: Date())
+        stampDisconnectedDesktopSessions(liveCandidates, now: Date())
 
         // Non-desktop finished sessions keep today's behavior: archive to Recent Projects and
         // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped
         // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
-        archiveAndRemoveFinishedNonDesktop(candidates, winners: winners)
+        archiveAndRemoveFinishedNonDesktop(liveCandidates, winners: winners)
         historyManager.rebuildRecentProjects(excludingActive: Set(sessions.map(\.projectPath)))
+    }
+
+    private func sendTransitionNotifications(for newSessions: [Session], oldStatuses: [String: SessionStatus]) {
+        // Notifications: only a LIVE (active) session that NEWLY needs attention. Dormant never notifies.
+        guard UserDefaults.standard.bool(forKey: "notificationsEnabled") else { return }
+        for session in newSessions where session.lifecycle == .active {
+            guard session.status.needsAttention,
+                  let oldStatus = oldStatuses[SessionIdentityPolicy.stableKey(for: session)],
+                  !oldStatus.needsAttention else { continue }
+            sendNotification(for: session)
+        }
     }
 
     private func decodedSessions(from jsonFiles: [URL]) -> [SessionFile] {
@@ -202,8 +210,10 @@ class SessionManager: ObservableObject {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
         let now = Date()
+        let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
+        let archivedCodexThreadIDs = Self.archivedCodexDesktopThreadIDs(in: decodedSessions(from: jsonFiles).map(\.session))
         var removedAny = false
-        for url in files where url.pathExtension == "json" && !url.lastPathComponent.hasSuffix(".tmp") {
+        for url in jsonFiles {
             if Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) {
                 try? fm.removeItem(at: url)   // pre-PID legacy file; no live writer to race
                 continue
@@ -216,6 +226,7 @@ class SessionManager: ObservableObject {
                 guard !session.hidden, !session.shouldAutoHide else { return }
                 let hostClass = session.hostClass
                 guard hostClass == .desktop else { return }   // non-desktop handled on the fast path
+                guard !Self.isArchivedCodexDesktopSession(session, archivedThreadIDs: archivedCodexThreadIDs) else { return }
                 let life = SessionLifecyclePolicy.lifecycle(
                     for: session, hostClass: hostClass, processAlive: session.isAlive,
                     now: now, windows: Self.lifecycleWindows
@@ -412,6 +423,22 @@ class SessionManager: ObservableObject {
 }
 
 extension SessionManager {
+    nonisolated static func archivedCodexDesktopThreadIDs(in sessions: [Session]) -> Set<String> {
+        let threadIDs = Set(
+            sessions
+                .filter { $0.isCodex && $0.hostClass == .desktop }
+                .map(\.sessionId)
+        )
+        return CodexThreadArchiveLookup().archivedThreadIDs(matching: threadIDs)
+    }
+
+    nonisolated static func isArchivedCodexDesktopSession(
+        _ session: Session,
+        archivedThreadIDs: Set<String>
+    ) -> Bool {
+        session.isCodex && session.hostClass == .desktop && archivedThreadIDs.contains(session.sessionId)
+    }
+
     /// A pre-PID session file was keyed by a bare session UUID. Today's files are either
     /// numeric (PID) or `codex-<uuid>`, so only genuinely old files match.
     nonisolated static func isLegacyUUIDFilename(_ stem: String) -> Bool {

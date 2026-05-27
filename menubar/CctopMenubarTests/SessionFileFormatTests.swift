@@ -2,6 +2,32 @@ import XCTest
 @testable import CctopMenubar
 
 final class SessionFileFormatTests: XCTestCase {
+    private func writeCodexStateDatabase(path: String, archivedThreads: Set<String>) throws {
+        let archivedRows = archivedThreads.map {
+            """
+            INSERT INTO threads (id, archived) VALUES ('\($0)', 1);
+            """
+        }.joined(separator: "\n")
+        let sql = """
+        DROP TABLE IF EXISTS threads;
+        CREATE TABLE threads (
+            id TEXT PRIMARY KEY,
+            archived INTEGER NOT NULL DEFAULT 0
+        );
+        \(archivedRows)
+        """
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = [path]
+        let stdin = Pipe()
+        process.standardInput = stdin
+        try process.run()
+        stdin.fileHandleForWriting.write(Data(sql.utf8))
+        try stdin.fileHandleForWriting.close()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+    }
+
     private func codexDesktopSession(sessionId: String, projectPath: String) -> Session {
         var session = Session(
             sessionId: sessionId,
@@ -477,6 +503,48 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: desktopPath))
         XCTAssertEqual(manager?.sessions.map(\.sessionId), ["conv-a"])
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerHidesArchivedCodexDesktopSessionButKeepsFileForUnarchive() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-archived-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: ["archived-thread"])
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-archived-thread.json")
+        var session = codexDesktopSession(sessionId: "archived-thread", projectPath: "/tmp/p")
+        session.lastActivity = Date()
+        try session.writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["archived-thread"])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
 
         manager = nil
     }

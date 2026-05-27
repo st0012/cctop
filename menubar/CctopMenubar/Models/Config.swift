@@ -59,6 +59,15 @@ enum Config {
         return NSString(string: "~/.codex/session_index.jsonl").expandingTildeInPath
     }
 
+    /// Codex Desktop's local thread state database. Read-only — never created.
+    static func codexStateDatabasePath() -> String {
+        if let override = ProcessInfo.processInfo.environment["CCTOP_CODEX_STATE_DB"],
+           !override.isEmpty {
+            return override
+        }
+        return NSString(string: "~/.codex/state_5.sqlite").expandingTildeInPath
+    }
+
     static func standardizedPath(_ path: String) -> String {
         NSString(string: NSString(string: path).expandingTildeInPath).standardizingPath
     }

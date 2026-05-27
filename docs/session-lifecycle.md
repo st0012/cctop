@@ -6,6 +6,7 @@ The desktop path applies to both Claude Desktop and Codex Desktop.
 The key split is intentional:
 
 - File presence means cctop has a record to evaluate. It is not itself proof that the session is live.
+- Codex Desktop archive state comes from Codex's thread database and hides the session before lifecycle publishing.
 - `ended_at` is an explicit disconnect signal written by hook events.
 - `disconnected_at` is the retention clock for known desktop sessions, including Claude Desktop and Codex Desktop, that have become dormant.
 - CLI and ambiguous sessions do not use dormant retention. Once disconnected, they become finished.
@@ -13,7 +14,9 @@ The key split is intentional:
 ```mermaid
 flowchart TD
     A["Session file exists"] --> B["Evaluate persisted fields"]
-    B --> C{"ended_at present?"}
+    B --> A1{"Codex Desktop thread archived?"}
+    A1 -->|yes| A2["Hide without mutating or deleting .json"]
+    A1 -->|no| C{"ended_at present?"}
 
     C -->|yes| D["Connection state: disconnected"]
     C -->|no| E["Run host-specific liveness check"]
@@ -66,7 +69,7 @@ flowchart TD
     AB -->|yes| AD["Remove stale duplicate .json without archiving"]
     AB -->|no| AE["Ignore duplicate; winner owns display/cleanup"]
 
-    V --> X["Never remove .lock files"]
+V --> X["Never remove .lock files"]
     W --> X
     AD --> X
 ```
@@ -93,6 +96,8 @@ CLI sessions do not need `disconnected_at` because disconnected CLI sessions bec
 ## Dedup and Cleanup
 
 Session files are deduplicated by a stable identity key before publishing. `SessionIdentityPolicy` owns that grouping rule. Codex sessions use `session_id` across both old PID-keyed files and newer `codex-<session_id>` files. Known desktop sessions also use `session_id`; other terminal or ambiguous sessions keep PID identity.
+
+Archived Codex Desktop threads are filtered from the active/dormant list before dedup and cleanup. cctop does not persist `hidden = true` for this case and does not remove the `.json`, so a later Codex unarchive can make the same session file visible again.
 
 Finished terminal or ambiguous sessions that survive dedup are archived to Recent Projects and then removed. Finished non-desktop duplicates that lose dedup are migration debris, so cctop removes their stale `.json` files without archiving them as separate recent sessions.
 
