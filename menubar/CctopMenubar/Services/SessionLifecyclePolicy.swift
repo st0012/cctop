@@ -29,7 +29,10 @@ enum SessionLifecyclePolicy {
         now: Date, windows: LifecycleWindows
     ) -> SessionConnectionState {
         if session.endedAt != nil { return .disconnected }
-        let useRecency = session.isCodex && hostClass == .desktop
+        // The shared-PID recency carve-out is Codex Desktop's, identified by source ("codex") OR by
+        // the trusted Codex Desktop bundle id — the latter covers pre-harness-migration files whose
+        // source is nil, which would otherwise fall back to (unreliable, shared) PID liveness.
+        let useRecency = hostClass == .desktop && (session.isCodex || session.isCodexDesktopHost)
         let connected = useRecency ? (now.timeIntervalSince(session.lastActivity) < windows.active) : processAlive
         return connected ? .connected : .disconnected
     }

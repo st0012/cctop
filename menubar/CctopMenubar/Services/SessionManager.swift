@@ -426,32 +426,35 @@ class SessionManager: ObservableObject {
 }
 
 extension SessionManager {
+    /// Batch snapshot for the display path. This never deletes files, so an unreadable database
+    /// fails OPEN (treated as "nothing archived") — at worst an archived session shows for one pass.
     nonisolated static func archivedCodexDesktopThreadIDs(in sessions: [Session]) -> Set<String> {
         let threadIDs = Set(
             sessions
-                .filter { isCodexDesktopHost($0) }
+                .filter(\.isCodexDesktopHost)
                 .map(\.sessionId)
         )
-        return CodexThreadArchiveLookup().archivedThreadIDs(matching: threadIDs)
+        return CodexThreadArchiveLookup().archivedThreadIDs(matching: threadIDs) ?? []
     }
 
     nonisolated static func isArchivedCodexDesktopSession(
         _ session: Session,
         archivedThreadIDs: Set<String>
     ) -> Bool {
-        isCodexDesktopHost(session) && archivedThreadIDs.contains(session.sessionId)
-    }
-
-    nonisolated private static func isCodexDesktopHost(_ session: Session) -> Bool {
-        HostApp.from(bundleIdentifier: session.terminal?.bundleId) == .codexDesktop
+        session.isCodexDesktopHost && archivedThreadIDs.contains(session.sessionId)
     }
 
     /// Fresh single-session archive check for the GC deletion decision. Unlike the batch snapshot
     /// `loadSessions` uses, this re-reads Codex's SQLite state at call time, so a thread archived
-    /// after the GC directory scan is never deleted out from under a pending unarchive.
+    /// after the GC directory scan is never deleted out from under a pending unarchive. When the
+    /// database exists but cannot be read (busy/locked/corrupt), the lookup returns nil and we fail
+    /// SAFE — report "archived" so GC keeps the file rather than deleting it on uncertainty.
     nonisolated static func isCodexDesktopThreadArchived(_ session: Session) -> Bool {
-        guard isCodexDesktopHost(session) else { return false }
-        return CodexThreadArchiveLookup().archivedThreadIDs(matching: [session.sessionId]).contains(session.sessionId)
+        guard session.isCodexDesktopHost else { return false }
+        guard let archived = CodexThreadArchiveLookup().archivedThreadIDs(matching: [session.sessionId]) else {
+            return true
+        }
+        return archived.contains(session.sessionId)
     }
 
     /// A pre-PID session file was keyed by a bare session UUID. Today's files are either

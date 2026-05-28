@@ -627,8 +627,13 @@ final class SessionFileFormatTests: XCTestCase {
             try? FileManager.default.removeItem(atPath: root)
         }
 
+        // A real terminal host (iTerm) running Codex CLI, whose session_id collides with an
+        // archived Desktop thread id: it must NOT be treated as archived, because the gate keys on
+        // the Codex Desktop bundle id — not on source, and not on a bare nil bundle id that would
+        // short-circuit before the lookup even runs.
         var terminalSession = Session(
-            sessionId: "shared-id", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo()
+            sessionId: "shared-id", projectPath: "/tmp/p", branch: "main",
+            terminal: TerminalInfo(bundleId: "com.googlecode.iterm2")
         )
         terminalSession.source = Session.codexSource
         XCTAssertFalse(SessionManager.isCodexDesktopThreadArchived(terminalSession))
@@ -669,6 +674,66 @@ final class SessionFileFormatTests: XCTestCase {
         manager?.garbageCollectFinished()
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
 
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        manager?.garbageCollectFinished()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
+
+        manager = nil
+    }
+
+    // A missing DB means "no Codex state ⇒ nothing archived" → empty set (deletable). A DB that
+    // exists but cannot be parsed means "unknown" → nil, which the GC path must treat as keep.
+    func testArchivedThreadIDsDistinguishesMissingFromUnreadable() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-lookup-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let missing = (root as NSString).appendingPathComponent("missing.sqlite")
+        XCTAssertEqual(CodexThreadArchiveLookup(stateDatabasePath: missing).archivedThreadIDs(matching: ["x"]), [])
+
+        let corrupt = (root as NSString).appendingPathComponent("corrupt.sqlite")
+        try Data("this is not a sqlite database".utf8).write(to: URL(fileURLWithPath: corrupt))
+        XCTAssertNil(CodexThreadArchiveLookup(stateDatabasePath: corrupt).archivedThreadIDs(matching: ["x"]))
+    }
+
+    // Blocker #1: when the archive DB exists but cannot be read, GC must NOT delete a finished
+    // Codex Desktop file — failing open here would permanently destroy a session the user archived.
+    @MainActor
+    func testGarbageCollectKeepsFinishedCodexDesktopFileWhenArchiveDbUnreadable() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-gc-unreadable-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        // Aged past retention → finished lifecycle, so GC would reap it absent the archive guard.
+        let old = Date(timeIntervalSinceNow: -SessionManager.lifecycleWindows.retention - 86_400)
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-finished-thread.json")
+        var session = codexDesktopSession(sessionId: "finished-thread", projectPath: "/tmp/p")
+        session.lastActivity = old
+        session.disconnectedAt = old
+        try session.writeToFile(path: sessionPath)
+
+        // DB present but unparseable → lookup returns nil → GC fails safe and keeps the file.
+        try Data("not a database".utf8).write(to: URL(fileURLWithPath: stateDB))
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.garbageCollectFinished()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+
+        // Once the DB is readable and shows the thread is not archived, GC reaps it. (Remove the
+        // corrupt bytes first — sqlite3 cannot DROP/CREATE over a non-database file.)
+        try FileManager.default.removeItem(atPath: stateDB)
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
         manager?.garbageCollectFinished()
         XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
@@ -845,5 +910,19 @@ final class SessionFileFormatTests: XCTestCase {
     // carve-out applies ONLY to Codex Desktop (hostClass == .desktop), not to ambiguous.
     func testLifecycleAmbiguousCodexWithLivePidStaysActive() {
         XCTAssertEqual(life(lifeSession(source: "codex", agoSeconds: 600), .ambiguous, alive: true), .active)
+    }
+
+    // Blocker #2: a Codex Desktop session with source == nil (pre-harness-migration files) must still
+    // get the shared-PID recency carve-out via its trusted bundle id — not fall back to raw PID liveness.
+    func testLifecycleCodexDesktopWithoutSourceUsesRecency() {
+        var stale = lifeSession(agoSeconds: 600)   // source nil, stale activity
+        stale.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        // A live SHARED host PID must not keep a stale conversation active.
+        XCTAssertEqual(life(stale, .desktop, alive: true), .dormant)
+
+        var recent = lifeSession(agoSeconds: 30)   // source nil, recent activity
+        recent.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        // Recent activity means active even with a dead/irrelevant PID.
+        XCTAssertEqual(life(recent, .desktop, alive: false), .active)
     }
 }

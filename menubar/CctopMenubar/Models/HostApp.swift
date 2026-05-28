@@ -138,6 +138,14 @@ extension Session {
         guard let bundleId = terminal?.bundleId else { return false }
         return HostApp.from(bundleIdentifier: bundleId)?.isDesktopApp == true
     }
+
+    /// True when the session is hosted by the Codex Desktop app, by trusted bundle id alone —
+    /// independent of `source`, which may be nil for pre-harness-migration files. This is the
+    /// authoritative "is this a Codex Desktop session" signal for archive filtering and the
+    /// shared-PID recency lifecycle carve-out.
+    var isCodexDesktopHost: Bool {
+        HostApp.from(bundleIdentifier: terminal?.bundleId) == .codexDesktop
+    }
 }
 
 /// File-local classification of a session's host, used by lifecycle cleanup to decide which
