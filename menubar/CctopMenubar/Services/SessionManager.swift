@@ -206,12 +206,11 @@ class SessionManager: ObservableObject {
     /// Pass 2: reap finished desktop files (non-desktop is handled on the fast path). Acquires
     /// the per-session lock, re-validates under it, and unlinks the `.json` ONLY (never the `.lock`).
     /// A decode failure is never treated as finished. Also sweeps pre-PID legacy files.
-    private func garbageCollectFinished() {
+    func garbageCollectFinished() {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
         let now = Date()
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
-        let archivedCodexThreadIDs = Self.archivedCodexDesktopThreadIDs(in: decodedSessions(from: jsonFiles).map(\.session))
         var removedAny = false
         for url in jsonFiles {
             if Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) {
@@ -226,12 +225,16 @@ class SessionManager: ObservableObject {
                 guard !session.hidden, !session.shouldAutoHide else { return }
                 let hostClass = session.hostClass
                 guard hostClass == .desktop else { return }   // non-desktop handled on the fast path
-                guard !Self.isArchivedCodexDesktopSession(session, archivedThreadIDs: archivedCodexThreadIDs) else { return }
                 let life = SessionLifecyclePolicy.lifecycle(
                     for: session, hostClass: hostClass, processAlive: session.isAlive,
                     now: now, windows: Self.lifecycleWindows
                 )
                 guard life == .finished else { return }
+                // Re-read Codex's archive state under the lock, right before deleting. A thread archived
+                // after the directory scan must keep its .json so a later unarchive can restore it; the
+                // cctop flock does not guard Codex's SQLite archive state, so the batch snapshot used by
+                // loadSessions would be stale here.
+                guard !Self.isCodexDesktopThreadArchived(session) else { return }
                 try? fm.removeItem(at: url)   // .json ONLY — never the .lock
                 removedAny = true
             }
@@ -441,6 +444,14 @@ extension SessionManager {
 
     nonisolated private static func isCodexDesktopHost(_ session: Session) -> Bool {
         HostApp.from(bundleIdentifier: session.terminal?.bundleId) == .codexDesktop
+    }
+
+    /// Fresh single-session archive check for the GC deletion decision. Unlike the batch snapshot
+    /// `loadSessions` uses, this re-reads Codex's SQLite state at call time, so a thread archived
+    /// after the GC directory scan is never deleted out from under a pending unarchive.
+    nonisolated static func isCodexDesktopThreadArchived(_ session: Session) -> Bool {
+        guard isCodexDesktopHost(session) else { return false }
+        return CodexThreadArchiveLookup().archivedThreadIDs(matching: [session.sessionId]).contains(session.sessionId)
     }
 
     /// A pre-PID session file was keyed by a bare session UUID. Today's files are either

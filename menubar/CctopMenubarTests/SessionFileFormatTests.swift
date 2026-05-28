@@ -592,6 +592,90 @@ final class SessionFileFormatTests: XCTestCase {
         manager = nil
     }
 
+    // The GC deletion decision must read live Codex archive state on every call, not a snapshot,
+    // so a thread archived between a GC scan and its delete keeps its file. Calling the helper
+    // twice across a DB change proves it never caches.
+    func testIsCodexDesktopThreadArchivedReadsLiveState() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-archived-live-\(UUID().uuidString)"
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let session = codexDesktopSession(sessionId: "live-thread", projectPath: "/tmp/p")
+
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: ["live-thread"])
+        XCTAssertTrue(SessionManager.isCodexDesktopThreadArchived(session))
+
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        XCTAssertFalse(SessionManager.isCodexDesktopThreadArchived(session))
+    }
+
+    // The archive check is gated on the Codex Desktop bundle ID, so a non-Codex-Desktop session
+    // sharing an archived thread ID is never treated as archived (and stays on the normal GC path).
+    func testIsCodexDesktopThreadArchivedIgnoresNonCodexDesktopHosts() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-archived-host-\(UUID().uuidString)"
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: ["shared-id"])
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        var terminalSession = Session(
+            sessionId: "shared-id", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo()
+        )
+        terminalSession.source = Session.codexSource
+        XCTAssertFalse(SessionManager.isCodexDesktopThreadArchived(terminalSession))
+    }
+
+    // GC keeps a finished Codex Desktop file while its thread is archived, then reaps it once the
+    // thread is unarchived — proving GC consults live archive state at the deletion decision.
+    @MainActor
+    func testGarbageCollectRespectsLiveCodexArchiveState() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-archived-gc-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        // Aged past the dormant retention window → finished lifecycle, so GC would normally reap it.
+        let old = Date(timeIntervalSinceNow: -SessionManager.lifecycleWindows.retention - 86_400)
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-finished-thread.json")
+        var session = codexDesktopSession(sessionId: "finished-thread", projectPath: "/tmp/p")
+        session.lastActivity = old
+        session.disconnectedAt = old
+        try session.writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: ["finished-thread"])
+        manager?.garbageCollectFinished()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        manager?.garbageCollectFinished()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
+
+        manager = nil
+    }
+
     // Distinct conversations never collapse.
     func testDedupDifferentSessionIdsStaySeparate() {
         let one = candidate(sessionId: "conv-1", pid: 1, bundleId: Self.desktopBundle, lifecycleRank: 0)

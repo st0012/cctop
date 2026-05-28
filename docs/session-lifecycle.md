@@ -97,7 +97,7 @@ CLI sessions do not need `disconnected_at` because disconnected CLI sessions bec
 
 Session files are deduplicated by a stable identity key before publishing. `SessionIdentityPolicy` owns that grouping rule. Codex sessions use `session_id` across both old PID-keyed files and newer `codex-<session_id>` files. Known desktop sessions also use `session_id`; other terminal or ambiguous sessions keep PID identity.
 
-Archived Codex Desktop threads are filtered from the active/dormant list before dedup and cleanup. cctop does not persist `hidden = true` for this case and does not remove the `.json`, so a later Codex unarchive can make the same session file visible again.
+Archived Codex Desktop threads are filtered from the active/dormant list before dedup and cleanup. cctop does not persist `hidden = true` for this case and does not remove the `.json`, so a later Codex unarchive can make the same session file visible again. The slow GC re-reads Codex archive state at the per-file deletion decision rather than from the pass-level snapshot, so a thread archived mid-pass is never reaped out from under a pending unarchive.
 
 Finished terminal or ambiguous sessions that survive dedup are archived to Recent Projects and then removed. Finished non-desktop duplicates that lose dedup are migration debris, so cctop removes their stale `.json` files without archiving them as separate recent sessions.
 
