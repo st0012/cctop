@@ -14,9 +14,7 @@ The key split is intentional:
 ```mermaid
 flowchart TD
     A["Session file exists"] --> B["Evaluate persisted fields"]
-    B --> A1{"Desktop session archived?"}
-    A1 -->|yes| A2["Hide without mutating or deleting .json"]
-    A1 -->|no| C{"ended_at present?"}
+    B --> C{"ended_at present?"}
 
     C -->|yes| D["Connection state: disconnected"]
     C -->|no| E["Run host-specific liveness check"]
@@ -26,14 +24,16 @@ flowchart TD
     F -->|"Terminal / CLI"| H["Real process liveness"]
     F -->|"Ambiguous"| I["Conservative process liveness"]
 
-    G --> G1{"Codex Desktop?"}
-    G1 -->|yes| G2["Recent hook activity within active window"]
-    G1 -->|"Claude Desktop / other desktop app"| G3["Process liveness"]
+    G --> G1{"Desktop host"}
+    G1 -->|"Codex Desktop"| G2["Recent hook activity within active window"]
+    G1 -->|"Claude Desktop"| G3["Process liveness unless SessionEnd already set ended_at"]
+    G1 -->|"Other desktop app"| G4["Process liveness"]
 
     H --> J{"Live?"}
     I --> J
     G2 --> J
     G3 --> J
+    G4 --> J
 
     J -->|yes| K["Connection state: connected"]
     J -->|no| D
@@ -51,10 +51,25 @@ flowchart TD
     R -->|no| Q
     R -->|yes| S["Lifecycle: finished"]
 
-    L --> Y["Deduplicate by stable lifecycle key"]
-    Q --> Y
-    S --> Y
-    O --> Y
+    L --> A0{"Trusted desktop host?"}
+    Q --> A0
+    S --> A0
+    O --> A0
+
+    A0 -->|no| Y["Deduplicate by stable lifecycle key"]
+    A0 -->|yes| A1{"Archive metadata source"}
+    A1 -->|"Claude Desktop"| CL1{"Claude metadata found by cliSessionId?"}
+    A1 -->|"Codex Desktop"| CX1{"Codex thread row found?"}
+    CL1 -->|yes| CL2{"isArchived true?"}
+    CL1 -->|no| CL3["No Claude archive signal; continue normal lifecycle"]
+    CX1 -->|yes| CX2{"archived true?"}
+    CX1 -->|no| CX3["No Codex archive signal; continue normal lifecycle"]
+    CL2 -->|yes| A2["Hide without mutating or deleting .json"]
+    CL2 -->|no| Y
+    CL3 --> Y
+    CX2 -->|yes| A2
+    CX2 -->|no| Y
+    CX3 --> Y
 
     Y --> Z{"Survives dedup?"}
     Z -->|yes| AA{"Lifecycle after dedup"}
@@ -116,6 +131,8 @@ The archive metadata source is host-specific:
 
 - Claude Desktop archive state is read from Claude Desktop's `claude-code-sessions` metadata files, keyed by `cliSessionId`.
 - Codex Desktop archive state is read from Codex's local thread database, keyed by thread id.
+
+Claude Desktop records without matching `cliSessionId` metadata do not have an archive signal. cctop keeps those records on the normal desktop lifecycle path: `ended_at` makes them disconnected, `disconnected_at` starts dormant retention, and the slow GC removes them after retention expires. This includes launch-time hook records that start and end before Claude Desktop writes durable session metadata. If matching metadata exists but cannot be read, display fails open for that pass while GC keeps the `.json` rather than deleting uncertain state.
 
 The active liveness evidence is not identical:
 
