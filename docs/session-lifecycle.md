@@ -61,12 +61,13 @@ flowchart TD
     A1 -->|"Claude Desktop"| CL1{"Claude metadata found by cliSessionId?"}
     A1 -->|"Codex Desktop"| CX1{"Codex thread row found?"}
     CL1 -->|yes| CL2{"isArchived true?"}
-    CL1 -->|no| CL3["No Claude archive signal; continue normal lifecycle"]
+    CL1 -->|no| CL3{"Already ended/disconnected?"}
     CX1 -->|yes| CX2{"archived true?"}
     CX1 -->|no| CX3["No Codex archive signal; continue normal lifecycle"]
     CL2 -->|yes| A2["Hide without mutating or deleting .json"]
     CL2 -->|no| Y
-    CL3 --> Y
+    CL3 -->|yes| A2
+    CL3 -->|no| Y
     CX2 -->|yes| A2
     CX2 -->|no| Y
     CX3 --> Y
@@ -125,14 +126,14 @@ Claude Desktop and Codex Desktop both enter the desktop lifecycle path only thro
 - Claude Desktop: `com.anthropic.claudefordesktop`
 - Codex Desktop: `com.openai.codex`
 
-Once either host is disconnected, the behavior is the same: cctop keeps the session as dormant while `disconnected_at` is inside the retention window, then the slow GC removes the stale `.json` file.
+Once a validated desktop host is disconnected, cctop keeps the session as dormant while `disconnected_at` is inside the retention window, then the slow GC removes the stale `.json` file.
 
 The archive metadata source is host-specific:
 
 - Claude Desktop archive state is read from Claude Desktop's `claude-code-sessions` metadata files, keyed by `cliSessionId`.
 - Codex Desktop archive state is read from Codex's local thread database, keyed by thread id.
 
-Claude Desktop records without matching `cliSessionId` metadata do not have an archive signal. cctop keeps those records on the normal desktop lifecycle path: `ended_at` makes them disconnected, `disconnected_at` starts dormant retention, and the slow GC removes them after retention expires. This includes launch-time hook records that start and end before Claude Desktop writes durable session metadata. If matching metadata exists but cannot be read, display fails open for that pass while GC keeps the `.json` rather than deleting uncertain state.
+Claude Desktop records are validated against readable Claude metadata keyed by `cliSessionId`. If the metadata store is readable but has no matching metadata and the cctop record has already ended or disconnected, cctop treats it as an orphan startup hook record and hides it without mutating or deleting the `.json`. This covers launch-time records that start and end before Claude Desktop writes durable session metadata. If the metadata store is missing, display fails open and the record follows the normal lifecycle. If matching metadata cannot be read, display fails open for that pass while GC keeps the `.json` rather than deleting uncertain state.
 
 The active liveness evidence is not identical:
 

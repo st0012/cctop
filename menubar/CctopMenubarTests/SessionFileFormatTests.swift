@@ -720,6 +720,50 @@ final class SessionFileFormatTests: XCTestCase {
         manager = nil
     }
 
+    @MainActor
+    func testSessionManagerHidesEndedClaudeDesktopSessionWithoutMatchingMetadata() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-orphan-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "different-claude-session",
+            isArchived: false
+        )
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("orphan-claude-session.json")
+        var session = claudeDesktopSession(sessionId: "orphan-claude-session", projectPath: "/tmp/p")
+        let ended = Date()
+        session.source = nil
+        session.pid = nil
+        session.endedAt = ended
+        session.disconnectedAt = ended
+        try session.writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
     // The GC deletion decision must read live Codex archive state on every call, not a snapshot,
     // so a thread archived between a GC scan and its delete keeps its file. Calling the helper
     // twice across a DB change proves it never caches.

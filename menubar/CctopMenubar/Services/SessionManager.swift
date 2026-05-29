@@ -65,10 +65,12 @@ class SessionManager: ObservableObject {
             .map(\.url)
         let candidates = Self.buildCandidates(visibleFiles, now: Date())
         let archivedCodexThreadIDs = Self.archivedCodexDesktopThreadIDs(in: candidates.map(\.session))
-        let archivedClaudeSessionIDs = Self.archivedClaudeDesktopSessionIDs(in: candidates.map(\.session))
+        let claudeMetadata = Self.claudeDesktopMetadataSnapshot(in: candidates.map(\.session))
+        let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
         let liveCandidates = candidates.filter {
             !Self.isArchivedCodexDesktopSession($0.session, archivedThreadIDs: archivedCodexThreadIDs)
                 && !Self.isArchivedClaudeDesktopSession($0.session, archivedSessionIDs: archivedClaudeSessionIDs)
+                && !Self.isOrphanedEndedClaudeDesktopSession($0.session, metadataSnapshot: claudeMetadata)
         }
         logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded")
         logger.info(

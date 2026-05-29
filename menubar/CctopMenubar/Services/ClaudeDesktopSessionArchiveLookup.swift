@@ -11,12 +11,18 @@ struct ClaudeDesktopSessionArchiveLookup {
     /// or `nil` when a matching metadata read is uncertain. A missing metadata directory returns
     /// `[]` so machines without Claude Desktop keep the normal lifecycle behavior.
     func archivedSessionIDs(matching sessionIDs: Set<String>) -> Set<String>? {
-        guard !sessionIDs.isEmpty else { return [] }
+        metadataSnapshot(matching: sessionIDs)?.archivedSessionIDs
+    }
+
+    /// Returns Claude metadata matches for validation and archive filtering, or `nil` when the
+    /// metadata store exists but cannot be read safely.
+    func metadataSnapshot(matching sessionIDs: Set<String>) -> ClaudeDesktopSessionMetadataSnapshot? {
+        guard !sessionIDs.isEmpty else { return ClaudeDesktopSessionMetadataSnapshot() }
 
         let rootURL = URL(fileURLWithPath: sessionsDirectory)
         var isDirectory = ObjCBool(false)
         guard FileManager.default.fileExists(atPath: rootURL.path, isDirectory: &isDirectory) else {
-            return []
+            return ClaudeDesktopSessionMetadataSnapshot(isAuthoritative: false)
         }
         guard isDirectory.boolValue,
               let enumerator = FileManager.default.enumerator(
@@ -51,13 +57,33 @@ struct ClaudeDesktopSessionArchiveLookup {
             latestBySessionID[cliSessionId] = match
         }
 
-        return Set(latestBySessionID.compactMap { sessionID, match in
-            match.isArchived ? sessionID : nil
-        })
+        return ClaudeDesktopSessionMetadataSnapshot(
+            matchedSessionIDs: Set(latestBySessionID.keys),
+            archivedSessionIDs: Set(latestBySessionID.compactMap { sessionID, match in
+                match.isArchived ? sessionID : nil
+            }),
+            isAuthoritative: true
+        )
     }
 
     private func isClaudeDesktopMetadataURL(_ url: URL) -> Bool {
         url.pathExtension == "json" && url.lastPathComponent.hasPrefix("local_")
+    }
+}
+
+struct ClaudeDesktopSessionMetadataSnapshot: Equatable {
+    let matchedSessionIDs: Set<String>
+    let archivedSessionIDs: Set<String>
+    let isAuthoritative: Bool
+
+    init(
+        matchedSessionIDs: Set<String> = [],
+        archivedSessionIDs: Set<String> = [],
+        isAuthoritative: Bool = true
+    ) {
+        self.matchedSessionIDs = matchedSessionIDs
+        self.archivedSessionIDs = archivedSessionIDs
+        self.isAuthoritative = isAuthoritative
     }
 }
 

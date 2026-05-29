@@ -22,12 +22,16 @@ extension SessionManager {
     /// Batch snapshot for the display path. This mirrors the Codex behavior: archive metadata read
     /// uncertainty fails OPEN because this path never deletes files.
     nonisolated static func archivedClaudeDesktopSessionIDs(in sessions: [Session]) -> Set<String> {
+        claudeDesktopMetadataSnapshot(in: sessions)?.archivedSessionIDs ?? []
+    }
+
+    nonisolated static func claudeDesktopMetadataSnapshot(in sessions: [Session]) -> ClaudeDesktopSessionMetadataSnapshot? {
         let sessionIDs = Set(
             sessions
                 .filter(\.isClaudeDesktopHost)
                 .map(\.sessionId)
         )
-        return ClaudeDesktopSessionArchiveLookup().archivedSessionIDs(matching: sessionIDs) ?? []
+        return ClaudeDesktopSessionArchiveLookup().metadataSnapshot(matching: sessionIDs)
     }
 
     nonisolated static func isArchivedClaudeDesktopSession(
@@ -35,6 +39,18 @@ extension SessionManager {
         archivedSessionIDs: Set<String>
     ) -> Bool {
         session.isClaudeDesktopHost && archivedSessionIDs.contains(session.sessionId)
+    }
+
+    nonisolated static func isOrphanedEndedClaudeDesktopSession(
+        _ session: Session,
+        metadataSnapshot: ClaudeDesktopSessionMetadataSnapshot?
+    ) -> Bool {
+        guard session.isClaudeDesktopHost,
+              session.endedAt != nil || session.disconnectedAt != nil,
+              metadataSnapshot?.isAuthoritative == true else {
+            return false
+        }
+        return metadataSnapshot?.matchedSessionIDs.contains(session.sessionId) == false
     }
 
     /// Fresh single-session archive check for the GC deletion decision. Unlike the batch snapshot
