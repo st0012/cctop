@@ -146,6 +146,11 @@ extension Session {
     var isCodexDesktopHost: Bool {
         HostApp.from(bundleIdentifier: terminal?.bundleId) == .codexDesktop
     }
+
+    /// True when the session is hosted by the Claude Desktop app, by trusted bundle id alone.
+    var isClaudeDesktopHost: Bool {
+        HostApp.from(bundleIdentifier: terminal?.bundleId) == .claudeDesktop
+    }
 }
 
 /// File-local classification of a session's host, used by lifecycle cleanup to decide which

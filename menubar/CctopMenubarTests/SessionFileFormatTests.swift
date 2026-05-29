@@ -41,6 +41,42 @@ final class SessionFileFormatTests: XCTestCase {
         return session
     }
 
+    private func claudeDesktopSession(sessionId: String, projectPath: String) -> Session {
+        var session = Session(
+            sessionId: sessionId,
+            projectPath: projectPath,
+            branch: "main",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop)
+        )
+        session.source = "cc"
+        session.pid = UInt32(ProcessInfo.processInfo.processIdentifier)
+        session.status = .waitingInput
+        return session
+    }
+
+    private func writeClaudeDesktopSessionMetadata(
+        root: String,
+        cliSessionId: String,
+        isArchived: Bool,
+        lastActivityAt: Any? = nil
+    ) throws {
+        let sessionDir = (root as NSString).appendingPathComponent("account/project")
+        try FileManager.default.createDirectory(atPath: sessionDir, withIntermediateDirectories: true)
+        let metadataPath = (sessionDir as NSString)
+            .appendingPathComponent("local_\(UUID().uuidString).json")
+        var payload: [String: Any] = [
+            "sessionId": "local_\(UUID().uuidString)",
+            "cliSessionId": cliSessionId,
+            "isArchived": isArchived,
+            "title": "Archived Claude Session"
+        ]
+        if let lastActivityAt {
+            payload["lastActivityAt"] = lastActivityAt
+        }
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        try data.write(to: URL(fileURLWithPath: metadataPath))
+    }
+
     private func codexTitleGenerationPrompt(for userPrompt: String = "Why do I have several memories sessions?") -> String {
         """
         You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title for a task that will be created from that prompt.
@@ -592,6 +628,98 @@ final class SessionFileFormatTests: XCTestCase {
         manager = nil
     }
 
+    @MainActor
+    func testSessionManagerHidesArchivedClaudeDesktopSessionButKeepsFileForUnarchive() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-archived-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "archived-claude-session",
+            isArchived: true
+        )
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("archived-claude-session.json")
+        var session = claudeDesktopSession(sessionId: "archived-claude-session", projectPath: "/tmp/p")
+        session.lastActivity = Date()
+        try session.writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        try FileManager.default.removeItem(atPath: claudeDir)
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "archived-claude-session",
+            isArchived: false
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["archived-claude-session"])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerHidesArchivedClaudeDesktopSessionWhenSourceIsMissing() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-archived-missing-source-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "archived-claude-without-source",
+            isArchived: true
+        )
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("archived-claude-without-source.json")
+        var session = claudeDesktopSession(sessionId: "archived-claude-without-source", projectPath: "/tmp/p")
+        session.source = nil
+        session.lastActivity = Date()
+        try session.writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
     // The GC deletion decision must read live Codex archive state on every call, not a snapshot,
     // so a thread archived between a GC scan and its delete keeps its file. Calling the helper
     // twice across a DB change proves it never caches.
@@ -639,6 +767,26 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertFalse(SessionManager.isCodexDesktopThreadArchived(terminalSession))
     }
 
+    // The Claude archive check is also gated on the Claude Desktop bundle ID. A terminal Claude
+    // Code session sharing an archived Desktop cliSessionId must stay on the normal lifecycle path.
+    func testIsClaudeDesktopSessionArchivedIgnoresNonClaudeDesktopHosts() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-archived-host-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try writeClaudeDesktopSessionMetadata(root: claudeDir, cliSessionId: "shared-id", isArchived: true)
+        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
+        defer {
+            unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        var terminalSession = Session(
+            sessionId: "shared-id", projectPath: "/tmp/p", branch: "main",
+            terminal: TerminalInfo(bundleId: "com.googlecode.iterm2")
+        )
+        terminalSession.source = "cc"
+        XCTAssertFalse(SessionManager.isClaudeDesktopSessionArchived(terminalSession))
+    }
+
     // GC keeps a finished Codex Desktop file while its thread is archived, then reaps it once the
     // thread is unarchived — proving GC consults live archive state at the deletion decision.
     @MainActor
@@ -681,6 +829,56 @@ final class SessionFileFormatTests: XCTestCase {
         manager = nil
     }
 
+    // GC keeps a finished Claude Desktop file while its session metadata is archived, then reaps
+    // it once the session is unarchived.
+    @MainActor
+    func testGarbageCollectRespectsLiveClaudeArchiveState() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-archived-gc-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let old = Date(timeIntervalSinceNow: -SessionManager.lifecycleWindows.retention - 86_400)
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("finished-claude-session.json")
+        var session = claudeDesktopSession(sessionId: "finished-claude-session", projectPath: "/tmp/p")
+        session.lastActivity = old
+        session.disconnectedAt = old
+        try session.writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "finished-claude-session",
+            isArchived: true
+        )
+        manager?.garbageCollectFinished()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+
+        try FileManager.default.removeItem(atPath: claudeDir)
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "finished-claude-session",
+            isArchived: false
+        )
+        manager?.garbageCollectFinished()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
+
+        manager = nil
+    }
+
     // A missing DB means "no Codex state ⇒ nothing archived" → empty set (deletable). A DB that
     // exists but cannot be parsed means "unknown" → nil, which the GC path must treat as keep.
     func testArchivedThreadIDsDistinguishesMissingFromUnreadable() throws {
@@ -694,6 +892,46 @@ final class SessionFileFormatTests: XCTestCase {
         let corrupt = (root as NSString).appendingPathComponent("corrupt.sqlite")
         try Data("this is not a sqlite database".utf8).write(to: URL(fileURLWithPath: corrupt))
         XCTAssertNil(CodexThreadArchiveLookup(stateDatabasePath: corrupt).archivedThreadIDs(matching: ["x"]))
+    }
+
+    func testArchivedClaudeSessionIDsDistinguishesMissingFromUnreadable() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-lookup-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let missing = (root as NSString).appendingPathComponent("missing")
+        XCTAssertEqual(
+            ClaudeDesktopSessionArchiveLookup(sessionsDirectory: missing).archivedSessionIDs(matching: ["x"]),
+            []
+        )
+
+        let corruptDir = (root as NSString).appendingPathComponent("corrupt")
+        try FileManager.default.createDirectory(atPath: corruptDir, withIntermediateDirectories: true)
+        let corrupt = (corruptDir as NSString).appendingPathComponent("local_corrupt.json")
+        try Data(#"{"cliSessionId":"x","isArchived":"not-a-boolean"}"#.utf8)
+            .write(to: URL(fileURLWithPath: corrupt))
+        XCTAssertNil(
+            ClaudeDesktopSessionArchiveLookup(sessionsDirectory: corruptDir)
+                .archivedSessionIDs(matching: ["x"])
+        )
+    }
+
+    func testArchivedClaudeSessionIDsAcceptsNumericTimestamps() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-numeric-lookup-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "numeric-timestamp-session",
+            isArchived: true,
+            lastActivityAt: 1_779_281_104_333
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        XCTAssertEqual(
+            ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+                .archivedSessionIDs(matching: ["numeric-timestamp-session"]),
+            ["numeric-timestamp-session"]
+        )
     }
 
     // Blocker #1: when the archive DB exists but cannot be read, GC must NOT delete a finished

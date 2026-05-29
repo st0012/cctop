@@ -6,7 +6,7 @@ The desktop path applies to both Claude Desktop and Codex Desktop.
 The key split is intentional:
 
 - File presence means cctop has a record to evaluate. It is not itself proof that the session is live.
-- Codex Desktop archive state comes from Codex's thread database and hides the session before lifecycle publishing.
+- Desktop archive state comes from each app's local metadata and hides the session before lifecycle publishing.
 - `ended_at` is an explicit disconnect signal written by hook events.
 - `disconnected_at` is the retention clock for known desktop sessions, including Claude Desktop and Codex Desktop, that have become dormant.
 - CLI and ambiguous sessions do not use dormant retention. Once disconnected, they become finished.
@@ -14,7 +14,7 @@ The key split is intentional:
 ```mermaid
 flowchart TD
     A["Session file exists"] --> B["Evaluate persisted fields"]
-    B --> A1{"Codex Desktop thread archived?"}
+    B --> A1{"Desktop session archived?"}
     A1 -->|yes| A2["Hide without mutating or deleting .json"]
     A1 -->|no| C{"ended_at present?"}
 
@@ -97,7 +97,7 @@ CLI sessions do not need `disconnected_at` because disconnected CLI sessions bec
 
 Session files are deduplicated by a stable identity key before publishing. `SessionIdentityPolicy` owns that grouping rule. Codex sessions use `session_id` across both old PID-keyed files and newer `codex-<session_id>` files. Known desktop sessions also use `session_id`; other terminal or ambiguous sessions keep PID identity.
 
-Archived Codex Desktop threads are filtered from the active/dormant list before dedup and cleanup. cctop does not persist `hidden = true` for this case and does not remove the `.json`, so a later Codex unarchive can make the same session file visible again. The slow GC re-reads Codex archive state at the per-file deletion decision rather than from the pass-level snapshot, so a thread archived mid-pass is never reaped out from under a pending unarchive.
+Archived desktop sessions are filtered from the active/dormant list before dedup and cleanup. cctop does not persist `hidden = true` for this case and does not remove the `.json`, so a later app-level unarchive can make the same session file visible again. The slow GC re-reads desktop archive state at the per-file deletion decision rather than from the pass-level snapshot, so a session archived mid-pass is never reaped out from under a pending unarchive.
 
 Finished terminal or ambiguous sessions that survive dedup are archived to Recent Projects and then removed. Finished non-desktop duplicates that lose dedup are migration debris, so cctop removes their stale `.json` files without archiving them as separate recent sessions.
 
@@ -111,6 +111,11 @@ Claude Desktop and Codex Desktop both enter the desktop lifecycle path only thro
 - Codex Desktop: `com.openai.codex`
 
 Once either host is disconnected, the behavior is the same: cctop keeps the session as dormant while `disconnected_at` is inside the retention window, then the slow GC removes the stale `.json` file.
+
+The archive metadata source is host-specific:
+
+- Claude Desktop archive state is read from Claude Desktop's `claude-code-sessions` metadata files, keyed by `cliSessionId`.
+- Codex Desktop archive state is read from Codex's local thread database, keyed by thread id.
 
 The active liveness evidence is not identical:
 
