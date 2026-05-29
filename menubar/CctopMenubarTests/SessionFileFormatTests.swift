@@ -934,6 +934,30 @@ final class SessionFileFormatTests: XCTestCase {
         )
     }
 
+    func testArchivedClaudeSessionIDsUsesNewestNumericTimestamp() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-numeric-order-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "numeric-order-session",
+            isArchived: false,
+            lastActivityAt: 99
+        )
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "numeric-order-session",
+            isArchived: true,
+            lastActivityAt: 1_000
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        XCTAssertEqual(
+            ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+                .archivedSessionIDs(matching: ["numeric-order-session"]),
+            ["numeric-order-session"]
+        )
+    }
+
     // Blocker #1: when the archive DB exists but cannot be read, GC must NOT delete a finished
     // Codex Desktop file — failing open here would permanently destroy a session the user archived.
     @MainActor

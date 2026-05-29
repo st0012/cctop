@@ -84,7 +84,7 @@ flowchart TD
     AB -->|yes| AD["Remove stale duplicate .json without archiving"]
     AB -->|no| AE["Ignore duplicate; winner owns display/cleanup"]
 
-V --> X["Never remove .lock files"]
+    V --> X["Never remove .lock files"]
     W --> X
     AD --> X
 ```

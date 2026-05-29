@@ -105,6 +105,8 @@
 		SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SLP000020000000000000001 /* SessionLifecyclePolicy.swift */; };
 		SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SIP000020000000000000001 /* SessionIdentityPolicy.swift */; };
 		CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */; };
+		CDA000010000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */; };
+		SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */ = {isa = PBXBuildFile; fileRef = SMA000020000000000000001 /* SessionManager+Archive.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -127,6 +129,8 @@
 		SLP000020000000000000001 /* SessionLifecyclePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecyclePolicy.swift; sourceTree = "<group>"; };
 		SIP000020000000000000001 /* SessionIdentityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIdentityPolicy.swift; sourceTree = "<group>"; };
 		CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexThreadArchiveLookup.swift; sourceTree = "<group>"; };
+		CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDesktopSessionArchiveLookup.swift; sourceTree = "<group>"; };
+		SMA000020000000000000001 /* SessionManager+Archive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Archive.swift"; sourceTree = "<group>"; };
 		D1000000A000000000000001 /* QuitButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitButton.swift; sourceTree = "<group>"; };
 		D10000020000000000000001 /* StatusChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusChip.swift; sourceTree = "<group>"; };
 		D10000040000000000000001 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
@@ -253,6 +257,8 @@
 				SLP000020000000000000001 /* SessionLifecyclePolicy.swift */,
 				SIP000020000000000000001 /* SessionIdentityPolicy.swift */,
 				CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */,
+				CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */,
+				SMA000020000000000000001 /* SessionManager+Archive.swift */,
 				HM0000020000000000000001 /* HistoryManager.swift */,
 				E10000020000000000000001 /* FocusTerminal.swift */,
 				SP0000020000000000000001 /* SparkleUpdater.swift */,
@@ -523,6 +529,8 @@
 				SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */,
 				SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */,
 				CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */,
+				CDA000010000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift in Sources */,
+				SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */,
 				D10000010000000000000001 /* StatusChip.swift in Sources */,
 				D10000030000000000000001 /* HeaderView.swift in Sources */,
 				D10000050000000000000001 /* SessionCardView.swift in Sources */,
