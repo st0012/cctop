@@ -12,7 +12,7 @@ struct DedupCandidate {
 
 /// Tunable windows for lifecycle derivation.
 struct LifecycleWindows {
-    let active: TimeInterval     // Codex Desktop "recent activity counts as active" threshold
+    let active: TimeInterval     // fallback "recent activity counts as active" threshold
     let retention: TimeInterval  // dormant desktop -> finished age-out from disconnected_at
 }
 
@@ -24,10 +24,14 @@ enum SessionConnectionState: Equatable {
 enum SessionLifecyclePolicy {
     /// Pure connection derivation. Every host class goes through this same first step:
     /// decide whether the session record still represents a connected session.
+    /// Desktop app liveness wins when known because those sessions share one app-level connection.
     static func connectionState(
         for session: Session, hostClass: SessionHostClass, processAlive: Bool,
-        now: Date, windows: LifecycleWindows
+        now: Date, windows: LifecycleWindows, desktopAppRunning: Bool? = nil
     ) -> SessionConnectionState {
+        if hostClass == .desktop, let desktopAppRunning {
+            return desktopAppRunning ? .connected : .disconnected
+        }
         if session.endedAt != nil { return .disconnected }
         // The shared-PID recency carve-out is Codex Desktop's, identified by source ("codex") OR by
         // the trusted Codex Desktop bundle id — the latter covers pre-harness-migration files whose
@@ -41,10 +45,15 @@ enum SessionLifecyclePolicy {
     /// decides what disconnected means for desktop versus non-desktop sessions.
     static func lifecycle(
         for session: Session, hostClass: SessionHostClass, processAlive: Bool,
-        now: Date, windows: LifecycleWindows
+        now: Date, windows: LifecycleWindows, desktopAppRunning: Bool? = nil
     ) -> SessionLifecycle {
         let connection = connectionState(
-            for: session, hostClass: hostClass, processAlive: processAlive, now: now, windows: windows
+            for: session,
+            hostClass: hostClass,
+            processAlive: processAlive,
+            now: now,
+            windows: windows,
+            desktopAppRunning: desktopAppRunning
         )
         if connection == .connected { return .active }
         guard hostClass == .desktop else { return .finished }

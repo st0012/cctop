@@ -4,7 +4,7 @@ import Foundation
 import UserNotifications
 import os.log
 
-private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
+let sessionManagerLogger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
 private typealias SessionFile = (url: URL, session: Session)
 
 @MainActor
@@ -15,17 +15,22 @@ class SessionManager: ObservableObject {
     let historyManager: HistoryManager
 
     private let sessionsDir: URL
+    private let desktopAppConnectionLookup: DesktopAppConnectionLookup
     private var source: DispatchSourceFileSystemObject?
     private var debounceTask: DispatchWorkItem?
     private var livenessTimer: Timer?
     private var gcTimer: Timer?
 
-    /// Lifecycle windows: Codex Desktop counts as active within `active` of last activity;
-    /// a non-active desktop session stays dormant within `retention` after first observed disconnect.
+    /// Lifecycle windows: desktop app liveness decides connection when available; `active` is the
+    /// fallback recency threshold and `retention` controls dormant desktop cleanup.
     nonisolated static let lifecycleWindows = LifecycleWindows(active: 600, retention: 1_209_600)
 
-    init(historyManager: HistoryManager) {
+    init(
+        historyManager: HistoryManager,
+        desktopAppConnectionLookup: DesktopAppConnectionLookup = .live
+    ) {
         self.historyManager = historyManager
+        self.desktopAppConnectionLookup = desktopAppConnectionLookup
         self.sessionsDir = URL(fileURLWithPath: Config.sessionsDir())
         loadSessions()
         startWatching()
@@ -44,7 +49,7 @@ class SessionManager: ObservableObject {
             at: sessionsDir,
             includingPropertiesForKeys: [.contentModificationDateKey]
         ) else {
-            logger.warning("loadSessions: could not read directory")
+            sessionManagerLogger.warning("loadSessions: could not read directory")
             sessions = []
             return
         }
@@ -60,10 +65,8 @@ class SessionManager: ObservableObject {
         let allDecoded = decodedSessions(from: jsonFiles)
         let hidden = allDecoded.filter { $0.session.hidden }
         let autoHidden = allDecoded.filter { !$0.session.hidden && $0.session.shouldAutoHide }
-        let visibleFiles = allDecoded
-            .filter { !$0.session.hidden && !$0.session.shouldAutoHide }
-            .map(\.url)
-        let candidates = Self.buildCandidates(visibleFiles, now: Date())
+        let visibleFiles = allDecoded.filter { !$0.session.hidden && !$0.session.shouldAutoHide }.map(\.url)
+        let candidates = Self.buildCandidates(visibleFiles, now: Date(), desktopAppConnectionLookup: desktopAppConnectionLookup)
         let archivedCodexThreadIDs = Self.archivedCodexDesktopThreadIDs(in: candidates.map(\.session))
         let claudeMetadata = Self.claudeDesktopMetadataSnapshot(in: candidates.map(\.session))
         let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
@@ -72,12 +75,12 @@ class SessionManager: ObservableObject {
                 && !Self.isArchivedClaudeDesktopSession($0.session, archivedSessionIDs: archivedClaudeSessionIDs)
                 && !Self.isOrphanedEndedClaudeDesktopSession($0.session, metadataSnapshot: claudeMetadata)
         }
-        logger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded")
-        logger.info(
+        sessionManagerLogger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded")
+        sessionManagerLogger.info(
             "loadSessions: \(liveCandidates.count) visible candidates, \(hidden.count) hidden, \(autoHidden.count) auto-hidden"
         )
-        logger.info("loadSessions: \(archivedCodexThreadIDs.count) codex-archived")
-        logger.info("loadSessions: \(archivedClaudeSessionIDs.count) claude-archived")
+        sessionManagerLogger.info("loadSessions: \(archivedCodexThreadIDs.count) codex-archived")
+        sessionManagerLogger.info("loadSessions: \(archivedClaudeSessionIDs.count) claude-archived")
 
         // Publish active + dormant; finished are hidden (swept below / by GC).
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(liveCandidates)
@@ -89,12 +92,13 @@ class SessionManager: ObservableObject {
         // Only publish when data actually changed to avoid unnecessary SwiftUI re-renders.
         if newSessions != sessions {
             if newSessions.count != sessions.count {
-                logger.info("loadSessions: session count \(self.sessions.count) -> \(newSessions.count)")
+                sessionManagerLogger.info("loadSessions: session count \(self.sessions.count) -> \(newSessions.count)")
             }
             sessions = newSessions
         }
 
         hideAutoHiddenSessions(autoHidden)
+        clearReconnectedDesktopSessions(liveCandidates, now: Date())
         stampDisconnectedDesktopSessions(liveCandidates, now: Date())
 
         // Non-desktop finished sessions keep today's behavior: archive to Recent Projects and
@@ -118,14 +122,14 @@ class SessionManager: ObservableObject {
     private func decodedSessions(from jsonFiles: [URL]) -> [SessionFile] {
         jsonFiles.compactMap { url in
             guard let data = try? Data(contentsOf: url) else {
-                logger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
+                sessionManagerLogger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
                 return nil
             }
             do {
                 let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
                 return (url, session)
             } catch {
-                logger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
+                sessionManagerLogger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
                 return nil
             }
         }
@@ -133,7 +137,7 @@ class SessionManager: ObservableObject {
 
     private func hideAutoHiddenSessions(_ sessions: [(URL, Session)]) {
         for (url, session) in sessions {
-            logger.info(
+            sessionManagerLogger.info(
                 "hiding \(self.autoHideReason(for: session), privacy: .public) session \(session.sessionId, privacy: .public)"
             )
             do {
@@ -142,7 +146,7 @@ class SessionManager: ObservableObject {
                     try hiddenSession.writeToFile(path: url.path)
                 }
             } catch {
-                logger.warning(
+                sessionManagerLogger.warning(
                     "skipping auto-hide update for \(session.sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
                 )
             }
@@ -177,13 +181,39 @@ class SessionManager: ObservableObject {
         if historyManager.archiveSession(session) {
             try? FileManager.default.removeItem(atPath: candidate.path)
         } else {
-            logger.warning("skipping removal of \(session.sessionId, privacy: .public) — archive failed")
+            sessionManagerLogger.warning("skipping removal of \(session.sessionId, privacy: .public) — archive failed")
         }
     }
 
     private func removeStaleDuplicate(_ candidate: DedupCandidate) {
-        logger.info("removing stale duplicate session file \(candidate.path, privacy: .public)")
+        sessionManagerLogger.info("removing stale duplicate session file \(candidate.path, privacy: .public)")
         try? FileManager.default.removeItem(atPath: candidate.path)
+    }
+
+    private func clearReconnectedDesktopSessions(_ candidates: [DedupCandidate], now: Date) {
+        for candidate in candidates {
+            guard candidate.session.hostClass == .desktop,
+                  candidate.session.lifecycle == .active,
+                  candidate.session.disconnectedAt != nil else { continue }
+            try? withSessionLock(sessionPath: candidate.path) {
+                guard var session = try? Session.fromFile(path: candidate.path),
+                      session.hostClass == .desktop,
+                      session.disconnectedAt != nil else {
+                    return
+                }
+                let lifecycle = SessionLifecyclePolicy.lifecycle(
+                    for: session,
+                    hostClass: SessionHostClass.desktop,
+                    processAlive: session.isAlive,
+                    now: now,
+                    windows: Self.lifecycleWindows,
+                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: desktopAppConnectionLookup)
+                )
+                guard lifecycle == .active else { return }
+                session.disconnectedAt = nil
+                try? session.writeToFile(path: candidate.path)
+            }
+        }
     }
 
     private func stampDisconnectedDesktopSessions(_ candidates: [DedupCandidate], now: Date) {
@@ -198,8 +228,12 @@ class SessionManager: ObservableObject {
                     return
                 }
                 let lifecycle = SessionLifecyclePolicy.lifecycle(
-                    for: session, hostClass: SessionHostClass.desktop, processAlive: session.isAlive,
-                    now: now, windows: Self.lifecycleWindows
+                    for: session,
+                    hostClass: SessionHostClass.desktop,
+                    processAlive: session.isAlive,
+                    now: now,
+                    windows: Self.lifecycleWindows,
+                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: desktopAppConnectionLookup)
                 )
                 guard lifecycle == .dormant else { return }
                 session.disconnectedAt = now
@@ -231,8 +265,12 @@ class SessionManager: ObservableObject {
                 let hostClass = session.hostClass
                 guard hostClass == .desktop else { return }   // non-desktop handled on the fast path
                 let life = SessionLifecyclePolicy.lifecycle(
-                    for: session, hostClass: hostClass, processAlive: session.isAlive,
-                    now: now, windows: Self.lifecycleWindows
+                    for: session,
+                    hostClass: hostClass,
+                    processAlive: session.isAlive,
+                    now: now,
+                    windows: Self.lifecycleWindows,
+                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: desktopAppConnectionLookup)
                 )
                 guard life == .finished else { return }
                 // Re-read external desktop archive state under the lock, right before deleting. A session
@@ -328,9 +366,9 @@ class SessionManager: ObservableObject {
 
                     center.requestAuthorization(options: [.alert, .sound]) { granted, error in
                         if let error {
-                            logger.error("Notification permission error: \(error, privacy: .public)")
+                            sessionManagerLogger.error("Notification permission error: \(error, privacy: .public)")
                         }
-                        logger.info("Notification permission granted: \(granted, privacy: .public)")
+                        sessionManagerLogger.info("Notification permission granted: \(granted, privacy: .public)")
                         DispatchQueue.main.async {
                             if wasAccessory { NSApplication.shared.setActivationPolicy(.accessory) }
                         }
@@ -355,7 +393,7 @@ class SessionManager: ObservableObject {
             case .notDetermined:
                 center.requestAuthorization(options: [.alert, .sound]) { granted, error in
                     if let error {
-                        logger.error("Notification permission error: \(error, privacy: .public)")
+                        sessionManagerLogger.error("Notification permission error: \(error, privacy: .public)")
                     }
                     if granted {
                         self.postNotification(for: session)
@@ -390,7 +428,7 @@ class SessionManager: ObservableObject {
         )
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
-                logger.error("Failed to send notification: \(error, privacy: .public)")
+                sessionManagerLogger.error("Failed to send notification: \(error, privacy: .public)")
             }
         }
     }
@@ -435,29 +473,15 @@ extension SessionManager {
         HostApp.isUUID(stem)
     }
 
-    /// Decode each session file, derive its lifecycle, and capture mtime — the inputs the dedup
-    /// comparator needs. Pure (no published state), kept off the main class body.
-    nonisolated static func buildCandidates(_ jsonFiles: [URL], now: Date) -> [DedupCandidate] {
-        var candidates: [DedupCandidate] = []
-        for url in jsonFiles {
-            guard let data = try? Data(contentsOf: url) else {
-                logger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
-                continue
-            }
-            guard var session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
-                logger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public)")
-                continue
-            }
-            session.lifecycle = SessionLifecyclePolicy.lifecycle(
-                for: session, hostClass: session.hostClass, processAlive: session.isAlive,
-                now: now, windows: lifecycleWindows
-            )
-            let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
-                .contentModificationDate ?? .distantPast
-            candidates.append(DedupCandidate(session: session, lifecycleRank: session.lifecycle.rawValue,
-                                             mtime: mtime, path: url.path))
+    nonisolated static func desktopAppRunning(
+        for session: Session,
+        lookup: DesktopAppConnectionLookup
+    ) -> Bool? {
+        guard session.hostClass == .desktop,
+              let bundleID = session.terminal?.bundleId else {
+            return nil
         }
-        return candidates
+        return lookup.isRunning(bundleID)
     }
 }
 

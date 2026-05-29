@@ -1,4 +1,17 @@
+import AppKit
 import Foundation
+
+struct DesktopAppConnectionLookup {
+    let isRunning: (String) -> Bool
+
+    init(_ isRunning: @escaping (String) -> Bool) {
+        self.isRunning = isRunning
+    }
+
+    static let live = DesktopAppConnectionLookup { bundleID in
+        NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == bundleID }
+    }
+}
 
 extension SessionManager {
     /// Batch snapshot for the display path. This never deletes files, so unreadable external state
@@ -78,5 +91,35 @@ extension SessionManager {
 
     nonisolated static func isArchivedDesktopSession(_ session: Session) -> Bool {
         isCodexDesktopThreadArchived(session) || isClaudeDesktopSessionArchived(session)
+    }
+
+    /// Decode each session file, derive its lifecycle, and capture mtime — the inputs the dedup
+    /// comparator needs. Pure (no published state), kept off the main class body.
+    nonisolated static func buildCandidates(
+        _ jsonFiles: [URL],
+        now: Date,
+        desktopAppConnectionLookup: DesktopAppConnectionLookup = .live
+    ) -> [DedupCandidate] {
+        var candidates: [DedupCandidate] = []
+        for url in jsonFiles {
+            guard let data = try? Data(contentsOf: url) else {
+                sessionManagerLogger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
+                continue
+            }
+            guard var session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
+                sessionManagerLogger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public)")
+                continue
+            }
+            session.lifecycle = SessionLifecyclePolicy.lifecycle(
+                for: session, hostClass: session.hostClass, processAlive: session.isAlive,
+                now: now, windows: lifecycleWindows,
+                desktopAppRunning: desktopAppRunning(for: session, lookup: desktopAppConnectionLookup)
+            )
+            let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate ?? .distantPast
+            candidates.append(DedupCandidate(session: session, lifecycleRank: session.lifecycle.rawValue,
+                                             mtime: mtime, path: url.path))
+        }
+        return candidates
     }
 }

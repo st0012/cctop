@@ -126,7 +126,7 @@ Claude Desktop and Codex Desktop both enter the desktop lifecycle path only thro
 - Claude Desktop: `com.anthropic.claudefordesktop`
 - Codex Desktop: `com.openai.codex`
 
-Once a validated desktop host is disconnected, cctop keeps the session as dormant while `disconnected_at` is inside the retention window, then the slow GC removes the stale `.json` file.
+Once a validated desktop app is not running, cctop keeps its visible sessions as dormant while `disconnected_at` is inside the retention window, then the slow GC removes stale `.json` files. When that desktop app is running again, its visible sessions are active display records, so their stored status can render as Idle, Working, Compacting, Waiting, Permission, or Attention instead of Dormant.
 
 The archive metadata source is host-specific:
 
@@ -135,10 +135,11 @@ The archive metadata source is host-specific:
 
 Claude Desktop records are validated against readable Claude metadata keyed by `cliSessionId`. If the metadata store is readable but has no matching metadata and the cctop record has already ended or disconnected, cctop treats it as an orphan startup hook record and hides it without mutating or deleting the `.json`. This covers launch-time records that start and end before Claude Desktop writes durable session metadata. If the metadata store is missing, display fails open and the record follows the normal lifecycle. If matching metadata cannot be read, display fails open for that pass while GC keeps the `.json` rather than deleting uncertain state.
 
-The active liveness evidence is not identical:
+The active liveness evidence is layered:
 
-- Claude Desktop uses the normal process liveness check unless `ended_at` is present.
-- Codex Desktop uses recent hook activity instead of PID liveness, because Codex Desktop can report multiple conversations from a shared host process.
+- Claude Desktop and Codex Desktop use app-level bundle liveness when the bundle is known.
+- If app-level liveness is not available, Codex Desktop falls back to recent hook activity instead of PID liveness, because Codex Desktop can report multiple conversations from a shared host process.
+- Non-desktop sessions keep using their own process liveness and terminal-style cleanup.
 
 Both hosts still use the same disconnected-state policy after the shared connection step.
 

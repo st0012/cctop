@@ -859,7 +859,8 @@ final class SessionFileFormatTests: XCTestCase {
         try session.writeToFile(path: sessionPath)
 
         var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in false }
         )
 
         try writeCodexStateDatabase(path: stateDB, archivedThreads: ["finished-thread"])
@@ -900,7 +901,8 @@ final class SessionFileFormatTests: XCTestCase {
         try session.writeToFile(path: sessionPath)
 
         var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in false }
         )
 
         try writeClaudeDesktopSessionMetadata(
@@ -1032,7 +1034,8 @@ final class SessionFileFormatTests: XCTestCase {
         // DB present but unparseable → lookup returns nil → GC fails safe and keeps the file.
         try Data("not a database".utf8).write(to: URL(fileURLWithPath: stateDB))
         var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in false }
         )
         manager?.garbageCollectFinished()
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
@@ -1074,21 +1077,88 @@ final class SessionFileFormatTests: XCTestCase {
         return session
     }
 
-    private func life(_ session: Session, _ hostClass: SessionHostClass, alive: Bool) -> SessionLifecycle {
+    private func life(
+        _ session: Session,
+        _ hostClass: SessionHostClass,
+        alive: Bool,
+        desktopAppRunning: Bool? = nil
+    ) -> SessionLifecycle {
         SessionLifecyclePolicy.lifecycle(
             for: session,
             hostClass: hostClass,
             processAlive: alive,
             now: Self.lifeNow,
-            windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin)
+            windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin),
+            desktopAppRunning: desktopAppRunning
         )
     }
 
-    private func connection(_ session: Session, _ hostClass: SessionHostClass, alive: Bool) -> SessionConnectionState {
+    private func connection(
+        _ session: Session,
+        _ hostClass: SessionHostClass,
+        alive: Bool,
+        desktopAppRunning: Bool? = nil
+    ) -> SessionConnectionState {
         SessionLifecyclePolicy.connectionState(
             for: session, hostClass: hostClass, processAlive: alive, now: Self.lifeNow,
-            windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin)
+            windows: LifecycleWindows(active: Self.activeWin, retention: Self.retentionWin),
+            desktopAppRunning: desktopAppRunning
         )
+    }
+
+    func testBuildCandidatesKeepsDesktopSessionActiveWhenHostAppIsRunning() throws {
+        let root = NSTemporaryDirectory() + "cctop-running-desktop-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let sessionPath = (root as NSString).appendingPathComponent("codex-stale.json")
+        var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
+        session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        session.pid = nil
+        try session.writeToFile(path: sessionPath)
+
+        let candidates = SessionManager.buildCandidates(
+            [URL(fileURLWithPath: sessionPath)],
+            now: Self.lifeNow,
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { bundleID in
+                bundleID == HostAppBundleID.codexDesktop
+            }
+        )
+
+        XCTAssertEqual(candidates.map(\.session.lifecycle), [.active])
+    }
+
+    @MainActor
+    func testSessionManagerClearsDisconnectedAtWhenDesktopHostAppIsRunning() throws {
+        let root = NSTemporaryDirectory() + "cctop-desktop-reconnected-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-reconnected.json")
+        var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
+        session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        session.pid = nil
+        try session.writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { bundleID in
+                bundleID == HostAppBundleID.codexDesktop
+            }
+        )
+
+        XCTAssertEqual(manager?.sessions.map(\.lifecycle), [.active])
+        XCTAssertNil(try Session.fromFile(path: sessionPath).disconnectedAt)
+
+        manager = nil
     }
 
     func testIdentityPolicyNamesStableGroupingRules() {
@@ -1196,13 +1266,40 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(life(session, .desktop, alive: true), .dormant)
     }
 
-    // Codex Desktop carve-out: a live SHARED host PID must not keep a stale conversation active.
-    func testLifecycleCodexDesktopIgnoresSharedPidWhenStale() {
+    func testLifecycleDesktopAppRunningOverridesEndedAtForDesktopHosts() {
+        var session = lifeSession(agoSeconds: 60, disconnectedAgoSeconds: 30)
+        session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        session.endedAt = Self.lifeNow.addingTimeInterval(-30)
+        XCTAssertEqual(life(session, .desktop, alive: false, desktopAppRunning: true), .active)
+    }
+
+    func testLifecycleDesktopAppRunningKeepsStaleCodexSessionActive() {
+        var session = lifeSession(source: "codex", agoSeconds: 600, disconnectedAgoSeconds: 60)
+        session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        XCTAssertEqual(life(session, .desktop, alive: false, desktopAppRunning: true), .active)
+    }
+
+    func testLifecycleDesktopAppStoppedMakesRecentCodexSessionDormant() {
+        var session = lifeSession(source: "codex", agoSeconds: 30, disconnectedAgoSeconds: 60)
+        session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        XCTAssertEqual(life(session, .desktop, alive: false, desktopAppRunning: false), .dormant)
+    }
+
+    func testLifecycleDesktopAppSignalDoesNotAffectCodexCliTerminal() {
+        XCTAssertEqual(
+            life(lifeSession(source: "codex", agoSeconds: 30), .terminal, alive: false, desktopAppRunning: true),
+            .finished
+        )
+    }
+
+    // Codex Desktop fallback: without app-level liveness, a live SHARED host PID must not keep a
+    // stale conversation active.
+    func testLifecycleCodexDesktopWithoutAppLivenessFallsBackToRecencyWhenStale() {
         XCTAssertEqual(life(lifeSession(source: "codex", agoSeconds: 600), .desktop, alive: true), .dormant)
     }
 
-    // Codex Desktop active comes from recent activity, even with a dead/irrelevant PID.
-    func testLifecycleCodexDesktopRecentIsActiveDespiteDeadPid() {
+    // Codex Desktop fallback: without app-level liveness, recent activity still keeps the record active.
+    func testLifecycleCodexDesktopWithoutAppLivenessFallsBackToRecentActivity() {
         XCTAssertEqual(life(lifeSession(source: "codex", agoSeconds: 30), .desktop, alive: false), .active)
     }
 
@@ -1218,9 +1315,9 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(life(lifeSession(source: "codex", agoSeconds: 600), .ambiguous, alive: true), .active)
     }
 
-    // Blocker #2: a Codex Desktop session with source == nil (pre-harness-migration files) must still
-    // get the shared-PID recency carve-out via its trusted bundle id — not fall back to raw PID liveness.
-    func testLifecycleCodexDesktopWithoutSourceUsesRecency() {
+    // Fallback blocker: a Codex Desktop session with source == nil (pre-harness-migration files)
+    // must still get the recency carve-out via its trusted bundle id when app liveness is absent.
+    func testLifecycleCodexDesktopWithoutSourceUsesRecencyFallback() {
         var stale = lifeSession(agoSeconds: 600)   // source nil, stale activity
         stale.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         // A live SHARED host PID must not keep a stale conversation active.

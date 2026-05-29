@@ -22,7 +22,7 @@ struct SessionCardView: View {
         .cardSelectionStyle(
             isSelected: isSelected, isHovered: isHovered, cornerRadius: 0
         )
-        // Dormant = backgrounded (no live process); mute it so live work reads first.
+        // Dormant = desktop host app is not running; mute it so live work reads first.
         .opacity(session.lifecycle == .dormant ? 0.62 : 1.0)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
