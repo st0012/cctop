@@ -1161,6 +1161,42 @@ final class SessionFileFormatTests: XCTestCase {
         manager = nil
     }
 
+    @MainActor
+    func testSessionManagerKeepsEndedDesktopSessionDormantWhenHostAppIsRunning() throws {
+        let root = NSTemporaryDirectory() + "cctop-ended-desktop-running-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-ended.json")
+        var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
+        session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        session.pid = nil
+        let disconnectedAt = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) - 60)
+        session.endedAt = disconnectedAt.addingTimeInterval(30)
+        session.disconnectedAt = disconnectedAt
+        try session.writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { bundleID in
+                bundleID == HostAppBundleID.codexDesktop
+            }
+        )
+
+        XCTAssertEqual(manager?.sessions.map(\.lifecycle), [.dormant])
+        XCTAssertEqual(try Session.fromFile(path: sessionPath).disconnectedAt, disconnectedAt)
+
+        manager = nil
+    }
+
     func testIdentityPolicyNamesStableGroupingRules() {
         var codex = Session(sessionId: "codex-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
         codex.source = Session.codexSource
@@ -1266,11 +1302,12 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(life(session, .desktop, alive: true), .dormant)
     }
 
-    func testLifecycleDesktopAppRunningOverridesEndedAtForDesktopHosts() {
+    func testLifecycleDesktopEndedAtBeatsDesktopAppRunning() {
         var session = lifeSession(agoSeconds: 60, disconnectedAgoSeconds: 30)
         session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         session.endedAt = Self.lifeNow.addingTimeInterval(-30)
-        XCTAssertEqual(life(session, .desktop, alive: false, desktopAppRunning: true), .active)
+        XCTAssertEqual(connection(session, .desktop, alive: false, desktopAppRunning: true), .disconnected)
+        XCTAssertEqual(life(session, .desktop, alive: false, desktopAppRunning: true), .dormant)
     }
 
     func testLifecycleDesktopAppRunningKeepsStaleCodexSessionActive() {

@@ -24,15 +24,16 @@ enum SessionConnectionState: Equatable {
 enum SessionLifecyclePolicy {
     /// Pure connection derivation. Every host class goes through this same first step:
     /// decide whether the session record still represents a connected session.
-    /// Desktop app liveness wins when known because those sessions share one app-level connection.
+    /// Ended sessions stay disconnected even while their owning desktop app is still running.
+    /// Otherwise, desktop app liveness wins when known because those sessions share one app-level connection.
     static func connectionState(
         for session: Session, hostClass: SessionHostClass, processAlive: Bool,
         now: Date, windows: LifecycleWindows, desktopAppRunning: Bool? = nil
     ) -> SessionConnectionState {
+        if session.endedAt != nil { return .disconnected }
         if hostClass == .desktop, let desktopAppRunning {
             return desktopAppRunning ? .connected : .disconnected
         }
-        if session.endedAt != nil { return .disconnected }
         // The shared-PID recency carve-out is Codex Desktop's, identified by source ("codex") OR by
         // the trusted Codex Desktop bundle id — the latter covers pre-harness-migration files whose
         // source is nil, which would otherwise fall back to (unreliable, shared) PID liveness.

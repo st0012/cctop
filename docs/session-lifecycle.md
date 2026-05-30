@@ -35,16 +35,19 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["Decoded visible record"] --> B{"Trusted desktop host?"}
+    A["Decoded visible record"] --> B{"ended_at present?"}
 
-    B -->|yes| C{"Owning desktop app running?"}
-    C -->|yes| D["Lifecycle: active"]
-    C -->|no| E{"disconnected_at missing<br/>or inside retention?"}
+    B -->|yes| E{"Trusted desktop host<br/>and disconnected_at missing<br/>or inside retention?"}
+    B -->|no| C{"Trusted desktop host?"}
+
+    C -->|yes| D{"Owning desktop app running?"}
+    D -->|yes| I["Lifecycle: active"]
+    D -->|no| E
     E -->|yes| F["Lifecycle: dormant"]
     E -->|no| G["Lifecycle: finished"]
 
-    B -->|no| H{"Connected by process<br/>or fallback recency?"}
-    H -->|yes| D
+    C -->|no| H{"Connected by process<br/>or fallback recency?"}
+    H -->|yes| I["Lifecycle: active"]
     H -->|no| G
 ```
 
@@ -70,9 +73,9 @@ flowchart TD
 
 ### `ended_at`
 
-`ended_at` is set when a hook observes `SessionEnd`. For terminal, CLI, ambiguous, and fallback desktop records it is an explicit disconnect signal.
+`ended_at` is set when a hook observes `SessionEnd`. It is an explicit disconnect signal for every host class.
 
-For trusted desktop records with app-level liveness available, the owning app's running state is the connection source. A running desktop app can therefore make the record active again even if the older hook record still has `ended_at`.
+For trusted desktop records, `ended_at` still wins over app-level liveness. A running desktop app keeps non-ended visible records active, but it does not make an older ended hook record active again.
 
 New activity clears `ended_at` so a resumed session can become connected again.
 
@@ -85,7 +88,7 @@ It can be set in two ways:
 - A desktop `SessionEnd` stamps it at the same time as `ended_at`.
 - The menubar app stamps it when it first observes a known desktop session as dormant and the field is missing.
 
-The menubar app clears it when the same trusted desktop app is observed running again.
+The menubar app clears it when the same trusted desktop app is observed running again and the session has not explicitly ended.
 
 CLI sessions do not need `disconnected_at` because disconnected CLI sessions become finished immediately.
 
