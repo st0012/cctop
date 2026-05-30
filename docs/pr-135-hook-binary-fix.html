@@ -318,12 +318,12 @@
   <main>
     <header>
       <h1>PR 135 should make hook files explain themselves.</h1>
-      <p class="kicker">Codex exposed the bug, but the narrowed fix is simpler: cctop owns the hook binary lifecycle, and every session file should record which hook version wrote it.</p>
+      <p class="kicker">Codex exposed the bug, but the narrowed fix is simpler: cctop owns the hook binary lifecycle, every session file should record which hook version wrote it, and stale legacy duplicates must not win display identity.</p>
     </header>
 
     <section class="lede">
       <div class="statement">
-        <p><strong>Core invariant:</strong> after the app launches, <code>~/.cctop/bin/cctop-hook</code> should point at the current app-bundled hook. If a session file is still written by something stale, that is a cctop bug we should be able to see immediately.</p>
+        <p><strong>Core invariant:</strong> after the app launches, <code>~/.cctop/bin/cctop-hook</code> should point at the current app-bundled hook. If a session file is still written by something stale, that is a cctop bug we should be able to see immediately, and the reader should not let that legacy file override the canonical record.</p>
       </div>
       <div class="note">
         <p><code>--harness</code> remains client identity, not a compatibility check. It tells the hook whether the event came from Claude Code, Codex, opencode, or pi. The debugging addition is hook writer metadata persisted into the session file.</p>
@@ -376,6 +376,11 @@
           <text x="608" y="454" class="label">visible symptom</text>
           <text x="608" y="477" class="small">wrong badge, identity, cleanup, or grouping</text>
 
+          <rect x="906" y="392" width="178" height="100" rx="7" class="box warn"></rect>
+          <text x="928" y="430" class="label">duplicate survives</text>
+          <text x="928" y="455" class="small">PID-keyed legacy file</text>
+          <text x="928" y="477" class="small">looks like CC</text>
+
           <rect x="36" y="250" width="440" height="176" rx="7" class="box"></rect>
           <text x="60" y="286" class="label">Why this wasted time</text>
           <text x="60" y="316" class="small">The file looked plausible.</text>
@@ -427,9 +432,9 @@
           <p>Every session file should include <code>created_by_hook_version</code> and <code>last_written_by_hook_version</code> so a bad file immediately reveals whether an old hook created or later updated it.</p>
         </article>
         <article class="card good">
-          <span class="eyebrow">3. Document</span>
-          <h3>Agents inspect writer fields first.</h3>
-          <p><code>CLAUDE.md</code> should tell future agents to inspect hook writer metadata before changing badge, lifecycle, or grouping logic when source identity looks wrong.</p>
+          <span class="eyebrow">3. Dedupe</span>
+          <h3>Canonical Codex files win.</h3>
+          <p>If a numeric PID-keyed, nil-source, no-metadata legacy file shares a <code>session_id</code> with a <code>codex-&lt;session_id&gt;.json</code> file, the reader should group it with the Codex record and display the canonical Codex file.</p>
         </article>
       </div>
       <div class="grid">
@@ -442,6 +447,11 @@
           <span class="eyebrow">Removed</span>
           <h3>No capability gate in the shim.</h3>
           <p>The previous idea of probing hook candidates before dispatch is unnecessary under this product model. If the runtime hook is wrong after app launch, the app-owned repair mechanism is what needs investigation.</p>
+        </article>
+        <article class="card good">
+          <span class="eyebrow">Document</span>
+          <h3>Agents inspect writer fields first.</h3>
+          <p><code>CLAUDE.md</code> and the local agent guidance should tell future agents to inspect hook writer metadata and legacy duplicate shape before changing badge, lifecycle, or grouping logic.</p>
         </article>
       </div>
 
@@ -482,6 +492,8 @@
           <text x="886" y="276" class="small">source: client harness</text>
           <text x="886" y="298" class="small">created_by_hook_version</text>
           <text x="886" y="320" class="small">last_written_by_hook_version</text>
+
+          <path d="M 864 273 L 720 392" class="arrow good"></path>
 
           <rect x="36" y="392" width="318" height="120" rx="7" class="box warn"></rect>
           <text x="58" y="429" class="label">If the file is wrong</text>
@@ -552,6 +564,16 @@
             <span class="pill">missing metadata</span>
           </div>
         </article>
+        <article class="card warn">
+          <span class="eyebrow">Legacy duplicate</span>
+          <h3>PID-keyed debris cannot beat Codex identity.</h3>
+          <p>A numeric <code>{pid}.json</code> file with no <code>source</code>, no hook metadata, and the same <code>session_id</code> as a <code>codex-&lt;session_id&gt;.json</code> file is old writer output. The Codex-keyed file is the display authority.</p>
+          <div class="pill-row">
+            <span class="pill">same session_id</span>
+            <span class="pill">nil source</span>
+            <span class="pill">numeric path</span>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -590,11 +612,21 @@
           </ul>
         </article>
         <article class="card">
+          <span class="eyebrow">Reader tests</span>
+          <h3>Legacy duplicates do not resurface.</h3>
+          <ul>
+            <li>A source-less numeric PID file and a canonical Codex file with the same <code>session_id</code> collapse to one display record.</li>
+            <li>The Codex-keyed file wins even when the stale PID file has newer activity.</li>
+            <li>The real <code>SessionManager</code> load path publishes only the canonical Codex record.</li>
+          </ul>
+        </article>
+        <article class="card">
           <span class="eyebrow">Docs tests</span>
           <h3>Debugging guidance is explicit.</h3>
           <ul>
             <li><code>CLAUDE.md</code> tells agents to inspect writer metadata first when identity looks wrong.</li>
             <li>Missing or null <code>created_by_hook_version</code> should be treated as likely pre-metadata hook output, not as a normal current-file state.</li>
+            <li>The docs call out numeric PID-keyed Codex duplicates as stale migration debris when a canonical Codex file exists.</li>
             <li>The guidance distinguishes stale writer evidence from current-writer input or UI bugs.</li>
             <li>No PR description should imply user rollback or manual executable swapping is a supported scenario.</li>
           </ul>
@@ -603,7 +635,7 @@
     </section>
 
     <footer>
-      Updated from local branch <span class="mono">codex/prevent-stale-hook-binary</span> to describe the reduced hook-writer metadata scope.
+      Updated from local branch <span class="mono">codex/prevent-stale-hook-binary</span> to describe hook-writer metadata plus the stale Codex PID duplicate reader guard.
     </footer>
   </main>
 </body>

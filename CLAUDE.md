@@ -139,7 +139,7 @@ The script uses Chrome headless (auto-detected on macOS, override with `CHROME_B
 
 All paths converge at `~/.cctop/sessions/*.json` — the menubar app watches this directory and renders sessions regardless of source. Each tool identifies itself via `harness_name` in the hook input (JSON field for opencode/pi, `--harness` CLI arg for Claude Code and Codex). The session JSON file still uses the `source` key for the harness name (MIGRATION(harness_name) tracks the eventual rename).
 
-Hook writer metadata starts with the hook version that introduced it (`0.16.0`). New files written by metadata-aware hooks include `created_by_hook_version`; each write refreshes `last_written_by_hook_version`. Do not backfill `created_by_hook_version` on legacy files, because the true creator is unknown. If `created_by_hook_version` is missing or null on a file that should have been created by `0.16.0+`, treat it as strong evidence that an outdated/pre-metadata hook created the file and inspect the app-owned hook install path before changing UI classification logic.
+Hook writer metadata starts with the hook version that introduced it (`0.16.0`). New files written by metadata-aware hooks include `created_by_hook_version`; each write refreshes `last_written_by_hook_version`. Do not backfill `created_by_hook_version` on legacy files, because the true creator is unknown. If `created_by_hook_version` is missing or null on a file that should have been created by `0.16.0+`, treat it as strong evidence that an outdated/pre-metadata hook created the file and inspect the app-owned hook install path before changing UI classification logic. If a numeric PID-keyed, nil-source, no-metadata file has the same `session_id` as a canonical `codex-<session_id>.json` file, treat the numeric file as stale migration debris; the loader should prefer the Codex-keyed file for display and let existing cleanup remove the stale duplicate when it is finished.
 
 ## Key Components
 
@@ -417,6 +417,7 @@ cat ~/.cctop/sessions/<session-file>.json \
 
 - `created_by_hook_version == null` or missing means the file was probably created by a pre-metadata/outdated hook. Check whether `~/.cctop/bin/cctop-hook` points at the current app-bundled hook and whether the app launch repair path ran.
 - `created_by_hook_version` missing but `last_written_by_hook_version` current means a legacy file was later updated by a current hook; do not infer the original writer.
+- A numeric PID-keyed file with `source == null`, no hook metadata, and the same `session_id` as a `codex-<session_id>.json` file is a stale legacy duplicate. The Codex-keyed file is the canonical display record.
 - Both fields current means the hook writer is probably not stale; investigate `harness_name` / `--harness` input resolution and then UI classification.
 
 ### Quick Commands
