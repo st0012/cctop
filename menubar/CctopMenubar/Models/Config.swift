@@ -107,6 +107,6 @@ extension Session {
     }
 
     var shouldAutoHide: Bool {
-        isCodexMemoryMaintenanceSession || isCodexDesktopTitleGenerationSession
+        isSubagentSession || isCodexMemoryMaintenanceSession || isCodexDesktopTitleGenerationSession
     }
 }

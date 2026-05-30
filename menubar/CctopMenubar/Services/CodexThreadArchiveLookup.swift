@@ -13,6 +13,16 @@ struct CodexThreadArchiveLookup {
     /// step). Callers that delete files must treat `nil` as "unknown — keep", never as "not
     /// archived". A missing database returns `[]` (no Codex state ⇒ nothing archived), not `nil`.
     func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        matchingThreadIDs(matching: threadIDs, whereClause: "archived = 1")
+    }
+
+    /// Returns the subset of `threadIDs` Codex marks as subagent-owned. This is display-only
+    /// metadata, so callers should fail OPEN when the lookup returns `nil`.
+    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        matchingThreadIDs(matching: threadIDs, whereClause: "thread_source = 'subagent'")
+    }
+
+    private func matchingThreadIDs(matching threadIDs: Set<String>, whereClause predicate: String) -> Set<String>? {
         guard !threadIDs.isEmpty else { return [] }
         guard FileManager.default.fileExists(atPath: stateDatabasePath) else { return [] }
 
@@ -28,7 +38,7 @@ struct CodexThreadArchiveLookup {
 
         let sortedIDs = threadIDs.sorted()
         let placeholders = Array(repeating: "?", count: sortedIDs.count).joined(separator: ",")
-        let sql = "SELECT id FROM threads WHERE archived = 1 AND id IN (\(placeholders))"
+        let sql = "SELECT id FROM threads WHERE \(predicate) AND id IN (\(placeholders))"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
               let statement else {

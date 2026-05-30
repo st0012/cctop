@@ -41,6 +41,10 @@
     "is_interrupt":     { "type": "boolean" },
     "agent_id":         { "type": "string" },
     "agent_type":       { "type": "string" },
+    "is_subagent":      {
+      "type": "boolean",
+      "description": "Whether this payload belongs to a subagent-owned session rather than a user-facing session"
+    },
     "source":           { "type": "string", "description": "Tool that created this session (e.g. \"opencode\")" },
     "harness_name":     {
       "type": "string",

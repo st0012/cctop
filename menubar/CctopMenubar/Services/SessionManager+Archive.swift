@@ -13,7 +13,39 @@ struct DesktopAppConnectionLookup {
     }
 }
 
+struct SessionVisibilitySnapshot {
+    let archivedCodexThreadIDs: Set<String>
+    let codexSubagentThreadIDs: Set<String>
+    let archivedClaudeSessionIDs: Set<String>
+    let codexSubagentCandidates: [DedupCandidate]
+    let liveCandidates: [DedupCandidate]
+}
+
 extension SessionManager {
+    nonisolated static func visibilitySnapshot(in candidates: [DedupCandidate]) -> SessionVisibilitySnapshot {
+        let sessions = candidates.map(\.session)
+        let archivedCodexThreadIDs = archivedCodexDesktopThreadIDs(in: sessions)
+        let codexSubagentThreadIDs = codexSubagentThreadIDs(in: sessions)
+        let claudeMetadata = claudeDesktopMetadataSnapshot(in: sessions)
+        let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
+        let codexSubagentCandidates = candidates.filter {
+            isCodexSubagentSession($0.session, subagentThreadIDs: codexSubagentThreadIDs)
+        }
+        let liveCandidates = candidates.filter {
+            !isArchivedCodexDesktopSession($0.session, archivedThreadIDs: archivedCodexThreadIDs)
+                && !isCodexSubagentSession($0.session, subagentThreadIDs: codexSubagentThreadIDs)
+                && !isArchivedClaudeDesktopSession($0.session, archivedSessionIDs: archivedClaudeSessionIDs)
+                && !isOrphanedEndedClaudeDesktopSession($0.session, metadataSnapshot: claudeMetadata)
+        }
+        return SessionVisibilitySnapshot(
+            archivedCodexThreadIDs: archivedCodexThreadIDs,
+            codexSubagentThreadIDs: codexSubagentThreadIDs,
+            archivedClaudeSessionIDs: archivedClaudeSessionIDs,
+            codexSubagentCandidates: codexSubagentCandidates,
+            liveCandidates: liveCandidates
+        )
+    }
+
     /// Batch snapshot for the display path. This never deletes files, so unreadable external state
     /// fails OPEN: at worst an archived session shows for one pass.
     nonisolated static func archivedCodexDesktopThreadIDs(in sessions: [Session]) -> Set<String> {
@@ -30,6 +62,69 @@ extension SessionManager {
         archivedThreadIDs: Set<String>
     ) -> Bool {
         session.isCodexDesktopHost && archivedThreadIDs.contains(session.sessionId)
+    }
+
+    /// Codex records whether a thread is user-owned or subagent-owned in its local thread
+    /// database. That signal applies across Codex hosts: Desktop and terminal Codex CLI.
+    nonisolated static func codexSubagentThreadIDs(in sessions: [Session]) -> Set<String> {
+        let threadIDs = Set(
+            sessions
+                .filter { $0.isCodex || $0.isCodexDesktopHost }
+                .map(\.sessionId)
+        )
+        return CodexThreadArchiveLookup().subagentThreadIDs(matching: threadIDs) ?? []
+    }
+
+    nonisolated static func isCodexSubagentSession(
+        _ session: Session,
+        subagentThreadIDs: Set<String>
+    ) -> Bool {
+        (session.isCodex || session.isCodexDesktopHost) && subagentThreadIDs.contains(session.sessionId)
+    }
+
+    /// Fresh single-session check used before persisting a hidden flag for a Codex subagent
+    /// thread. Lookup uncertainty fails OPEN: if we cannot prove it is a subagent, leave it
+    /// visible rather than permanently hiding the file.
+    nonisolated static func codexSubagentHiddenSessionSnapshot(path: String) throws -> Session? {
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        var latest = try Session.fromFile(path: path)
+        guard !latest.hidden, latest.isCodex || latest.isCodexDesktopHost else { return nil }
+        guard let subagentIDs = CodexThreadArchiveLookup().subagentThreadIDs(matching: [latest.sessionId]),
+              subagentIDs.contains(latest.sessionId) else {
+            return nil
+        }
+        latest.isSubagentSession = true
+        latest.hidden = true
+        return latest
+    }
+
+    nonisolated static func autoHiddenSessionSnapshot(path: String) throws -> Session? {
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        var latest = try Session.fromFile(path: path)
+        guard !latest.hidden, latest.shouldAutoHide else { return nil }
+        latest.hidden = true
+        return latest
+    }
+
+    func hideCodexSubagentSessions(_ candidates: [DedupCandidate]) {
+        for candidate in candidates {
+            sessionManagerLogger.info(
+                "hiding Codex subagent session \(candidate.session.sessionId, privacy: .public)"
+            )
+            do {
+                try withSessionLock(sessionPath: candidate.path) {
+                    guard let hiddenSession = try Self.codexSubagentHiddenSessionSnapshot(path: candidate.path) else {
+                        return
+                    }
+                    try hiddenSession.writeToFile(path: candidate.path)
+                }
+            } catch {
+                let sessionId = candidate.session.sessionId
+                sessionManagerLogger.warning(
+                    "skipping Codex subagent hide for \(sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
     }
 
     /// Batch snapshot for the display path. This mirrors the Codex behavior: archive metadata read

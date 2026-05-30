@@ -39,14 +39,17 @@ final class HookHandlerTests: XCTestCase {
     }
 
     private func loadSession() throws -> Session {
+        try Session.fromFile(path: sessionFilePath())
+    }
+
+    private func sessionFilePath() throws -> String {
         let entries = try FileManager.default.contentsOfDirectory(atPath: sessionsDir)
         let jsonFiles = entries.filter { $0.hasSuffix(".json") }
         XCTAssertEqual(
             jsonFiles.count, 1,
             "Expected exactly 1 session file, found \(jsonFiles.count): \(jsonFiles)"
         )
-        let path = (sessionsDir as NSString).appendingPathComponent(jsonFiles[0])
-        return try Session.fromFile(path: path)
+        return (sessionsDir as NSString).appendingPathComponent(jsonFiles[0])
     }
 
     private func sessionFileExists() -> Bool {
@@ -498,6 +501,50 @@ final class HookHandlerTests: XCTestCase {
         """
         try handle(promptJSON, "UserPromptSubmit")
         XCTAssertTrue(try loadSession().hidden)
+    }
+
+    func testHookInputMarkedSubagentWritesHiddenSession() throws {
+        let json = """
+        {
+          "session_id": "delegated-agent-session",
+          "cwd": "/tmp/p",
+          "hook_event_name": "SessionStart",
+          "harness_name": "opencode",
+          "is_subagent": true
+        }
+        """
+        let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
+        try HookHandler.handleHook(hookName: "SessionStart", input: input)
+
+        XCTAssertTrue(try loadSession().hidden)
+    }
+
+    func testProjectCleanupPreservesHookMarkedSubagentSession() throws {
+        let project = "/tmp/cctop-subagent-cleanup-\(UUID().uuidString)"
+        let json = """
+        {
+          "session_id": "delegated-agent-session",
+          "cwd": "\(project)",
+          "hook_event_name": "SessionStart",
+          "harness_name": "opencode",
+          "is_subagent": true
+        }
+        """
+        let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
+        try HookHandler.handleHook(hookName: "SessionStart", input: input)
+
+        let path = try sessionFilePath()
+        var session = try Session.fromFile(path: path)
+        session.pid = 999_999
+        try session.writeToFile(path: path)
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir,
+            projectPath: project,
+            currentPid: UInt32(getpid())
+        )
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: path))
     }
 
     /// Codex Desktop fires every conversation's hooks from one shared host process, so

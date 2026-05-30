@@ -2,19 +2,30 @@ import XCTest
 @testable import CctopMenubar
 
 final class SessionFileFormatTests: XCTestCase {
-    private func writeCodexStateDatabase(path: String, archivedThreads: Set<String>) throws {
+    private func writeCodexStateDatabase(
+        path: String,
+        archivedThreads: Set<String>,
+        subagentThreads: Set<String> = []
+    ) throws {
         let archivedRows = archivedThreads.map {
             """
-            INSERT INTO threads (id, archived) VALUES ('\($0)', 1);
+            INSERT INTO threads (id, archived, thread_source) VALUES ('\($0)', 1, 'user');
+            """
+        }.joined(separator: "\n")
+        let subagentRows = subagentThreads.map {
+            """
+            INSERT INTO threads (id, archived, thread_source) VALUES ('\($0)', 0, 'subagent');
             """
         }.joined(separator: "\n")
         let sql = """
         DROP TABLE IF EXISTS threads;
         CREATE TABLE threads (
             id TEXT PRIMARY KEY,
-            archived INTEGER NOT NULL DEFAULT 0
+            archived INTEGER NOT NULL DEFAULT 0,
+            thread_source TEXT
         );
         \(archivedRows)
+        \(subagentRows)
         """
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
@@ -26,6 +37,19 @@ final class SessionFileFormatTests: XCTestCase {
         try stdin.fileHandleForWriting.close()
         process.waitUntilExit()
         XCTAssertEqual(process.terminationStatus, 0)
+    }
+
+    private func codexTerminalSession(sessionId: String, projectPath: String) -> Session {
+        var session = Session(
+            sessionId: sessionId,
+            projectPath: projectPath,
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh", bundleId: "com.googlecode.iterm2")
+        )
+        session.source = Session.codexSource
+        session.pid = UInt32(ProcessInfo.processInfo.processIdentifier)
+        session.status = .waitingInput
+        return session
     }
 
     private func codexDesktopSession(sessionId: String, projectPath: String) -> Session {
@@ -380,6 +404,146 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(manager?.sessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: hiddenPath))
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerHidesGenericSubagentSessionFilesWithoutArchivingOrRemovingThem() throws {
+        let root = NSTemporaryDirectory() + "cctop-generic-subagent-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("12345.json")
+        let now = ISO8601DateFormatter().string(from: Date())
+        let json = """
+        {
+          "session_id": "delegated-review",
+          "project_path": "\(root)/projects/cctop",
+          "project_name": "cctop",
+          "branch": "main",
+          "status": "working",
+          "last_activity": "\(now)",
+          "started_at": "\(now)",
+          "terminal": {"program": "zsh"},
+          "pid": \(ProcessInfo.processInfo.processIdentifier),
+          "source": "opencode",
+          "is_subagent": true
+        }
+        """
+        try json.write(toFile: sessionPath, atomically: true, encoding: .utf8)
+        FileManager.default.createFile(atPath: sessionPath + ".lock", contents: nil)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath + ".lock"))
+        XCTAssertTrue(try Session.fromFile(path: sessionPath).hidden)
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerHidesCodexSubagentThreadsForAnyCodexHostWithoutRemovingFiles() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-subagents-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            subagentThreads: ["codex-cli-subagent", "codex-desktop-subagent"]
+        )
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let cliPath = (sessionsDir as NSString).appendingPathComponent("codex-codex-cli-subagent.json")
+        let desktopPath = (sessionsDir as NSString).appendingPathComponent("codex-codex-desktop-subagent.json")
+        try codexTerminalSession(
+            sessionId: "codex-cli-subagent",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        ).writeToFile(path: cliPath)
+        try codexDesktopSession(
+            sessionId: "codex-desktop-subagent",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        ).writeToFile(path: desktopPath)
+        FileManager.default.createFile(atPath: cliPath + ".lock", contents: nil)
+        FileManager.default.createFile(atPath: desktopPath + ".lock", contents: nil)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cliPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: desktopPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cliPath + ".lock"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: desktopPath + ".lock"))
+        XCTAssertTrue(try Session.fromFile(path: cliPath).hidden)
+        XCTAssertTrue(try Session.fromFile(path: desktopPath).hidden)
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerKeepsParentSessionWithActiveSubagentsVisible() throws {
+        let root = NSTemporaryDirectory() + "cctop-parent-subagents-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-parent-thread.json")
+        var session = codexDesktopSession(
+            sessionId: "parent-thread",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        )
+        session.activeSubagents = [
+            SubagentInfo(agentId: "agent-1", agentType: "reviewer", startedAt: Date(timeIntervalSince1970: 100))
+        ]
+        try session.writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["parent-thread"])
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
 
         manager = nil
     }

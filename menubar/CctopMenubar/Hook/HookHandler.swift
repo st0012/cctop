@@ -45,6 +45,7 @@ enum HookHandler {
 
             let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
             applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
+            if input.isSubagentSession == true { session.isSubagentSession = true }
             if session.shouldAutoHide { session.hidden = true }
 
             let suffix = newStatus == nil ? " (preserved)" : ""
@@ -375,6 +376,8 @@ extension HookHandler {
             // app and are reaped only by its lock-held GC. The hook must NOT delete them here, or
             // resuming one conversation would reap its dormant same-project siblings.
             guard !isDesktopBundleId(session.terminal?.bundleId) else { return }
+
+            guard !session.hidden, !session.shouldAutoHide else { return }
 
             let isStale: Bool
             if let pid = session.pid {

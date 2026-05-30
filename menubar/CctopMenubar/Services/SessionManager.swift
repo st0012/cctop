@@ -67,20 +67,15 @@ class SessionManager: ObservableObject {
         let autoHidden = allDecoded.filter { !$0.session.hidden && $0.session.shouldAutoHide }
         let visibleFiles = allDecoded.filter { !$0.session.hidden && !$0.session.shouldAutoHide }.map(\.url)
         let candidates = Self.buildCandidates(visibleFiles, now: Date(), desktopAppConnectionLookup: desktopAppConnectionLookup)
-        let archivedCodexThreadIDs = Self.archivedCodexDesktopThreadIDs(in: candidates.map(\.session))
-        let claudeMetadata = Self.claudeDesktopMetadataSnapshot(in: candidates.map(\.session))
-        let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
-        let liveCandidates = candidates.filter {
-            !Self.isArchivedCodexDesktopSession($0.session, archivedThreadIDs: archivedCodexThreadIDs)
-                && !Self.isArchivedClaudeDesktopSession($0.session, archivedSessionIDs: archivedClaudeSessionIDs)
-                && !Self.isOrphanedEndedClaudeDesktopSession($0.session, metadataSnapshot: claudeMetadata)
-        }
+        let visibility = Self.visibilitySnapshot(in: candidates)
+        let liveCandidates = visibility.liveCandidates
         sessionManagerLogger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded")
         sessionManagerLogger.info(
             "loadSessions: \(liveCandidates.count) visible candidates, \(hidden.count) hidden, \(autoHidden.count) auto-hidden"
         )
-        sessionManagerLogger.info("loadSessions: \(archivedCodexThreadIDs.count) codex-archived")
-        sessionManagerLogger.info("loadSessions: \(archivedClaudeSessionIDs.count) claude-archived")
+        sessionManagerLogger.info("loadSessions: \(visibility.archivedCodexThreadIDs.count) codex-archived")
+        sessionManagerLogger.info("loadSessions: \(visibility.codexSubagentThreadIDs.count) codex-subagent")
+        sessionManagerLogger.info("loadSessions: \(visibility.archivedClaudeSessionIDs.count) claude-archived")
 
         // Publish active + dormant; finished are hidden (swept below / by GC).
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(liveCandidates)
@@ -98,6 +93,7 @@ class SessionManager: ObservableObject {
         }
 
         hideAutoHiddenSessions(autoHidden)
+        hideCodexSubagentSessions(visibility.codexSubagentCandidates)
         clearReconnectedDesktopSessions(liveCandidates, now: Date())
         stampDisconnectedDesktopSessions(liveCandidates, now: Date())
 
@@ -154,6 +150,7 @@ class SessionManager: ObservableObject {
     }
 
     private func autoHideReason(for session: Session) -> String {
+        if session.isSubagentSession { return "subagent-owned" }
         if session.isCodexMemoryMaintenanceSession { return "Codex memory maintenance" }
         if session.isCodexDesktopTitleGenerationSession { return "Codex title generation" }
         return "maintenance"
@@ -482,15 +479,5 @@ extension SessionManager {
             return nil
         }
         return lookup.isRunning(bundleID)
-    }
-}
-
-extension SessionManager {
-    nonisolated static func autoHiddenSessionSnapshot(path: String) throws -> Session? {
-        guard FileManager.default.fileExists(atPath: path) else { return nil }
-        var latest = try Session.fromFile(path: path)
-        guard !latest.hidden, latest.shouldAutoHide else { return nil }
-        latest.hidden = true
-        return latest
     }
 }

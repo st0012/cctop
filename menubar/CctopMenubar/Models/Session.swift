@@ -180,6 +180,7 @@ struct Session: Codable, Identifiable, Equatable {
     var endedAt: Date?
     var disconnectedAt: Date?
     var activeSubagents: [SubagentInfo]?
+    var isSubagentSession: Bool
     var hidden: Bool
 
     /// Display-only lifecycle, derived on each load. Deliberately NOT in `CodingKeys`, so the
@@ -229,6 +230,7 @@ struct Session: Codable, Identifiable, Equatable {
         case endedAt = "ended_at"
         case disconnectedAt = "disconnected_at"
         case activeSubagents = "active_subagents"
+        case isSubagentSession = "is_subagent"
         case hidden
     }
 
@@ -256,6 +258,7 @@ struct Session: Codable, Identifiable, Equatable {
         endedAt = try container.decodeIfPresent(Date.self, forKey: .endedAt)
         disconnectedAt = try container.decodeIfPresent(Date.self, forKey: .disconnectedAt)
         activeSubagents = try container.decodeIfPresent([SubagentInfo].self, forKey: .activeSubagents)
+        isSubagentSession = try container.decodeIfPresent(Bool.self, forKey: .isSubagentSession) ?? false
         hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
     }
 
@@ -281,6 +284,7 @@ struct Session: Codable, Identifiable, Equatable {
         endedAt: Date? = nil,
         disconnectedAt: Date? = nil,
         activeSubagents: [SubagentInfo]? = nil,
+        isSubagentSession: Bool = false,
         hidden: Bool = false
     ) {
         self.sessionId = sessionId
@@ -303,6 +307,7 @@ struct Session: Codable, Identifiable, Equatable {
         self.endedAt = endedAt
         self.disconnectedAt = disconnectedAt
         self.activeSubagents = activeSubagents
+        self.isSubagentSession = isSubagentSession
         self.hidden = hidden
     }
 
@@ -328,6 +333,7 @@ struct Session: Codable, Identifiable, Equatable {
         self.endedAt = nil
         self.disconnectedAt = nil
         self.activeSubagents = nil
+        self.isSubagentSession = false
         self.hidden = false
     }
 
@@ -394,6 +400,7 @@ struct Session: Codable, Identifiable, Equatable {
             endedAt: endedAt,
             disconnectedAt: disconnectedAt,
             activeSubagents: activeSubagents,
+            isSubagentSession: isSubagentSession,
             hidden: hidden
         )
     }

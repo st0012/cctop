@@ -19,6 +19,7 @@ struct HookInput: Codable {
     var isInterrupt: Bool?
     var agentId: String?
     var agentType: String?
+    var isSubagentSession: Bool?
     var source: String?
     var harnessName: String?
     var sessionName: String?
@@ -37,6 +38,7 @@ struct HookInput: Codable {
         case isInterrupt = "is_interrupt"
         case agentId = "agent_id"
         case agentType = "agent_type"
+        case isSubagentSession = "is_subagent"
         case source
         case harnessName = "harness_name"
         case sessionName = "session_name"
@@ -59,6 +61,7 @@ struct HookInput: Codable {
         isInterrupt = try container.decodeIfPresent(Bool.self, forKey: .isInterrupt)
         agentId = try container.decodeIfPresent(String.self, forKey: .agentId)
         agentType = try container.decodeIfPresent(String.self, forKey: .agentType)
+        isSubagentSession = try container.decodeIfPresent(Bool.self, forKey: .isSubagentSession)
         source = try container.decodeIfPresent(String.self, forKey: .source)
         harnessName = try container.decodeIfPresent(String.self, forKey: .harnessName)
         sessionName = try container.decodeIfPresent(String.self, forKey: .sessionName)
