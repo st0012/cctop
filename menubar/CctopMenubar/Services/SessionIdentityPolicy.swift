@@ -53,47 +53,12 @@ enum SessionIdentityPolicy {
 
     /// Collapse multiple files for one conversation only for hosts with stable conversation identity.
     static func dedupedCandidatesByStableKey(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
-        let codexSessionIDs = Set(
-            candidates
-                .filter { $0.session.isCodex }
-                .map(\.session.sessionId)
-        )
         var byKey: [String: DedupCandidate] = [:]
         for candidate in candidates {
-            let key = dedupStableKey(for: candidate, codexSessionIDs: codexSessionIDs)
+            let key = stableKey(for: candidate.session)
             if let existing = byKey[key], SessionLifecyclePolicy.prefers(existing, over: candidate) { continue }
             byKey[key] = candidate
         }
-        return byKey.values.sorted {
-            dedupStableKey(for: $0, codexSessionIDs: codexSessionIDs)
-                < dedupStableKey(for: $1, codexSessionIDs: codexSessionIDs)
-        }
-    }
-
-    private static func dedupStableKey(for candidate: DedupCandidate, codexSessionIDs: Set<String>) -> String {
-        if isLegacyPidKeyedDuplicateOfCodex(candidate, codexSessionIDs: codexSessionIDs) {
-            return "codex:\(candidate.session.sessionId)"
-        }
-        return stableKey(for: candidate.session)
-    }
-
-    private static func isLegacyPidKeyedDuplicateOfCodex(
-        _ candidate: DedupCandidate,
-        codexSessionIDs: Set<String>
-    ) -> Bool {
-        let session = candidate.session
-        if session.source == nil,
-           session.createdByHookVersion == nil,
-           session.lastWrittenByHookVersion == nil,
-           isNumericSessionFilename(candidate.path),
-           codexSessionIDs.contains(session.sessionId) {
-            return true
-        }
-        return false
-    }
-
-    private static func isNumericSessionFilename(_ path: String) -> Bool {
-        let stem = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
-        return !stem.isEmpty && stem.allSatisfy(\.isNumber)
+        return byKey.values.sorted { stableKey(for: $0.session) < stableKey(for: $1.session) }
     }
 }

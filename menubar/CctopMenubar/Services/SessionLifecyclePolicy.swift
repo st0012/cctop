@@ -64,9 +64,6 @@ enum SessionLifecyclePolicy {
 
     static func prefers(_ lhs: DedupCandidate, over rhs: DedupCandidate) -> Bool {
         if lhs.lifecycleRank != rhs.lifecycleRank { return lhs.lifecycleRank < rhs.lifecycleRank }
-        let lhsIdentityRank = identityConfidenceRank(for: lhs.session)
-        let rhsIdentityRank = identityConfidenceRank(for: rhs.session)
-        if lhsIdentityRank != rhsIdentityRank { return lhsIdentityRank < rhsIdentityRank }
         if lhs.session.lastActivity != rhs.session.lastActivity {
             return lhs.session.lastActivity > rhs.session.lastActivity
         }
@@ -75,14 +72,5 @@ enum SessionLifecyclePolicy {
         }
         if lhs.mtime != rhs.mtime { return lhs.mtime > rhs.mtime }
         return lhs.path < rhs.path
-    }
-
-    private static func identityConfidenceRank(for session: Session) -> Int {
-        // When migration duplicates share a stable key, prefer explicit current-writer identity
-        // over legacy files whose source/writer fields were never recorded.
-        if session.isCodex { return 0 }
-        if session.lastWrittenByHookVersion != nil { return 1 }
-        if session.source != nil { return 2 }
-        return 3
     }
 }
