@@ -188,6 +188,51 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(session.pidStartTime)
     }
 
+    func testDecodesWithoutHookWriterMetadata() throws {
+        let json = """
+        {
+            "session_id": "pre-metadata",
+            "project_path": "/tmp",
+            "project_name": "test",
+            "branch": "main",
+            "status": "idle",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "Code"}
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertNil(session.createdByHookVersion)
+        XCTAssertNil(session.lastWrittenByHookVersion)
+    }
+
+    func testEncodesHookWriterMetadata() throws {
+        var session = Session.mock()
+        session.createdByHookVersion = "0.16.0"
+        session.lastWrittenByHookVersion = "0.16.1"
+
+        let data = try JSONEncoder.sessionEncoder.encode(session)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["created_by_hook_version"] as? String, "0.16.0")
+        XCTAssertEqual(object["last_written_by_hook_version"] as? String, "0.16.1")
+    }
+
+    func testMarkWrittenByHookDoesNotBackfillLegacyCreator() {
+        var session = Session.mock()
+        session.markWrittenByHook(version: "0.16.0", isNewSessionFile: false)
+
+        XCTAssertNil(session.createdByHookVersion)
+        XCTAssertEqual(session.lastWrittenByHookVersion, "0.16.0")
+    }
+
+    func testMarkWrittenByHookStampsNewSessionCreator() {
+        var session = Session.mock()
+        session.markWrittenByHook(version: "0.16.0", isNewSessionFile: true)
+
+        XCTAssertEqual(session.createdByHookVersion, "0.16.0")
+        XCTAssertEqual(session.lastWrittenByHookVersion, "0.16.0")
+    }
+
     func testDecodesDisconnectedAt() throws {
         let json = """
         {

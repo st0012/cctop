@@ -77,6 +77,45 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.activeSubagents?.count, 0)
     }
 
+    func testNewHookSessionFileRecordsWriterMetadata() throws {
+        try handleFixture("SessionStart")
+        let session = try loadSession()
+
+        XCTAssertEqual(session.createdByHookVersion, Config.hookVersion)
+        XCTAssertEqual(session.lastWrittenByHookVersion, Config.hookVersion)
+    }
+
+    func testCurrentHookUpdateDoesNotBackfillLegacyCreatedByVersion() throws {
+        try handleFixture("SessionStart")
+
+        let path = try sessionFilePath()
+        var legacy = try Session.fromFile(path: path)
+        legacy.createdByHookVersion = nil
+        legacy.lastWrittenByHookVersion = nil
+        try legacy.writeToFile(path: path)
+
+        try handleFixture("UserPromptSubmit")
+        let session = try loadSession()
+
+        XCTAssertNil(session.createdByHookVersion)
+        XCTAssertEqual(session.lastWrittenByHookVersion, Config.hookVersion)
+    }
+
+    func testSessionEndRefreshesLastWrittenByHookVersion() throws {
+        try handleFixture("SessionStart")
+
+        let path = try sessionFilePath()
+        var session = try Session.fromFile(path: path)
+        session.lastWrittenByHookVersion = "0.16.0-dev"
+        try session.writeToFile(path: path)
+
+        try handleFixture("SessionEnd")
+        session = try loadSession()
+
+        XCTAssertEqual(session.createdByHookVersion, Config.hookVersion)
+        XCTAssertEqual(session.lastWrittenByHookVersion, Config.hookVersion)
+    }
+
     // MARK: - UserPromptSubmit transitions to working
 
     func testUserPromptSubmitSetsWorking() throws {

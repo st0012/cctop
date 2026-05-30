@@ -182,6 +182,8 @@ struct Session: Codable, Identifiable, Equatable {
     var activeSubagents: [SubagentInfo]?
     var isSubagentSession: Bool
     var hidden: Bool
+    var createdByHookVersion: String?
+    var lastWrittenByHookVersion: String?
 
     /// Display-only lifecycle, derived on each load. Deliberately NOT in `CodingKeys`, so the
     /// synthesized `Codable` skips it and decode defaults it to `.active` (never persisted —
@@ -232,6 +234,8 @@ struct Session: Codable, Identifiable, Equatable {
         case activeSubagents = "active_subagents"
         case isSubagentSession = "is_subagent"
         case hidden
+        case createdByHookVersion = "created_by_hook_version"
+        case lastWrittenByHookVersion = "last_written_by_hook_version"
     }
 
     // MARK: - Constructors
@@ -260,6 +264,8 @@ struct Session: Codable, Identifiable, Equatable {
         activeSubagents = try container.decodeIfPresent([SubagentInfo].self, forKey: .activeSubagents)
         isSubagentSession = try container.decodeIfPresent(Bool.self, forKey: .isSubagentSession) ?? false
         hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
+        createdByHookVersion = try container.decodeIfPresent(String.self, forKey: .createdByHookVersion)
+        lastWrittenByHookVersion = try container.decodeIfPresent(String.self, forKey: .lastWrittenByHookVersion)
     }
 
     /// Full memberwise init (used by mocks and tests).
@@ -285,7 +291,9 @@ struct Session: Codable, Identifiable, Equatable {
         disconnectedAt: Date? = nil,
         activeSubagents: [SubagentInfo]? = nil,
         isSubagentSession: Bool = false,
-        hidden: Bool = false
+        hidden: Bool = false,
+        createdByHookVersion: String? = nil,
+        lastWrittenByHookVersion: String? = nil
     ) {
         self.sessionId = sessionId
         self.projectPath = projectPath
@@ -309,6 +317,8 @@ struct Session: Codable, Identifiable, Equatable {
         self.activeSubagents = activeSubagents
         self.isSubagentSession = isSubagentSession
         self.hidden = hidden
+        self.createdByHookVersion = createdByHookVersion
+        self.lastWrittenByHookVersion = lastWrittenByHookVersion
     }
 
     /// Convenience init for creating new sessions (used by cctop-hook).
@@ -335,6 +345,13 @@ struct Session: Codable, Identifiable, Equatable {
         self.activeSubagents = nil
         self.isSubagentSession = false
         self.hidden = false
+        self.createdByHookVersion = nil
+        self.lastWrittenByHookVersion = nil
+    }
+
+    mutating func markWrittenByHook(version: String, isNewSessionFile: Bool) {
+        if isNewSessionFile { createdByHookVersion = version }
+        lastWrittenByHookVersion = version
     }
 
     // MARK: - File I/O
@@ -401,7 +418,9 @@ struct Session: Codable, Identifiable, Equatable {
             disconnectedAt: disconnectedAt,
             activeSubagents: activeSubagents,
             isSubagentSession: isSubagentSession,
-            hidden: hidden
+            hidden: hidden,
+            createdByHookVersion: createdByHookVersion,
+            lastWrittenByHookVersion: lastWrittenByHookVersion
         )
     }
 

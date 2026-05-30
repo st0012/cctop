@@ -139,6 +139,8 @@ The script uses Chrome headless (auto-detected on macOS, override with `CHROME_B
 
 All paths converge at `~/.cctop/sessions/*.json` — the menubar app watches this directory and renders sessions regardless of source. Each tool identifies itself via `harness_name` in the hook input (JSON field for opencode/pi, `--harness` CLI arg for Claude Code and Codex). The session JSON file still uses the `source` key for the harness name (MIGRATION(harness_name) tracks the eventual rename).
 
+Hook writer metadata starts with the hook version that introduced it (`0.16.0`). New files written by metadata-aware hooks include `created_by_hook_version`; each write refreshes `last_written_by_hook_version`. Do not backfill `created_by_hook_version` on legacy files, because the true creator is unknown. If `created_by_hook_version` is missing or null on a file that should have been created by `0.16.0+`, treat it as strong evidence that an outdated/pre-metadata hook created the file and inspect the app-owned hook install path before changing UI classification logic.
+
 ## Key Components
 
 ### Binaries
@@ -403,6 +405,19 @@ Examples:
 | HOOK entries but session file stale | File write failure | Check disk space, permissions on ~/.cctop/sessions/ |
 | HOOK entries present and session file fresh | Menubar file watcher issue | Restart the menubar app |
 | Entries stop but session is still running | That Claude Code session stopped firing hooks | Check if session PID is still alive |
+
+### Diagnosing Wrong Session Identity
+
+When a session shows the wrong source, badge, grouping, or client-specific cleanup behavior, inspect the session file before editing UI logic:
+
+```bash
+cat ~/.cctop/sessions/<session-file>.json \
+  | jq '{source, created_by_hook_version, last_written_by_hook_version}'
+```
+
+- `created_by_hook_version == null` or missing means the file was probably created by a pre-metadata/outdated hook. Check whether `~/.cctop/bin/cctop-hook` points at the current app-bundled hook and whether the app launch repair path ran.
+- `created_by_hook_version` missing but `last_written_by_hook_version` current means a legacy file was later updated by a current hook; do not infer the original writer.
+- Both fields current means the hook writer is probably not stale; investigate `harness_name` / `--harness` input resolution and then UI classification.
 
 ### Quick Commands
 

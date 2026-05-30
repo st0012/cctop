@@ -36,9 +36,11 @@ enum HookHandler {
         // independently, and the last writer wins — clobbering the first writer's changes.
         try withSessionLock(sessionPath: sessionPath) {
             let freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
-            var session = loadOrCreateSession(
+            let loaded = loadOrCreateSession(
                 path: sessionPath, event: event, startTime: startTime, fresh: freshSession
             )
+            var session = loaded.session
+            let isNewSessionFile = loaded.isNewSessionFile
 
             session.pid = pid
             session.pidStartTime = startTime
@@ -47,6 +49,7 @@ enum HookHandler {
             applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
             if input.isSubagentSession == true { session.isSubagentSession = true }
             if session.shouldAutoHide { session.hidden = true }
+            session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: isNewSessionFile)
 
             let suffix = newStatus == nil ? " (preserved)" : ""
             HookLogger.appendHookLog(
@@ -190,17 +193,17 @@ enum HookHandler {
 
     private static func loadOrCreateSession(
         path: String, event: HookEvent, startTime: TimeInterval?, fresh: Session
-    ) -> Session {
+    ) -> (session: Session, isNewSessionFile: Bool) {
         guard FileManager.default.fileExists(atPath: path),
               let existing = try? Session.fromFile(path: path) else {
-            return fresh
+            return (fresh, true)
         }
         // PID reuse: different process start time means a new process reused this PID
         if event == .sessionStart,
            let storedStart = existing.pidStartTime,
            let currentStart = startTime,
            abs(storedStart - currentStart) > 1.0 {
-            return fresh
+            return (fresh, true)
         }
         // Same PID, different session_id — a PID-keyed source (opencode/pi) reused the
         // process for a new conversation. Drop conversation-specific state (project, name,
@@ -210,9 +213,9 @@ enum HookHandler {
             var carried = fresh
             carried.pid = existing.pid
             carried.pidStartTime = existing.pidStartTime
-            return carried
+            return (carried, true)
         }
-        return existing
+        return (existing, false)
     }
 
     // MARK: - Helpers
@@ -359,6 +362,7 @@ extension HookHandler {
                 if isDesktopBundleId(session.terminal?.bundleId) {
                     session.disconnectedAt = session.disconnectedAt ?? endedAt
                 }
+                session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
                 try? session.writeToFile(path: path)
                 HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
             } else {
