@@ -1,100 +1,78 @@
 # Session Lifecycle
 
-This flow documents how cctop turns a session file into a connection state and then into a UI/cleanup lifecycle.
-The desktop path applies to both Claude Desktop and Codex Desktop.
+This flow documents how cctop turns a session file into one display-time lifecycle:
+`active`, `dormant`, or `finished`. The desktop path applies to both Claude Desktop and Codex Desktop.
 
 The key split is intentional:
 
 - File presence means cctop has a record to evaluate. It is not itself proof that the session is live.
-- Desktop archive state comes from each app's local metadata and hides the session before lifecycle publishing.
-- `ended_at` is an explicit disconnect signal written by hook events.
+- Visibility filters decide whether a decoded record can be displayed at all.
+- Connection evidence decides whether the host is connected right now.
+- Lifecycle decides how cctop should treat a visible record.
+- Persistence actions update `disconnected_at`, remove stale files, or archive finished CLI work.
 - `disconnected_at` is the retention clock for known desktop sessions, including Claude Desktop and Codex Desktop, that have become dormant.
 - CLI and ambiguous sessions do not use dormant retention. Once disconnected, they become finished.
 
+## Display Pipeline
+
 ```mermaid
 flowchart TD
-    A["Session file exists"] --> B["Evaluate persisted fields"]
-    B --> C{"ended_at present?"}
+    A["Session .json files"] --> B["Decode non-hidden records"]
+    B --> C["Derive lifecycle<br/>active / dormant / finished"]
+    C --> D{"Visibility filter"}
 
-    C -->|yes| D["Connection state: disconnected"]
-    C -->|no| E["Run host-specific liveness check"]
+    D -->|"archived desktop session"| E["Hide for this pass<br/>preserve .json"]
+    D -->|"Claude orphan startup record"| E
+    D -->|"visible record"| F["Deduplicate by stable key"]
 
-    E --> F{"Host class"}
-    F -->|"Known desktop app"| G["Desktop liveness evidence"]
-    F -->|"Terminal / CLI"| H["Real process liveness"]
-    F -->|"Ambiguous"| I["Conservative process liveness"]
+    F --> G{"Winner lifecycle"}
+    G -->|active| H["Publish active session"]
+    G -->|dormant| I["Publish dormant session<br/>neutral status, no notifications"]
+    G -->|finished| J["Do not publish"]
+```
 
-    G --> G1{"Desktop host"}
-    G1 -->|"Codex Desktop"| G2["Recent hook activity within active window"]
-    G1 -->|"Claude Desktop"| G3["Process liveness unless SessionEnd already set ended_at"]
-    G1 -->|"Other desktop app"| G4["Process liveness"]
+## Lifecycle Derivation
 
-    H --> J{"Live?"}
-    I --> J
-    G2 --> J
-    G3 --> J
-    G4 --> J
+```mermaid
+flowchart TD
+    A["Decoded visible record"] --> B{"Trusted desktop host?"}
 
-    J -->|yes| K["Connection state: connected"]
-    J -->|no| D
+    B -->|yes| C{"Owning desktop app running?"}
+    C -->|yes| D["Lifecycle: active"]
+    C -->|no| E{"disconnected_at missing<br/>or inside retention?"}
+    E -->|yes| F["Lifecycle: dormant"]
+    E -->|no| G["Lifecycle: finished"]
 
-    K --> L["Lifecycle: active"]
+    B -->|no| H{"Connected by process<br/>or fallback recency?"}
+    H -->|yes| D
+    H -->|no| G
+```
 
-    D --> M{"Host policy"}
-    M -->|"Known desktop app"| N{"disconnected_at present?"}
-    M -->|"Terminal / CLI"| O["Lifecycle: finished"]
-    M -->|"Ambiguous"| O
+## Persistence Actions
 
-    N -->|no| P["Stamp disconnected_at now"]
-    P --> Q["Lifecycle: dormant"]
-    N -->|yes| R{"Retention expired?"}
-    R -->|no| Q
-    R -->|yes| S["Lifecycle: finished"]
+```mermaid
+flowchart TD
+    A["Derived candidates"] --> B{"Active desktop<br/>has disconnected_at?"}
+    B -->|yes| C["Clear stale disconnected_at"]
+    B -->|no| D{"Dormant desktop<br/>missing disconnected_at?"}
 
-    L --> A0{"Trusted desktop host?"}
-    Q --> A0
-    S --> A0
-    O --> A0
+    D -->|yes| E["Stamp disconnected_at now"]
+    D -->|no| F{"Finished desktop<br/>past retention?"}
 
-    A0 -->|no| Y["Deduplicate by stable lifecycle key"]
-    A0 -->|yes| A1{"Archive metadata source"}
-    A1 -->|"Claude Desktop"| CL1{"Claude metadata found by cliSessionId?"}
-    A1 -->|"Codex Desktop"| CX1{"Codex thread row found?"}
-    CL1 -->|yes| CL2{"isArchived true?"}
-    CL1 -->|no| CL3{"Already ended/disconnected?"}
-    CX1 -->|yes| CX2{"archived true?"}
-    CX1 -->|no| CX3["No Codex archive signal; continue normal lifecycle"]
-    CL2 -->|yes| A2["Hide without mutating or deleting .json"]
-    CL2 -->|no| Y
-    CL3 -->|yes| A2
-    CL3 -->|no| Y
-    CX2 -->|yes| A2
-    CX2 -->|no| Y
-    CX3 --> Y
+    F -->|yes| G["Slow GC re-checks archive state<br/>then removes .json only"]
+    F -->|no| H{"Finished non-desktop?"}
 
-    Y --> Z{"Survives dedup?"}
-    Z -->|yes| AA{"Lifecycle after dedup"}
-    Z -->|no| AB{"Finished non-desktop duplicate?"}
-
-    AA -->|"active"| AC["Show active session"]
-    AA -->|"dormant"| T["Show dormant session"]
-    AA -->|"finished desktop"| V["Desktop GC removes stale .json later"]
-    AA -->|"finished terminal / ambiguous"| W["Archive and remove .json promptly"]
-
-    T --> U["No notifications; neutral display status"]
-    AB -->|yes| AD["Remove stale duplicate .json without archiving"]
-    AB -->|no| AE["Ignore duplicate; winner owns display/cleanup"]
-
-    V --> X["Never remove .lock files"]
-    W --> X
-    AD --> X
+    H -->|yes| I["Archive to Recent Projects<br/>then remove .json"]
+    H -->|no| J["No persistence change"]
 ```
 
 ## Field Meanings
 
 ### `ended_at`
 
-`ended_at` is set when a hook observes `SessionEnd`. It is read before any PID or recency check. If it is present, every host class is considered disconnected.
+`ended_at` is set when a hook observes `SessionEnd`. For terminal, CLI, ambiguous, and fallback desktop records it is an explicit disconnect signal.
+
+For trusted desktop records with app-level liveness available, the owning app's running state is the connection source. A running desktop app can therefore make the record active again even if the older hook record still has `ended_at`.
 
 New activity clears `ended_at` so a resumed session can become connected again.
 
@@ -106,6 +84,8 @@ It can be set in two ways:
 
 - A desktop `SessionEnd` stamps it at the same time as `ended_at`.
 - The menubar app stamps it when it first observes a known desktop session as dormant and the field is missing.
+
+The menubar app clears it when the same trusted desktop app is observed running again.
 
 CLI sessions do not need `disconnected_at` because disconnected CLI sessions become finished immediately.
 
