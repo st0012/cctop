@@ -47,10 +47,14 @@ BUILD_NUM=$(echo "$NEW_VERSION" | awk -F. '{print $1*10000 + $2*100 + $3}')
 sed -i '' "s/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $BUILD_NUM;/" "$PBXPROJ"
 echo "  Updated pbxproj CURRENT_PROJECT_VERSION to $BUILD_NUM"
 
-# 6. HookMain.swift version string
-HOOK_MAIN="$REPO_ROOT/menubar/CctopMenubar/Hook/HookMain.swift"
-sed -i '' "s/static let version = \".*\"/static let version = \"$NEW_VERSION\"/" "$HOOK_MAIN"
-echo "  Updated HookMain.swift version"
+# 6. Hook writer version string
+CONFIG_SWIFT="$REPO_ROOT/menubar/CctopMenubar/Models/Config.swift"
+sed -i '' "s/static let hookVersion = \".*\"/static let hookVersion = \"$NEW_VERSION\"/" "$CONFIG_SWIFT"
+if ! grep -q "static let hookVersion = \"$NEW_VERSION\"" "$CONFIG_SWIFT"; then
+    echo "Error: failed to update Config.hookVersion"
+    exit 1
+fi
+echo "  Updated Config.hookVersion"
 
 # 7. plugins/opencode/package.json
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$REPO_ROOT/plugins/opencode/package.json"
