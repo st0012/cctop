@@ -288,6 +288,23 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertNotNil(session.disconnectedAt)
     }
 
+    func testOpencodeSessionEndIgnoresLeakedCodexDesktopBundle() throws {
+        setenv("__CFBundleIdentifier", HostAppBundleID.codexDesktop, 1)
+        defer { unsetenv("__CFBundleIdentifier") }
+
+        try handleFixture("SessionStart-opencode")
+        XCTAssertEqual(try loadSession().source, "opencode")
+        XCTAssertNil(try loadSession().disconnectedAt)
+
+        try handleHook("""
+        {"session_id":"opencode-12345","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"opencode"}
+        """, hookName: "SessionEnd")
+
+        let session = try loadSession()
+        XCTAssertNotNil(session.endedAt)
+        XCTAssertNil(session.disconnectedAt)
+    }
+
     func testSessionStartClearsEndedAndDisconnectedAt() throws {
         setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
         defer { unsetenv("__CFBundleIdentifier") }
@@ -595,6 +612,34 @@ final class HookHandlerTests: XCTestCase {
         )
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: path))
+    }
+
+    func testProjectCleanupRemovesStaleOpencodeWithLeakedCodexDesktopBundle() throws {
+        let project = "/tmp/cctop-opencode-cleanup-\(UUID().uuidString)"
+        setenv("__CFBundleIdentifier", HostAppBundleID.codexDesktop, 1)
+        defer { unsetenv("__CFBundleIdentifier") }
+
+        try handleHook("""
+        {
+          "session_id": "opencode-stale",
+          "cwd": "\(project)",
+          "hook_event_name": "SessionStart",
+          "harness_name": "opencode"
+        }
+        """, hookName: "SessionStart")
+
+        let path = try sessionFilePath()
+        var session = try Session.fromFile(path: path)
+        session.pid = 999_999
+        try session.writeToFile(path: path)
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir,
+            projectPath: project,
+            currentPid: UInt32(getpid())
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
     }
 
     /// Codex Desktop fires every conversation's hooks from one shared host process, so

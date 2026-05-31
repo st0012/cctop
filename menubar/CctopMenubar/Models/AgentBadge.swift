@@ -35,16 +35,11 @@ enum AgentBadge: Equatable {
 extension Session {
     /// Classify the session's source + host app into one of six badge kinds.
     ///
-    /// The bundle ID is the most authoritative signal — it tells us exactly
-    /// which Desktop app is hosting the session. We check it first so a
-    /// Codex Desktop session whose `harness_name` field is missing (e.g. the
-    /// shim didn't pass `--harness codex`, or the hook fired before the
-    /// harness was established) still classifies as `.codexDesktop` instead
-    /// of falling into the `.claudeDesktop` default. The `source` string is
-    /// only consulted for non-Desktop sessions.
+    /// A trusted Desktop bundle ID wins so pre-harness Desktop records still classify correctly.
+    /// Explicit non-desktop harnesses keep their harness badge even if a GUI bundle ID leaked
+    /// through the environment.
     var agentBadge: AgentBadge {
-        // Desktop bundle ID wins — it's the most authoritative signal.
-        switch HostApp.from(bundleIdentifier: terminal?.bundleId) {
+        switch SessionIdentityPolicy.trustedHostApp(for: self) {
         case .claudeDesktop: return .claudeDesktop
         case .codexDesktop: return .codexDesktop
         default: break

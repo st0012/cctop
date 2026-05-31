@@ -975,6 +975,26 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertFalse(SessionManager.isCodexDesktopThreadArchived(terminalSession))
     }
 
+    func testIsCodexDesktopThreadArchivedIgnoresOpencodeWithLeakedCodexDesktopBundle() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-archived-opencode-\(UUID().uuidString)"
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: ["opencode-39189"])
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        var session = Session(
+            sessionId: "opencode-39189", projectPath: "/tmp/p", branch: "main",
+            terminal: TerminalInfo(bundleId: "com.openai.codex")
+        )
+        session.source = "opencode"
+
+        XCTAssertFalse(SessionManager.isCodexDesktopThreadArchived(session))
+    }
+
     // The Claude archive check is also gated on the Claude Desktop bundle ID. A terminal Claude
     // Code session sharing an archived Desktop cliSessionId must stay on the normal lifecycle path.
     func testIsClaudeDesktopSessionArchivedIgnoresNonClaudeDesktopHosts() throws {

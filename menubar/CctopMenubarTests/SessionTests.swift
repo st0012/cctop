@@ -451,6 +451,26 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.hostClass, .desktop)
     }
 
+    func testHostClassOpencodeIgnoresLeakedCodexDesktopBundle() {
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.openai.codex"),
+            source: "opencode"
+        )
+        XCTAssertEqual(session.hostClass, .ambiguous)
+        XCTAssertFalse(session.isHostedByDesktopApp)
+        XCTAssertFalse(session.isCodexDesktopHost)
+    }
+
+    func testHostClassPiIgnoresLeakedClaudeDesktopBundle() {
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
+            source: "pi"
+        )
+        XCTAssertEqual(session.hostClass, .ambiguous)
+        XCTAssertFalse(session.isHostedByDesktopApp)
+        XCTAssertFalse(session.isClaudeDesktopHost)
+    }
+
     func testHostClassITerm2IsTerminal() {
         let session = Session.mock(terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"))
         XCTAssertEqual(session.hostClass, .terminal)

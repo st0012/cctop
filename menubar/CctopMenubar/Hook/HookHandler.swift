@@ -359,7 +359,7 @@ extension HookHandler {
             if var session = try? Session.fromFile(path: path) {
                 let endedAt = Date()
                 session.endedAt = endedAt
-                if isDesktopBundleId(session.terminal?.bundleId) {
+                if hasTrustedDesktopBundle(session, sourceOverride: input.resolvedHarnessName) {
                     session.disconnectedAt = session.disconnectedAt ?? endedAt
                 }
                 session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
@@ -379,7 +379,7 @@ extension HookHandler {
             // Desktop-app conversations survive host-app restarts as dormant cards in the menubar
             // app and are reaped only by its lock-held GC. The hook must NOT delete them here, or
             // resuming one conversation would reap its dormant same-project siblings.
-            guard !isDesktopBundleId(session.terminal?.bundleId) else { return }
+            guard !hasTrustedDesktopBundle(session) else { return }
 
             guard !session.hidden, !session.shouldAutoHide else { return }
 
@@ -407,6 +407,12 @@ extension HookHandler {
 
     private static func isDesktopBundleId(_ bundleId: String?) -> Bool {
         bundleId == HostAppBundleID.claudeDesktop || bundleId == HostAppBundleID.codexDesktop
+    }
+
+    private static func hasTrustedDesktopBundle(_ session: Session, sourceOverride: String? = nil) -> Bool {
+        let source = session.source ?? sourceOverride
+        guard !Session.isExplicitNonDesktopHarness(source) else { return false }
+        return isDesktopBundleId(session.terminal?.bundleId)
     }
 
     private static func forEachSession(in dir: String, body: (String, Session) -> Void) {

@@ -269,6 +269,18 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .activateByBundleID(bundleID))
     }
 
+    func testOpencodeIgnoresLeakedCodexDesktopBundleForFocus() {
+        var session = makeSession(
+            program: "", bundleId: HostApp.codexDesktop.bundleID!,
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        )
+        session.source = "opencode"
+
+        let strategy = resolveFocusStrategy(session: session)
+
+        XCTAssertEqual(strategy, .openInFinder(projectPath))
+    }
+
     // MARK: - No terminal info falls back to Finder
 
     func testNoTerminalInfoOpensInFinder() {

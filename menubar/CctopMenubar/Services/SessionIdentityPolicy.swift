@@ -1,10 +1,22 @@
 import Foundation
 
 enum SessionIdentityPolicy {
-    /// File-local host classification. Deliberately strict: `source` never classifies desktop
+    /// GUI environments can leak `__CFBundleIdentifier` into child tools; an explicit
+    /// non-desktop harness must not become "Codex Desktop" or "Claude Desktop" because
+    /// of inherited env. Other sources keep the previous bundle-first behavior, including
+    /// nil-source legacy desktop records.
+    static func trustedHostApp(for session: Session) -> HostApp? {
+        guard let app = HostApp.from(bundleIdentifier: session.terminal?.bundleId) else { return nil }
+        if app.isDesktopApp && Session.isExplicitNonDesktopHarness(session.source) {
+            return nil
+        }
+        return app
+    }
+
+    /// File-local host classification. Deliberately strict: source alone never classifies desktop
     /// vs CLI because both integrations share source strings with their desktop counterparts.
     static func hostClass(for session: Session) -> SessionHostClass {
-        if let app = HostApp.from(bundleIdentifier: session.terminal?.bundleId) {
+        if let app = trustedHostApp(for: session) {
             return app.isDesktopApp ? .desktop : .terminal
         }
         if session.terminal?.multiplexer != nil { return .terminal }

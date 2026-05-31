@@ -85,8 +85,24 @@ final class AgentBadgeTests: XCTestCase {
         XCTAssertEqual(session.agentBadge, .opencode)
     }
 
+    func testOpencodeSource_ignoresLeakedCodexDesktopBundle() {
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.openai.codex"),
+            source: "opencode"
+        )
+        XCTAssertEqual(session.agentBadge, .opencode)
+    }
+
     func testPiSource_returnsPi() {
         let session = Session.mock(source: "pi")
+        XCTAssertEqual(session.agentBadge, .pi)
+    }
+
+    func testPiSource_ignoresLeakedClaudeDesktopBundle() {
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
+            source: "pi"
+        )
         XCTAssertEqual(session.agentBadge, .pi)
     }
 

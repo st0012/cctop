@@ -135,21 +135,19 @@ extension Session {
     /// rather than a terminal/editor. These sessions have no project folder worth reopening,
     /// so they're excluded from Recent Projects.
     var isHostedByDesktopApp: Bool {
-        guard let bundleId = terminal?.bundleId else { return false }
-        return HostApp.from(bundleIdentifier: bundleId)?.isDesktopApp == true
+        SessionIdentityPolicy.trustedHostApp(for: self)?.isDesktopApp == true
     }
 
-    /// True when the session is hosted by the Codex Desktop app, by trusted bundle id alone —
-    /// independent of `source`, which may be nil for pre-harness-migration files. This is the
-    /// authoritative "is this a Codex Desktop session" signal for archive filtering and the
-    /// shared-PID recency lifecycle carve-out.
+    /// True when the session is hosted by the Codex Desktop app, after validating the bundle ID
+    /// against the resolved harness. Nil-source legacy files may still use the bundle alone.
     var isCodexDesktopHost: Bool {
-        HostApp.from(bundleIdentifier: terminal?.bundleId) == .codexDesktop
+        SessionIdentityPolicy.trustedHostApp(for: self) == .codexDesktop
     }
 
-    /// True when the session is hosted by the Claude Desktop app, by trusted bundle id alone.
+    /// True when the session is hosted by the Claude Desktop app, after validating the bundle ID
+    /// against the resolved harness. Nil-source legacy files may still use the bundle alone.
     var isClaudeDesktopHost: Bool {
-        HostApp.from(bundleIdentifier: terminal?.bundleId) == .claudeDesktop
+        SessionIdentityPolicy.trustedHostApp(for: self) == .claudeDesktop
     }
 }
 

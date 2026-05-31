@@ -194,8 +194,17 @@ struct Session: Codable, Identifiable, Equatable {
 
     /// Harness id Codex reports (CLI and Desktop both pass `--harness codex`).
     static let codexSource = "codex"
+    static let opencodeSource = "opencode"
+    static let piSource = "pi"
 
     var isCodex: Bool { source == Self.codexSource }
+
+    /// Harnesses that never run inside Claude Desktop or Codex Desktop. Their
+    /// subprocesses can inherit GUI bundle IDs from a launcher environment, so
+    /// those desktop bundle IDs are not trusted for identity or lifecycle.
+    static func isExplicitNonDesktopHarness(_ source: String?) -> Bool {
+        source == Self.opencodeSource || source == Self.piSource
+    }
 
     // Codex multiplexes many conversations onto one host process, so the PID is not unique
     // per conversation — identify Codex sessions by session_id (matching their codex-<id>

@@ -36,6 +36,7 @@ This file is the canonical guide for agents helping develop cctop. cctop itself 
 - For wrong source, wrong grouping, stale status, duplicate display, or unexpected dormant/idle behavior, inspect the session JSON before changing display logic.
 - `created_by_hook_version` missing or null on a file that should have been created by hook `0.16.0+` is strong evidence of a pre-metadata or stale hook writer.
 - `last_written_by_hook_version` tells you the latest hook that touched the file, not necessarily the original creator.
+- For explicit non-desktop harnesses such as `opencode` and `pi`, do not classify inherited Claude/Codex Desktop `terminal.bundle_id` values as desktop proof. Treat those bundle IDs as leaked launcher environment unless the harness is desktop-compatible or missing.
 - If hook provenance is current, inspect resolved harness/source, client event delivery/logs, PID/app liveness, and visibility/lifecycle classification as relevant to the symptom.
 - Apply lifecycle and hook fixes consistently across all supported clients unless the problem is explicitly client-specific.
 
@@ -156,8 +157,8 @@ The script uses Chrome headless (auto-detected on macOS, override with `CHROME_B
 | Claude Desktop | Yes | Same Claude plugin hook path, hosted by the Claude Desktop app | `source: "cc"` plus trusted bundle ID `com.anthropic.claudefordesktop`; PID-keyed file; title/archive metadata read from `~/Library/Application Support/Claude/claude-code-sessions` | Desktop app liveness applies unless `ended_at` is set; disconnected sessions stay dormant during retention; archived/orphaned metadata filters visibility; no deep link, so jump-to-session activates the app |
 | Codex CLI | Yes | `~/.codex/hooks.json` → `~/.codex/cctop-shim.sh` → `cctop-hook --harness codex` | `source: "codex"`; session-id-keyed `codex-<session_id>.json` because one host PID can emit multiple conversations | Uses session ID for display/dedup; subagent ownership from `~/.codex/state_5.sqlite` hides subagent-owned sessions |
 | Codex Desktop | Yes | Same Codex hook shim path, hosted by the Codex Desktop app | `source: "codex"` plus trusted bundle ID `com.openai.codex`; session-id-keyed `codex-<session_id>.json`; titles read from `~/.codex/session_index.jsonl` | Desktop app liveness/recency applies unless `ended_at` is set; disconnected sessions stay dormant during retention; archived/subagent-owned threads from `~/.codex/state_5.sqlite` filter visibility; memory/title helper sessions auto-hide; deep links use `codex://threads/<uuid>` |
-| opencode | Yes | JS plugin → `cctop-hook` CLI via `execFileSync` | `source: "opencode"`; PID-keyed `<pid>.json`; installed at `~/.config/opencode/plugins/cctop.js` | Plugin load and `session.created` start tracking; PID liveness decides finished state |
-| pi | Yes | TS extension → `cctop-hook` CLI via `execFileSync` | `source: "pi"`; PID-keyed `<pid>.json`; installed at `~/.pi/agent/extensions/cctop.ts` | Skips non-interactive sessions (`ctx.hasUI === false`); `session_shutdown` sends `SessionEnd`; PID liveness decides finished state |
+| opencode | Yes | JS plugin → `cctop-hook` CLI via `execFileSync` | `source: "opencode"`; PID-keyed `<pid>.json`; installed at `~/.config/opencode/plugins/cctop.js`; explicit source wins over inherited Claude/Codex Desktop bundle IDs | Plugin load and `session.created` start tracking; PID liveness decides finished state |
+| pi | Yes | TS extension → `cctop-hook` CLI via `execFileSync` | `source: "pi"`; PID-keyed `<pid>.json`; installed at `~/.pi/agent/extensions/cctop.ts`; explicit source wins over inherited Claude/Codex Desktop bundle IDs | Skips non-interactive sessions (`ctx.hasUI === false`); `session_shutdown` sends `SessionEnd`; PID liveness decides finished state |
 | Aider | No | — | — | — |
 | Goose | No | — | — | — |
 | Amp | No | — | — | — |
@@ -473,6 +474,7 @@ cat ~/.cctop/sessions/<session-file>.json \
 - `created_by_hook_version == null` or missing means the file was probably created by a pre-metadata/outdated hook. Check whether `~/.cctop/bin/cctop-hook` points at the current app-bundled hook and whether the app launch repair path ran.
 - `created_by_hook_version` missing but `last_written_by_hook_version` current means a legacy file was later updated by a current hook; do not infer the original writer.
 - Both fields current means the hook writer is probably not stale; inspect resolved harness/source, client event delivery/logs, PID/app liveness, and visibility/lifecycle classification as relevant to the symptom.
+- If `source` is `opencode` or `pi` but `terminal.bundle_id` is `com.openai.codex` or `com.anthropic.claudefordesktop`, keep the opencode/pi identity and debug plugin process lifecycle. Those explicit non-desktop harnesses can inherit GUI bundle IDs from the launching environment.
 
 ### Quick Commands
 
