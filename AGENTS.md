@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-cctop is a macOS menubar app for monitoring AI coding sessions across workspaces. It tracks session status (idle, working, needs attention) via tool-specific plugins and allows jumping to sessions. Works with Claude Code, opencode, pi, and Codex CLI.
+This file is the canonical guide for agents helping develop cctop. cctop itself is a macOS menubar app for monitoring AI coding sessions across workspaces; it tracks session status through client integrations and allows jumping to sessions.
 
 ## MUST FOLLOW: Development Principles
 
@@ -17,8 +17,8 @@ cctop is a macOS menubar app for monitoring AI coding sessions across workspaces
 
 - Work from latest `origin/master` before starting a new cctop change.
 - Prefer small, reviewable changes. Do not bundle unrelated lifecycle, UI, release, and documentation work unless the user asks for one PR.
-- For non-trivial work, pair with a navigator agent when the current environment supports it. Keep the navigator read-only unless there is a clearly separated write scope.
-- Be proactive with review feedback: if there is exactly one clear, low-risk, actionable review comment on an active agent-authored PR, implement it locally, run focused verification, and push. Do not wait for the user to repeat the request.
+- For non-trivial work, use a teammate/navigator agent only when the active development environment explicitly provides that capability. This refers to development workflow, not cctop-tracked product agents or subagents. Keep the navigator read-only unless there is a clearly separated write scope.
+- Be proactive with review feedback: for PRs you are actively maintaining, if there is exactly one clear, low-risk, actionable review comment, implement it locally, run focused verification, and push when authorized to update the PR. Do not wait for the user to repeat the request.
 - Never reply to GitHub PR comments or issues, and do not resolve GitHub review threads. Leave GitHub conversation actions to the developer.
 - Do not commit temporary explanation artifacts, local investigation HTML, screenshots, scratch scripts, or generated debugging files unless they are intentional product/docs assets.
 - Keep canonical agent guidance in this file. Pointer files such as `CLAUDE.md` should redirect here instead of duplicating instructions that will drift.
@@ -36,7 +36,7 @@ cctop is a macOS menubar app for monitoring AI coding sessions across workspaces
 - For wrong source, wrong grouping, stale status, duplicate display, or unexpected dormant/idle behavior, inspect the session JSON before changing display logic.
 - `created_by_hook_version` missing or null on a file that should have been created by hook `0.16.0+` is strong evidence of a pre-metadata or stale hook writer.
 - `last_written_by_hook_version` tells you the latest hook that touched the file, not necessarily the original creator.
-- If hook provenance is current, investigate `harness_name` / `--harness`, client lifecycle events, PID liveness, and UI classification in that order.
+- If hook provenance is current, inspect resolved harness/source, client event delivery/logs, PID/app liveness, and visibility/lifecycle classification as relevant to the symptom.
 - Apply lifecycle and hook fixes consistently across all supported clients unless the problem is explicitly client-specific.
 
 ## Architecture
@@ -54,7 +54,7 @@ cctop/
 │   │   ├── Services/              # SessionManager, FocusTerminal
 │   │   └── Hook/                  # cctop-hook CLI target only
 │   │       ├── HookMain.swift     # CLI entry point (stdin, args, dispatch)
-│   │       ├── HookInput.swift    # Codable struct for Claude Code hook JSON
+│   │       ├── HookInput.swift    # Codable struct for cctop-hook input JSON from all integrations
 │   │       ├── HookHandler.swift       # Core logic (transitions, cleanup, PID)
 │   │       ├── SessionNameLookup.swift # Session name from transcript/index
 │   │       └── HookLogger.swift        # Per-session logging
@@ -72,7 +72,7 @@ cctop/
 │   ├── bundle-macos.sh        # Build and bundle .app
 │   ├── sign-and-notarize.sh   # Code sign + Apple notarization
 │   ├── generate-appcast.sh    # Sparkle appcast (multi-arch)
-│   ├── bump-version.sh        # Version bumper (all files incl. site/index.html)
+│   ├── bump-version.sh        # Version bumper (project, hook, plugin, packaging, site fallback)
 │   └── render-og.sh           # Render site/og.html → site/og.png (1200x630)
 ├── site/                # Public website (cctop.app)
 │   ├── index.html       # Single static page, no build step
@@ -105,7 +105,7 @@ xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -co
 
 **Visual verification:** Open the Xcode project and use SwiftUI Previews (Canvas) for instant visual feedback. All views have `#Preview` blocks with mock data.
 
-**Data flow:** The menubar app reads `~/.cctop/sessions/*.json` files. These are written by `cctop-hook` (Swift CLI), which is called by all plugins (Claude Code hooks, opencode JS plugin, pi TS extension). Both Xcode targets share model code.
+**Data flow:** The menubar app reads `~/.cctop/sessions/*.json` files. These are written by `cctop-hook` (Swift CLI), which is called by the supported client integrations (Claude Code hooks, opencode JS plugin, pi TS extension, and Codex CLI hooks + shim). Both Xcode targets share model code.
 
 ### Website (`site/`)
 
@@ -147,26 +147,26 @@ scripts/render-og.sh   # writes site/og.png from site/og.html
 
 The script uses Chrome headless (auto-detected on macOS, override with `CHROME_BIN=...`). It validates the output is exactly 1200×630 and exits non-zero if rendering fails. The script is also safe to re-run — it always overwrites the existing PNG.
 
-## Supported Agents
+## Supported Client Integrations
 
-| Agent | Supported | Integration | Runtime | Plugin Location | Detection |
+| Client | Supported | Integration | Runtime | Plugin Location | Detection |
 |-------|-----------|-------------|---------|-----------------|-----------|
-| Claude Code | Yes | Shell hooks → `cctop-hook` CLI | Subprocess (Swift) | `~/.claude/plugins/cache/cctop/` | Plugin dir exists |
+| Claude Code | Yes | Shell hooks → `cctop-hook` CLI | Subprocess (Swift) | `~/.claude/plugins/cache/cctop/cctop/<version>/` | Active version has `.claude-plugin/plugin.json` and no `.orphaned_at` |
 | opencode | Yes | JS plugin → `cctop-hook` CLI | Bun | `~/.config/opencode/plugins/cctop.js` | `~/.config/opencode/` exists |
 | pi | Yes | TS extension → `cctop-hook` CLI | Node.js (jiti) | `~/.pi/agent/extensions/cctop.ts` | `~/.pi/` exists |
-| Codex CLI | Yes | `hooks.json` + shim → `cctop-hook` CLI | Shell (via `$SHELL -lc`) | `~/.codex/hooks.json` + `~/.codex/cctop-shim.sh` | `~/.codex/` exists |
+| Codex CLI | Yes | `hooks.json` + shim → `cctop-hook` CLI | Codex hook command + shell shim | `~/.codex/hooks.json` + `~/.codex/cctop-shim.sh` | `~/.codex/` exists |
 | Aider | No | — | — | — | — |
 | Goose | No | — | — | — | — |
 | Amp | No | — | — | — | — |
 
 ### How each integration works
 
-- **Claude Code**: Fires shell hooks on lifecycle events. A shell shim (`run-hook.sh`) dispatches to `cctop-hook`, a Swift CLI bundled in the app. `cctop-hook` reads JSON from stdin, applies status transitions, and writes `~/.cctop/sessions/{pid}.json`. Installed via `claude plugin install cctop`.
+- **Claude Code**: Fires shell hooks on lifecycle events. A shell shim (`run-hook.sh`) dispatches to `cctop-hook`, a Swift CLI bundled in the app. `cctop-hook` reads JSON from stdin, applies status transitions, and writes `~/.cctop/sessions/{pid}.json`. Installed via `claude plugin marketplace add st0012/cctop && claude plugin install cctop`.
 - **opencode**: Runs a JS plugin in-process (Bun). The plugin translates opencode events to `cctop-hook` calls via `execFileSync`. Installed via the app UI (copies bundled plugin to opencode's plugins dir).
 - **pi**: Runs a TS extension in-process (Node.js via jiti). The extension translates pi events to `cctop-hook` calls via `execFileSync`. Skips non-interactive sessions (`ctx.hasUI === false`) to avoid tracking background agents. Installed via the app UI (copies bundled extension to pi's extensions dir).
-- **Codex CLI**: Uses Codex's lifecycle hooks system (feature flag `[features].hooks` in `~/.codex/config.toml`, default-true). cctop writes a shell shim to `~/.codex/cctop-shim.sh` and merges five hook entries into `~/.codex/hooks.json` (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop). config.toml is only patched when there's something to fix: (a) strip any `codex_hooks` line, which triggers Codex's startup warning whenever loaded; (b) override an explicit `hooks = false` opt-out so the install actually fires. The "Update Available" tile in Settings surfaces any pending patch so the user opts in with a click rather than having cctop edit their config silently. `isInstalled()` treats an unset flag as installed (Codex default) — only an explicit opt-out under `[features]` counts as not installed. Each event fires `$SHELL -lc "~/.codex/cctop-shim.sh <Event>"`, which execs `cctop-hook` with `--harness codex`. **Codex quirks to know about:** interactive `codex` does NOT fire `SessionStart` at cold launch — it fires SessionStart immediately before the first `UserPromptSubmit`, so cctop won't display an interactive codex session until the user submits their first prompt. Tool tracking is limited to shell calls (Codex only emits `PreToolUse`/`PostToolUse` for its `local_shell` tool today). No `SessionEnd` event — dead sessions are cleaned up via PID liveness.
+- **Codex CLI**: Uses Codex's lifecycle hooks system (feature flag `[features].hooks` in `~/.codex/config.toml`, default-true). cctop writes a shell shim to `~/.codex/cctop-shim.sh` and merges five hook entries into `~/.codex/hooks.json` (SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop). config.toml is only patched when there's something to fix: (a) strip any `codex_hooks` line, which triggers Codex's startup warning whenever loaded; (b) override an explicit `hooks = false` opt-out so the install actually fires. The "Update Available" tile in Settings surfaces any pending patch so the user opts in with a click rather than having cctop edit their config silently. `isInstalled()` treats an unset flag as installed (Codex default) — only an explicit opt-out under `[features]` counts as not installed. Each installed hook invokes `~/.codex/cctop-shim.sh <Event>`, which execs `cctop-hook <Event> --harness codex`.
 
-All paths converge at `~/.cctop/sessions/*.json` — the menubar app watches this directory and renders sessions regardless of source. Each tool identifies itself via `harness_name` in the hook input (JSON field for opencode/pi, `--harness` CLI arg for Claude Code and Codex). The session JSON file still uses the `source` key for the harness name (MIGRATION(harness_name) tracks the eventual rename).
+All paths converge at `~/.cctop/sessions/*.json` — the menubar app watches this directory and renders sessions regardless of source. Each client identifies itself via `harness_name` in the hook input (JSON field for opencode/pi, `--harness` CLI arg for Claude Code and Codex). The session JSON file still uses the `source` key for the harness name (MIGRATION(harness_name) tracks the eventual rename).
 
 Hook writer metadata starts with the hook version that introduced it (`0.16.0`). New files written by metadata-aware hooks include `created_by_hook_version`; each write refreshes `last_written_by_hook_version`. Do not backfill `created_by_hook_version` on legacy files, because the true creator is unknown. If `created_by_hook_version` is missing or null on a file that should have been created by `0.16.0+`, treat it as strong evidence that an outdated/pre-metadata hook created the file and inspect the app-owned hook install path before changing UI classification logic.
 
@@ -181,7 +181,7 @@ Hook writer metadata starts with the hook version that introduced it (`0.16.0`).
 
 ### Data Flow
 
-All tools use `cctop-hook` as the single entry point for session state management. Each plugin translates tool-specific events into hook calls.
+All supported clients use `cctop-hook` as the single entry point for session state management. Each plugin or hook shim translates client-specific events into hook calls.
 
 **Claude Code path:**
 1. Claude Code fires hooks (SessionStart, UserPromptSubmit, Stop, etc.)
@@ -199,7 +199,12 @@ All tools use `cctop-hook` as the single entry point for session state managemen
 3. `cctop-hook` writes session files to `~/.cctop/sessions/`
 4. Non-interactive sessions (`ctx.hasUI === false`) are skipped entirely
 
-**All paths converge:** The menubar app (SessionManager file watcher) reads `~/.cctop/sessions/*.json` and displays live status regardless of source. Sessions include a `source` field identifying the harness (`"cc"` for Claude Code, `"opencode"` for opencode, `"pi"` for pi, `"codex"` for Codex CLI; `nil` for legacy sessions before the harness_name migration).
+**Codex CLI path:**
+1. Codex fires lifecycle hook commands from `~/.codex/hooks.json`
+2. `cctop-shim.sh` dispatches to `cctop-hook <Event> --harness codex`
+3. `cctop-hook` writes session files to `~/.cctop/sessions/`
+
+**All paths converge:** The menubar app (SessionManager file watcher) reads `~/.cctop/sessions/*.json` and displays live status regardless of source. Sessions include a `source` field identifying the harness (`"cc"` for Claude Code, `"opencode"` for opencode, `"pi"`, `"codex"`). Most integrations write PID-keyed files (`<pid>.json`); Codex writes `codex-<session_id>.json` because multiple conversations can share one host PID.
 
 ## Development Commands
 
@@ -216,7 +221,7 @@ make lint
 # Validate the hook input contract against fixtures, Swift parsing, and plugins
 make contract
 
-# Build + lint + test (default)
+# Lint + contract validation + build + test (default)
 make all
 
 # Build and open the menubar app
@@ -238,7 +243,7 @@ scripts/bump-version.sh 0.3.0
 scripts/bundle-macos.sh
 ```
 
-**IMPORTANT:** Always use `scripts/bump-version.sh <version>` to bump versions. Never edit version numbers manually — the script updates all files including `CURRENT_PROJECT_VERSION` in the Xcode project.
+**IMPORTANT:** Always use `scripts/bump-version.sh <version>` to bump versions. Never edit version numbers manually — the script updates versioned files including the Xcode project, `Config.hookVersion`, plugin manifests, packaging, and the site fallback badge.
 
 ### Hook Contract Validation
 
@@ -263,11 +268,14 @@ echo '{"session_id":"test123","cwd":"/tmp","hook_event_name":"SessionStart"}' | 
 # Or use the debug build
 echo '{"session_id":"test123","cwd":"/tmp","hook_event_name":"SessionStart"}' | menubar/build/Build/Products/Debug/cctop-hook SessionStart
 
-# Check if session was created
-cat ~/.cctop/sessions/test123.json
+# Check if session was created. Non-Codex files are usually PID-keyed.
+cat ~/.cctop/sessions/*.json | jq 'select(.session_id=="test123")'
 
 # Clean up test session
-rm ~/.cctop/sessions/test123.json
+for f in "$HOME"/.cctop/sessions/*.json; do
+  [ -e "$f" ] || continue
+  jq -e 'select(.session_id=="test123")' "$f" >/dev/null && rm "$f"
+done
 ```
 
 ## Testing the opencode Plugin
@@ -298,7 +306,7 @@ Note: The app only installs the plugin when the user explicitly clicks "Install 
 
 ## Session Status Logic
 
-6-status model with forward-compatible decoding (unknown statuses map to `.needsAttention`). Transitions are centralized in `HookEvent.swift`. All tools go through `cctop-hook`; each plugin translates its events into hook events (see tables below).
+6-status model with forward-compatible decoding. Unknown persisted statuses decode to `.needsAttention` when they contain `waiting`, otherwise `.working`. Transitions are centralized in `HookEvent.swift`. All supported clients go through `cctop-hook`; each plugin or hook shim translates its events into hook events (see tables below).
 
 ### Claude Code Hook Events
 
@@ -312,12 +320,12 @@ Note: The app only installs the plugin when the user explicitly clicks "Install 
 | Stop | waiting_input |
 | Notification (idle_prompt) | waiting_input |
 | Notification (elicitation_dialog) | waiting_input |
-| Notification (permission_prompt) | waiting_permission |
+| Notification (permission_prompt) | no status change; PermissionRequest already sets waiting_permission |
 | PermissionRequest | waiting_permission |
 | SubagentStart | (no status change — adds to active_subagents) |
 | SubagentStop | (no status change — removes from active_subagents) |
 | PreCompact | compacting |
-| SessionEnd | (removes session file immediately) |
+| SessionEnd | stamps ended_at; desktop sessions also stamp disconnected_at for later lifecycle handling |
 
 ### opencode Plugin Event Mapping
 
@@ -325,11 +333,13 @@ The opencode plugin (`plugin.js`) translates opencode events to cctop-hook calls
 
 | opencode Event | Hook Event Called |
 |------------|--------|
+| plugin load | SessionStart |
 | session.created | SessionStart |
 | chat.message | UserPromptSubmit |
 | tool.execute.before | PreToolUse |
 | tool.execute.after | PostToolUse |
 | session.idle | Stop |
+| session.error | SessionError |
 | session.status (retry) | SessionError |
 | permission.ask | PermissionRequest |
 | experimental.session.compacting | PreCompact |
@@ -355,9 +365,9 @@ The pi extension (`cctop.ts`) translates pi events to cctop-hook calls. Non-inte
 
 ### Session File Format
 
-Session files are keyed by PID (`{pid}.json`), not session_id. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse. Dead sessions are detected via PID liveness + start time checking. Each session includes `"source": "<harness>"` (`"cc"`, `"opencode"`, `"pi"`, `"codex"`). Legacy sessions without the field are treated as Claude Code.
+Non-Codex session files are keyed by PID (`{pid}.json`). Codex files are keyed by session ID (`codex-<session_id>.json`) because multiple conversations can share one host PID. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse where PID identity applies. Desktop-hosted sessions use desktop lifecycle rules, app liveness/recency, and archive visibility checks. Each session includes `"source": "<harness>"` (`"cc"`, `"opencode"`, `"pi"`, `"codex"`). Legacy sessions without the field are treated as Claude Code.
 
-The `active_subagents` field tracks currently running subagents (Agent tool). It's `nil` for sessions that haven't reported subagent events (old plugin), `[]` when no subagents are active, or an array of `{agent_id, agent_type, started_at}` objects. The menubar app shows a purple badge (e.g. "2 agents") when the count is > 0.
+The `active_subagents` field tracks currently running subagents (Agent tool). It's `nil` for sessions that haven't reported subagent events (old plugin), `[]` when no subagents are active, or an array of `{agent_id, agent_type, started_at}` objects. The menubar app shows an agent-count label (e.g. "2 agents") when the count is > 0.
 
 ## Notch Status View
 
@@ -405,10 +415,10 @@ pi fires event        -> cctop.ts (TS)       -> cctop-hook (HOOK) -> session fil
 
 ### Log Files
 
-- `~/.cctop/logs/{session_id}.log` — Per-session log with SHIM + HOOK entries
+- `~/.cctop/logs/{session_id}.log` — Per-session log. Claude Code records SHIM + HOOK entries; direct plugins record HOOK entries once `cctop-hook` runs.
 - `~/.cctop/logs/_errors.log` — Pre-parse errors (before session ID is known)
 
-Log files are automatically cleaned up when their session is cleaned up (PID no longer alive).
+Some hook-side stale cleanup removes per-session logs. SessionManager archive/GC paths remove session JSON only.
 
 ### Log Format
 
@@ -429,11 +439,11 @@ Examples:
 
 | Symptom in session log | Cause | Fix |
 |------------------------|-------|-----|
-| No log file for a session | Claude Code not firing hooks | Check `claude plugin list`, restart session |
+| No log file for a Claude Code session | Claude Code not firing hooks | Check `claude plugin list`, restart session |
 | SHIM entries but no HOOK entries | cctop-hook binary not starting | Ensure cctop.app is in /Applications/, check paths |
 | HOOK entries but session file stale | File write failure | Check disk space, permissions on ~/.cctop/sessions/ |
-| HOOK entries present and session file fresh | Menubar file watcher issue | Restart the menubar app |
-| Entries stop but session is still running | That Claude Code session stopped firing hooks | Check if session PID is still alive |
+| HOOK entries present and session file fresh, but not visible | Visibility/archive/hidden/lifecycle filter or file watcher issue | Inspect session JSON fields first; restart the menubar app only after ruling out filters |
+| Entries stop but session is still running | Client stopped firing hooks | Check client process/lifecycle state and whether PID or desktop app liveness still applies |
 
 ### Diagnosing Wrong Session Identity
 
@@ -446,7 +456,7 @@ cat ~/.cctop/sessions/<session-file>.json \
 
 - `created_by_hook_version == null` or missing means the file was probably created by a pre-metadata/outdated hook. Check whether `~/.cctop/bin/cctop-hook` points at the current app-bundled hook and whether the app launch repair path ran.
 - `created_by_hook_version` missing but `last_written_by_hook_version` current means a legacy file was later updated by a current hook; do not infer the original writer.
-- Both fields current means the hook writer is probably not stale; investigate `harness_name` / `--harness` input resolution and then UI classification.
+- Both fields current means the hook writer is probably not stale; inspect resolved harness/source, client event delivery/logs, PID/app liveness, and visibility/lifecycle classification as relevant to the symptom.
 
 ### Quick Commands
 
