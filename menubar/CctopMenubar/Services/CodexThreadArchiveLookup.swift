@@ -81,6 +81,12 @@ struct CodexThreadArchiveLookup {
         }
     }
 
+    /// Returns Codex one-shot exec helper threads that were not initiated as normal user-visible
+    /// conversations. Older state DB schemas do not have these columns; prepare failure returns nil.
+    func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        matchingThreadIDs(matching: threadIDs, whereClause: "source = 'exec' AND has_user_event = 0")
+    }
+
     private func matchingThreadIDs(matching threadIDs: Set<String>, whereClause predicate: String) -> Set<String>? {
         guard !threadIDs.isEmpty else { return [] }
         guard FileManager.default.fileExists(atPath: stateDatabasePath) else { return [] }

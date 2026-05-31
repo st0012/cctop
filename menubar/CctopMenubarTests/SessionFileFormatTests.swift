@@ -7,7 +7,9 @@ final class SessionFileFormatTests: XCTestCase {
         archivedThreads: Set<String>,
         subagentThreads: Set<String> = [],
         gitOrigins: [String: String] = [:],
-        cwds: [String: String] = [:]
+        cwds: [String: String] = [:],
+        execHelperThreads: Set<String> = [],
+        userExecThreads: Set<String> = []
     ) throws {
         func sqlValue(_ value: String?) -> String {
             guard let value else { return "NULL" }
@@ -16,18 +18,32 @@ final class SessionFileFormatTests: XCTestCase {
 
         let archivedRows = archivedThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd) VALUES (\(sqlValue($0)), 1, 'user', NULL, NULL);
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
+            VALUES (\(sqlValue($0)), 1, 'user', NULL, NULL, 'vscode', 1);
             """
         }.joined(separator: "\n")
         let subagentRows = subagentThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd) VALUES (\(sqlValue($0)), 0, 'subagent', NULL, NULL);
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
+            VALUES (\(sqlValue($0)), 0, 'subagent', NULL, NULL, 'vscode', 0);
             """
         }.joined(separator: "\n")
         let metadataRows = Set(gitOrigins.keys).union(cwds.keys).map { threadID in
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd)
-            VALUES (\(sqlValue(threadID)), 0, 'user', \(sqlValue(gitOrigins[threadID])), \(sqlValue(cwds[threadID])));
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
+            VALUES (\(sqlValue(threadID)), 0, 'user', \(sqlValue(gitOrigins[threadID])), \(sqlValue(cwds[threadID])), 'vscode', 1);
+            """
+        }.joined(separator: "\n")
+        let execHelperRows = execHelperThreads.map {
+            """
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
+            VALUES (\(sqlValue($0)), 0, '', NULL, NULL, 'exec', 0);
+            """
+        }.joined(separator: "\n")
+        let userExecRows = userExecThreads.map {
+            """
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
+            VALUES (\(sqlValue($0)), 0, '', NULL, NULL, 'exec', 1);
             """
         }.joined(separator: "\n")
         let sql = """
@@ -37,11 +53,15 @@ final class SessionFileFormatTests: XCTestCase {
             archived INTEGER NOT NULL DEFAULT 0,
             thread_source TEXT,
             git_origin_url TEXT,
-            cwd TEXT
+            cwd TEXT,
+            source TEXT NOT NULL DEFAULT '',
+            has_user_event INTEGER NOT NULL DEFAULT 0
         );
         \(archivedRows)
         \(subagentRows)
         \(metadataRows)
+        \(execHelperRows)
+        \(userExecRows)
         """
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
@@ -528,6 +548,90 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertTrue(try Session.fromFile(path: cliPath).hidden)
         XCTAssertTrue(try Session.fromFile(path: desktopPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerHidesCodexExecHelperThreadsWithoutRemovingFiles() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-exec-helper-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            execHelperThreads: ["codex-exec-helper"]
+        )
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-codex-exec-helper.json")
+        try codexDesktopSession(
+            sessionId: "codex-exec-helper",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        ).writeToFile(path: sessionPath)
+        FileManager.default.createFile(atPath: sessionPath + ".lock", contents: nil)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath + ".lock"))
+        XCTAssertTrue(try Session.fromFile(path: sessionPath).hidden)
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerKeepsUserVisibleCodexExecThreads() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-user-exec-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            userExecThreads: ["codex-user-exec"]
+        )
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-codex-user-exec.json")
+        try codexDesktopSession(
+            sessionId: "codex-user-exec",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        ).writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["codex-user-exec"])
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
 
         manager = nil
     }
