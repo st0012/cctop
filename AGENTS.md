@@ -161,6 +161,8 @@ The script uses Chrome headless (auto-detected on macOS, override with `CHROME_B
 | Goose | No | — | — | — |
 | Amp | No | — | — | — |
 
+For detailed lifecycle and persistence rules, see [Session Status Logic](#session-status-logic), [Session File Format](#session-file-format), and [`docs/session-files.md`](docs/session-files.md). Keep this table as the quick integration map.
+
 ### How each integration works
 
 - **Claude Code**: Fires shell hooks on lifecycle events. A shell shim (`run-hook.sh`) dispatches to `cctop-hook`, a Swift CLI bundled in the app. `cctop-hook` reads JSON from stdin, applies status transitions, and writes `~/.cctop/sessions/{pid}.json`. Installed via `claude plugin marketplace add st0012/cctop && claude plugin install cctop`.
