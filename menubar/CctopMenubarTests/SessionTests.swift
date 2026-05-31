@@ -166,6 +166,82 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.id, "abc-123")
     }
 
+    // MARK: - Notification identity
+
+    func testNotificationUserInfoStoresStableCodexSessionID() {
+        let session = Session.mock(id: "codex-thread-1", pid: 12345, source: "codex")
+
+        let userInfo = SessionIdentityPolicy.notificationUserInfo(for: session)
+
+        XCTAssertEqual(
+            userInfo[SessionIdentityPolicy.notificationSessionIDKey] as? String,
+            "codex-thread-1"
+        )
+        XCTAssertEqual(
+            userInfo[SessionIdentityPolicy.notificationSessionPIDKey] as? String,
+            "12345"
+        )
+    }
+
+    func testNotificationLookupPrefersStableSessionIDOverSharedCodexPID() {
+        let first = Session.mock(id: "codex-thread-1", pid: 12345, source: "codex")
+        let second = Session.mock(id: "codex-thread-2", pid: 12345, source: "codex")
+        let userInfo: [AnyHashable: Any] = [
+            SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-2",
+            SessionIdentityPolicy.notificationSessionPIDKey: "12345",
+        ]
+
+        let matched = SessionIdentityPolicy.session(
+            matchingNotificationUserInfo: userInfo,
+            in: [first, second]
+        )
+
+        XCTAssertEqual(matched?.sessionId, "codex-thread-2")
+    }
+
+    func testNotificationLookupDoesNotFallBackWhenStableSessionIDMisses() {
+        let session = Session.mock(id: "codex-thread-1", pid: 12345, source: "codex")
+        let userInfo: [AnyHashable: Any] = [
+            SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-2",
+            SessionIdentityPolicy.notificationSessionPIDKey: "12345",
+        ]
+
+        let matched = SessionIdentityPolicy.session(
+            matchingNotificationUserInfo: userInfo,
+            in: [session]
+        )
+
+        XCTAssertNil(matched)
+    }
+
+    func testNotificationLookupKeepsLegacyPIDFallbackForNonCodex() {
+        let session = Session.mock(id: "claude-thread-1", pid: 12345)
+        let userInfo: [AnyHashable: Any] = [
+            SessionIdentityPolicy.notificationSessionPIDKey: "12345",
+        ]
+
+        let matched = SessionIdentityPolicy.session(
+            matchingNotificationUserInfo: userInfo,
+            in: [session]
+        )
+
+        XCTAssertEqual(matched?.sessionId, "claude-thread-1")
+    }
+
+    func testNotificationLookupKeepsBestEffortLegacyPIDFallbackForCodex() {
+        let session = Session.mock(id: "codex-thread-1", pid: 12345, source: "codex")
+        let userInfo: [AnyHashable: Any] = [
+            SessionIdentityPolicy.notificationSessionPIDKey: "12345",
+        ]
+
+        let matched = SessionIdentityPolicy.session(
+            matchingNotificationUserInfo: userInfo,
+            in: [session]
+        )
+
+        XCTAssertEqual(matched?.sessionId, "codex-thread-1")
+    }
+
     func testDecodesPidStartTime() throws {
         let json = """
         {

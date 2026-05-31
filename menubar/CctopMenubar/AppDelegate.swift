@@ -302,9 +302,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let pidStr = response.notification.request.content.userInfo["sessionPID"] as? String
+        let userInfo = response.notification.request.content.userInfo
         DispatchQueue.main.async { [weak self] in
-            if let session = self?.sessionManager.sessions.first(where: { $0.id == pidStr }) {
+            guard let self else { return }
+            if let session = SessionIdentityPolicy.session(
+                matchingNotificationUserInfo: userInfo,
+                in: sessionManager.sessions
+            ) {
                 focusTerminal(session: session)
             }
         }

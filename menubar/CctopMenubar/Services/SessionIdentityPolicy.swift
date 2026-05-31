@@ -1,6 +1,9 @@
 import Foundation
 
 enum SessionIdentityPolicy {
+    static let notificationSessionIDKey = "sessionID"
+    static let notificationSessionPIDKey = "sessionPID"
+
     /// GUI environments can leak `__CFBundleIdentifier` into child tools; an explicit
     /// non-desktop harness must not become "Codex Desktop" or "Claude Desktop" because
     /// of inherited env. Other sources keep the previous bundle-first behavior, including
@@ -48,6 +51,32 @@ enum SessionIdentityPolicy {
             return "desktop:\(session.sessionId)"
         }
         return "active:\(displayID(for: session))"
+    }
+
+    static func notificationUserInfo(for session: Session) -> [AnyHashable: Any] {
+        [
+            notificationSessionIDKey: displayID(for: session),
+            notificationSessionPIDKey: session.pid.map(String.init) ?? "",
+        ]
+    }
+
+    static func session(
+        matchingNotificationUserInfo userInfo: [AnyHashable: Any],
+        in sessions: [Session]
+    ) -> Session? {
+        if let sessionID = nonEmptyString(userInfo[notificationSessionIDKey]) {
+            return sessions.first { displayID(for: $0) == sessionID }
+        }
+
+        guard let pid = nonEmptyString(userInfo[notificationSessionPIDKey]) else { return nil }
+        return sessions.first {
+            displayID(for: $0) == pid || $0.pid.map(String.init) == pid
+        }
+    }
+
+    private static func nonEmptyString(_ value: Any?) -> String? {
+        guard let string = value as? String, !string.isEmpty else { return nil }
+        return string
     }
 
     /// Collapse duplicate display ids during migration, keeping the most recently active copy.

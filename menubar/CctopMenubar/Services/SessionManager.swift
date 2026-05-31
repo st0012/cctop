@@ -416,7 +416,7 @@ class SessionManager: ObservableObject {
             content.body = "Needs attention"
         }
         content.sound = .default
-        content.userInfo = ["sessionPID": session.pid.map(String.init) ?? ""]
+        content.userInfo = SessionIdentityPolicy.notificationUserInfo(for: session)
 
         let request = UNNotificationRequest(
             identifier: "session-\(session.id)",
