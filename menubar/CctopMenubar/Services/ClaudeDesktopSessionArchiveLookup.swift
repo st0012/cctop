@@ -130,10 +130,17 @@ private struct ClaudeDesktopSessionMetadata: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         cliSessionId = try container.decodeIfPresent(String.self, forKey: .cliSessionId)
         isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived)
-        originCwd = try container.decodeIfPresent(String.self, forKey: .originCwd)
-        worktreeName = try container.decodeIfPresent(String.self, forKey: .worktreeName)
+        originCwd = Self.decodeStringIfPresent(from: container, forKey: .originCwd)
+        worktreeName = Self.decodeStringIfPresent(from: container, forKey: .worktreeName)
         lastActivityAt = Self.decodeRecencyKey(from: container, forKey: .lastActivityAt)
         createdAt = Self.decodeRecencyKey(from: container, forKey: .createdAt)
+    }
+
+    private static func decodeStringIfPresent(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        forKey key: CodingKeys
+    ) -> String? {
+        try? container.decodeIfPresent(String.self, forKey: key)
     }
 
     private static func decodeRecencyKey(

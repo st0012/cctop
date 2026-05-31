@@ -99,8 +99,8 @@ final class SessionFileFormatTests: XCTestCase {
         cliSessionId: String,
         isArchived: Bool,
         lastActivityAt: Any? = nil,
-        originCwd: String? = nil,
-        worktreeName: String? = nil
+        originCwd: Any? = nil,
+        worktreeName: Any? = nil
     ) throws {
         let sessionDir = (root as NSString).appendingPathComponent("account/project")
         try FileManager.default.createDirectory(atPath: sessionDir, withIntermediateDirectories: true)
@@ -1243,6 +1243,24 @@ final class SessionFileFormatTests: XCTestCase {
         let snapshot = ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
             .metadataSnapshot(matching: ["claude-desktop-project"])
         XCTAssertEqual(snapshot?.projectNamesBySessionID["claude-desktop-project"], "cctop")
+    }
+
+    func testClaudeDesktopMetadataSnapshotIgnoresNonStringProjectNameFields() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-project-name-lossy-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "claude-desktop-project",
+            isArchived: true,
+            originCwd: 123,
+            worktreeName: ["generated-worktree"]
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let snapshot = ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+            .metadataSnapshot(matching: ["claude-desktop-project"])
+        XCTAssertEqual(snapshot?.archivedSessionIDs, ["claude-desktop-project"])
+        XCTAssertEqual(snapshot?.projectNamesBySessionID, [:])
     }
 
     func testCodexThreadLookupDerivesProjectNameFromGitOriginURL() throws {
