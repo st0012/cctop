@@ -149,15 +149,17 @@ The script uses Chrome headless (auto-detected on macOS, override with `CHROME_B
 
 ## Supported Client Integrations
 
-| Client | Supported | Integration | Runtime | Plugin Location | Detection |
-|-------|-----------|-------------|---------|-----------------|-----------|
-| Claude Code | Yes | Shell hooks → `cctop-hook` CLI | Subprocess (Swift) | `~/.claude/plugins/cache/cctop/cctop/<version>/` | Active version has `.claude-plugin/plugin.json` and no `.orphaned_at` |
-| opencode | Yes | JS plugin → `cctop-hook` CLI | Bun | `~/.config/opencode/plugins/cctop.js` | `~/.config/opencode/` exists |
-| pi | Yes | TS extension → `cctop-hook` CLI | Node.js (jiti) | `~/.pi/agent/extensions/cctop.ts` | `~/.pi/` exists |
-| Codex CLI | Yes | `hooks.json` + shim → `cctop-hook` CLI | Codex hook command + shell shim | `~/.codex/hooks.json` + `~/.codex/cctop-shim.sh` | `~/.codex/` exists |
-| Aider | No | — | — | — | — |
-| Goose | No | — | — | — | — |
-| Amp | No | — | — | — | — |
+| Client / host | Supported | Hook path | Identity and file key | Lifecycle / visibility notes |
+|-------|-----------|-------------|---------|-----------------|
+| Claude Code | Yes | Claude plugin shell hooks → `run-hook.sh` → `cctop-hook --harness cc` | `source: "cc"`; PID-keyed `<pid>.json`; active plugin version lives under `~/.claude/plugins/cache/cctop/cctop/<version>/` with `.claude-plugin/plugin.json` and no `.orphaned_at` | Terminal/editor host uses PID + process-start-time liveness; finished sessions are archived into Recent Projects and removed |
+| Claude Desktop | Yes | Same Claude plugin hook path, hosted by the Claude Desktop app | `source: "cc"` plus trusted bundle ID `com.anthropic.claudefordesktop`; PID-keyed file; title/archive metadata read from `~/Library/Application Support/Claude/claude-code-sessions` | Desktop app liveness applies unless `ended_at` is set; disconnected sessions stay dormant during retention; archived/orphaned metadata filters visibility; no deep link, so jump-to-session activates the app |
+| Codex CLI | Yes | `~/.codex/hooks.json` → `~/.codex/cctop-shim.sh` → `cctop-hook --harness codex` | `source: "codex"`; session-id-keyed `codex-<session_id>.json` because one host PID can emit multiple conversations | Uses session ID for display/dedup; subagent ownership from `~/.codex/state_5.sqlite` hides subagent-owned sessions |
+| Codex Desktop | Yes | Same Codex hook shim path, hosted by the Codex Desktop app | `source: "codex"` plus trusted bundle ID `com.openai.codex`; session-id-keyed `codex-<session_id>.json`; titles read from `~/.codex/session_index.jsonl` | Desktop app liveness/recency applies unless `ended_at` is set; disconnected sessions stay dormant during retention; archived/subagent-owned threads from `~/.codex/state_5.sqlite` filter visibility; memory/title helper sessions auto-hide; deep links use `codex://threads/<uuid>` |
+| opencode | Yes | JS plugin → `cctop-hook` CLI via `execFileSync` | `source: "opencode"`; PID-keyed `<pid>.json`; installed at `~/.config/opencode/plugins/cctop.js` | Plugin load and `session.created` start tracking; PID liveness decides finished state |
+| pi | Yes | TS extension → `cctop-hook` CLI via `execFileSync` | `source: "pi"`; PID-keyed `<pid>.json`; installed at `~/.pi/agent/extensions/cctop.ts` | Skips non-interactive sessions (`ctx.hasUI === false`); `session_shutdown` sends `SessionEnd`; PID liveness decides finished state |
+| Aider | No | — | — | — |
+| Goose | No | — | — | — |
+| Amp | No | — | — | — |
 
 ### How each integration works
 
