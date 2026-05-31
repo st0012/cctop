@@ -48,6 +48,6 @@ open /Applications/cctop.app
 
 ## After Installation
 
-The hooks registered by this plugin will now work. Session data will be written to `~/.cctop/sessions/` when Claude Code hooks fire.
+The hooks registered by this plugin will now work. Session data will be written to `~/.cctop/sessions/` when Claude Code or Claude Desktop hooks fire.
 
 The menubar app will show session status in the macOS menu bar.

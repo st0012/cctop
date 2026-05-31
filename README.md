@@ -50,10 +50,10 @@ Works with your existing editor, terminal, and workflow.
 
 | Tool | Status | How it connects |
 |------|--------|-----------------|
-| [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Supported | Shell hooks → `cctop-hook` CLI |
+| [Claude Code / Claude Desktop](https://docs.anthropic.com/en/docs/claude-code) | Supported | Shell hooks → `cctop-hook` CLI |
 | [opencode](https://opencode.ai) | Supported | JS plugin → `cctop-hook` CLI |
 | [pi](https://github.com/badlogic/pi-mono) | Supported | TS extension → `cctop-hook` CLI |
-| [Codex CLI](https://github.com/openai/codex) | Supported | Shell hooks → `cctop-hook` CLI |
+| [Codex CLI / Codex Desktop](https://github.com/openai/codex) | Supported | Shell hooks → `cctop-hook` CLI |
 
 ### Supported Editors & Terminals
 
@@ -113,9 +113,9 @@ brew install --cask st0012/cctop/cctop
 
 ### Step 2: Connect your tools
 
-The app auto-detects installed coding tools. For **opencode**, **pi**, and **Codex CLI**, click *Install Plugin* in Settings > Monitored Tools.
+The app auto-detects installed coding tools. For **opencode** and **pi**, click *Install Plugin* in Settings > Monitored Tools. For **Codex CLI or Codex Desktop**, click *Install Hooks*.
 
-For **Claude Code**, run this one-liner in your terminal (the app also exposes a *Copy Install Command* button under Settings > Monitored Tools):
+For **Claude Code or Claude Desktop**, run this one-liner in your terminal (the app also exposes a *Copy Install Command* button under Settings > Monitored Tools):
 
 ```bash
 claude plugin marketplace add st0012/cctop && claude plugin install cctop
@@ -187,7 +187,7 @@ cctop releases up to and including v0.15.2 shipped an appcast that confused Spar
 # Remove the menubar app
 rm -rf /Applications/cctop.app
 
-# Remove the Claude Code plugin
+# Remove the Claude Code / Claude Desktop plugin
 claude plugin remove cctop
 claude plugin marketplace remove cctop
 
@@ -197,7 +197,7 @@ rm ~/.config/opencode/plugins/cctop.js
 # Remove the pi extension
 rm ~/.pi/agent/extensions/cctop.ts
 
-# Remove the Codex CLI plugin
+# Remove the Codex CLI / Codex Desktop hooks
 rm ~/.codex/cctop-shim.sh
 # Then remove cctop entries from ~/.codex/hooks.json (or delete it if cctop was the only user)
 
@@ -214,8 +214,8 @@ All tools go through `cctop-hook` — a single native binary that manages all se
 
 ```
 ┌─────────────┐    hook fires     ┌────────────┐
-│ Claude Code │ ────────────────> │ cctop-hook │ ──┐
-│             │  SessionStart,    │  (Swift)   │   │
+│Claude Code /│ ────────────────> │ cctop-hook │ ──┐
+│  Desktop    │  SessionStart,    │  (Swift)   │   │
 └─────────────┘  Stop, PreTool,…  └────────────┘   │
                                        ▲           │  writes JSON
 ┌─────────────┐   plugin event    ┌────┴───────┐   │  per-session

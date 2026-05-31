@@ -278,6 +278,7 @@ private struct MonitoredToolsView: View {
 
 private struct PluginRowView: View {
     let name: String; let installed: Bool; var needsUpdate: Bool = false
+    var installLabel = "Install Plugin"; var updateLabel = "Update Plugin"
     @Binding var installFailed: Bool
     let install: () -> Bool; let remove: () -> Bool
     @State private var justInstalled = false; @State private var removeHovered = false
@@ -313,8 +314,8 @@ private struct PluginRowView: View {
         }
     }
 
-    private var updateButton: some View { actionButton("Update Plugin") }
-    private var installButton: some View { actionButton("Install Plugin") }
+    private var updateButton: some View { actionButton(updateLabel) }
+    private var installButton: some View { actionButton(installLabel) }
 
     private func actionButton(_ label: String) -> some View {
         Button {
@@ -343,7 +344,7 @@ private struct ClaudeCodePluginRowView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("Claude Code")
+            Text("Claude Code / Desktop")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.textPrimary)
             Spacer()
@@ -409,33 +410,14 @@ struct ClaudeCodeInstallButton: View {
 private struct CodexPluginRowView: View {
     @ObservedObject var pluginManager: PluginManager
     @Binding var installFailed: Bool
-    @State private var showFlagAlert = false
-    private static let flagWarning = "Codex CLI requires the codex_hooks feature flag, "
-        + "which is experimental. Codex will show a startup warning."
     var body: some View {
         PluginRowView(
-            name: "Codex CLI", installed: pluginManager.codexInstalled,
-            needsUpdate: pluginManager.codexNeedsUpdate, installFailed: $installFailed,
-            install: { onInstall() }, remove: { pluginManager.removeCodexPlugin() })
-        .alert("Enable experimental feature?", isPresented: $showFlagAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Enable & Install") { doInstall() }
-        } message: { Text(Self.flagWarning) }
-    }
-    private func onInstall() -> Bool {
-        if pluginManager.codexFlagAlreadyEnabled { return pluginManager.installCodexPlugin() }
-        showFlagAlert = true
-        // PluginRowView interprets false as failure and flashes an error banner.
-        // Suppress it on the next run loop so it never renders.
-        DispatchQueue.main.async { installFailed = false }
-        return false
-    }
-    private func doInstall() {
-        guard pluginManager.installCodexPlugin() else {
-            installFailed = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { installFailed = false }
-            return
-        }
+            name: "Codex CLI / Desktop", installed: pluginManager.codexInstalled,
+            needsUpdate: pluginManager.codexNeedsUpdate,
+            installLabel: "Install Hooks", updateLabel: "Update Hooks",
+            installFailed: $installFailed,
+            install: { pluginManager.installCodexPlugin() },
+            remove: { pluginManager.removeCodexPlugin() })
     }
 }
 

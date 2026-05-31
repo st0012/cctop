@@ -14,7 +14,6 @@ class PluginManager: ObservableObject {
     @Published var codexInstalled: Bool = false
     @Published var codexNeedsUpdate: Bool = false
     @Published var codexConfigExists: Bool = false
-    @Published var codexFlagAlreadyEnabled: Bool = false
 
     static let ccInstallCommand =
         "claude plugin marketplace add st0012/cctop && claude plugin install cctop"
@@ -60,8 +59,6 @@ class PluginManager: ObservableObject {
 
         codexNeedsUpdate = codexInstalled
             && Self.codexInstallStale(configText: codexConfigText)
-        codexFlagAlreadyEnabled = codexConfigText
-            .map(CodexPluginInstaller.isFeatureFlagEnabled) ?? false
     }
 
     /// Cache layout is `<marketplace>/<plugin>/<version>/`. Claude Code writes a `.orphaned_at`
@@ -92,9 +89,7 @@ class PluginManager: ObservableObject {
     /// installed one OR the supplied config.toml content still contains the
     /// deprecated `[features].codex_hooks` key. The install action handles
     /// both: it rewrites the shim and migrates the TOML key in one click.
-    /// Takes the config text as a parameter so callers can dedupe the disk
-    /// read with their own (e.g. `refresh()` reads the file once for the
-    /// `codexFlagAlreadyEnabled` check too).
+    /// Takes the config text as a parameter so callers can dedupe the disk read.
     private static func codexInstallStale(configText: String?) -> Bool {
         if let data = loadBundledResource(name: "codex-shim", ext: "sh"),
            CodexPluginInstaller.needsUpdate(bundledShim: data) {

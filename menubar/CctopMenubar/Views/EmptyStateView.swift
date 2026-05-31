@@ -1,18 +1,14 @@
 import SwiftUI
 
 /// First-run / no-sessions view. Shows a small branded hero and a single
-/// install card that always lists every supported agent — Claude Code,
-/// opencode, pi, Codex CLI — with its identity color and current state.
+/// install card that always lists every supported agent — Claude Code/Desktop,
+/// opencode, pi, Codex CLI/Desktop — with its identity color and current state.
 /// Agents not detected on this machine render with a muted "Not detected"
 /// trailing label so users always see the full set of supported tools.
 struct EmptyStateView: View {
     @ObservedObject var pluginManager: PluginManager
     @State private var justInstalled: Set<AgentKind> = []
     @State private var failedAgent: AgentKind?
-    @State private var showCodexFlagAlert = false
-    private static let codexFlagWarning =
-        "Codex CLI requires the codex_hooks feature flag, which is "
-        + "experimental. Codex will show a startup warning."
 
     var body: some View {
         VStack(spacing: 14) {
@@ -26,12 +22,6 @@ struct EmptyStateView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 18)
         .frame(maxWidth: .infinity)
-        .alert("Enable experimental feature?", isPresented: $showCodexFlagAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Enable & Install") { performCodexInstall() }
-        } message: {
-            Text(Self.codexFlagWarning)
-        }
     }
 
     // MARK: - Hero
@@ -72,7 +62,7 @@ struct EmptyStateView: View {
         if allConnected {
             return "Start a session \u{2014} it will appear here automatically."
         }
-        return "Install the plugin for your AI tool to see live status here."
+        return "Install the plugin or hooks for your AI tool to see live status here."
     }
 
     // MARK: - Agent card
@@ -221,19 +211,9 @@ struct EmptyStateView: View {
         case .pi:
             success = pluginManager.installPiPlugin()
         case .codex:
-            if pluginManager.codexFlagAlreadyEnabled {
-                success = pluginManager.installCodexPlugin()
-            } else {
-                showCodexFlagAlert = true
-                return
-            }
+            success = pluginManager.installCodexPlugin()
         }
         handleInstallResult(agent: agent, success: success)
-    }
-
-    private func performCodexInstall() {
-        let success = pluginManager.installCodexPlugin()
-        handleInstallResult(agent: .codex, success: success)
     }
 
     private func handleInstallResult(agent: AgentKind, success: Bool) {
@@ -297,10 +277,10 @@ private enum AgentKind: String, CaseIterable, Hashable {
 
     var displayName: String {
         switch self {
-        case .claudeCode: return "Claude Code"
+        case .claudeCode: return "Claude Code / Desktop"
         case .opencode:   return "opencode"
         case .pi:         return "pi"
-        case .codex:      return "Codex CLI"
+        case .codex:      return "Codex CLI / Desktop"
         }
     }
 

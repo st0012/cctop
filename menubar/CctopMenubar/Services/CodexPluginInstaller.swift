@@ -3,7 +3,7 @@ import os.log
 
 private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "CodexPluginInstaller")
 
-/// Installs, updates, and removes cctop's Codex CLI hook entries.
+/// Installs, updates, and removes cctop's Codex hook entries.
 /// Installs a shim to `~/.codex/cctop-shim.sh`, merges 5 hook entries into
 /// `~/.codex/hooks.json` (preserving user hooks), and patches
 /// `~/.codex/config.toml` only when needed — Codex defaults `[features].hooks`

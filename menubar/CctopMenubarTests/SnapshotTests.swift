@@ -26,7 +26,7 @@ final class SnapshotTests: XCTestCase {
     }
 
     /// Renders the EmptyStateView in its first-run "nothing installed yet" form
-    /// — all four supported agents (Claude Code, opencode, pi, Codex CLI) detected
+    /// — all four supported agents (Claude Code/Desktop, opencode, pi, Codex CLI/Desktop) detected
     /// on the machine with their respective install CTAs — for use in the README
     /// and marketing site. Shows the full breadth of agent support in one shot.
     ///
@@ -48,6 +48,47 @@ final class SnapshotTests: XCTestCase {
         let view = EmptyStateView(pluginManager: pm)
         try renderScreenshot(view: view, colorScheme: .light, filename: "empty-state-light.png")
         try renderScreenshot(view: view, colorScheme: .dark, filename: "empty-state-dark.png")
+    }
+
+    func testGenerateOnboardingSettingsScreenshot() throws {
+        let pm = PluginManager()
+        pm.ccInstalled = false
+        pm.ocInstalled = false
+        pm.ocConfigExists = true
+        pm.ocNeedsUpdate = false
+        pm.piInstalled = false
+        pm.piConfigExists = true
+        pm.codexInstalled = false
+        pm.codexConfigExists = true
+        pm.codexNeedsUpdate = false
+
+        let view = SettingsSection(updater: DisabledUpdater(), pluginManager: pm)
+        try renderScreenshot(view: view, colorScheme: .light, filename: "onboarding-settings-light.png", width: 360)
+        try renderScreenshot(view: view, colorScheme: .dark, filename: "onboarding-settings-dark.png", width: 360)
+    }
+
+    func testOnboardingCopyNamesDesktopHostsAndOmitsLegacyCodexFlag() throws {
+        let repo = try repoRoot()
+        let checkedFiles = [
+            "menubar/CctopMenubar/Views/EmptyStateView.swift",
+            "menubar/CctopMenubar/Views/SettingsSection.swift",
+            "README.md",
+            "site/index.html",
+            "plugins/codex/cctop-shim.sh",
+        ]
+
+        let combined = try checkedFiles.map { path in
+            try String(contentsOf: repo.appendingPathComponent(path), encoding: .utf8)
+        }.joined(separator: "\n")
+
+        XCTAssertFalse(combined.contains("codex_hooks feature flag"))
+        XCTAssertFalse(combined.contains("Enable experimental feature?"))
+        XCTAssertFalse(combined.contains("will show a startup warning"))
+        XCTAssertTrue(combined.contains("Claude Code / Desktop"))
+        XCTAssertTrue(combined.contains("Codex CLI / Desktop"))
+        XCTAssertTrue(combined.contains("Claude Desktop"))
+        XCTAssertTrue(combined.contains("Codex Desktop"))
+        XCTAssertTrue(combined.contains("Install Hooks"))
     }
 
     func testGenerateRecentProjectsScreenshot() throws {
@@ -118,5 +159,17 @@ final class SnapshotTests: XCTestCase {
 
         try pngData.write(to: URL(fileURLWithPath: outputPath))
         print("Screenshot saved to: \(outputPath)")
+    }
+
+    private func repoRoot() throws -> URL {
+        var url = URL(fileURLWithPath: #filePath)
+        while url.path != "/" {
+            let candidate = url.appendingPathComponent("menubar/CctopMenubar.xcodeproj")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return url
+            }
+            url.deleteLastPathComponent()
+        }
+        throw XCTSkip("Could not locate repository root")
     }
 }
