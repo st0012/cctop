@@ -195,15 +195,23 @@ extension SessionManager {
         now: Date,
         desktopAppConnectionLookup: DesktopAppConnectionLookup = .live
     ) -> [DedupCandidate] {
-        var candidates: [DedupCandidate] = []
-        for url in jsonFiles {
+        let decodedFiles: [(url: URL, session: Session)] = jsonFiles.compactMap { url in
             guard let data = try? Data(contentsOf: url) else {
                 sessionManagerLogger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
-                continue
+                return nil
             }
-            guard var session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
+            guard let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
                 sessionManagerLogger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public)")
-                continue
+                return nil
+            }
+            return (url, session)
+        }
+
+        let projectNames = desktopProjectNamesBySessionID(in: decodedFiles.map(\.session))
+        var candidates: [DedupCandidate] = []
+        for (url, var session) in decodedFiles {
+            if let projectName = projectNames[session.sessionId] {
+                session.desktopProjectName = projectName
             }
             session.lifecycle = SessionLifecyclePolicy.lifecycle(
                 for: session, hostClass: session.hostClass, processAlive: session.isAlive,
@@ -216,5 +224,21 @@ extension SessionManager {
                                              mtime: mtime, path: url.path))
         }
         return candidates
+    }
+
+    nonisolated static func desktopProjectNamesBySessionID(in sessions: [Session]) -> [String: String] {
+        var projectNames: [String: String] = [:]
+
+        let claudeSessionIDs = Set(sessions.filter(\.isClaudeDesktopHost).map(\.sessionId))
+        if let claudeMetadata = ClaudeDesktopSessionArchiveLookup().metadataSnapshot(matching: claudeSessionIDs) {
+            projectNames.merge(claudeMetadata.projectNamesBySessionID) { current, _ in current }
+        }
+
+        let codexThreadIDs = Set(sessions.filter(\.isCodexDesktopHost).map(\.sessionId))
+        if let codexProjectNames = CodexThreadArchiveLookup().projectNames(matching: codexThreadIDs) {
+            projectNames.merge(codexProjectNames) { current, _ in current }
+        }
+
+        return projectNames
     }
 }

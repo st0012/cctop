@@ -5,16 +5,29 @@ final class SessionFileFormatTests: XCTestCase {
     private func writeCodexStateDatabase(
         path: String,
         archivedThreads: Set<String>,
-        subagentThreads: Set<String> = []
+        subagentThreads: Set<String> = [],
+        gitOrigins: [String: String] = [:],
+        cwds: [String: String] = [:]
     ) throws {
+        func sqlValue(_ value: String?) -> String {
+            guard let value else { return "NULL" }
+            return "'\(value.replacingOccurrences(of: "'", with: "''"))'"
+        }
+
         let archivedRows = archivedThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source) VALUES ('\($0)', 1, 'user');
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd) VALUES (\(sqlValue($0)), 1, 'user', NULL, NULL);
             """
         }.joined(separator: "\n")
         let subagentRows = subagentThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source) VALUES ('\($0)', 0, 'subagent');
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd) VALUES (\(sqlValue($0)), 0, 'subagent', NULL, NULL);
+            """
+        }.joined(separator: "\n")
+        let metadataRows = Set(gitOrigins.keys).union(cwds.keys).map { threadID in
+            """
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd)
+            VALUES (\(sqlValue(threadID)), 0, 'user', \(sqlValue(gitOrigins[threadID])), \(sqlValue(cwds[threadID])));
             """
         }.joined(separator: "\n")
         let sql = """
@@ -22,10 +35,13 @@ final class SessionFileFormatTests: XCTestCase {
         CREATE TABLE threads (
             id TEXT PRIMARY KEY,
             archived INTEGER NOT NULL DEFAULT 0,
-            thread_source TEXT
+            thread_source TEXT,
+            git_origin_url TEXT,
+            cwd TEXT
         );
         \(archivedRows)
         \(subagentRows)
+        \(metadataRows)
         """
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
@@ -82,7 +98,9 @@ final class SessionFileFormatTests: XCTestCase {
         root: String,
         cliSessionId: String,
         isArchived: Bool,
-        lastActivityAt: Any? = nil
+        lastActivityAt: Any? = nil,
+        originCwd: String? = nil,
+        worktreeName: String? = nil
     ) throws {
         let sessionDir = (root as NSString).appendingPathComponent("account/project")
         try FileManager.default.createDirectory(atPath: sessionDir, withIntermediateDirectories: true)
@@ -96,6 +114,12 @@ final class SessionFileFormatTests: XCTestCase {
         ]
         if let lastActivityAt {
             payload["lastActivityAt"] = lastActivityAt
+        }
+        if let originCwd {
+            payload["originCwd"] = originCwd
+        }
+        if let worktreeName {
+            payload["worktreeName"] = worktreeName
         }
         let data = try JSONSerialization.data(withJSONObject: payload)
         try data.write(to: URL(fileURLWithPath: metadataPath))
@@ -1186,6 +1210,128 @@ final class SessionFileFormatTests: XCTestCase {
                 .archivedSessionIDs(matching: ["numeric-order-session"]),
             ["numeric-order-session"]
         )
+    }
+
+    func testClaudeDesktopMetadataSnapshotIncludesProjectNameFromOriginCwd() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-project-name-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "claude-desktop-project",
+            isArchived: false,
+            originCwd: "/Users/dev/projects/cctop",
+            worktreeName: "generated-worktree"
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let snapshot = ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+            .metadataSnapshot(matching: ["claude-desktop-project"])
+        XCTAssertEqual(snapshot?.projectNamesBySessionID["claude-desktop-project"], "cctop")
+    }
+
+    func testClaudeDesktopMetadataSnapshotFallsBackToWorktreeName() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-project-name-fallback-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "claude-desktop-project",
+            isArchived: false,
+            worktreeName: "cctop"
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let snapshot = ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+            .metadataSnapshot(matching: ["claude-desktop-project"])
+        XCTAssertEqual(snapshot?.projectNamesBySessionID["claude-desktop-project"], "cctop")
+    }
+
+    func testCodexThreadLookupDerivesProjectNameFromGitOriginURL() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-project-name-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            gitOrigins: ["codex-desktop-project": "git@github.com:st0012/cctop.git"]
+        )
+
+        XCTAssertEqual(
+            CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+                .projectNames(matching: ["codex-desktop-project"]),
+            ["codex-desktop-project": "cctop"]
+        )
+    }
+
+    func testCodexThreadLookupFallsBackToCwdBasename() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-project-name-cwd-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            cwds: ["codex-desktop-project": "/Users/dev/projects/local-tool"]
+        )
+
+        XCTAssertEqual(
+            CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+                .projectNames(matching: ["codex-desktop-project"]),
+            ["codex-desktop-project": "local-tool"]
+        )
+    }
+
+    func testBuildCandidatesEnrichesDesktopProjectNameFromExternalMetadata() throws {
+        let root = NSTemporaryDirectory() + "cctop-desktop-project-enrich-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+        }
+
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "claude-desktop-project",
+            isArchived: false,
+            originCwd: "/Users/dev/projects/cctop",
+            worktreeName: "generated-worktree"
+        )
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            cwds: ["codex-desktop-project": "/Users/dev/projects/rdoc"]
+        )
+
+        let claudePath = (sessionsDir as NSString).appendingPathComponent("claude.json")
+        try claudeDesktopSession(
+            sessionId: "claude-desktop-project",
+            projectPath: "/tmp/generated-worktree"
+        ).writeToFile(path: claudePath)
+
+        let codexPath = (sessionsDir as NSString).appendingPathComponent("codex.json")
+        try codexDesktopSession(
+            sessionId: "codex-desktop-project",
+            projectPath: "/tmp/other-generated-worktree"
+        ).writeToFile(path: codexPath)
+
+        let candidates = SessionManager.buildCandidates(
+            [URL(fileURLWithPath: claudePath), URL(fileURLWithPath: codexPath)],
+            now: Date(),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        )
+        let namesByID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.session.sessionId, $0.session.desktopProjectName) })
+
+        XCTAssertEqual(namesByID["claude-desktop-project"]!, "cctop")
+        XCTAssertEqual(namesByID["codex-desktop-project"]!, "rdoc")
     }
 
     // Blocker #1: when the archive DB exists but cannot be read, GC must NOT delete a finished

@@ -175,6 +175,7 @@ struct Session: Codable, Identifiable, Equatable {
     var lastToolDetail: String?
     var notificationMessage: String?
     var sessionName: String?
+    var desktopProjectName: String?
     var workspaceFile: String?
     var source: String?
     var endedAt: Date?
@@ -236,6 +237,7 @@ struct Session: Codable, Identifiable, Equatable {
         case lastToolDetail = "last_tool_detail"
         case notificationMessage = "notification_message"
         case sessionName = "session_name"
+        case desktopProjectName = "desktop_project_name"
         case workspaceFile = "workspace_file"
         case source
         case endedAt = "ended_at"
@@ -266,6 +268,7 @@ struct Session: Codable, Identifiable, Equatable {
         lastToolDetail = try container.decodeIfPresent(String.self, forKey: .lastToolDetail)
         notificationMessage = try container.decodeIfPresent(String.self, forKey: .notificationMessage)
         sessionName = try container.decodeIfPresent(String.self, forKey: .sessionName)
+        desktopProjectName = try container.decodeIfPresent(String.self, forKey: .desktopProjectName)
         workspaceFile = try container.decodeIfPresent(String.self, forKey: .workspaceFile)
         source = try container.decodeIfPresent(String.self, forKey: .source)
         endedAt = try container.decodeIfPresent(Date.self, forKey: .endedAt)
@@ -294,6 +297,7 @@ struct Session: Codable, Identifiable, Equatable {
         lastToolDetail: String?,
         notificationMessage: String?,
         sessionName: String? = nil,
+        desktopProjectName: String? = nil,
         workspaceFile: String? = nil,
         source: String? = nil,
         endedAt: Date? = nil,
@@ -319,6 +323,7 @@ struct Session: Codable, Identifiable, Equatable {
         self.lastToolDetail = lastToolDetail
         self.notificationMessage = notificationMessage
         self.sessionName = sessionName
+        self.desktopProjectName = desktopProjectName
         self.workspaceFile = workspaceFile
         self.source = source
         self.endedAt = endedAt
@@ -347,6 +352,7 @@ struct Session: Codable, Identifiable, Equatable {
         self.lastToolDetail = nil
         self.notificationMessage = nil
         self.sessionName = nil
+        self.desktopProjectName = nil
         self.workspaceFile = nil
         self.source = nil
         self.endedAt = nil
@@ -421,6 +427,7 @@ struct Session: Codable, Identifiable, Equatable {
             lastToolDetail: lastToolDetail,
             notificationMessage: notificationMessage,
             sessionName: sessionName,
+            desktopProjectName: desktopProjectName,
             workspaceFile: workspaceFile,
             source: source,
             endedAt: endedAt,
@@ -470,6 +477,9 @@ struct Session: Codable, Identifiable, Equatable {
     static func extractProjectName(_ path: String) -> String {
         URL(fileURLWithPath: path).lastPathComponent
     }
+}
+
+extension Session {
 
     /// The best available inactive timestamp for ordering retained files.
     var effectiveEndDate: Date {

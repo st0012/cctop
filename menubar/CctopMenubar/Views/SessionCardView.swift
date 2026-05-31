@@ -78,11 +78,27 @@ struct SessionCardView: View {
     private var metaRow: some View {
         // For Desktop sessions, folder + branch are usually noise (worktree dirs,
         // "unknown" branches), and the long "Claude Desktop" chip causes the row
-        // to wrap when combined with them. Show just the source badge instead.
+        // to wrap when combined with them. Show only the Desktop app's own project
+        // label plus the source badge.
         if session.agentBadge.isDesktop {
-            if showSourceBadge {
+            if session.desktopProjectName != nil || showSourceBadge {
                 HStack(spacing: 5) {
-                    SourceBadgeView(badge: session.agentBadge)
+                    if let desktopProjectName = session.desktopProjectName {
+                        Text(desktopProjectName)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.textSecondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    if showSourceBadge {
+                        if session.desktopProjectName != nil {
+                            Text("·")
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.textMuted.opacity(0.6))
+                        }
+                        SourceBadgeView(badge: session.agentBadge)
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                     Spacer(minLength: 0)
                 }
             }

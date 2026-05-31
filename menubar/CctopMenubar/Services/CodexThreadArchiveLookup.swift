@@ -22,6 +22,65 @@ struct CodexThreadArchiveLookup {
         matchingThreadIDs(matching: threadIDs, whereClause: "thread_source = 'subagent'")
     }
 
+    /// Returns user-facing project names Codex records for threads. cctop uses this
+    /// as display-only metadata for Desktop-hosted sessions, so lookup uncertainty
+    /// returns `nil` and callers should preserve any existing label.
+    func projectNames(matching threadIDs: Set<String>) -> [String: String]? {
+        guard !threadIDs.isEmpty else { return [:] }
+        guard FileManager.default.fileExists(atPath: stateDatabasePath) else { return [:] }
+
+        var database: OpaquePointer?
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
+        guard sqlite3_open_v2(stateDatabasePath, &database, flags, nil) == SQLITE_OK,
+              let database else {
+            if database != nil { sqlite3_close(database) }
+            return nil
+        }
+        defer { sqlite3_close(database) }
+        sqlite3_busy_timeout(database, 50)
+
+        let sortedIDs = threadIDs.sorted()
+        let placeholders = Array(repeating: "?", count: sortedIDs.count).joined(separator: ",")
+        let sql = """
+        SELECT id, git_origin_url, cwd
+        FROM threads
+        WHERE id IN (\(placeholders))
+          AND (
+              (git_origin_url IS NOT NULL AND git_origin_url != '')
+              OR (cwd IS NOT NULL AND cwd != '')
+          )
+        """
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
+              let statement else {
+            return nil
+        }
+        defer { sqlite3_finalize(statement) }
+
+        guard Self.bind(sortedIDs, to: statement) else { return nil }
+
+        var names: [String: String] = [:]
+        while true {
+            switch sqlite3_step(statement) {
+            case SQLITE_ROW:
+                guard let idText = sqlite3_column_text(statement, 0) else {
+                    continue
+                }
+                let threadID = String(cString: idText)
+                let origin = Self.columnString(statement, 1)
+                let cwd = Self.columnString(statement, 2)
+                if let name = origin.flatMap({ Self.projectName(fromGitOriginURL: $0) })
+                    ?? cwd.flatMap({ Self.projectName(fromPath: $0) }) {
+                    names[threadID] = name
+                }
+            case SQLITE_DONE:
+                return names
+            default:
+                return nil
+            }
+        }
+    }
+
     private func matchingThreadIDs(matching threadIDs: Set<String>, whereClause predicate: String) -> Set<String>? {
         guard !threadIDs.isEmpty else { return [] }
         guard FileManager.default.fileExists(atPath: stateDatabasePath) else { return [] }
@@ -46,11 +105,7 @@ struct CodexThreadArchiveLookup {
         }
         defer { sqlite3_finalize(statement) }
 
-        for (index, threadID) in sortedIDs.enumerated() {
-            guard sqlite3_bind_text(statement, Int32(index + 1), threadID, -1, sqliteTransient) == SQLITE_OK else {
-                return nil
-            }
-        }
+        guard Self.bind(sortedIDs, to: statement) else { return nil }
 
         var archived: Set<String> = []
         while true {
@@ -65,6 +120,49 @@ struct CodexThreadArchiveLookup {
                 return nil   // SQLITE_BUSY / SQLITE_ERROR / etc. — read did not complete
             }
         }
+    }
+
+    private static func projectName(fromGitOriginURL origin: String) -> String? {
+        let trimmed = origin.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let withoutTrailingSlash = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let lastComponent: String
+        if let slash = withoutTrailingSlash.lastIndex(of: "/") {
+            lastComponent = String(withoutTrailingSlash[withoutTrailingSlash.index(after: slash)...])
+        } else if let colon = withoutTrailingSlash.lastIndex(of: ":") {
+            lastComponent = String(withoutTrailingSlash[withoutTrailingSlash.index(after: colon)...])
+        } else {
+            lastComponent = withoutTrailingSlash
+        }
+
+        let name = lastComponent.hasSuffix(".git") ? String(lastComponent.dropLast(4)) : lastComponent
+        return name.isEmpty ? nil : name
+    }
+
+    private static func projectName(fromPath path: String) -> String? {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let normalized = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !normalized.isEmpty else { return nil }
+        let name = (normalized as NSString).lastPathComponent
+        return name.isEmpty ? nil : name
+    }
+
+    private static func columnString(_ statement: OpaquePointer, _ index: Int32) -> String? {
+        guard let text = sqlite3_column_text(statement, index) else { return nil }
+        let value = String(cString: text).trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    private static func bind(_ threadIDs: [String], to statement: OpaquePointer) -> Bool {
+        for (index, threadID) in threadIDs.enumerated() {
+            guard sqlite3_bind_text(statement, Int32(index + 1), threadID, -1, sqliteTransient) == SQLITE_OK else {
+                return false
+            }
+        }
+        return true
     }
 }
 

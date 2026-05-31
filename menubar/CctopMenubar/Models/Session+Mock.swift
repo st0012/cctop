@@ -15,7 +15,8 @@ extension Session {
         notificationMessage: String? = nil,
         terminal: TerminalInfo? = TerminalInfo(program: "Code", sessionId: nil, tty: nil),
         source: String? = nil,
-        activeSubagents: [SubagentInfo]? = nil
+        activeSubagents: [SubagentInfo]? = nil,
+        desktopProjectName: String? = nil
     ) -> Session {
         var session = Session(
             sessionId: id,
@@ -36,6 +37,7 @@ extension Session {
             activeSubagents: activeSubagents
         )
         session.sessionName = sessionName
+        session.desktopProjectName = desktopProjectName
         return session
     }
 
@@ -162,7 +164,8 @@ extension Session {
             status: .waitingInput,
             lastPrompt: "Should we retry on 5xx or surface to the user?",
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
-            source: "codex"
+            source: "codex",
+            desktopProjectName: "billing-api"
         )
         s2.lastActivity = Date().addingTimeInterval(-180) // "3m ago"
 
@@ -181,7 +184,8 @@ extension Session {
             status: .working, lastTool: "Bash",
             lastToolDetail: "./scripts/run-integration-tests.sh --filter staging",
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
-            source: nil
+            source: nil,
+            desktopProjectName: "infra-tools"
         )
         s4.lastActivity = Date().addingTimeInterval(-30) // "30s ago"
 

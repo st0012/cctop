@@ -126,6 +126,26 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.displayName, "refactor auth")
     }
 
+    func testDecodesDesktopProjectName() throws {
+        let json = """
+        {
+            "session_id": "desktop-project-1",
+            "project_path": "/private/var/folders/codex-worktree",
+            "project_name": "codex-worktree",
+            "desktop_project_name": "cctop",
+            "branch": "main",
+            "status": "working",
+            "last_activity": "2026-02-08T12:00:00Z",
+            "started_at": "2026-02-08T11:00:00Z",
+            "terminal": {"program": "", "bundle_id": "com.openai.codex"},
+            "source": "codex"
+        }
+        """
+        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        XCTAssertEqual(session.desktopProjectName, "cctop")
+        XCTAssertEqual(session.displayName, "codex-worktree")
+    }
+
     func testDecodesWithoutSessionName() throws {
         let json = """
         {

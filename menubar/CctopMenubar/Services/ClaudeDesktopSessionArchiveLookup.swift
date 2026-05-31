@@ -47,6 +47,7 @@ struct ClaudeDesktopSessionArchiveLookup {
 
             let match = ClaudeArchiveMatch(
                 isArchived: metadata.isArchived == true,
+                projectName: Self.projectName(originCwd: metadata.originCwd, worktreeName: metadata.worktreeName),
                 recencyKey: metadata.lastActivityAt ?? metadata.createdAt ?? .missing,
                 path: url.path
             )
@@ -62,6 +63,7 @@ struct ClaudeDesktopSessionArchiveLookup {
             archivedSessionIDs: Set(latestBySessionID.compactMap { sessionID, match in
                 match.isArchived ? sessionID : nil
             }),
+            projectNamesBySessionID: latestBySessionID.compactMapValues(\.projectName),
             isAuthoritative: true
         )
     }
@@ -69,20 +71,40 @@ struct ClaudeDesktopSessionArchiveLookup {
     private func isClaudeDesktopMetadataURL(_ url: URL) -> Bool {
         url.pathExtension == "json" && url.lastPathComponent.hasPrefix("local_")
     }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+        return value
+    }
+
+    private static func projectName(originCwd: String?, worktreeName: String?) -> String? {
+        basename(fromPath: originCwd) ?? nonEmpty(worktreeName)
+    }
+
+    private static func basename(fromPath path: String?) -> String? {
+        guard let path = nonEmpty(path) else { return nil }
+        let normalized = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !normalized.isEmpty else { return nil }
+        return nonEmpty((normalized as NSString).lastPathComponent)
+    }
 }
 
 struct ClaudeDesktopSessionMetadataSnapshot: Equatable {
     let matchedSessionIDs: Set<String>
     let archivedSessionIDs: Set<String>
+    let projectNamesBySessionID: [String: String]
     let isAuthoritative: Bool
 
     init(
         matchedSessionIDs: Set<String> = [],
         archivedSessionIDs: Set<String> = [],
+        projectNamesBySessionID: [String: String] = [:],
         isAuthoritative: Bool = true
     ) {
         self.matchedSessionIDs = matchedSessionIDs
         self.archivedSessionIDs = archivedSessionIDs
+        self.projectNamesBySessionID = projectNamesBySessionID
         self.isAuthoritative = isAuthoritative
     }
 }
@@ -90,12 +112,16 @@ struct ClaudeDesktopSessionMetadataSnapshot: Equatable {
 private struct ClaudeDesktopSessionMetadata: Decodable {
     let cliSessionId: String?
     let isArchived: Bool?
+    let originCwd: String?
+    let worktreeName: String?
     let lastActivityAt: ClaudeArchiveRecencyKey?
     let createdAt: ClaudeArchiveRecencyKey?
 
     private enum CodingKeys: String, CodingKey {
         case cliSessionId
         case isArchived
+        case originCwd
+        case worktreeName
         case lastActivityAt
         case createdAt
     }
@@ -104,6 +130,8 @@ private struct ClaudeDesktopSessionMetadata: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         cliSessionId = try container.decodeIfPresent(String.self, forKey: .cliSessionId)
         isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived)
+        originCwd = try container.decodeIfPresent(String.self, forKey: .originCwd)
+        worktreeName = try container.decodeIfPresent(String.self, forKey: .worktreeName)
         lastActivityAt = Self.decodeRecencyKey(from: container, forKey: .lastActivityAt)
         createdAt = Self.decodeRecencyKey(from: container, forKey: .createdAt)
     }
@@ -164,6 +192,7 @@ private struct ClaudeArchiveRecencyKey: Comparable {
 
 private struct ClaudeArchiveMatch {
     let isArchived: Bool
+    let projectName: String?
     let recencyKey: ClaudeArchiveRecencyKey
     let path: String
 
