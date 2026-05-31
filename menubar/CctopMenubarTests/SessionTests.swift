@@ -85,6 +85,23 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.contextLine, "Permission needed")
     }
 
+    func testContextLineWaitingInputPrefersNotificationMessage() {
+        let session = Session.mock(
+            status: .waitingInput,
+            lastPrompt: "Original user prompt",
+            notificationMessage: "Which direction should I take?"
+        )
+        XCTAssertEqual(session.contextLine, "Which direction should I take?")
+    }
+
+    func testContextLineWaitingInputFallsBackToPromptSnippet() {
+        let session = Session.mock(
+            status: .waitingInput,
+            lastPrompt: "Original user prompt"
+        )
+        XCTAssertEqual(session.contextLine, "\"Original user prompt\"")
+    }
+
     func testContextLineCompacting() {
         let session = Session.mock(status: .compacting)
         XCTAssertEqual(session.contextLine, "Compacting context...")

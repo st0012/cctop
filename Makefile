@@ -16,6 +16,7 @@ build:
 	cp plugins/codex/hooks.json $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/codex-hooks.json
 
 test:
+	npm --prefix plugins/opencode test
 	xcodebuild test -project $(PROJECT) -scheme CctopMenubar -configuration Debug -derivedDataPath $(DERIVED) $(SIGN)
 
 lint:

@@ -95,6 +95,18 @@ final class HookInputTests: XCTestCase {
         XCTAssertEqual(input.message, "Permission needed for Bash")
     }
 
+    func testDecodeOpencodeQuestionPermissionRequest() throws {
+        let input = try JSONDecoder().decode(
+            HookInput.self,
+            from: loadFixture("PermissionRequest-opencode-question")
+        )
+        XCTAssertEqual(input.hookEventName, "PermissionRequest")
+        XCTAssertEqual(input.title, "Which direction should I take?")
+        XCTAssertEqual(input.harnessName, "opencode")
+        XCTAssertEqual(input.source, "opencode")
+        XCTAssertEqual(input.resolvedHarnessName, "opencode")
+    }
+
     // MARK: - SubagentStart
 
     func testDecodeSubagentStart() throws {

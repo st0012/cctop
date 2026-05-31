@@ -478,7 +478,7 @@ struct Session: Codable, Identifiable, Equatable {
         case .waitingPermission:
             return notificationMessage ?? "Permission needed"
         case .waitingInput, .needsAttention:
-            return promptSnippet
+            return notificationMessage ?? promptSnippet
         case .working:
             if let tool = lastTool {
                 return formatToolDisplay(tool: tool, detail: lastToolDetail)

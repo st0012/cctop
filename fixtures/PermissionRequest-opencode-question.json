@@ -1,0 +1,8 @@
+{
+  "session_id": "opencode-12345",
+  "cwd": "/tmp/test-project",
+  "hook_event_name": "PermissionRequest",
+  "title": "Which direction should I take?",
+  "harness_name": "opencode",
+  "source": "opencode"
+}

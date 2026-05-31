@@ -189,6 +189,17 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.status, .waitingInput)
     }
 
+    func testOpencodeQuestionPermissionRequestSetsWaitingPermission() throws {
+        try handleFixture("SessionStart-opencode")
+        try handleFixture("UserPromptSubmit-opencode")
+        try handleFixture("PermissionRequest-opencode-question")
+
+        let session = try loadSession()
+        XCTAssertEqual(session.status, .waitingPermission)
+        XCTAssertEqual(session.source, "opencode")
+        XCTAssertEqual(session.notificationMessage, "Which direction should I take?")
+    }
+
     // MARK: - Notification (permission) preserves status
 
     func testNotificationPermissionPreservesStatus() throws {

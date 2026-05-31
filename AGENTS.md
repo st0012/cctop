@@ -65,7 +65,8 @@ cctop/
 │   └── skills/cctop-setup/SKILL.md
 ├── plugins/opencode/  # opencode plugin (JS, translates events to cctop-hook calls)
 │   ├── plugin.js      # Event handler, calls cctop-hook binary
-│   └── package.json   # Plugin manifest
+│   ├── package.json   # Plugin manifest and node:test script
+│   └── test/          # node:test coverage for opencode event translation
 ├── plugins/pi/        # pi coding agent extension (TS, translates events to cctop-hook calls)
 │   └── cctop.ts       # Extension entry point, calls cctop-hook binary
 ├── scripts/
@@ -216,7 +217,7 @@ All supported clients use `cctop-hook` as the single entry point for session sta
 # Build both targets (menubar app + cctop-hook CLI)
 make build
 
-# Run all tests
+# Run all tests (OpenCode plugin node:test suite + Swift tests)
 make test
 
 # Lint with swiftlint --strict
@@ -286,6 +287,14 @@ done
 
 The opencode plugin (`plugins/opencode/plugin.js`) is installed via the menubar app when the user clicks "Install Plugin" in Settings > Monitored Tools or via the install banner that appears when opencode is detected (`~/.config/opencode/` exists). The bundled plugin is copied to `~/.config/opencode/plugins/cctop.js`.
 
+Automated plugin tests live under `plugins/opencode/test/` and use Node's built-in `node:test` runner. Run them directly when changing `plugins/opencode/plugin.js`:
+
+```bash
+npm --prefix plugins/opencode test
+```
+
+`make test` runs the opencode plugin tests before the Swift test suite. For hook event mapping changes, also run `make contract`; it verifies the hook schema, fixtures, Swift parser, and plugin hook calls stay in sync.
+
 For local development, you can manually copy your modified plugin to override the installed version:
 
 ```bash
@@ -346,6 +355,9 @@ The opencode plugin (`plugin.js`) translates opencode events to cctop-hook calls
 | session.error | SessionError |
 | session.status (retry) | SessionError |
 | permission.ask | PermissionRequest |
+| question.asked | PermissionRequest |
+| question.replied | PostToolUse |
+| question.rejected | PostToolUse |
 | experimental.session.compacting | PreCompact |
 | session.compacted | PostCompact |
 | session.updated | (stores session_name locally, passed in subsequent calls) |

@@ -52,6 +52,17 @@ function normalizeToolInput(args) {
   return result;
 }
 
+function questionMessage(properties) {
+  const first = Array.isArray(properties?.questions) ? properties.questions[0] : null;
+  const question = typeof first?.question === "string" ? first.question.trim() : "";
+  if (question) return question;
+
+  const header = typeof first?.header === "string" ? first.header.trim() : "";
+  if (header) return header;
+
+  return "Waiting for opencode question response";
+}
+
 function callHook(hookBin, eventName, payload) {
   try {
     const json = JSON.stringify({ ...payload, hook_event_name: eventName });
@@ -90,6 +101,18 @@ export const cctop = async ({ directory }) => {
       if (!event || !event.type) return;
 
       switch (event.type) {
+        case "question.asked":
+          callHook(hookBin, "PermissionRequest", {
+            ...basePayload(),
+            title: questionMessage(event.properties),
+          });
+          break;
+
+        case "question.replied":
+        case "question.rejected":
+          callHook(hookBin, "PostToolUse", basePayload());
+          break;
+
         case "session.created":
           callHook(hookBin, "SessionStart", basePayload());
           break;

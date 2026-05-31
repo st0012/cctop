@@ -2,7 +2,11 @@
   "name": "cctop-opencode",
   "version": "0.16.0",
   "description": "cctop session monitor plugin for opencode",
+  "type": "module",
   "main": "plugin.js",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
   "license": "MIT",
   "author": "Stan Lo",
   "repository": "https://github.com/st0012/cctop"
