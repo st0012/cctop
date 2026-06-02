@@ -204,19 +204,39 @@ struct CodexThreadArchiveLookup {
     }
 
     private static func rolloutOriginator(at path: String) -> String? {
-        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+        guard let handle = try? FileHandle(forReadingFrom: URL(fileURLWithPath: path)) else {
             return nil
         }
-        for line in contents.split(separator: "\n", omittingEmptySubsequences: true) {
-            guard let data = String(line).data(using: .utf8),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  object["type"] as? String == "session_meta",
-                  let payload = object["payload"] as? [String: Any] else {
-                continue
+        defer { try? handle.close() }
+
+        var buffered = Data()
+        while true {
+            guard let chunk = try? handle.read(upToCount: 8_192) else {
+                return nil
             }
-            return payload["originator"] as? String
+            guard !chunk.isEmpty else {
+                return sessionMetaOriginator(from: buffered)
+            }
+
+            buffered.append(chunk)
+            while let newline = buffered.firstIndex(of: 0x0a) {
+                let line = buffered[..<newline]
+                buffered.removeSubrange(...newline)
+                if let originator = sessionMetaOriginator(from: Data(line)) {
+                    return originator
+                }
+            }
         }
-        return nil
+    }
+
+    private static func sessionMetaOriginator(from data: Data) -> String? {
+        guard !data.isEmpty,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["type"] as? String == "session_meta",
+              let payload = object["payload"] as? [String: Any] else {
+            return nil
+        }
+        return payload["originator"] as? String
     }
 
     private static func columnString(_ statement: OpaquePointer, _ index: Int32) -> String? {
