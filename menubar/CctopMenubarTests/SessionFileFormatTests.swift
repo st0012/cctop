@@ -9,6 +9,7 @@ final class SessionFileFormatTests: XCTestCase {
         gitOrigins: [String: String] = [:],
         cwds: [String: String] = [:],
         execHelperThreads: Set<String> = [],
+        execThreadsWithFirstUserMessage: [String: String] = [:],
         userExecThreads: Set<String> = []
     ) throws {
         func sqlValue(_ value: String?) -> String {
@@ -18,32 +19,38 @@ final class SessionFileFormatTests: XCTestCase {
 
         let archivedRows = archivedThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
-            VALUES (\(sqlValue($0)), 1, 'user', NULL, NULL, 'vscode', 1);
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue($0)), 1, 'user', NULL, NULL, 'vscode', 1, '');
             """
         }.joined(separator: "\n")
         let subagentRows = subagentThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
-            VALUES (\(sqlValue($0)), 0, 'subagent', NULL, NULL, 'vscode', 0);
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue($0)), 0, 'subagent', NULL, NULL, 'vscode', 0, '');
             """
         }.joined(separator: "\n")
         let metadataRows = Set(gitOrigins.keys).union(cwds.keys).map { threadID in
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
-            VALUES (\(sqlValue(threadID)), 0, 'user', \(sqlValue(gitOrigins[threadID])), \(sqlValue(cwds[threadID])), 'vscode', 1);
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue(threadID)), 0, 'user', \(sqlValue(gitOrigins[threadID])), \(sqlValue(cwds[threadID])), 'vscode', 1, '');
             """
         }.joined(separator: "\n")
         let execHelperRows = execHelperThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
-            VALUES (\(sqlValue($0)), 0, '', NULL, NULL, 'exec', 0);
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue($0)), 0, '', NULL, NULL, 'exec', 0, '');
+            """
+        }.joined(separator: "\n")
+        let execFirstMessageRows = execThreadsWithFirstUserMessage.map { threadID, firstUserMessage in
+            """
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue(threadID)), 0, '', NULL, NULL, 'exec', 0, \(sqlValue(firstUserMessage)));
             """
         }.joined(separator: "\n")
         let userExecRows = userExecThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event)
-            VALUES (\(sqlValue($0)), 0, '', NULL, NULL, 'exec', 1);
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue($0)), 0, '', NULL, NULL, 'exec', 1, '');
             """
         }.joined(separator: "\n")
         let sql = """
@@ -55,12 +62,14 @@ final class SessionFileFormatTests: XCTestCase {
             git_origin_url TEXT,
             cwd TEXT,
             source TEXT NOT NULL DEFAULT '',
-            has_user_event INTEGER NOT NULL DEFAULT 0
+            has_user_event INTEGER NOT NULL DEFAULT 0,
+            first_user_message TEXT NOT NULL DEFAULT ''
         );
         \(archivedRows)
         \(subagentRows)
         \(metadataRows)
         \(execHelperRows)
+        \(execFirstMessageRows)
         \(userExecRows)
         """
         let process = Process()
@@ -631,6 +640,46 @@ final class SessionFileFormatTests: XCTestCase {
         manager?.loadSessions()
 
         XCTAssertEqual(manager?.sessions.map(\.sessionId), ["codex-user-exec"])
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerKeepsCodexExecThreadsWithFirstUserMessageVisible() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-exec-first-message-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            execThreadsWithFirstUserMessage: ["codex-exec-first-message": "Review this diff"]
+        )
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-codex-exec-first-message.json")
+        try codexDesktopSession(
+            sessionId: "codex-exec-first-message",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        ).writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["codex-exec-first-message"])
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
 
         manager = nil
