@@ -2,6 +2,19 @@ import XCTest
 @testable import CctopMenubar
 
 final class SessionFileFormatTests: XCTestCase {
+    private func executeSQLite(_ sql: String, path: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = [path]
+        let stdin = Pipe()
+        process.standardInput = stdin
+        try process.run()
+        stdin.fileHandleForWriting.write(Data(sql.utf8))
+        try stdin.fileHandleForWriting.close()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+    }
+
     private func writeCodexStateDatabase(
         path: String,
         archivedThreads: Set<String>,
@@ -72,16 +85,7 @@ final class SessionFileFormatTests: XCTestCase {
         \(execFirstMessageRows)
         \(userExecRows)
         """
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        process.arguments = [path]
-        let stdin = Pipe()
-        process.standardInput = stdin
-        try process.run()
-        stdin.fileHandleForWriting.write(Data(sql.utf8))
-        try stdin.fileHandleForWriting.close()
-        process.waitUntilExit()
-        XCTAssertEqual(process.terminationStatus, 0)
+        try executeSQLite(sql, path: path)
     }
 
     private func codexTerminalSession(sessionId: String, projectPath: String) -> Session {
@@ -562,7 +566,7 @@ final class SessionFileFormatTests: XCTestCase {
     }
 
     @MainActor
-    func testSessionManagerHidesCodexExecHelperThreadsWithoutRemovingFiles() throws {
+    func testSessionManagerFiltersCodexExecHelperThreadsWithoutRemovingFiles() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-exec-helper-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
         let historyDir = (root as NSString).appendingPathComponent("history")
@@ -599,8 +603,57 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(manager?.sessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath + ".lock"))
-        XCTAssertTrue(try Session.fromFile(path: sessionPath).hidden)
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+
+        manager = nil
+    }
+
+    @MainActor
+    func testSessionManagerRestoresCodexExecThreadWhenUserMessageArrives() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-exec-helper-restore-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            execHelperThreads: ["codex-exec-late-message"]
+        )
+
+        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_SESSIONS_DIR")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-codex-exec-late-message.json")
+        try codexDesktopSession(
+            sessionId: "codex-exec-late-message",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        ).writeToFile(path: sessionPath)
+
+        var manager: SessionManager? = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
+
+        try executeSQLite(
+            "UPDATE threads SET first_user_message = 'Review this diff' WHERE id = 'codex-exec-late-message';",
+            path: stateDB
+        )
+        manager?.loadSessions()
+
+        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["codex-exec-late-message"])
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
 
         manager = nil
     }

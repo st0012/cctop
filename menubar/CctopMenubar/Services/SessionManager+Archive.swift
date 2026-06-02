@@ -19,7 +19,6 @@ struct SessionVisibilitySnapshot {
     let codexExecHelperThreadIDs: Set<String>
     let archivedClaudeSessionIDs: Set<String>
     let codexSubagentCandidates: [DedupCandidate]
-    let codexExecHelperCandidates: [DedupCandidate]
     let liveCandidates: [DedupCandidate]
 }
 
@@ -34,9 +33,6 @@ extension SessionManager {
         let codexSubagentCandidates = candidates.filter {
             isCodexSubagentSession($0.session, subagentThreadIDs: codexSubagentThreadIDs)
         }
-        let codexExecHelperCandidates = candidates.filter {
-            isCodexExecHelperSession($0.session, execHelperThreadIDs: codexExecHelperThreadIDs)
-        }
         let liveCandidates = candidates.filter {
             !isArchivedCodexDesktopSession($0.session, archivedThreadIDs: archivedCodexThreadIDs)
                 && !isCodexSubagentSession($0.session, subagentThreadIDs: codexSubagentThreadIDs)
@@ -50,7 +46,6 @@ extension SessionManager {
             codexExecHelperThreadIDs: codexExecHelperThreadIDs,
             archivedClaudeSessionIDs: archivedClaudeSessionIDs,
             codexSubagentCandidates: codexSubagentCandidates,
-            codexExecHelperCandidates: codexExecHelperCandidates,
             liveCandidates: liveCandidates
         )
     }
@@ -125,21 +120,6 @@ extension SessionManager {
         return latest
     }
 
-    /// Fresh single-session check used before persisting a hidden flag for Codex one-shot exec
-    /// helpers. Lookup uncertainty fails OPEN: if the Codex state DB is unreadable or too old to
-    /// expose this metadata, leave the session visible rather than permanently hiding the file.
-    nonisolated static func codexExecHelperHiddenSessionSnapshot(path: String) throws -> Session? {
-        guard FileManager.default.fileExists(atPath: path) else { return nil }
-        var latest = try Session.fromFile(path: path)
-        guard !latest.hidden, latest.isCodex || latest.isCodexDesktopHost else { return nil }
-        guard let execHelperIDs = CodexThreadArchiveLookup().execHelperThreadIDs(matching: [latest.sessionId]),
-              execHelperIDs.contains(latest.sessionId) else {
-            return nil
-        }
-        latest.hidden = true
-        return latest
-    }
-
     nonisolated static func autoHiddenSessionSnapshot(path: String) throws -> Session? {
         guard FileManager.default.fileExists(atPath: path) else { return nil }
         var latest = try Session.fromFile(path: path)
@@ -164,27 +144,6 @@ extension SessionManager {
                 let sessionId = candidate.session.sessionId
                 sessionManagerLogger.warning(
                     "skipping Codex subagent hide for \(sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
-                )
-            }
-        }
-    }
-
-    func hideCodexExecHelperSessions(_ candidates: [DedupCandidate]) {
-        for candidate in candidates {
-            sessionManagerLogger.info(
-                "hiding Codex exec helper session \(candidate.session.sessionId, privacy: .public)"
-            )
-            do {
-                try withSessionLock(sessionPath: candidate.path) {
-                    guard let hiddenSession = try Self.codexExecHelperHiddenSessionSnapshot(path: candidate.path) else {
-                        return
-                    }
-                    try hiddenSession.writeToFile(path: candidate.path)
-                }
-            } catch {
-                let sessionId = candidate.session.sessionId
-                sessionManagerLogger.warning(
-                    "skipping Codex exec helper hide for \(sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
                 )
             }
         }
