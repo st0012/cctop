@@ -30,46 +30,67 @@ final class SessionFileFormatTests: XCTestCase {
             return "'\(value.replacingOccurrences(of: "'", with: "''"))'"
         }
 
+        let rolloutDir = ((path as NSString).deletingLastPathComponent as NSString).appendingPathComponent("rollouts")
+        try FileManager.default.createDirectory(atPath: rolloutDir, withIntermediateDirectories: true)
+        func rolloutPath(threadID: String, originator: String) throws -> String {
+            let filePath = (rolloutDir as NSString).appendingPathComponent("\(threadID).jsonl")
+            let object: [String: Any] = [
+                "type": "session_meta",
+                "payload": [
+                    "id": threadID,
+                    "originator": originator,
+                    "source": "exec"
+                ]
+            ]
+            var data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+            data.append(0x0a)
+            try data.write(to: URL(fileURLWithPath: filePath), options: .atomic)
+            return filePath
+        }
+
         let archivedRows = archivedThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES (\(sqlValue($0)), 1, 'user', NULL, NULL, 'vscode', 1, '');
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue($0)), '', 1, 'user', NULL, NULL, 'vscode', 1, '');
             """
         }.joined(separator: "\n")
         let subagentRows = subagentThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES (\(sqlValue($0)), 0, 'subagent', NULL, NULL, 'vscode', 0, '');
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue($0)), '', 0, 'subagent', NULL, NULL, 'vscode', 0, '');
             """
         }.joined(separator: "\n")
         let metadataRows = Set(gitOrigins.keys).union(cwds.keys).map { threadID in
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES (\(sqlValue(threadID)), 0, 'user', \(sqlValue(gitOrigins[threadID])), \(sqlValue(cwds[threadID])), 'vscode', 1, '');
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue(threadID)), '', 0, 'user', \(sqlValue(gitOrigins[threadID])), \(sqlValue(cwds[threadID])), 'vscode', 1, '');
             """
         }.joined(separator: "\n")
-        let execHelperRows = execHelperThreads.map {
-            """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES (\(sqlValue($0)), 0, '', NULL, NULL, 'exec', 0, '');
+        let execHelperRows = try execHelperThreads.map {
+            let rollout = try rolloutPath(threadID: $0, originator: "Codex Desktop")
+            return """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue($0)), \(sqlValue(rollout)), 0, '', NULL, NULL, 'exec', 0, 'Review the release diff');
             """
         }.joined(separator: "\n")
-        let execFirstMessageRows = execThreadsWithFirstUserMessage.map { threadID, firstUserMessage in
-            """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES (\(sqlValue(threadID)), 0, '', NULL, NULL, 'exec', 0, \(sqlValue(firstUserMessage)));
+        let execFirstMessageRows = try execThreadsWithFirstUserMessage.map { threadID, firstUserMessage in
+            let rollout = try rolloutPath(threadID: threadID, originator: "codex_exec")
+            return """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue(threadID)), \(sqlValue(rollout)), 0, '', NULL, NULL, 'exec', 0, \(sqlValue(firstUserMessage)));
             """
         }.joined(separator: "\n")
         let userExecRows = userExecThreads.map {
             """
-            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES (\(sqlValue($0)), 0, '', NULL, NULL, 'exec', 1, '');
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue($0)), '', 0, '', NULL, NULL, 'exec', 1, '');
             """
         }.joined(separator: "\n")
         let sql = """
         DROP TABLE IF EXISTS threads;
         CREATE TABLE threads (
             id TEXT PRIMARY KEY,
+            rollout_path TEXT NOT NULL DEFAULT '',
             archived INTEGER NOT NULL DEFAULT 0,
             thread_source TEXT,
             git_origin_url TEXT,
@@ -605,55 +626,6 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath + ".lock"))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
-    }
-
-    @MainActor
-    func testSessionManagerRestoresCodexExecThreadWhenUserMessageArrives() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-exec-helper-restore-\(UUID().uuidString)"
-        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
-        let historyDir = (root as NSString).appendingPathComponent("history")
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
-        try writeCodexStateDatabase(
-            path: stateDB,
-            archivedThreads: [],
-            execHelperThreads: ["codex-exec-late-message"]
-        )
-
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
-        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
-        defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
-            unsetenv("CCTOP_CODEX_STATE_DB")
-            try? FileManager.default.removeItem(atPath: root)
-        }
-
-        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-codex-exec-late-message.json")
-        try codexDesktopSession(
-            sessionId: "codex-exec-late-message",
-            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
-        ).writeToFile(path: sessionPath)
-
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
-        )
-        manager?.loadSessions()
-
-        XCTAssertEqual(manager?.sessions, [])
-        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
-
-        try executeSQLite(
-            "UPDATE threads SET first_user_message = 'Review this diff' WHERE id = 'codex-exec-late-message';",
-            path: stateDB
-        )
-        manager?.loadSessions()
-
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["codex-exec-late-message"])
-        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
 
         manager = nil
     }

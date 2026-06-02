@@ -81,13 +81,57 @@ struct CodexThreadArchiveLookup {
         }
     }
 
-    /// Returns Codex one-shot exec helper threads that were not initiated as normal user-visible
-    /// conversations. Older state DB schemas do not have these columns; prepare failure returns nil.
+    /// Returns Codex Desktop-owned one-shot exec helper threads. `source = 'exec'`
+    /// alone also covers user-run `codex exec`, so verify the rollout originator before hiding.
     func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
-        matchingThreadIDs(
-            matching: threadIDs,
-            whereClause: "source = 'exec' AND has_user_event = 0 AND (first_user_message IS NULL OR TRIM(first_user_message) = '')"
-        )
+        guard !threadIDs.isEmpty else { return [] }
+        guard FileManager.default.fileExists(atPath: stateDatabasePath) else { return [] }
+
+        var database: OpaquePointer?
+        let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX
+        guard sqlite3_open_v2(stateDatabasePath, &database, flags, nil) == SQLITE_OK,
+              let database else {
+            if database != nil { sqlite3_close(database) }
+            return nil
+        }
+        defer { sqlite3_close(database) }
+        sqlite3_busy_timeout(database, 50)
+
+        let sortedIDs = threadIDs.sorted()
+        let placeholders = Array(repeating: "?", count: sortedIDs.count).joined(separator: ",")
+        let sql = """
+        SELECT id, rollout_path
+        FROM threads
+        WHERE source = 'exec'
+          AND has_user_event = 0
+          AND id IN (\(placeholders))
+        """
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
+              let statement else {
+            return nil
+        }
+        defer { sqlite3_finalize(statement) }
+
+        guard Self.bind(sortedIDs, to: statement) else { return nil }
+
+        var helpers: Set<String> = []
+        while true {
+            switch sqlite3_step(statement) {
+            case SQLITE_ROW:
+                guard let idText = sqlite3_column_text(statement, 0) else { continue }
+                let threadID = String(cString: idText)
+                guard let rolloutPath = Self.columnString(statement, 1),
+                      Self.rolloutOriginator(at: rolloutPath) == "Codex Desktop" else {
+                    continue
+                }
+                helpers.insert(threadID)
+            case SQLITE_DONE:
+                return helpers
+            default:
+                return nil
+            }
+        }
     }
 
     private func matchingThreadIDs(matching threadIDs: Set<String>, whereClause predicate: String) -> Set<String>? {
@@ -157,6 +201,22 @@ struct CodexThreadArchiveLookup {
         guard !normalized.isEmpty else { return nil }
         let name = (normalized as NSString).lastPathComponent
         return name.isEmpty ? nil : name
+    }
+
+    private static func rolloutOriginator(at path: String) -> String? {
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else {
+            return nil
+        }
+        for line in contents.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard let data = String(line).data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  object["type"] as? String == "session_meta",
+                  let payload = object["payload"] as? [String: Any] else {
+                continue
+            }
+            return payload["originator"] as? String
+        }
+        return nil
     }
 
     private static func columnString(_ statement: OpaquePointer, _ index: Int32) -> String? {
