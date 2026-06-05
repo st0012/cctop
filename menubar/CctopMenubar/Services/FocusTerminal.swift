@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 
 // MARK: - Strategy (testable, pure logic)
 
@@ -7,7 +8,7 @@ enum FocusStrategy: Equatable {
     /// Open a file/folder with a specific app via its bundle ID.
     case openWithApp(bundleID: String, target: String)
     /// Focus an iTerm2 session by its unique GUID, with a bundle ID fallback.
-    case iTerm2(guid: String)
+    case iTerm2(guid: String, jumpToMark: Bool)
     /// Focus a Kitty window via remote control socket, with bundle ID fallback.
     case kitty(socket: String, windowId: String, binaryPath: String)
     /// Focus a Ghostty terminal by matching its working directory, with a bundle ID fallback.
@@ -58,7 +59,7 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
     if hostApp == .iterm2,
        let guid = extractITermGUID(from: terminal.sessionId),
        guid.range(of: #"^[0-9a-fA-F-]+$"#, options: .regularExpression) != nil {
-        return .iTerm2(guid: guid)
+        return .iTerm2(guid: guid, jumpToMark: session.status.needsAttention)
     }
 
     // Kitty → remote control to focus the specific window (pane in Kitty's terms)
@@ -147,8 +148,11 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
             NSWorkspace.shared.open(URL(fileURLWithPath: target))
         }
 
-    case .iTerm2(let guid):
-        runScriptOrActivate(.iterm2) { executeITerm2Script(guid: guid) }
+    case .iTerm2(let guid, let jumpToMark):
+        let focused = runScriptOrActivate(.iterm2) { executeITerm2Script(guid: guid) }
+        if focused && jumpToMark {
+            executeITerm2JumpToMarkScript()
+        }
 
     case .kitty(let socket, let windowId, let binaryPath):
         runScriptOrActivate(.kitty) {
@@ -176,10 +180,15 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
 }
 
 /// Run a focus script for `host`; if it fails, fall back to activating the host by bundle ID.
-private func runScriptOrActivate(_ host: HostApp, script: () -> Bool) {
-    if !script(), let bundleID = host.bundleID {
+@discardableResult
+private func runScriptOrActivate(_ host: HostApp, script: () -> Bool) -> Bool {
+    if script() {
+        return true
+    }
+    if let bundleID = host.bundleID {
         activateAppByBundleID(bundleID)
     }
+    return false
 }
 
 // MARK: - iTerm2 AppleScript
@@ -217,6 +226,24 @@ private func executeITerm2Script(guid: String) -> Bool {
                 end repeat
             end tell
         end repeat
+    end tell
+    """)
+}
+
+/// Best-effort jump to the latest iTerm2 mark after a session has been focused.
+private func executeITerm2JumpToMarkScript() {
+    guard AXIsProcessTrusted() else { return }
+    _ = runAppleScript("""
+    tell application "System Events"
+        try
+            tell process "iTerm2"
+                tell menu "Edit" of menu bar item "Edit" of menu bar 1
+                    tell menu item "Marks and Annotations"
+                        click menu item "Jump to Mark" of menu 1
+                    end tell
+                end tell
+            end tell
+        end try
     end tell
     """)
 }

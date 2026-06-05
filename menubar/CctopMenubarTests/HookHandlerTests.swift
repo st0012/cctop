@@ -64,6 +64,45 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(HostApp.codexDesktop.bundleID, HostAppBundleID.codexDesktop)
     }
 
+    // MARK: - iTerm2 turn-start marks
+
+    func testITerm2BundleIDIsSharedWithHostApp() {
+        XCTAssertEqual(HostApp.iterm2.bundleID, HostAppBundleID.iterm2)
+    }
+
+    func testBuildITerm2SetMarkSequence() {
+        XCTAssertEqual(buildITerm2SetMarkSequence(), "\u{1B}]1337;SetMark\u{07}")
+    }
+
+    func testShouldMarkITerm2TurnStartForPromptSubmit() {
+        let terminal = TerminalInfo(
+            program: "iTerm2",
+            sessionId: "w0t0p0:ABC123",
+            tty: "/dev/ttys123",
+            bundleId: HostAppBundleID.iterm2
+        )
+
+        XCTAssertTrue(shouldMarkITerm2TurnStart(event: .userPromptSubmit, terminal: terminal))
+    }
+
+    func testShouldNotMarkNonITerm2TurnStart() {
+        let terminal = TerminalInfo(program: "Terminal", tty: "/dev/ttys123")
+
+        XCTAssertFalse(shouldMarkITerm2TurnStart(event: .userPromptSubmit, terminal: terminal))
+    }
+
+    func testShouldNotMarkITerm2WhenTTYIsUnsafe() {
+        let terminal = TerminalInfo(program: "iTerm2", tty: "/tmp/not-a-tty")
+
+        XCTAssertFalse(shouldMarkITerm2TurnStart(event: .userPromptSubmit, terminal: terminal))
+    }
+
+    func testShouldNotMarkITerm2ForStopEvent() {
+        let terminal = TerminalInfo(program: "iTerm2", tty: "/dev/ttys123")
+
+        XCTAssertFalse(shouldMarkITerm2TurnStart(event: .stop, terminal: terminal))
+    }
+
     // MARK: - SessionStart creates idle session
 
     func testSessionStartCreatesIdleSession() throws {

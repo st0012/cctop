@@ -6,6 +6,7 @@ private let maxToolDetailLen = 120
 enum HostAppBundleID {
     static let claudeDesktop = "com.anthropic.claudefordesktop"
     static let codexDesktop = "com.openai.codex"
+    static let iterm2 = "com.googlecode.iterm2"
 }
 
 enum HookHandler {
@@ -29,6 +30,7 @@ enum HookHandler {
         let branch = getCurrentBranch(cwd: input.cwd)
         let terminal = captureTerminalInfo()
         let startTime = Session.processStartTime(pid: pid)
+        markITerm2TurnStartIfNeeded(event: event, terminal: terminal)
 
         // Lock the session file for the entire read-modify-write cycle.
         // Without this, concurrent hook processes (e.g. SubagentStart + PreToolUse
@@ -71,6 +73,23 @@ enum HookHandler {
         session.lastToolDetail = nil
         session.notificationMessage = nil
     }
+
+    /// Marks the start of a new iTerm2 agent turn in scrollback.
+    ///
+    /// iTerm2 parses `OSC 1337;SetMark` from the PTY stream and records the
+    /// current scrollback location. This gives the menubar app a terminal-native
+    /// anchor it can jump back to after focusing a waiting session.
+    private static func markITerm2TurnStartIfNeeded(event: HookEvent, terminal: TerminalInfo) {
+        guard shouldMarkITerm2TurnStart(event: event, terminal: terminal),
+              let tty = terminal.tty,
+              let attrs = try? FileManager.default.attributesOfItem(atPath: tty),
+              (attrs[.type] as? FileAttributeType) == .typeCharacterSpecial,
+              let data = buildITerm2SetMarkSequence().data(using: .utf8),
+              let handle = FileHandle(forWritingAtPath: tty) else { return }
+        defer { try? handle.close() }
+        try? handle.write(contentsOf: data)
+    }
+
     private static func applySubagentEvent(event: HookEvent, session: inout Session, input: HookInput) {
         switch event {
         case .subagentStart:
@@ -434,6 +453,32 @@ extension HookHandler {
     private static func isPIDAlive(_ pid: UInt32) -> Bool {
         kill(Int32(pid), 0) == 0 || errno == EPERM
     }
+}
+
+/// Returns the iTerm2 escape sequence for setting a mark at the current scrollback location.
+func buildITerm2SetMarkSequence() -> String {
+    "\u{1B}]1337;SetMark\u{07}"
+}
+
+/// Returns whether a hook event should create an iTerm2 turn-start mark.
+func shouldMarkITerm2TurnStart(event: HookEvent, terminal: TerminalInfo) -> Bool {
+    guard event == .userPromptSubmit,
+          isITerm2Terminal(terminal),
+          let tty = terminal.tty,
+          isSafePTYSlavePath(tty)
+    else { return false }
+    return true
+}
+
+/// Returns whether terminal metadata identifies an iTerm2 session.
+func isITerm2Terminal(_ terminal: TerminalInfo) -> Bool {
+    if terminal.bundleId == HostAppBundleID.iterm2 { return true }
+    return terminal.program.lowercased().contains("iterm")
+}
+
+/// Returns whether a path is a macOS PTY slave path captured from a terminal session.
+func isSafePTYSlavePath(_ tty: String) -> Bool {
+    tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil
 }
 
 // MARK: - Session File Locking
