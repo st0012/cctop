@@ -84,11 +84,9 @@ class NotchStatusController {
         statusItemOccluded: Bool
     ) -> NotchPillAction {
         guard hasNotch, hasBuiltinScreen else { return .tearDown }
-        // When cctop is active, its minimal menubar frees space and
-        // isStatusItemOccluded may return false even though the status
-        // item will be re-occluded once the previous app's menubar returns.
-        // Preserve an existing pill; let the deactivation check decide.
-        if appIsActive, pillExists { return .keep }
+        // While cctop is active, menu bar status-item visibility can be transient.
+        // Keep an existing pill, but do not create one until cctop is inactive.
+        if appIsActive { return pillExists ? .keep : .tearDown }
         return statusItemOccluded ? .show : .tearDown
     }
 }

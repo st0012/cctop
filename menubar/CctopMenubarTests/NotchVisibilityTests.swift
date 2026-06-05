@@ -68,15 +68,16 @@ final class NotchVisibilityTests: XCTestCase {
         XCTAssertEqual(action, .keep)
     }
 
-    // MARK: - App active without existing pill → normal check
+    // MARK: - App active without existing pill → do not create
 
-    func testActiveNoPillOccludedShows() {
-        // No pill yet but occluded → show it
+    func testActiveNoPillOccludedTearsDown() {
+        // Occlusion measurements can be transient while cctop is active.
+        // Do not create a new pill until the app is inactive.
         let action = NotchStatusController.resolveVisibility(
             hasNotch: true, hasBuiltinScreen: true,
             appIsActive: true, pillExists: false, statusItemOccluded: true
         )
-        XCTAssertEqual(action, .show)
+        XCTAssertEqual(action, .tearDown)
     }
 
     func testActiveNoPillNotOccludedTearsDown() {
