@@ -1,5 +1,7 @@
 import Foundation
 
+/// Represents a recently accessed project with metadata like path, name, last session, and editor information.
+/// - Important: Used for tracking project history in the menubar.
 struct RecentProject: Identifiable {
     let projectPath: String
     let projectName: String
