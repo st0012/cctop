@@ -21,9 +21,9 @@ HOOK_EVENT_SWIFT = ROOT / "menubar/CctopMenubar/Models/HookEvent.swift"
 HOOK_INPUT_SWIFT = ROOT / "menubar/CctopMenubar/Hook/HookInput.swift"
 CODEX_INSTALLER_SWIFT = ROOT / "menubar/CctopMenubar/Services/CodexPluginInstaller.swift"
 CC_HOOKS_JSON = ROOT / "plugins/cctop/hooks/hooks.json"
-CODEX_HOOKS_JSON = ROOT / "plugins/codex/hooks.json"
+CODEX_HOOKS_JSON = ROOT / "plugins/cctop-codex/hooks/hooks.json"
 CC_SHIM = ROOT / "plugins/cctop/hooks/run-hook.sh"
-CODEX_SHIM = ROOT / "plugins/codex/cctop-shim.sh"
+CODEX_SHIM = ROOT / "plugins/cctop-codex/hooks/cctop-shim.sh"
 OPENCODE_PLUGIN = ROOT / "plugins/opencode/plugin.js"
 PI_PLUGIN = ROOT / "plugins/pi/cctop.ts"
 
@@ -203,11 +203,32 @@ def hooks_json_events(path: Path, errors: list[str]) -> set[str]:
     for event, entries in hooks.items():
         invoked = set()
         for command in hook_commands(entries):
-            match = re.search(r"(?:run-hook\.sh|\{SHIM\})\s+([A-Za-z]+)", command)
+            match = re.search(r"(?:run-hook\.sh|cctop-shim\.sh|\{SHIM\})[\"']?\s+([A-Za-z]+)", command)
             if match:
                 invoked.add(match.group(1))
         compare_sets(f"{path.relative_to(ROOT)} commands for {event}", {event}, invoked, errors)
     return set(hooks)
+
+
+def codex_plugin_hook_paths(errors: list[str]) -> None:
+    payload = load_json(CODEX_HOOKS_JSON)
+    if not isinstance(payload, dict):
+        errors.append(f"{CODEX_HOOKS_JSON.relative_to(ROOT)} must be a JSON object")
+        return
+
+    for command in hook_commands(payload):
+        if "cctop-shim.sh" not in command:
+            continue
+        expect(
+            "$PLUGIN_ROOT/hooks/cctop-shim.sh" in command,
+            f"{CODEX_HOOKS_JSON.relative_to(ROOT)} must invoke cctop-shim.sh through $PLUGIN_ROOT",
+            errors,
+        )
+        expect(
+            ".cctop/codex-plugin-marketplace" not in command,
+            f"{CODEX_HOOKS_JSON.relative_to(ROOT)} must not hard-code cctop's marketplace path",
+            errors,
+        )
 
 
 def call_hook_events(path: Path) -> set[str]:
@@ -236,6 +257,7 @@ def plugin_contract(harnesses: set[str], harness_events: dict[str, set[str]], er
         "opencode": call_hook_events(OPENCODE_PLUGIN),
         "pi": call_hook_events(PI_PLUGIN),
     }
+    codex_plugin_hook_paths(errors)
     for harness, events in sorted(actual_events.items()):
         compare_sets(f"{harness} hook events", harness_events.get(harness, set()), events, errors)
 

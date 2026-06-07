@@ -63,8 +63,8 @@ cp "$REPO_ROOT/menubar/build/Build/Products/Release/cctop-hook" "$APP/Contents/M
 mkdir -p "$APP/Contents/Resources"
 cp "$REPO_ROOT/plugins/opencode/plugin.js" "$APP/Contents/Resources/opencode-plugin.js"
 cp "$REPO_ROOT/plugins/pi/cctop.ts" "$APP/Contents/Resources/pi-plugin.ts"
-cp "$REPO_ROOT/plugins/codex/cctop-shim.sh" "$APP/Contents/Resources/codex-shim.sh"
-cp "$REPO_ROOT/plugins/codex/hooks.json" "$APP/Contents/Resources/codex-hooks.json"
+rm -rf "$APP/Contents/Resources/cctop-codex-plugin"
+cp -R "$REPO_ROOT/plugins/cctop-codex" "$APP/Contents/Resources/cctop-codex-plugin"
 
 # Ad-hoc sign (innermost first — no --deep)
 echo "==> Signing app bundle..."

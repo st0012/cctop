@@ -1,0 +1,37 @@
+{
+  "name": "cctop",
+  "version": "0.17.0",
+  "description": "Diagnose and repair cctop setup and session visibility.",
+  "author": {
+    "name": "Stan Lo",
+    "email": "stan001212@gmail.com",
+    "url": "https://github.com/st0012"
+  },
+  "homepage": "https://cctop.app/",
+  "repository": "https://github.com/st0012/cctop",
+  "license": "MIT",
+  "keywords": [
+    "cctop",
+    "codex",
+    "hooks",
+    "session-monitoring"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "cctop",
+    "shortDescription": "Check cctop setup and sessions",
+    "longDescription": "Diagnose cctop setup, Codex hook trust, stale sessions, and missing session visibility without requiring users to inspect files or open Terminal.",
+    "developerName": "Stan Lo",
+    "category": "Productivity",
+    "capabilities": [
+      "Diagnose",
+      "Local files"
+    ],
+    "websiteURL": "https://cctop.app/",
+    "brandColor": "#D9942B",
+    "logo": "./assets/logo.png",
+    "defaultPrompt": [
+      "Use $cctop-diagnostics to check my cctop setup."
+    ]
+  }
+}

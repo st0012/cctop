@@ -12,8 +12,8 @@ build:
 	mkdir -p $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources
 	cp plugins/opencode/plugin.js $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/opencode-plugin.js
 	cp plugins/pi/cctop.ts $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/pi-plugin.ts
-	cp plugins/codex/cctop-shim.sh $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/codex-shim.sh
-	cp plugins/codex/hooks.json $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/codex-hooks.json
+	rm -rf $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/cctop-codex-plugin
+	cp -R plugins/cctop-codex $(DERIVED)/Build/Products/Debug/CctopMenubar.app/Contents/Resources/cctop-codex-plugin
 
 test:
 	npm --prefix plugins/opencode test

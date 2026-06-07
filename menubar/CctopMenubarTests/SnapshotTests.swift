@@ -74,7 +74,7 @@ final class SnapshotTests: XCTestCase {
             "menubar/CctopMenubar/Views/SettingsSection.swift",
             "README.md",
             "site/index.html",
-            "plugins/codex/cctop-shim.sh",
+            "plugins/cctop-codex/hooks/cctop-shim.sh",
         ]
 
         let combined = try checkedFiles.map { path in
@@ -88,7 +88,7 @@ final class SnapshotTests: XCTestCase {
         XCTAssertTrue(combined.contains("Codex CLI / Desktop"))
         XCTAssertTrue(combined.contains("Claude Desktop"))
         XCTAssertTrue(combined.contains("Codex Desktop"))
-        XCTAssertTrue(combined.contains("Install Hooks"))
+        XCTAssertTrue(combined.contains("Install Plugin"))
     }
 
     func testGenerateRecentProjectsScreenshot() throws {

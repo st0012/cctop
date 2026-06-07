@@ -175,3 +175,104 @@ enum CodexConfigToml {
         return afterKey.contains("=")
     }
 }
+
+struct CodexPluginConfigParserContext {
+    let configURL: URL
+    let marketplaceName: String
+    let marketplaceSource: String
+    let pluginSelector: String
+    let legacyPluginSelectors: [String]
+}
+
+struct CodexPluginConfigState {
+    var currentPluginEnabled: Bool?
+    var legacyPluginEnabled: Bool
+    var currentMarketplaceConfigured: Bool
+}
+
+enum CodexPluginConfigEntryParser {
+    static func state(configText: String?, context: CodexPluginConfigParserContext) -> CodexPluginConfigState {
+        let text = configText ?? ((try? String(contentsOf: context.configURL, encoding: .utf8)) ?? "")
+        var currentPluginEnabled: Bool?
+        var legacyPluginEnabled = false
+        var currentMarketplaceConfigured = false
+        var activePluginSelector: String?
+        var inCurrentMarketplace = false
+
+        for rawLine in text.components(separatedBy: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("[") && line.hasSuffix("]") {
+                activePluginSelector = installedConfigPluginSelector(from: line, context: context)
+                inCurrentMarketplace = isMarketplaceHeader(line, marketplaceName: context.marketplaceName)
+                continue
+            }
+            if inCurrentMarketplace,
+               let source = tomlStringValue(forKey: "source", in: line),
+               source == context.marketplaceSource {
+                currentMarketplaceConfigured = true
+            }
+            if let activePluginSelector {
+                if line == "enabled = true" {
+                    if activePluginSelector == context.pluginSelector {
+                        currentPluginEnabled = true
+                    } else {
+                        legacyPluginEnabled = true
+                    }
+                }
+                if line == "enabled = false", activePluginSelector == context.pluginSelector {
+                    currentPluginEnabled = false
+                }
+            }
+        }
+
+        return CodexPluginConfigState(
+            currentPluginEnabled: currentPluginEnabled,
+            legacyPluginEnabled: legacyPluginEnabled,
+            currentMarketplaceConfigured: currentMarketplaceConfigured
+        )
+    }
+
+    private static func installedConfigPluginSelector(
+        from line: String,
+        context: CodexPluginConfigParserContext
+    ) -> String? {
+        let selectors = [context.pluginSelector] + context.legacyPluginSelectors
+        for selector in selectors where line == "[plugins.\"\(selector)\"]" {
+            return selector
+        }
+        return nil
+    }
+
+    private static func isMarketplaceHeader(_ line: String, marketplaceName: String) -> Bool {
+        line == "[marketplaces.\(marketplaceName)]"
+            || line == "[marketplaces.\"\(marketplaceName)\"]"
+    }
+
+    private static func tomlStringValue(forKey key: String, in line: String) -> String? {
+        let assignmentPrefix = "\(key) ="
+        guard line.hasPrefix(assignmentPrefix) else { return nil }
+        let rawValue = line
+            .dropFirst(assignmentPrefix.count)
+            .trimmingCharacters(in: .whitespaces)
+        guard rawValue.hasPrefix("\"") else { return nil }
+
+        var parsed = ""
+        var escaped = false
+        for character in rawValue.dropFirst() {
+            if escaped {
+                parsed.append(character)
+                escaped = false
+                continue
+            }
+            if character == "\\" {
+                escaped = true
+                continue
+            }
+            if character == "\"" {
+                return parsed
+            }
+            parsed.append(character)
+        }
+        return nil
+    }
+}

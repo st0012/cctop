@@ -218,6 +218,175 @@ final class CodexPluginInstallerTests: XCTestCase {
         }
     }
 
+    // MARK: - Codex hook trust state
+
+    func testHasTrustedCctopHookStateRequiresAllRegisteredEvents() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let config = trustStateConfig(
+                hooksPath: CodexPluginInstaller.hooksJsonPath.path,
+                events: CodexPluginInstaller.trustStateEventKeys
+            )
+            XCTAssertTrue(CodexPluginInstaller.hasTrustedCctopHookState(in: config, hooksPath: CodexPluginInstaller.hooksJsonPath.path))
+        }
+    }
+
+    func testHasTrustedCctopHookStateAcceptsPluginSelectorSource() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let pluginHookSource = "\(CodexPluginPackageInstaller.pluginSelector):hooks/hooks.json"
+            let config = trustStateConfig(
+                hooksPath: pluginHookSource,
+                events: CodexPluginInstaller.trustStateEventKeys
+            )
+            XCTAssertTrue(CodexPluginInstaller.hasTrustedCctopHookState(in: config, hooksPath: pluginHookSource))
+        }
+    }
+
+    func testHasTrustedCctopHookStateIgnoresLegacyTrustWhenLegacyHooksFileIsGone() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let config = trustStateConfig(
+                hooksPath: CodexPluginInstaller.hooksJsonPath.path,
+                events: CodexPluginInstaller.trustStateEventKeys
+            )
+
+            XCTAssertFalse(CodexPluginInstaller.hasTrustedCctopHookState(configText: config))
+        }
+    }
+
+    func testInstalledHookFilesDoNotCountAsTrustedHookState() throws {
+        let dir = makeTempCodexDir()
+        let template = try loadCodexHooksTemplate()
+        let shim = try loadCodexShim()
+        try withHomeDir(dir.parent) {
+            XCTAssertTrue(
+                CodexPluginInstaller.install(shimContents: shim, hooksTemplate: template)
+            )
+            XCTAssertTrue(CodexPluginInstaller.isInstalled())
+            XCTAssertFalse(CodexPluginInstaller.hasTrustedCctopHookState())
+        }
+    }
+
+    func testInstalledHookFilesIgnoreDisabledFeatureFlag() throws {
+        let dir = makeTempCodexDir()
+        let template = try loadCodexHooksTemplate()
+        let shim = try loadCodexShim()
+        try withHomeDir(dir.parent) {
+            XCTAssertTrue(
+                CodexPluginInstaller.install(shimContents: shim, hooksTemplate: template)
+            )
+            try "[features]\nhooks = false\n".write(
+                to: CodexPluginInstaller.configTomlPath,
+                atomically: true,
+                encoding: .utf8
+            )
+
+            XCTAssertTrue(CodexPluginInstaller.hasInstalledHookFiles())
+            XCTAssertFalse(CodexPluginInstaller.isInstalled())
+        }
+    }
+
+    func testHasTrustedCctopHookStateRejectsMissingEvent() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let events = CodexPluginInstaller.trustStateEventKeys.filter { $0 != "stop" }
+            let config = trustStateConfig(
+                hooksPath: CodexPluginInstaller.hooksJsonPath.path,
+                events: events
+            )
+            XCTAssertFalse(CodexPluginInstaller.hasTrustedCctopHookState(in: config, hooksPath: CodexPluginInstaller.hooksJsonPath.path))
+        }
+    }
+
+    func testHasTrustedCctopHookStateIgnoresOtherHooksFiles() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let config = trustStateConfig(
+                hooksPath: "/tmp/other/hooks.json",
+                events: CodexPluginInstaller.trustStateEventKeys
+            )
+            XCTAssertFalse(CodexPluginInstaller.hasTrustedCctopHookState(in: config, hooksPath: CodexPluginInstaller.hooksJsonPath.path))
+        }
+    }
+
+    func testHasTrustedCctopHookStateDoesNotCarryEventAcrossUnrelatedSections() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let hooksPath = CodexPluginInstaller.hooksJsonPath.path
+            var lines = ["[hooks.state]"]
+            for event in CodexPluginInstaller.trustStateEventKeys {
+                lines.append("")
+                lines.append("[hooks.state.\"\(hooksPath):\(event):0:0\"]")
+                if event != "stop" {
+                    lines.append("trusted_hash = \"sha256:abc123\"")
+                }
+            }
+            lines.append("")
+            lines.append("[hooks.state.\"/tmp/other/hooks.json:stop:0:0\"]")
+            lines.append("trusted_hash = \"sha256:abc123\"")
+
+            XCTAssertFalse(
+                CodexPluginInstaller.hasTrustedCctopHookState(
+                    in: lines.joined(separator: "\n"),
+                    hooksPath: hooksPath
+                )
+            )
+        }
+    }
+
+    func testCodexHookStatusClassifiesObservableStates() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let pluginHookSource = "\(CodexPluginPackageInstaller.pluginSelector):hooks/hooks.json"
+            let trustedConfig = trustStateConfig(
+                hooksPath: pluginHookSource,
+                events: CodexPluginInstaller.trustStateEventKeys
+            )
+            let partialConfig = trustStateConfig(
+                hooksPath: pluginHookSource,
+                events: CodexPluginInstaller.trustStateEventKeys.filter { $0 != "stop" }
+            )
+
+            XCTAssertEqual(
+                CodexIntegrationManager.hookStatus(
+                    installed: false, featureEnabled: true, needsUpdate: false, configText: nil
+                ),
+                .notInstalled
+            )
+            XCTAssertEqual(
+                CodexIntegrationManager.hookStatus(
+                    installed: false, featureEnabled: false, needsUpdate: false, configText: nil
+                ),
+                .hooksDisabled
+            )
+            XCTAssertEqual(
+                CodexIntegrationManager.hookStatus(
+                    installed: true, featureEnabled: true, needsUpdate: true, configText: trustedConfig
+                ),
+                .needsUpdate
+            )
+            XCTAssertEqual(
+                CodexIntegrationManager.hookStatus(
+                    installed: true, featureEnabled: false, needsUpdate: false, configText: trustedConfig
+                ),
+                .hooksDisabled
+            )
+            XCTAssertEqual(
+                CodexIntegrationManager.hookStatus(
+                    installed: true, featureEnabled: true, needsUpdate: false, configText: partialConfig
+                ),
+                .installedUntrusted
+            )
+            XCTAssertEqual(
+                CodexIntegrationManager.hookStatus(
+                    installed: true, featureEnabled: true, needsUpdate: false, configText: trustedConfig
+                ),
+                .trusted
+            )
+        }
+    }
+
     // MARK: - Test helpers
 
     private struct TempCodexDir {
@@ -276,5 +445,15 @@ final class CodexPluginInstallerTests: XCTestCase {
     private func containsCommandSubstring(_ entry: [String: Any], _ needle: String) -> Bool {
         guard let cmds = entry["hooks"] as? [[String: Any]] else { return false }
         return cmds.contains { ($0["command"] as? String)?.contains(needle) ?? false }
+    }
+
+    private func trustStateConfig(hooksPath: String, events: [String]) -> String {
+        var lines = ["[hooks.state]"]
+        for event in events {
+            lines.append("")
+            lines.append("[hooks.state.\"\(hooksPath):\(event):0:0\"]")
+            lines.append("trusted_hash = \"sha256:abc123\"")
+        }
+        return lines.joined(separator: "\n")
     }
 }

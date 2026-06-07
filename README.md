@@ -113,7 +113,7 @@ brew install --cask st0012/cctop/cctop
 
 ### Step 2: Connect your tools
 
-The app auto-detects installed coding tools. For **opencode** and **pi**, click *Install Plugin* in Settings > Monitored Tools. For **Codex CLI or Codex Desktop**, click *Install Hooks*.
+The app auto-detects installed coding tools. For **opencode**, **pi**, **Codex CLI**, and **Codex Desktop**, click *Install Plugin* in Settings > Monitored Tools.
 
 For **Claude Code or Claude Desktop**, run this one-liner in your terminal (the app also exposes a *Copy Install Command* button under Settings > Monitored Tools):
 
@@ -197,9 +197,14 @@ rm ~/.config/opencode/plugins/cctop.js
 # Remove the pi extension
 rm ~/.pi/agent/extensions/cctop.ts
 
-# Remove the Codex CLI / Codex Desktop hooks
-rm ~/.codex/cctop-shim.sh
-# Then remove cctop entries from ~/.codex/hooks.json (or delete it if cctop was the only user)
+# Remove the Codex CLI / Codex Desktop plugin before deleting the app:
+# Settings > Monitored Tools > Codex CLI / Desktop > Remove Plugin
+rm -rf ~/.cctop/codex-plugin-marketplace
+# If the app is already deleted, also remove cctop's app-owned sections from
+# ~/.codex/config.toml: [marketplaces.cctop] and [plugins."cctop@cctop"].
+# Older cctop versions installed user-level Codex hooks; remove those too if present.
+rm -f ~/.codex/cctop-shim.sh
+# Then remove old cctop entries from ~/.codex/hooks.json (or delete it if cctop was the only user)
 
 # Remove session data and config
 rm -rf ~/.cctop

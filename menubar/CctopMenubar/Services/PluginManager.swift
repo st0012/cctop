@@ -14,6 +14,8 @@ class PluginManager: ObservableObject {
     @Published var codexInstalled: Bool = false
     @Published var codexNeedsUpdate: Bool = false
     @Published var codexConfigExists: Bool = false
+    @Published var codexHookStatus: CodexHookStatus = .notInstalled
+    @Published var codexPluginPackageInstalled: Bool = false
 
     static let ccInstallCommand =
         "claude plugin marketplace add st0012/cctop && claude plugin install cctop"
@@ -28,8 +30,8 @@ class PluginManager: ObservableObject {
     private static let ccPluginCacheDir = home.appendingPathComponent(
         ".claude/plugins/cache/cctop/cctop"
     )
-    static let ccOrphanedMarker = ".orphaned_at"
-    static let ccPluginManifestPath = ".claude-plugin/plugin.json"
+    nonisolated static let ccOrphanedMarker = ".orphaned_at"
+    nonisolated static let ccPluginManifestPath = ".claude-plugin/plugin.json"
 
     init() {
         refresh()
@@ -50,15 +52,12 @@ class PluginManager: ObservableObject {
         piConfigExists = fm.fileExists(atPath: piConfigDir.path)
         piInstalled = fm.fileExists(atPath: Self.piPluginPath.path)
 
-        codexConfigExists = CodexPluginInstaller.codexConfigExists()
-        codexInstalled = CodexPluginInstaller.isInstalled()
-
-        let codexConfigText: String? = codexConfigExists
-            ? (try? String(contentsOf: CodexPluginInstaller.configTomlPath, encoding: .utf8))
-            : nil
-
-        codexNeedsUpdate = codexInstalled
-            && Self.codexInstallStale(configText: codexConfigText)
+        let codexSnapshot = CodexIntegrationManager.currentSnapshot()
+        codexConfigExists = codexSnapshot.configExists
+        codexPluginPackageInstalled = codexSnapshot.pluginPackageInstalled
+        codexNeedsUpdate = codexSnapshot.needsUpdate
+        codexHookStatus = codexSnapshot.hookStatus
+        codexInstalled = codexSnapshot.installed
     }
 
     /// Cache layout is `<marketplace>/<plugin>/<version>/`. Claude Code writes a `.orphaned_at`
@@ -85,22 +84,6 @@ class PluginManager: ObservableObject {
         return bundledData != installedData
     }
 
-    /// "Update Available" fires when either the bundled shim differs from the
-    /// installed one OR the supplied config.toml content still contains the
-    /// deprecated `[features].codex_hooks` key. The install action handles
-    /// both: it rewrites the shim and migrates the TOML key in one click.
-    /// Takes the config text as a parameter so callers can dedupe the disk read.
-    private static func codexInstallStale(configText: String?) -> Bool {
-        if let data = loadBundledResource(name: "codex-shim", ext: "sh"),
-           CodexPluginInstaller.needsUpdate(bundledShim: data) {
-            return true
-        }
-        if let text = configText, CodexPluginInstaller.configTomlHasLegacyKey(text) {
-            return true
-        }
-        return false
-    }
-
     /// Read a bundled Resources file. Logs and returns nil if missing or unreadable.
     private static func loadBundledResource(name: String, ext: String) -> Data? {
         guard let url = Bundle.main.url(forResource: name, withExtension: ext) else {
@@ -110,18 +93,14 @@ class PluginManager: ObservableObject {
         return try? Data(contentsOf: url)
     }
 
-    func installCodexPlugin() -> Bool {
-        defer { refresh() }
-        guard let shim = Self.loadBundledResource(name: "codex-shim", ext: "sh"),
-              let template = Self.loadBundledResource(name: "codex-hooks", ext: "json") else {
-            return false
-        }
-        return CodexPluginInstaller.install(shimContents: shim, hooksTemplate: template)
-    }
-
     func removeCodexPlugin() -> Bool {
         defer { refresh() }
-        return CodexPluginInstaller.remove()
+        return CodexPluginPackageInstaller.removeBundledPlugin()
+    }
+
+    func installCodexPluginPackage() -> Bool {
+        defer { refresh() }
+        return CodexPluginPackageInstaller.installBundledPlugin()
     }
 
     func installOpenCodePlugin() -> Bool {

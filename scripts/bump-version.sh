@@ -33,21 +33,25 @@ echo "  Updated packaging/homebrew-cask.rb"
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$REPO_ROOT/plugins/cctop/.claude-plugin/plugin.json"
 echo "  Updated plugins/cctop/.claude-plugin/plugin.json"
 
-# 3. .claude-plugin/marketplace.json (has two version fields)
+# 3. plugins/cctop-codex/.codex-plugin/plugin.json
+sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$REPO_ROOT/plugins/cctop-codex/.codex-plugin/plugin.json"
+echo "  Updated plugins/cctop-codex/.codex-plugin/plugin.json"
+
+# 4. .claude-plugin/marketplace.json (has two version fields)
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/g" "$REPO_ROOT/.claude-plugin/marketplace.json"
 echo "  Updated .claude-plugin/marketplace.json"
 
-# 4. Xcode project - MARKETING_VERSION (all build configs)
+# 5. Xcode project - MARKETING_VERSION (all build configs)
 PBXPROJ="$REPO_ROOT/menubar/CctopMenubar.xcodeproj/project.pbxproj"
 sed -i '' "s/MARKETING_VERSION = .*/MARKETING_VERSION = $NEW_VERSION;/" "$PBXPROJ"
 echo "  Updated pbxproj MARKETING_VERSION"
 
-# 5. Xcode project - CURRENT_PROJECT_VERSION (derived: major*10000 + minor*100 + patch)
+# 6. Xcode project - CURRENT_PROJECT_VERSION (derived: major*10000 + minor*100 + patch)
 BUILD_NUM=$(echo "$NEW_VERSION" | awk -F. '{print $1*10000 + $2*100 + $3}')
 sed -i '' "s/CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $BUILD_NUM;/" "$PBXPROJ"
 echo "  Updated pbxproj CURRENT_PROJECT_VERSION to $BUILD_NUM"
 
-# 6. Hook writer version string
+# 7. Hook writer version string
 CONFIG_SWIFT="$REPO_ROOT/menubar/CctopMenubar/Models/Config.swift"
 sed -i '' "s/static let hookVersion = \".*\"/static let hookVersion = \"$NEW_VERSION\"/" "$CONFIG_SWIFT"
 if ! grep -q "static let hookVersion = \"$NEW_VERSION\"" "$CONFIG_SWIFT"; then
@@ -56,11 +60,11 @@ if ! grep -q "static let hookVersion = \"$NEW_VERSION\"" "$CONFIG_SWIFT"; then
 fi
 echo "  Updated Config.hookVersion"
 
-# 7. plugins/opencode/package.json
+# 8. plugins/opencode/package.json
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$REPO_ROOT/plugins/opencode/package.json"
 echo "  Updated plugins/opencode/package.json"
 
-# 8. site/index.html — static fallback for the version badge.
+# 9. site/index.html — static fallback for the version badge.
 # A small fetch() to api.github.com overrides this at runtime when online,
 # but the static value is what users see if the request fails (rate limit, offline).
 sed -i '' "s|data-version>v[0-9.]*</span>|data-version>v$NEW_VERSION</span>|" "$REPO_ROOT/site/index.html"

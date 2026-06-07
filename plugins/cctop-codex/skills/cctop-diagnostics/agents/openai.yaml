@@ -1,0 +1,8 @@
+interface:
+  display_name: "cctop Diagnostics"
+  short_description: "Diagnose cctop setup and session issues"
+  brand_color: "#D9942B"
+  default_prompt: "Use $cctop-diagnostics to check my cctop setup."
+
+policy:
+  allow_implicit_invocation: true
