@@ -67,19 +67,26 @@ struct ClaudeDesktopSessionArchiveLookup {
               let content = String(data: data, encoding: .utf8) else {
             return .uncertain
         }
-        guard let candidateSessionID = cliSessionID(in: content) else {
+        let scannedSessionIDs = cliSessionIDs(in: content)
+        guard !scannedSessionIDs.values.isEmpty else {
             if content.contains(#""cliSessionId""#),
                sessionIDs.contains(where: { content.contains($0) }) {
                 return .uncertain
             }
             return .skip
         }
-        guard sessionIDs.contains(candidateSessionID) else { return .skip }
-        guard let metadata = try? JSONDecoder().decode(ClaudeDesktopSessionMetadata.self, from: data),
-              let cliSessionId = metadata.cliSessionId,
-              sessionIDs.contains(cliSessionId) else {
+        guard scannedSessionIDs.values.contains(where: { sessionIDs.contains($0) }) else {
+            if scannedSessionIDs.sawUnparseableValue,
+               sessionIDs.contains(where: { content.contains($0) }) {
+                return .uncertain
+            }
+            return .skip
+        }
+        guard let metadata = try? JSONDecoder().decode(ClaudeDesktopSessionMetadata.self, from: data) else {
             return .uncertain
         }
+        guard let cliSessionId = metadata.cliSessionId,
+              sessionIDs.contains(cliSessionId) else { return .skip }
 
         let match = ClaudeArchiveMatch(
             isArchived: metadata.isArchived == true,
@@ -90,20 +97,37 @@ struct ClaudeDesktopSessionArchiveLookup {
         return .match(cliSessionId, match)
     }
 
-    private func cliSessionID(in content: String) -> String? {
-        guard let keyRange = content.range(of: #""cliSessionId""#),
-              let colonRange = content[keyRange.upperBound...].range(of: ":") else {
-            return nil
-        }
+    private func cliSessionIDs(in content: String) -> ClaudeCLISessionIDScan {
+        var cursor = content.startIndex
+        var values: [String] = []
+        var sawUnparseableValue = false
 
-        var cursor = colonRange.upperBound
-        while cursor < content.endIndex, content[cursor].isWhitespace {
+        while let keyRange = content[cursor...].range(of: #""cliSessionId""#) {
+            cursor = keyRange.upperBound
+            guard let colonRange = content[cursor...].range(of: ":") else {
+                sawUnparseableValue = true
+                continue
+            }
+            cursor = colonRange.upperBound
+            while cursor < content.endIndex, content[cursor].isWhitespace {
+                cursor = content.index(after: cursor)
+            }
+            guard cursor < content.endIndex, content[cursor] == "\"" else {
+                sawUnparseableValue = true
+                continue
+            }
             cursor = content.index(after: cursor)
+            guard let value = quotedValue(in: content, cursor: &cursor) else {
+                sawUnparseableValue = true
+                continue
+            }
+            values.append(value)
         }
 
-        guard cursor < content.endIndex, content[cursor] == "\"" else { return nil }
-        cursor = content.index(after: cursor)
+        return ClaudeCLISessionIDScan(values: values, sawUnparseableValue: sawUnparseableValue)
+    }
 
+    private func quotedValue(in content: String, cursor: inout String.Index) -> String? {
         var value = ""
         var escaped = false
         while cursor < content.endIndex {
@@ -268,4 +292,9 @@ private enum ClaudeMetadataFileMatch {
     case skip
     case uncertain
     case match(String, ClaudeArchiveMatch)
+}
+
+private struct ClaudeCLISessionIDScan {
+    let values: [String]
+    let sawUnparseableValue: Bool
 }

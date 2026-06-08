@@ -1379,6 +1379,23 @@ final class SessionFileFormatTests: XCTestCase {
         )
     }
 
+    func testArchivedClaudeSessionIDsContinuesPastNestedCliSessionID() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-nested-cli-session-id-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let metadata = (root as NSString).appendingPathComponent("local_nested.json")
+        try Data(
+            #"{"metadata":{"cliSessionId":"other-session"},"cliSessionId":"target-session","isArchived":true}"#.utf8
+        ).write(to: URL(fileURLWithPath: metadata))
+
+        XCTAssertEqual(
+            ClaudeDesktopSessionArchiveLookup(sessionsDirectory: root)
+                .archivedSessionIDs(matching: ["target-session"]),
+            ["target-session"]
+        )
+    }
+
     func testArchivedClaudeSessionIDsAcceptsNumericTimestamps() throws {
         let root = NSTemporaryDirectory() + "cctop-claude-numeric-lookup-\(UUID().uuidString)"
         let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
