@@ -465,7 +465,7 @@ func shouldMarkITerm2TurnStart(event: HookEvent, terminal: TerminalInfo) -> Bool
     guard event == .userPromptSubmit,
           isITerm2Terminal(terminal),
           let tty = terminal.tty,
-          isSafePTYSlavePath(tty)
+          isSafePTYDevicePath(tty)
     else { return false }
     return true
 }
@@ -476,8 +476,11 @@ func isITerm2Terminal(_ terminal: TerminalInfo) -> Bool {
     return terminal.program.lowercased().contains("iterm")
 }
 
-/// Returns whether a path is a macOS PTY slave path captured from a terminal session.
-func isSafePTYSlavePath(_ tty: String) -> Bool {
+/// Returns whether a path is a safe macOS PTY device path captured from a terminal session.
+///
+/// - Parameter tty: Terminal path captured from hook terminal metadata.
+/// - Returns: `true` when the path is a `/dev/ttysNNN` character device path shape.
+func isSafePTYDevicePath(_ tty: String) -> Bool {
     tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil
 }
 
