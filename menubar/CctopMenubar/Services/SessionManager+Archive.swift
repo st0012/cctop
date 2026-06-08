@@ -25,10 +25,25 @@ struct SessionVisibilitySnapshot {
 extension SessionManager {
     nonisolated static func visibilitySnapshot(in candidates: [DedupCandidate]) -> SessionVisibilitySnapshot {
         let sessions = candidates.map(\.session)
+        let claudeMetadata = claudeDesktopMetadataSnapshot(in: sessions)
+        return visibilitySnapshot(in: candidates, sessions: sessions, claudeMetadata: claudeMetadata)
+    }
+
+    nonisolated static func visibilitySnapshot(
+        in candidates: [DedupCandidate],
+        claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?
+    ) -> SessionVisibilitySnapshot {
+        visibilitySnapshot(in: candidates, sessions: candidates.map(\.session), claudeMetadata: claudeMetadata)
+    }
+
+    private nonisolated static func visibilitySnapshot(
+        in candidates: [DedupCandidate],
+        sessions: [Session],
+        claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?
+    ) -> SessionVisibilitySnapshot {
         let archivedCodexThreadIDs = archivedCodexDesktopThreadIDs(in: sessions)
         let codexSubagentThreadIDs = codexSubagentThreadIDs(in: sessions)
         let codexExecHelperThreadIDs = codexExecHelperThreadIDs(in: sessions)
-        let claudeMetadata = claudeDesktopMetadataSnapshot(in: sessions)
         let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
         let codexSubagentCandidates = candidates.filter {
             isCodexSubagentSession($0.session, subagentThreadIDs: codexSubagentThreadIDs)
@@ -213,25 +228,17 @@ extension SessionManager {
     /// Decode each session file, derive its lifecycle, and capture mtime — the inputs the dedup
     /// comparator needs. Pure (no published state), kept off the main class body.
     nonisolated static func buildCandidates(
-        _ jsonFiles: [URL],
+        _ sessionFiles: [(url: URL, session: Session)],
         now: Date,
-        desktopAppConnectionLookup: DesktopAppConnectionLookup = .live
+        desktopAppConnectionLookup: DesktopAppConnectionLookup = .live,
+        claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?
     ) -> [DedupCandidate] {
-        let decodedFiles: [(url: URL, session: Session)] = jsonFiles.compactMap { url in
-            guard let data = try? Data(contentsOf: url) else {
-                sessionManagerLogger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
-                return nil
-            }
-            guard let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
-                sessionManagerLogger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public)")
-                return nil
-            }
-            return (url, session)
-        }
-
-        let projectNames = desktopProjectNamesBySessionID(in: decodedFiles.map(\.session))
+        let projectNames = desktopProjectNamesBySessionID(
+            in: sessionFiles.map(\.session),
+            claudeMetadata: claudeMetadata
+        )
         var candidates: [DedupCandidate] = []
-        for (url, var session) in decodedFiles {
+        for (url, var session) in sessionFiles {
             if let projectName = projectNames[session.sessionId] {
                 session.desktopProjectName = projectName
             }
@@ -248,11 +255,45 @@ extension SessionManager {
         return candidates
     }
 
+    nonisolated static func buildCandidates(
+        _ jsonFiles: [URL],
+        now: Date,
+        desktopAppConnectionLookup: DesktopAppConnectionLookup = .live
+    ) -> [DedupCandidate] {
+        let sessionFiles: [(url: URL, session: Session)] = jsonFiles.compactMap { url in
+            guard let data = try? Data(contentsOf: url) else {
+                sessionManagerLogger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
+                return nil
+            }
+            guard let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
+                sessionManagerLogger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public)")
+                return nil
+            }
+            return (url, session)
+        }
+
+        let claudeMetadata = claudeDesktopMetadataSnapshot(in: sessionFiles.map(\.session))
+        return buildCandidates(
+            sessionFiles,
+            now: now,
+            desktopAppConnectionLookup: desktopAppConnectionLookup,
+            claudeMetadata: claudeMetadata
+        )
+    }
+
     nonisolated static func desktopProjectNamesBySessionID(in sessions: [Session]) -> [String: String] {
+        let claudeSessionIDs = Set(sessions.filter(\.isClaudeDesktopHost).map(\.sessionId))
+        let claudeMetadata = ClaudeDesktopSessionArchiveLookup().metadataSnapshot(matching: claudeSessionIDs)
+        return desktopProjectNamesBySessionID(in: sessions, claudeMetadata: claudeMetadata)
+    }
+
+    nonisolated static func desktopProjectNamesBySessionID(
+        in sessions: [Session],
+        claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?
+    ) -> [String: String] {
         var projectNames: [String: String] = [:]
 
-        let claudeSessionIDs = Set(sessions.filter(\.isClaudeDesktopHost).map(\.sessionId))
-        if let claudeMetadata = ClaudeDesktopSessionArchiveLookup().metadataSnapshot(matching: claudeSessionIDs) {
+        if let claudeMetadata {
             projectNames.merge(claudeMetadata.projectNamesBySessionID) { current, _ in current }
         }
 

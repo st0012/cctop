@@ -34,28 +34,18 @@ struct ClaudeDesktopSessionArchiveLookup {
 
         var latestBySessionID: [String: ClaudeArchiveMatch] = [:]
         for case let url as URL in enumerator where isClaudeDesktopMetadataURL(url) {
-            guard let data = try? Data(contentsOf: url),
-                  let content = String(data: data, encoding: .utf8) else {
-                return nil
-            }
-            guard sessionIDs.contains(where: { content.contains($0) }) else { continue }
-            guard let metadata = try? JSONDecoder().decode(ClaudeDesktopSessionMetadata.self, from: data) else {
-                return nil
-            }
-            guard let cliSessionId = metadata.cliSessionId,
-                  sessionIDs.contains(cliSessionId) else { continue }
-
-            let match = ClaudeArchiveMatch(
-                isArchived: metadata.isArchived == true,
-                projectName: Self.projectName(originCwd: metadata.originCwd, worktreeName: metadata.worktreeName),
-                recencyKey: metadata.lastActivityAt ?? metadata.createdAt ?? .missing,
-                path: url.path
-            )
-            if let current = latestBySessionID[cliSessionId],
-               !match.isNewer(than: current) {
+            switch metadataMatch(at: url, matching: sessionIDs) {
+            case .skip:
                 continue
+            case .uncertain:
+                return nil
+            case let .match(sessionID, match):
+                if let current = latestBySessionID[sessionID],
+                   !match.isNewer(than: current) {
+                    continue
+                }
+                latestBySessionID[sessionID] = match
             }
-            latestBySessionID[cliSessionId] = match
         }
 
         return ClaudeDesktopSessionMetadataSnapshot(
@@ -70,6 +60,69 @@ struct ClaudeDesktopSessionArchiveLookup {
 
     private func isClaudeDesktopMetadataURL(_ url: URL) -> Bool {
         url.pathExtension == "json" && url.lastPathComponent.hasPrefix("local_")
+    }
+
+    private func metadataMatch(at url: URL, matching sessionIDs: Set<String>) -> ClaudeMetadataFileMatch {
+        guard let data = try? Data(contentsOf: url),
+              let content = String(data: data, encoding: .utf8) else {
+            return .uncertain
+        }
+        guard let candidateSessionID = cliSessionID(in: content) else {
+            if content.contains(#""cliSessionId""#),
+               sessionIDs.contains(where: { content.contains($0) }) {
+                return .uncertain
+            }
+            return .skip
+        }
+        guard sessionIDs.contains(candidateSessionID) else { return .skip }
+        guard let metadata = try? JSONDecoder().decode(ClaudeDesktopSessionMetadata.self, from: data),
+              let cliSessionId = metadata.cliSessionId,
+              sessionIDs.contains(cliSessionId) else {
+            return .uncertain
+        }
+
+        let match = ClaudeArchiveMatch(
+            isArchived: metadata.isArchived == true,
+            projectName: Self.projectName(originCwd: metadata.originCwd, worktreeName: metadata.worktreeName),
+            recencyKey: metadata.lastActivityAt ?? metadata.createdAt ?? .missing,
+            path: url.path
+        )
+        return .match(cliSessionId, match)
+    }
+
+    private func cliSessionID(in content: String) -> String? {
+        guard let keyRange = content.range(of: #""cliSessionId""#),
+              let colonRange = content[keyRange.upperBound...].range(of: ":") else {
+            return nil
+        }
+
+        var cursor = colonRange.upperBound
+        while cursor < content.endIndex, content[cursor].isWhitespace {
+            cursor = content.index(after: cursor)
+        }
+
+        guard cursor < content.endIndex, content[cursor] == "\"" else { return nil }
+        cursor = content.index(after: cursor)
+
+        var value = ""
+        var escaped = false
+        while cursor < content.endIndex {
+            let character = content[cursor]
+            cursor = content.index(after: cursor)
+
+            if escaped {
+                value.append(character)
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == "\"" {
+                return value
+            } else {
+                value.append(character)
+            }
+        }
+
+        return nil
     }
 
     private static func nonEmpty(_ value: String?) -> String? {
@@ -209,4 +262,10 @@ private struct ClaudeArchiveMatch {
         }
         return path > other.path
     }
+}
+
+private enum ClaudeMetadataFileMatch {
+    case skip
+    case uncertain
+    case match(String, ClaudeArchiveMatch)
 }

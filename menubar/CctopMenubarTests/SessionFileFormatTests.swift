@@ -1348,6 +1348,37 @@ final class SessionFileFormatTests: XCTestCase {
         )
     }
 
+    func testArchivedClaudeSessionIDsTreatsMalformedPossibleMatchAsUnreadable() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-malformed-match-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let malformed = (root as NSString).appendingPathComponent("local_malformed.json")
+        try Data(#"{"cliSessionId":target-session,"title":"broken"}"#.utf8)
+            .write(to: URL(fileURLWithPath: malformed))
+
+        XCTAssertNil(
+            ClaudeDesktopSessionArchiveLookup(sessionsDirectory: root)
+                .archivedSessionIDs(matching: ["target-session"])
+        )
+    }
+
+    func testArchivedClaudeSessionIDsDoesNotMatchTargetOutsideCliSessionID() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-non-id-match-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let metadata = (root as NSString).appendingPathComponent("local_other.json")
+        try Data(#"{"cliSessionId":"other-session","title":"target-session","isArchived":true}"#.utf8)
+            .write(to: URL(fileURLWithPath: metadata))
+
+        XCTAssertEqual(
+            ClaudeDesktopSessionArchiveLookup(sessionsDirectory: root)
+                .archivedSessionIDs(matching: ["target-session"]),
+            []
+        )
+    }
+
     func testArchivedClaudeSessionIDsAcceptsNumericTimestamps() throws {
         let root = NSTemporaryDirectory() + "cctop-claude-numeric-lookup-\(UUID().uuidString)"
         let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")

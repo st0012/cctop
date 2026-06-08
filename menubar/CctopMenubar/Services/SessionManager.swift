@@ -56,27 +56,31 @@ class SessionManager: ObservableObject {
 
         // Notification transition guards use the same identity policy as dedup: Codex and
         // desktop conversations are stable by session_id; other sessions keep PID identity.
-        let oldStatuses = Dictionary(
-            sessions.map { (SessionIdentityPolicy.stableKey(for: $0), $0.status) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        let oldStatuses = currentStatusesByStableKey()
 
-        let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
+        let jsonFiles = sessionJSONFiles(in: files)
         let allDecoded = decodedSessions(from: jsonFiles)
         let hidden = allDecoded.filter { $0.session.hidden }
         let autoHidden = allDecoded.filter { !$0.session.hidden && $0.session.shouldAutoHide }
-        let visibleFiles = allDecoded.filter { !$0.session.hidden && !$0.session.shouldAutoHide }.map(\.url)
-        let candidates = Self.buildCandidates(visibleFiles, now: Date(), desktopAppConnectionLookup: desktopAppConnectionLookup)
-        let visibility = Self.visibilitySnapshot(in: candidates)
-        let liveCandidates = visibility.liveCandidates
-        sessionManagerLogger.info("loadSessions: \(jsonFiles.count) files, \(allDecoded.count) decoded")
-        sessionManagerLogger.info(
-            "loadSessions: \(liveCandidates.count) visible candidates, \(hidden.count) hidden, \(autoHidden.count) auto-hidden"
+        let visibleDecoded = allDecoded.filter { !$0.session.hidden && !$0.session.shouldAutoHide }
+        let visibleSessions = visibleDecoded.map(\.session)
+        let claudeMetadata = Self.claudeDesktopMetadataSnapshot(in: visibleSessions)
+        let candidates = Self.buildCandidates(
+            visibleDecoded,
+            now: Date(),
+            desktopAppConnectionLookup: desktopAppConnectionLookup,
+            claudeMetadata: claudeMetadata
         )
-        sessionManagerLogger.info("loadSessions: \(visibility.archivedCodexThreadIDs.count) codex-archived")
-        sessionManagerLogger.info("loadSessions: \(visibility.codexSubagentThreadIDs.count) codex-subagent")
-        sessionManagerLogger.info("loadSessions: \(visibility.codexExecHelperThreadIDs.count) codex-exec-helper")
-        sessionManagerLogger.info("loadSessions: \(visibility.archivedClaudeSessionIDs.count) claude-archived")
+        let visibility = Self.visibilitySnapshot(in: candidates, claudeMetadata: claudeMetadata)
+        let liveCandidates = visibility.liveCandidates
+        let summary = SessionLoadSummary(
+            files: jsonFiles.count,
+            decoded: allDecoded.count,
+            live: liveCandidates.count,
+            hidden: hidden.count,
+            autoHidden: autoHidden.count
+        )
+        logLoadSummary(summary, visibility: visibility)
 
         // Publish active + dormant; finished are hidden (swept below / by GC).
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(liveCandidates)
