@@ -180,11 +180,7 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
 }
 
 /// Runs a focus script and falls back to activating the host by bundle ID.
-///
-/// - Parameters:
-///   - host: Host app to activate when the focused session cannot be matched.
-///   - script: Focus operation that returns `true` only when it matched the target session.
-/// - Returns: `true` when the script matched its target session; otherwise `false`.
+/// - Returns: `true` only when the script matched its target session.
 @discardableResult
 private func runScriptOrActivate(_ host: HostApp, script: () -> Bool) -> Bool {
     if script() {
@@ -211,33 +207,20 @@ private func runAppleScript(_ source: String) -> Bool {
 }
 
 /// Runs AppleScript that returns an explicit Boolean result.
-///
-/// - Parameter source: AppleScript source expected to return `true` for a target match.
 /// - Returns: The script's Boolean result, or `false` when execution fails.
 private func runAppleScriptReturningBool(_ source: String) -> Bool {
     var error: NSDictionary?
-    guard let result = NSAppleScript(source: source)?.executeAndReturnError(&error),
-          error == nil else { return false }
+    guard let result = NSAppleScript(source: source)?.executeAndReturnError(&error), error == nil else { return false }
     return result.booleanValue
 }
 
 /// Returns whether the iTerm2 mark jump should run after a focus attempt.
-///
-/// - Parameters:
-///   - didMatchSession: Whether the focus script found and selected the saved iTerm2 GUID.
-///   - jumpToMark: Whether the session status calls for jumping to the latest turn mark.
-/// - Returns: `true` only when both the session matched and mark jumping was requested.
-func shouldJumpToITerm2Mark(didMatchSession: Bool, jumpToMark: Bool) -> Bool {
-    didMatchSession && jumpToMark
-}
-
+/// - Returns: `true` only when the target session matched and mark jumping was requested.
+func shouldJumpToITerm2Mark(didMatchSession: Bool, jumpToMark: Bool) -> Bool { didMatchSession && jumpToMark }
 private func executeITerm2Script(guid: String) -> Bool {
     runAppleScriptReturningBool(buildITerm2FocusScript(guid: guid))
 }
-
 /// Builds AppleScript that focuses a specific iTerm2 session by GUID.
-///
-/// - Parameter guid: iTerm2 session unique ID captured from terminal metadata.
 /// - Returns: AppleScript source that returns `true` on GUID match and `false` otherwise.
 func buildITerm2FocusScript(guid: String) -> String {
     let escapedGUID = escapeAppleScriptString(guid)
