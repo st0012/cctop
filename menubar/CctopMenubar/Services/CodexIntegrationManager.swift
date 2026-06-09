@@ -81,11 +81,79 @@ enum CodexIntegrationManager {
             return .needsUpdate
         }
         if let configText,
-           CodexPluginInstaller.hasTrustedCctopHookState(
+           hasTrustedCctopHookState(
                in: configText, hooksPath: CodexPluginInstaller.hooksJsonPath.path
            ) {
             return .trusted
         }
         return .installedUntrusted
+    }
+
+    // MARK: - Codex trust records
+
+    /// Snake-case event keys Codex uses for `[hooks.state]` trust entries.
+    /// These are empirical observations of Codex's format that mirror
+    /// `CodexPluginInstaller.registeredEvents` — keep both lists in sync.
+    static let trustStateEventKeys: [String] = [
+        "session_start", "user_prompt_submit", "pre_tool_use", "post_tool_use", "stop"
+    ]
+
+    /// Codex records reviewed command hooks under `[hooks.state]` in
+    /// config.toml. Reading them is a conservative UI signal only: cctop
+    /// never writes these entries and does not try to reproduce Codex's
+    /// private trust-hash calculation. True when every registered cctop
+    /// event has a `trusted_hash` entry for `hooksPath`.
+    static func hasTrustedCctopHookState(in configText: String, hooksPath: String) -> Bool {
+        var trustedEvents: Set<String> = []
+        var currentCctopEvent: String?
+
+        for line in configText.components(separatedBy: "\n") {
+            if isTomlSectionHeader(line) {
+                currentCctopEvent = parseCctopHookStateEvent(line, hooksPath: hooksPath)
+                continue
+            }
+            if let event = currentCctopEvent, isTrustedHashLine(line) {
+                trustedEvents.insert(event)
+                currentCctopEvent = nil
+            }
+        }
+
+        return Set(trustStateEventKeys).isSubset(of: trustedEvents)
+    }
+
+    private static func isTomlSectionHeader(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return trimmed.hasPrefix("[") && trimmed.hasSuffix("]")
+    }
+
+    /// Parses a `[hooks.state."<hooksPath>:<event>:..."]` header. Returns the
+    /// cctop event key when the source path matches `hooksPath`, else nil.
+    private static func parseCctopHookStateEvent(_ line: String, hooksPath: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("[hooks.state.") && trimmed.hasSuffix("]") else { return nil }
+        let key = trimmed
+            .dropFirst("[hooks.state.".count)
+            .dropLast()
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+        for event in trustStateEventKeys {
+            let marker = ":\(event):"
+            guard let markerRange = key.range(of: marker) else { continue }
+            if String(key[..<markerRange.lowerBound]) == hooksPath {
+                return event
+            }
+        }
+        return nil
+    }
+
+    private static func isTrustedHashLine(_ line: String) -> Bool {
+        let effective: String
+        if let hashIdx = line.firstIndex(of: "#") {
+            effective = String(line[..<hashIdx])
+        } else {
+            effective = line
+        }
+        let trimmed = effective.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("trusted_hash") else { return false }
+        return trimmed.contains("=") && trimmed.contains("\"sha256:")
     }
 }
