@@ -484,6 +484,9 @@ extension AppDelegate {
             switch action {
             case .showPanel:
                 notchVisibilityWork?.cancel()
+                // Plugin/hook state can change outside the app (e.g. trusting
+                // Codex hooks in Codex itself) — re-read it on every open.
+                pluginManager.refresh()
                 panel.makeKeyAndOrderFront(nil)
                 // Re-position after SwiftUI layout settles
                 DispatchQueue.main.async { [weak self] in

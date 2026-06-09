@@ -72,6 +72,7 @@ final class SnapshotTests: XCTestCase {
         let checkedFiles = [
             "menubar/CctopMenubar/Views/EmptyStateView.swift",
             "menubar/CctopMenubar/Views/SettingsSection.swift",
+            "menubar/CctopMenubar/Views/CodexPluginRowView.swift",
             "README.md",
             "site/index.html",
             "plugins/codex/cctop-shim.sh",

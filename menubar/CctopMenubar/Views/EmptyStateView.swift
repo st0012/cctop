@@ -9,6 +9,8 @@ struct EmptyStateView: View {
     @ObservedObject var pluginManager: PluginManager
     @State private var justInstalled: Set<AgentKind> = []
     @State private var failedAgent: AgentKind?
+    @State private var codexInstalling = false
+    @State private var showCodexTrustPopover = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -61,6 +63,12 @@ struct EmptyStateView: View {
     private var subtitle: String {
         if allConnected {
             return "Start a session \u{2014} it will appear here automatically."
+        }
+        if codexHooksDisabled {
+            return "Codex hooks are disabled \u{2014} enable them before sessions can appear."
+        }
+        if codexHooksUntrusted {
+            return "cctop's hooks are installed, but Codex needs to trust them first."
         }
         return "Install the plugin or hooks for your AI tool to see live status here."
     }
@@ -115,10 +123,20 @@ struct EmptyStateView: View {
             EmptyView()
         } else if !isDetected(agent) {
             notDetectedBadge
+        } else if agent == .codex && codexInstalling {
+            CodexInstallingIndicator()
         } else if needsUpdate(agent) {
             installButton(label: "Update", agent: agent)
+        } else if hooksDisabled(agent) {
+            installButton(label: "Enable", agent: agent)
+        } else if needsHookTrust(agent) {
+            CodexHookTrustButton(
+                label: "Trust",
+                isPresented: $showCodexTrustPopover,
+                refresh: { pluginManager.refresh() }
+            )
         } else if isInstalled(agent) {
-            ConnectedBadge()
+            installedBadge(for: agent)
         } else if agent == .claudeCode {
             ClaudeCodeInstallButton()
         } else {
@@ -147,6 +165,8 @@ struct EmptyStateView: View {
         .buttonStyle(.plain)
     }
 
+    // Codex never reaches this hint — its install path skips the green
+    // flash and opens the trust walkthrough instead (see runCodexInstall).
     private func installedHint(for agent: AgentKind) -> some View {
         hintRow(
             icon: "checkmark",
@@ -155,6 +175,15 @@ struct EmptyStateView: View {
             textColor: Color.textMuted,
             iconWeight: .bold
         )
+    }
+
+    @ViewBuilder
+    private func installedBadge(for agent: AgentKind) -> some View {
+        if agent == .codex {
+            HooksReadyBadge()
+        } else {
+            ConnectedBadge()
+        }
     }
 
     private var failedHint: some View {
@@ -191,12 +220,22 @@ struct EmptyStateView: View {
             Image(systemName: "arrow.clockwise")
                 .font(.system(size: 10))
                 .foregroundStyle(Color.textMuted)
-            Text("Restart sessions after installing to pick up hooks")
+            Text(restartHintText)
                 .font(.system(size: 10))
                 .foregroundStyle(Color.textMuted)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 4)
+    }
+
+    private var restartHintText: String {
+        if codexHooksDisabled {
+            return "Enable Codex hooks, then start a new session"
+        }
+        if codexHooksUntrusted {
+            return "Start a Codex CLI session and trust the hooks when prompted"
+        }
+        return "Restart sessions after installing to pick up hooks"
     }
 
     // MARK: - Install actions
@@ -211,9 +250,28 @@ struct EmptyStateView: View {
         case .pi:
             success = pluginManager.installPiPlugin()
         case .codex:
-            success = pluginManager.installCodexPlugin()
+            runCodexInstall()
+            return
         }
         handleInstallResult(agent: agent, success: success)
+    }
+
+    /// Codex skips the green "installed" flash: installing isn't the end of
+    /// the flow, so show a brief spinner and open the trust walkthrough
+    /// directly. Green appears only once Codex trusts the hooks.
+    private func runCodexInstall() {
+        guard !codexInstalling else { return }
+        codexInstalling = true
+        failedAgent = nil
+        let success = pluginManager.installCodexPlugin()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            codexInstalling = false
+            if !success {
+                handleInstallResult(agent: .codex, success: false)
+            } else if pluginManager.codexHookStatus.needsTrust {
+                DispatchQueue.main.async { showCodexTrustPopover = true }
+            }
+        }
     }
 
     private func handleInstallResult(agent: AgentKind, success: Bool) {
@@ -235,12 +293,20 @@ struct EmptyStateView: View {
 
     private var anyUninstalled: Bool {
         AgentKind.allCases.contains {
-            isDetected($0) && (!isInstalled($0) || needsUpdate($0))
+            isDetected($0) && (!isInstalled($0) || needsUpdate($0) || needsHookTrust($0))
         }
     }
 
     private var allConnected: Bool {
         !anyUninstalled
+    }
+
+    private var codexHooksUntrusted: Bool {
+        isDetected(.codex) && needsHookTrust(.codex)
+    }
+
+    private var codexHooksDisabled: Bool {
+        isDetected(.codex) && hooksDisabled(.codex)
     }
 
     private func isDetected(_ agent: AgentKind) -> Bool {
@@ -267,6 +333,14 @@ struct EmptyStateView: View {
         case .codex:    return pluginManager.codexNeedsUpdate
         default:        return false
         }
+    }
+
+    private func needsHookTrust(_ agent: AgentKind) -> Bool {
+        agent == .codex && pluginManager.codexHookStatus.needsTrust
+    }
+
+    private func hooksDisabled(_ agent: AgentKind) -> Bool {
+        agent == .codex && pluginManager.codexHookStatus == .hooksDisabled
     }
 }
 
@@ -300,7 +374,8 @@ private enum AgentKind: String, CaseIterable, Hashable {
 private func previewPluginManager(
     cc: Bool = false, oc: Bool = false, ocConfig: Bool = false,
     pi: Bool = false, piConfig: Bool = false,
-    codex: Bool = false, codexConfig: Bool = false
+    codex: Bool = false, codexConfig: Bool = false,
+    codexHookStatus: CodexHookStatus = .notInstalled
 ) -> PluginManager {
     let pm = PluginManager()
     pm.ccInstalled = cc
@@ -310,6 +385,7 @@ private func previewPluginManager(
     pm.piConfigExists = piConfig
     pm.codexInstalled = codex
     pm.codexConfigExists = codexConfig
+    pm.codexHookStatus = codexHookStatus
     return pm
 }
 
@@ -345,7 +421,36 @@ private func previewPluginManager(
             cc: true,
             oc: true, ocConfig: true,
             pi: true, piConfig: true,
-            codex: true, codexConfig: true
+            codex: true, codexConfig: true,
+            codexHookStatus: .trusted
+        )
+    )
+    .frame(width: 320)
+    .background(Color.panelBackground)
+}
+
+#Preview("Codex trust needed") {
+    EmptyStateView(
+        pluginManager: previewPluginManager(
+            cc: true,
+            oc: true, ocConfig: true,
+            pi: true, piConfig: true,
+            codex: true, codexConfig: true,
+            codexHookStatus: .installedUntrusted
+        )
+    )
+    .frame(width: 320)
+    .background(Color.panelBackground)
+}
+
+#Preview("Codex hooks disabled") {
+    EmptyStateView(
+        pluginManager: previewPluginManager(
+            cc: true,
+            oc: true, ocConfig: true,
+            pi: true, piConfig: true,
+            codexConfig: true,
+            codexHookStatus: .hooksDisabled
         )
     )
     .frame(width: 320)

@@ -218,6 +218,128 @@ final class CodexPluginInstallerTests: XCTestCase {
         }
     }
 
+    // MARK: - Codex hook trust state
+
+    func testHasTrustedCctopHookStateRequiresAllRegisteredEvents() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let hooksPath = CodexPluginInstaller.hooksJsonPath.path
+            let config = trustStateConfig(
+                hooksPath: hooksPath,
+                events: CodexPluginInstaller.trustStateEventKeys
+            )
+            XCTAssertTrue(CodexPluginInstaller.hasTrustedCctopHookState(in: config, hooksPath: hooksPath))
+        }
+    }
+
+    func testHasTrustedCctopHookStateRejectsMissingEvent() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let hooksPath = CodexPluginInstaller.hooksJsonPath.path
+            let events = CodexPluginInstaller.trustStateEventKeys.filter { $0 != "stop" }
+            let config = trustStateConfig(hooksPath: hooksPath, events: events)
+            XCTAssertFalse(CodexPluginInstaller.hasTrustedCctopHookState(in: config, hooksPath: hooksPath))
+        }
+    }
+
+    func testHasTrustedCctopHookStateIgnoresOtherHooksFiles() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            // Shapes seen in real configs that must not match: an unrelated
+            // user hooks file, a project-level file with the same trailing
+            // `/.codex/hooks.json`, and a plugin-bundled source whose key
+            // contains its own colon before the event segment.
+            let nearMissSources = [
+                "/tmp/other/hooks.json",
+                "/Users/alice/projects/demo/.codex/hooks.json",
+                "security-guidance@claude-plugins-official:hooks/hooks.json",
+            ]
+            for source in nearMissSources {
+                let config = trustStateConfig(
+                    hooksPath: source,
+                    events: CodexPluginInstaller.trustStateEventKeys
+                )
+                XCTAssertFalse(
+                    CodexPluginInstaller.hasTrustedCctopHookState(
+                        in: config, hooksPath: CodexPluginInstaller.hooksJsonPath.path
+                    ),
+                    "trust entries for \(source) must not count for ~/.codex/hooks.json"
+                )
+            }
+        }
+    }
+
+    func testHasTrustedCctopHookStateDoesNotCarryEventAcrossUnrelatedSections() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let hooksPath = CodexPluginInstaller.hooksJsonPath.path
+            var lines = ["[hooks.state]"]
+            for event in CodexPluginInstaller.trustStateEventKeys {
+                lines.append("")
+                lines.append("[hooks.state.\"\(hooksPath):\(event):0:0\"]")
+                if event != "stop" {
+                    lines.append("trusted_hash = \"sha256:abc123\"")
+                }
+            }
+            lines.append("")
+            lines.append("[hooks.state.\"/tmp/other/hooks.json:stop:0:0\"]")
+            lines.append("trusted_hash = \"sha256:abc123\"")
+
+            XCTAssertFalse(
+                CodexPluginInstaller.hasTrustedCctopHookState(
+                    in: lines.joined(separator: "\n"),
+                    hooksPath: hooksPath
+                )
+            )
+        }
+    }
+
+    func testHasTrustedCctopHookStateIgnoresTrustWhenHooksFileIsGone() throws {
+        let dir = makeTempCodexDir()
+        try withHomeDir(dir.parent) {
+            let config = trustStateConfig(
+                hooksPath: CodexPluginInstaller.hooksJsonPath.path,
+                events: CodexPluginInstaller.trustStateEventKeys
+            )
+
+            // hooks.json doesn't exist yet — trust entries are stale.
+            XCTAssertFalse(CodexPluginInstaller.hasTrustedCctopHookState(configText: config))
+
+            // Once the hooks file is back, the same trust entries count.
+            try Data("{}".utf8).write(to: CodexPluginInstaller.hooksJsonPath, options: .atomic)
+            XCTAssertTrue(CodexPluginInstaller.hasTrustedCctopHookState(configText: config))
+        }
+    }
+
+    func testInstalledHookFilesDoNotCountAsTrustedHookState() throws {
+        let dir = makeTempCodexDir()
+        let template = try loadCodexHooksTemplate()
+        let shim = try loadCodexShim()
+        try withHomeDir(dir.parent) {
+            XCTAssertTrue(
+                CodexPluginInstaller.install(shimContents: shim, hooksTemplate: template)
+            )
+            XCTAssertTrue(CodexPluginInstaller.isInstalled())
+            XCTAssertFalse(CodexPluginInstaller.hasTrustedCctopHookState())
+        }
+    }
+
+    func testInstalledHookFilesIgnoreDisabledFeatureFlag() throws {
+        let dir = makeTempCodexDir()
+        let template = try loadCodexHooksTemplate()
+        let shim = try loadCodexShim()
+        try withHomeDir(dir.parent) {
+            XCTAssertTrue(
+                CodexPluginInstaller.install(shimContents: shim, hooksTemplate: template)
+            )
+            try Data("[features]\nhooks = false\n".utf8)
+                .write(to: CodexPluginInstaller.configTomlPath, options: .atomic)
+
+            XCTAssertTrue(CodexPluginInstaller.hasInstalledHookFiles())
+            XCTAssertFalse(CodexPluginInstaller.isInstalled())
+        }
+    }
+
     // MARK: - Test helpers
 
     private struct TempCodexDir {
@@ -276,5 +398,15 @@ final class CodexPluginInstallerTests: XCTestCase {
     private func containsCommandSubstring(_ entry: [String: Any], _ needle: String) -> Bool {
         guard let cmds = entry["hooks"] as? [[String: Any]] else { return false }
         return cmds.contains { ($0["command"] as? String)?.contains(needle) ?? false }
+    }
+
+    private func trustStateConfig(hooksPath: String, events: [String]) -> String {
+        var lines = ["[hooks.state]"]
+        for event in events {
+            lines.append("")
+            lines.append("[hooks.state.\"\(hooksPath):\(event):0:0\"]")
+            lines.append("trusted_hash = \"sha256:abc123\"")
+        }
+        return lines.joined(separator: "\n")
     }
 }

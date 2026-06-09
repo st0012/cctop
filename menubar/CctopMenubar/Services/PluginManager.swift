@@ -14,6 +14,7 @@ class PluginManager: ObservableObject {
     @Published var codexInstalled: Bool = false
     @Published var codexNeedsUpdate: Bool = false
     @Published var codexConfigExists: Bool = false
+    @Published var codexHookStatus: CodexHookStatus = .notInstalled
 
     static let ccInstallCommand =
         "claude plugin marketplace add st0012/cctop && claude plugin install cctop"
@@ -50,15 +51,22 @@ class PluginManager: ObservableObject {
         piConfigExists = fm.fileExists(atPath: piConfigDir.path)
         piInstalled = fm.fileExists(atPath: Self.piPluginPath.path)
 
-        codexConfigExists = CodexPluginInstaller.codexConfigExists()
-        codexInstalled = CodexPluginInstaller.isInstalled()
-
-        let codexConfigText: String? = codexConfigExists
+        let codexDirExists = CodexPluginInstaller.codexConfigExists()
+        let codexConfigText: String? = codexDirExists
             ? (try? String(contentsOf: CodexPluginInstaller.configTomlPath, encoding: .utf8))
             : nil
-
-        codexNeedsUpdate = codexInstalled
-            && Self.codexInstallStale(configText: codexConfigText)
+        let codexHookFilesInstalled = CodexPluginInstaller.hasInstalledHookFiles()
+        let codexSnapshot = CodexIntegrationManager.snapshot(CodexIntegrationObservation(
+            configExists: codexDirExists,
+            hookFilesInstalled: codexHookFilesInstalled,
+            featureEnabled: codexConfigText.map(CodexPluginInstaller.isFeatureFlagEnabled) ?? true,
+            needsUpdate: codexHookFilesInstalled && Self.codexInstallStale(configText: codexConfigText),
+            configText: codexConfigText
+        ))
+        codexConfigExists = codexSnapshot.configExists
+        codexNeedsUpdate = codexSnapshot.needsUpdate
+        codexHookStatus = codexSnapshot.hookStatus
+        codexInstalled = codexSnapshot.installed
     }
 
     /// Cache layout is `<marketplace>/<plugin>/<version>/`. Claude Code writes a `.orphaned_at`

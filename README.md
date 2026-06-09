@@ -113,7 +113,7 @@ brew install --cask st0012/cctop/cctop
 
 ### Step 2: Connect your tools
 
-The app auto-detects installed coding tools. For **opencode** and **pi**, click *Install Plugin* in Settings > Monitored Tools. For **Codex CLI or Codex Desktop**, click *Install Hooks*.
+The app auto-detects installed coding tools. For **opencode** and **pi**, click *Install Plugin* in Settings > Monitored Tools. For **Codex CLI or Codex Desktop**, click *Install Hooks*, then start a new Codex CLI session in your terminal and choose *Trust all and continue* when Codex asks to review the new hooks — Codex only executes hooks you've trusted, and cctop shows the row as *Ready* once they are. Codex Desktop has no review prompt, so trust the hooks once via the CLI; Desktop shares the same trust state.
 
 For **Claude Code or Claude Desktop**, run this one-liner in your terminal (the app also exposes a *Copy Install Command* button under Settings > Monitored Tools):
 
