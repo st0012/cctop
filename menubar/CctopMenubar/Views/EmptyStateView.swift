@@ -9,8 +9,7 @@ struct EmptyStateView: View {
     @ObservedObject var pluginManager: PluginManager
     @State private var justInstalled: Set<AgentKind> = []
     @State private var failedAgent: AgentKind?
-    @State private var codexInstalling = false
-    @State private var showCodexTrustPopover = false
+    @StateObject private var codexSetupFlow = CodexSetupFlow()
 
     var body: some View {
         VStack(spacing: 14) {
@@ -123,7 +122,7 @@ struct EmptyStateView: View {
             EmptyView()
         } else if !isDetected(agent) {
             notDetectedBadge
-        } else if agent == .codex && codexInstalling {
+        } else if agent == .codex && codexSetupFlow.isInstalling {
             CodexInstallingIndicator()
         } else if needsUpdate(agent) {
             installButton(label: "Update", agent: agent)
@@ -132,7 +131,7 @@ struct EmptyStateView: View {
         } else if needsHookTrust(agent) {
             CodexHookTrustButton(
                 label: "Trust",
-                isPresented: $showCodexTrustPopover,
+                isPresented: $codexSetupFlow.showWalkthrough,
                 refresh: { pluginManager.refresh() }
             )
         } else if isInstalled(agent) {
@@ -256,21 +255,12 @@ struct EmptyStateView: View {
         handleInstallResult(agent: agent, success: success)
     }
 
-    /// Codex skips the green "installed" flash: installing isn't the end of
-    /// the flow, so show a brief spinner and open the trust walkthrough
-    /// directly. Green appears only once Codex trusts the hooks.
+    /// Codex skips the green "installed" flash — see `CodexSetupFlow`.
+    /// Green appears only once Codex trusts the hooks.
     private func runCodexInstall() {
-        guard !codexInstalling else { return }
-        codexInstalling = true
         failedAgent = nil
-        let success = pluginManager.installCodexPlugin()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            codexInstalling = false
-            if !success {
-                handleInstallResult(agent: .codex, success: false)
-            } else if pluginManager.codexHookStatus.needsTrust {
-                DispatchQueue.main.async { showCodexTrustPopover = true }
-            }
+        codexSetupFlow.runInstall(using: pluginManager) {
+            handleInstallResult(agent: .codex, success: false)
         }
     }
 

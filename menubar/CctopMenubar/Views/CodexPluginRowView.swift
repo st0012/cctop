@@ -7,8 +7,7 @@ import SwiftUI
 struct CodexPluginRowView: View {
     @ObservedObject var pluginManager: PluginManager
     @Binding var installFailed: Bool
-    @State private var isInstalling = false
-    @State private var showTrustInstructions = false
+    @StateObject private var setupFlow = CodexSetupFlow()
     @State private var removeHovered = false
 
     var body: some View {
@@ -22,7 +21,7 @@ struct CodexPluginRowView: View {
             }
             .padding(.vertical, 7)
 
-            if isInstalling {
+            if setupFlow.isInstalling {
                 EmptyView()
             } else if pluginManager.codexHookStatus == .hooksDisabled {
                 settingsHint(
@@ -53,7 +52,7 @@ struct CodexPluginRowView: View {
 
     @ViewBuilder
     private var trailingControl: some View {
-        if isInstalling {
+        if setupFlow.isInstalling {
             CodexInstallingIndicator()
         } else {
             switch pluginManager.codexHookStatus {
@@ -72,7 +71,7 @@ struct CodexPluginRowView: View {
             case .installedUntrusted:
                 CodexHookTrustButton(
                     label: "Trust Hooks",
-                    isPresented: $showTrustInstructions,
+                    isPresented: $setupFlow.showWalkthrough,
                     refresh: { pluginManager.refresh() }
                 )
                 removeButton
@@ -108,22 +107,11 @@ struct CodexPluginRowView: View {
         .buttonStyle(.plain)
     }
 
-    /// No success flash here on purpose: installing is not the end of the
-    /// flow, so the row shows a brief spinner and then opens the trust
-    /// walkthrough directly. Green appears only once Codex trusts the hooks.
+    /// No success flash here on purpose — see `CodexSetupFlow`. Green
+    /// appears only once Codex trusts the hooks.
     private func runInstallAction() {
-        guard !isInstalling else { return }
-        isInstalling = true
         installFailed = false
-        let success = pluginManager.installCodexPlugin()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            isInstalling = false
-            if !success {
-                flashFailed()
-            } else if pluginManager.codexHookStatus.needsTrust {
-                DispatchQueue.main.async { showTrustInstructions = true }
-            }
-        }
+        setupFlow.runInstall(using: pluginManager) { flashFailed() }
     }
 
     private func flashFailed() {

@@ -72,6 +72,7 @@
 		PC0000010000000000000001 /* PanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = PC0000020000000000000001 /* PanelCoordinator.swift */; };
 		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
 		CIM000010000000000000001 /* CodexIntegrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CIM000020000000000000001 /* CodexIntegrationManager.swift */; };
+		CSF000010000000000000001 /* CodexSetupFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CSF000020000000000000001 /* CodexSetupFlow.swift */; };
 		CPI000010000000000000001 /* CodexPluginInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPI000020000000000000001 /* CodexPluginInstaller.swift */; };
 		CCT000010000000000000001 /* CodexConfigToml.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCT000020000000000000001 /* CodexConfigToml.swift */; };
 		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
@@ -189,6 +190,7 @@
 		PC0000020000000000000001 /* PanelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinator.swift; sourceTree = "<group>"; };
 		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
 		CIM000020000000000000001 /* CodexIntegrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexIntegrationManager.swift; sourceTree = "<group>"; };
+		CSF000020000000000000001 /* CodexSetupFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSetupFlow.swift; sourceTree = "<group>"; };
 		CPI000020000000000000001 /* CodexPluginInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPluginInstaller.swift; sourceTree = "<group>"; };
 		CCT000020000000000000001 /* CodexConfigToml.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexConfigToml.swift; sourceTree = "<group>"; };
 		Q10000020000000000000001 /* QASnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QASnapshotTests.swift; sourceTree = "<group>"; };
@@ -273,6 +275,7 @@
 				SP0000020000000000000001 /* SparkleUpdater.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
 				CIM000020000000000000001 /* CodexIntegrationManager.swift */,
+				CSF000020000000000000001 /* CodexSetupFlow.swift */,
 				CPI000020000000000000001 /* CodexPluginInstaller.swift */,
 				CCT000020000000000000001 /* CodexConfigToml.swift */,
 				JM0000020000000000000001 /* NavigateController.swift */,
@@ -567,6 +570,7 @@
 				SP0000010000000000000001 /* SparkleUpdater.swift in Sources */,
 				PM0000010000000000000001 /* PluginManager.swift in Sources */,
 				CIM000010000000000000001 /* CodexIntegrationManager.swift in Sources */,
+				CSF000010000000000000001 /* CodexSetupFlow.swift in Sources */,
 				CPI000010000000000000001 /* CodexPluginInstaller.swift in Sources */,
 				CCT000010000000000000001 /* CodexConfigToml.swift in Sources */,
 				HM0000010000000000000001 /* HistoryManager.swift in Sources */,
