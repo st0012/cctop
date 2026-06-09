@@ -150,18 +150,9 @@ struct EmptyStateView: View {
     }
 
     private func installButton(label: String, agent: AgentKind) -> some View {
-        Button {
+        AmberActionButton(label: label) {
             triggerInstall(for: agent)
-        } label: {
-            Text(label)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.segmentActiveText)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Color.amber)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
         }
-        .buttonStyle(.plain)
     }
 
     // Codex never reaches this hint — its install path skips the green

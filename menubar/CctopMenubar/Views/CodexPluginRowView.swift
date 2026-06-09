@@ -57,15 +57,15 @@ struct CodexPluginRowView: View {
         } else {
             switch pluginManager.codexHookStatus {
             case .notInstalled:
-                actionButton("Install Hooks") {
+                AmberActionButton(label: "Install Hooks") {
                     runInstallAction()
                 }
             case .hooksDisabled:
-                actionButton("Enable Hooks") {
+                AmberActionButton(label: "Enable Hooks") {
                     runInstallAction()
                 }
             case .needsUpdate:
-                actionButton("Update Hooks") {
+                AmberActionButton(label: "Update Hooks") {
                     runInstallAction()
                 }
             case .installedUntrusted:
@@ -92,19 +92,6 @@ struct CodexPluginRowView: View {
         }
         .buttonStyle(.plain)
         .onHover { removeHovered = $0 }
-    }
-
-    private func actionButton(_ label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.segmentActiveText)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Color.amber)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-        }
-        .buttonStyle(.plain)
     }
 
     /// No success flash here on purpose — see `CodexSetupFlow`. Green
@@ -248,21 +235,6 @@ private struct CodexHookTrustInstructions: View {
 struct HooksReadyBadge: View {
     var body: some View {
         StatusDotBadge(text: "Ready")
-    }
-}
-
-struct StatusDotBadge: View {
-    let text: String
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(Color.statusGreen)
-                .frame(width: 5, height: 5)
-            Text(text)
-                .font(.system(size: 10))
-                .foregroundStyle(Color.textMuted)
-        }
     }
 }
 

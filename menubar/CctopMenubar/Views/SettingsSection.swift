@@ -318,19 +318,12 @@ private struct PluginRowView: View {
     private var installButton: some View { actionButton(installLabel) }
 
     private func actionButton(_ label: String) -> some View {
-        Button {
+        AmberActionButton(label: label) {
             if install() {
                 justInstalled = true; installFailed = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { justInstalled = false }
             } else { flashFailed() }
-        } label: {
-            Text(label)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.segmentActiveText)
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Color.amber)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-        }.buttonStyle(.plain)
+        }
     }
 
     private func flashFailed() {
@@ -404,6 +397,40 @@ struct ClaudeCodeInstallButton: View {
                 .stroke(Color.statusGreen, lineWidth: 1)
         )
         .transition(.opacity)
+    }
+}
+
+/// Amber pill action button shared by the plugin rows and the empty state.
+struct AmberActionButton: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.segmentActiveText)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.amber)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct StatusDotBadge: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(Color.statusGreen)
+                .frame(width: 5, height: 5)
+            Text(text)
+                .font(.system(size: 10))
+                .foregroundStyle(Color.textMuted)
+        }
     }
 }
 
