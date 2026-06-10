@@ -42,6 +42,8 @@
 		HH0000010000000000000001 /* HookHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HH0000020000000000000001 /* HookHandlerTests.swift */; };
 		HH0000030000000000000001 /* HookHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000060000000000000001 /* HookHandler.swift */; };
 		HH0000050000000000000001 /* HookLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000080000000000000001 /* HookLogger.swift */; };
+		HD0000010000000000000001 /* HookDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = HD0000030000000000000001 /* HookDependencies.swift */; };
+		HD0000020000000000000001 /* HookDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = HD0000030000000000000001 /* HookDependencies.swift */; };
 		HT0000010000000000000001 /* HookEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HT0000020000000000000001 /* HookEventTests.swift */; };
 		J10000010000000000000001 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = J10000020000000000000001 /* SettingsSection.swift */; };
 		CDXROW010000000000000001 /* CodexPluginRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDXROW020000000000000001 /* CodexPluginRowView.swift */; };
@@ -185,6 +187,7 @@
 		P10000040000000000000001 /* HookInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookInput.swift; sourceTree = "<group>"; };
 		P10000060000000000000001 /* HookHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandler.swift; sourceTree = "<group>"; };
 		P10000080000000000000001 /* HookLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookLogger.swift; sourceTree = "<group>"; };
+		HD0000030000000000000001 /* HookDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookDependencies.swift; sourceTree = "<group>"; };
 		HM0000020000000000000001 /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManager.swift; sourceTree = "<group>"; };
 		JM0000020000000000000001 /* NavigateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigateController.swift; sourceTree = "<group>"; };
 		PC0000020000000000000001 /* PanelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinator.swift; sourceTree = "<group>"; };
@@ -376,6 +379,7 @@
 				P10000020000000000000001 /* HookMain.swift */,
 				P10000040000000000000001 /* HookInput.swift */,
 				P10000060000000000000001 /* HookHandler.swift */,
+				HD0000030000000000000001 /* HookDependencies.swift */,
 				P10000080000000000000001 /* HookLogger.swift */,
 				SN0000020000000000000001 /* SessionNameLookup.swift */,
 			);
@@ -580,6 +584,7 @@
 				N10000030000000000000001 /* HookEvent.swift in Sources */,
 				FX0000030000000000000001 /* HookInput.swift in Sources */,
 				HH0000030000000000000001 /* HookHandler.swift in Sources */,
+				HD0000010000000000000001 /* HookDependencies.swift in Sources */,
 				HH0000050000000000000001 /* HookLogger.swift in Sources */,
 				N10000050000000000000001 /* Config.swift in Sources */,
 				SN0000050000000000000001 /* SessionNameLookup.swift in Sources */,
@@ -608,6 +613,7 @@
 				P10000010000000000000001 /* HookMain.swift in Sources */,
 				P10000030000000000000001 /* HookInput.swift in Sources */,
 				P10000050000000000000001 /* HookHandler.swift in Sources */,
+				HD0000020000000000000001 /* HookDependencies.swift in Sources */,
 				P10000070000000000000001 /* HookLogger.swift in Sources */,
 				SN0000010000000000000001 /* SessionNameLookup.swift in Sources */,
 				P10000090000000000000001 /* Session.swift in Sources */,

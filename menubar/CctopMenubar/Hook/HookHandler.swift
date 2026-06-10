@@ -1,4 +1,3 @@
-// swiftlint:disable file_length
 import Foundation
 
 private let maxToolDetailLen = 120
@@ -327,7 +326,7 @@ enum HookHandler {
     /// Walk up the process tree to find the first ancestor with a controlling terminal.
     /// The hook subprocess itself has no tty (stdin is piped JSON), but ancestor
     /// processes (claude, shell) do.
-    private static func findTTY() -> String? {
+    static func findTTY() -> String? {
         var pid = getppid()
         for _ in 0..<6 {
             if pid <= 1 { break }
@@ -431,38 +430,9 @@ extension HookHandler {
         HookLogger().cleanupSessionLog(sessionId: sessionId)
     }
 
-    private static func isPIDAlive(_ pid: UInt32) -> Bool {
+    static func isPIDAlive(_ pid: UInt32) -> Bool {
         kill(Int32(pid), 0) == 0 || errno == EPERM
     }
-}
-
-// MARK: - Session File Locking
-
-/// Acquire an exclusive flock on a `.lock` file alongside the session file.
-/// This serializes concurrent hook processes operating on the same session,
-/// preventing read-modify-write races when multiple hooks fire simultaneously.
-func withSessionLock(
-    sessionPath: String,
-    onError: (String) -> Void = { HookLogger().logError($0) },
-    body: () throws -> Void
-) throws {
-    let lockPath = sessionPath + ".lock"
-    let fd = open(lockPath, O_CREAT | O_WRONLY, 0o600)
-    guard fd >= 0 else {
-        let err = errno
-        onError("withSessionLock: open(\(lockPath)) failed: \(err)")
-        throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
-                      userInfo: [NSLocalizedDescriptionKey: "Failed to open lock file: \(lockPath)"])
-    }
-    defer { close(fd) }
-    guard flock(fd, LOCK_EX) == 0 else {
-        let err = errno
-        onError("withSessionLock: flock(\(lockPath)) failed: \(err)")
-        throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
-                      userInfo: [NSLocalizedDescriptionKey: "Failed to acquire lock: \(lockPath)"])
-    }
-    defer { flock(fd, LOCK_UN) }
-    try body()
 }
 
 // MARK: - Session File Naming
