@@ -135,11 +135,17 @@ final class QASnapshotTests: XCTestCase {
     }
 
     private func popupView(for sessions: [Session]) -> some View {
-        PopupView(sessions: sessions, updater: DisabledUpdater())
+        PopupView(sessions: sessions, updater: DisabledUpdater(), pluginManager: inertPluginManager())
             .frame(width: 320)
             .background(Color(NSColor.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .environment(\.colorScheme, .light)
+    }
+
+    /// Inert manager: no home-dir IO, every flag starts deterministically
+    /// false, so snapshots never carry the developer's machine state.
+    private func inertPluginManager() -> PluginManager {
+        PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
     }
 
     // MARK: - Rendering
@@ -149,7 +155,7 @@ final class QASnapshotTests: XCTestCase {
         name: String,
         colorScheme: ColorScheme = .light
     ) throws {
-        let view = PopupView(sessions: sessions, updater: DisabledUpdater())
+        let view = PopupView(sessions: sessions, updater: DisabledUpdater(), pluginManager: inertPluginManager())
             .frame(width: 320)
             .background(Color(NSColor.windowBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -180,10 +186,7 @@ final class QASnapshotTests: XCTestCase {
         name: String,
         colorScheme: ColorScheme = .light
     ) throws {
-        let view = SettingsSection(
-            updater: updater,
-            pluginManager: PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
-        )
+        let view = SettingsSection(updater: updater, pluginManager: inertPluginManager())
             .frame(width: 320)
             .padding()
             .background(Color(NSColor.windowBackgroundColor))

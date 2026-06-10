@@ -17,7 +17,7 @@ struct PopupView: View {
     let sessions: [Session]
     var recentProjects: [RecentProject] = []
     @ObservedObject var updater: UpdaterBase
-    var pluginManager: PluginManager?
+    let pluginManager: PluginManager
     var navigate: NavigateController?
     @ObservedObject var overlayController: OverlayController = OverlayController()
     var initialTab: PopupTab = .active
@@ -33,10 +33,10 @@ struct PopupView: View {
     @AppStorage("piBannerDismissed") private var piBannerDismissed = false
 
     private var showOcBanner: Bool {
-        pluginManager.map { $0.ocConfigExists && !$0.ocInstalled && !ocBannerDismissed } ?? false
+        pluginManager.ocConfigExists && !pluginManager.ocInstalled && !ocBannerDismissed
     }
     private var showPiBanner: Bool {
-        pluginManager.map { $0.piConfigExists && !$0.piInstalled && !piBannerDismissed } ?? false
+        pluginManager.piConfigExists && !pluginManager.piInstalled && !piBannerDismissed
     }
 
     private var showTabs: Bool { !recentProjects.isEmpty }
@@ -63,10 +63,7 @@ struct PopupView: View {
                     overlayPanel {
                         switch overlay {
                         case .settings:
-                            SettingsSection(
-                                updater: updater,
-                                pluginManager: pluginManager ?? PluginManager()
-                            )
+                            SettingsSection(updater: updater, pluginManager: pluginManager)
                         case .about:
                             AboutView()
                         }
@@ -115,21 +112,19 @@ struct PopupView: View {
     private var activeContent: some View {
         Group {
             if sessions.isEmpty {
-                if let pluginManager {
-                    EmptyStateView(pluginManager: pluginManager)
-                }
+                EmptyStateView(pluginManager: pluginManager)
             } else {
                 VStack(spacing: 0) {
                 if showOcBanner {
                     ToolInstallBanner(
                         toolName: "opencode", iconLabel: ">_", iconColor: .blue,
-                        installAction: { pluginManager?.installOpenCodePlugin() ?? false },
+                        installAction: { pluginManager.installOpenCodePlugin() },
                         installed: $ocBannerInstalled, dismissed: $ocBannerDismissed)
                 }
                 if showPiBanner {
                     ToolInstallBanner(
                         toolName: "pi", iconLabel: "\u{03C0}", iconColor: .green,
-                        installAction: { pluginManager?.installPiPlugin() ?? false },
+                        installAction: { pluginManager.installPiPlugin() },
                         installed: $piBannerInstalled, dismissed: $piBannerDismissed)
                 }
                 ScrollViewReader { proxy in

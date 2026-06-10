@@ -11,7 +11,9 @@ final class SnapshotTests: XCTestCase {
     ///     -only-testing:CctopMenubarTests/SnapshotTests/testGenerateMenubarScreenshot \
     ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
     func testGenerateMenubarScreenshot() throws {
-        let view = PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater())
+        let view = PopupView(
+            sessions: Session.qaShowcase, updater: DisabledUpdater(), pluginManager: inertPluginManager()
+        )
         try renderScreenshot(view: view, colorScheme: .light, filename: "menubar-light.png")
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-dark.png")
     }
@@ -20,7 +22,8 @@ final class SnapshotTests: XCTestCase {
         let rc = NavigateController()
         rc.isActive = true
         let view = PopupView(
-            sessions: Session.qaShowcase, updater: DisabledUpdater(), navigate: rc
+            sessions: Session.qaShowcase, updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(), navigate: rc
         )
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-navigate.png")
     }
@@ -35,7 +38,7 @@ final class SnapshotTests: XCTestCase {
     ///     -only-testing:CctopMenubarTests/SnapshotTests/testGenerateEmptyStateScreenshot \
     ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
     func testGenerateEmptyStateScreenshot() throws {
-        let pm = PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
+        let pm = inertPluginManager()
         pm.ccInstalled = false
         pm.ocInstalled = false
         pm.ocConfigExists = true
@@ -51,7 +54,7 @@ final class SnapshotTests: XCTestCase {
     }
 
     func testGenerateOnboardingSettingsScreenshot() throws {
-        let pm = PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
+        let pm = inertPluginManager()
         pm.ccInstalled = false
         pm.ocInstalled = false
         pm.ocConfigExists = true
@@ -95,7 +98,7 @@ final class SnapshotTests: XCTestCase {
     func testGenerateRecentProjectsScreenshot() throws {
         let view = PopupView(
             sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
-            updater: DisabledUpdater(), initialTab: .recent
+            updater: DisabledUpdater(), pluginManager: inertPluginManager(), initialTab: .recent
         )
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-recent.png")
     }
@@ -109,12 +112,20 @@ final class SnapshotTests: XCTestCase {
     func testGenerateThemeScreenshots() throws {
         for theme in AppTheme.allCases {
             ThemeManager.shared.setTheme(theme)
-            let view = PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater())
+            let view = PopupView(
+                sessions: Session.qaShowcase, updater: DisabledUpdater(), pluginManager: inertPluginManager()
+            )
             try renderScreenshot(view: view, colorScheme: .dark, filename: "theme-\(theme.rawValue)-dark.png")
             try renderScreenshot(view: view, colorScheme: .light, filename: "theme-\(theme.rawValue)-light.png")
         }
         // Restore default
         ThemeManager.shared.setTheme(.claude)
+    }
+
+    /// Inert manager: no home-dir IO, every flag starts deterministically
+    /// false, so screenshots are reproducible across machines.
+    private func inertPluginManager() -> PluginManager {
+        PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
     }
 
     private func renderScreenshot(
