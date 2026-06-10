@@ -276,6 +276,49 @@ final class PanelPositioningTests: XCTestCase {
         )
     }
 
+    /// The UserDefaults-backed store must read positions persisted by previous
+    /// app versions and write back the identical raw format.
+    func testUserDefaultsStoreReadsAndWritesEstablishedFormat() throws {
+        let suiteName = "PanelPositioningTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            UserDefaults.standard.removeSuite(named: suiteName)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        // Seed pre-existing data exactly as older app versions persisted it.
+        let preExisting: [String: [String: CGFloat]] = [
+            "primary": ["originX": 200, "topY": 700]
+        ]
+        defaults.set(preExisting, forKey: "panelPositions")
+
+        let store = UserDefaultsPanelPositionStore(defaults: defaults)
+        XCTAssertEqual(store.positionsDict, preExisting, "Store must read positions written by older versions")
+
+        let model = PanelGeometryModel(store: store)
+        XCTAssertEqual(model.savedPositions()["primary"]?.originX, 200)
+        XCTAssertEqual(model.savedPositions()["primary"]?.topY, 700)
+        XCTAssertTrue(model.hasCustomPosition(forScreenKey: "primary"))
+        XCTAssertFalse(model.hasCustomPosition(forScreenKey: "secondary"))
+
+        model.saveCustomPosition(originX: 2200.5, topY: 901.25, forScreenKey: "secondary")
+        XCTAssertEqual(
+            defaults.dictionary(forKey: "panelPositions") as? [String: [String: CGFloat]],
+            [
+                "primary": ["originX": 200, "topY": 700],
+                "secondary": ["originX": 2200.5, "topY": 901.25]
+            ],
+            "Saving must write the identical raw UserDefaults format"
+        )
+
+        model.clearCustomPosition(forScreenKey: "primary")
+        XCTAssertEqual(
+            defaults.dictionary(forKey: "panelPositions") as? [String: [String: CGFloat]],
+            ["secondary": ["originX": 2200.5, "topY": 901.25]],
+            "Clearing must remove only the given screen's entry, preserving the format"
+        )
+    }
+
     // MARK: - Edge cases
 
     func testSingleScreen() {

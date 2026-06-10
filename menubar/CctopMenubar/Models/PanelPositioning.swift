@@ -19,6 +19,70 @@ struct ScreenLayout: Equatable {
     }
 }
 
+/// Persistence seam for per-screen custom panel positions.
+///
+/// The stored shape is the established `panelPositions` UserDefaults format:
+/// `[screenKey: ["originX": x, "topY": y]]`.
+protocol PanelPositionStoring: AnyObject {
+    var positionsDict: [String: [String: CGFloat]] { get set }
+}
+
+/// Persists panel positions in UserDefaults under the existing
+/// "panelPositions" key, with the exact encoding existing installs have on disk.
+final class UserDefaultsPanelPositionStore: PanelPositionStoring {
+    static let positionsKey = "panelPositions"
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    var positionsDict: [String: [String: CGFloat]] {
+        get {
+            defaults.dictionary(forKey: Self.positionsKey) as? [String: [String: CGFloat]] ?? [:]
+        }
+        set {
+            defaults.set(newValue, forKey: Self.positionsKey)
+        }
+    }
+}
+
+/// Owns the panel's per-screen position persistence and geometry decisions,
+/// so AppDelegate only gathers inputs (screens, frames, sizes) and applies frames.
+struct PanelGeometryModel {
+    let store: PanelPositionStoring
+
+    // MARK: - Position persistence
+
+    /// All saved custom positions, keyed by screen key.
+    func savedPositions() -> [String: (originX: CGFloat, topY: CGFloat)] {
+        store.positionsDict.compactMapValues { entry in
+            guard let originX = entry["originX"], let topY = entry["topY"] else { return nil }
+            return (originX: originX, topY: topY)
+        }
+    }
+
+    /// Save a custom position for a screen.
+    func saveCustomPosition(originX: CGFloat, topY: CGFloat, forScreenKey key: String) {
+        var dict = store.positionsDict
+        dict[key] = ["originX": originX, "topY": topY]
+        store.positionsDict = dict
+    }
+
+    /// Remove the custom position for a screen.
+    func clearCustomPosition(forScreenKey key: String) {
+        var dict = store.positionsDict
+        dict.removeValue(forKey: key)
+        store.positionsDict = dict
+    }
+
+    /// Whether a custom position is saved for a screen.
+    func hasCustomPosition(forScreenKey key: String) -> Bool {
+        savedPositions()[key] != nil
+    }
+}
+
 /// Pure positioning math for the floating panel.
 enum PanelPositioning {
     static let margin: CGFloat = 4

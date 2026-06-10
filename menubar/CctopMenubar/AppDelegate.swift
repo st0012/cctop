@@ -29,8 +29,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var cancellables: Set<AnyCancellable> = []
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
+    private let panelGeometry = PanelGeometryModel(store: UserDefaultsPanelPositionStore())
+
     private enum PanelPositionKeys {
-        static let positions = "panelPositions"
         // MIGRATION(v0.12.0→v0.13.0): Remove legacyOriginX, legacyTopY, migrateLegacyPanelPosition
         static let legacyOriginX = "panelCustomX"
         static let legacyTopY = "panelCustomTopY"
@@ -251,27 +252,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     // MARK: - Custom panel position (per-screen)
 
     private func saveCustomPanelPosition(originX: CGFloat, topY: CGFloat, forScreenKey key: String) {
-        var dict = savedPanelPositionsDict()
-        dict[key] = ["originX": originX, "topY": topY]
-        UserDefaults.standard.set(dict, forKey: PanelPositionKeys.positions)
+        panelGeometry.saveCustomPosition(originX: originX, topY: topY, forScreenKey: key)
     }
 
     private func clearCustomPanelPosition(forScreenKey key: String) {
-        var dict = savedPanelPositionsDict()
-        dict.removeValue(forKey: key)
-        UserDefaults.standard.set(dict, forKey: PanelPositionKeys.positions)
+        panelGeometry.clearCustomPosition(forScreenKey: key)
     }
 
     private func savedPanelPositions() -> [String: (originX: CGFloat, topY: CGFloat)] {
-        savedPanelPositionsDict().compactMapValues { entry in
-            guard let originX = entry["originX"], let topY = entry["topY"] else { return nil }
-            return (originX: originX, topY: topY)
-        }
-    }
-
-    private func savedPanelPositionsDict() -> [String: [String: CGFloat]] {
-        UserDefaults.standard.dictionary(forKey: PanelPositionKeys.positions)
-            as? [String: [String: CGFloat]] ?? [:]
+        panelGeometry.savedPositions()
     }
 
     /// The screen key for the screen the panel is currently on.
