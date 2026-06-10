@@ -308,6 +308,14 @@ private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
     """)
 }
 
+/// Host for the OSC 7 reports written by `primeGhosttyCWD`. Ghostty treats a cwd
+/// report as local only when the host is exactly "localhost" or matches
+/// `gethostname()` (ghostty src/os/hostname.zig); anything else is silently
+/// discarded. `ProcessInfo.hostName` can return an FQDN (VPN / corporate DNS) or
+/// a ".local" name that fails that check, so sending it makes priming a no-op and
+/// the jump lands on Ghostty's last-active window instead of the target session.
+let ghosttyOSC7PrimingHost = "localhost"
+
 /// Bytes written to the slave (`/dev/ttysNNN`) appear on the PTY master where Ghostty
 /// parses them; the shell does not see them. Best-effort — silently no-ops if the TTY
 /// has closed (session just ended).
@@ -318,8 +326,7 @@ private func primeGhosttyCWD(tty: String, workingDirectory: String) {
     guard tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil else { return }
     guard let attrs = try? FileManager.default.attributesOfItem(atPath: tty),
           (attrs[.type] as? FileAttributeType) == .typeCharacterSpecial else { return }
-    let host = ProcessInfo.processInfo.hostName
-    let osc = buildOSC7CWD(host: host, workingDirectory: workingDirectory)
+    let osc = buildOSC7CWD(host: ghosttyOSC7PrimingHost, workingDirectory: workingDirectory)
     guard let data = osc.data(using: .utf8) else { return }
     guard let handle = FileHandle(forWritingAtPath: tty) else { return }
     defer { try? handle.close() }

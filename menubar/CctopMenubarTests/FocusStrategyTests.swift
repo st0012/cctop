@@ -334,8 +334,21 @@ final class FocusStrategyTests: XCTestCase {
     }
 
     func testBuildOSC7EmptyHostAllowed() {
-        // file:///path is valid (empty authority). Some terminals only care about path.
+        // file:///path is a valid URI (empty authority), but Ghostty ignores it —
+        // its locality check only accepts "localhost" or the gethostname() value.
+        // This pins builder formatting only; never use an empty host for priming.
         let osc = buildOSC7CWD(host: "", workingDirectory: "/x")
         XCTAssertEqual(osc, "\u{1B}]7;file:///x\u{07}")
+    }
+
+    func testGhosttyPrimingHostIsLocalhost() {
+        // Ghostty only honors OSC 7 cwd reports whose host is "localhost" or the
+        // exact gethostname() value. ProcessInfo.hostName can be an FQDN (VPN /
+        // corporate DNS) or a ".local" name, which Ghostty silently drops — the
+        // priming no-ops and the jump raises the last-active window instead of
+        // the requested session. Pin the host so it never regresses.
+        XCTAssertEqual(ghosttyOSC7PrimingHost, "localhost")
+        let osc = buildOSC7CWD(host: ghosttyOSC7PrimingHost, workingDirectory: "/x")
+        XCTAssertEqual(osc, "\u{1B}]7;file://localhost/x\u{07}")
     }
 }
