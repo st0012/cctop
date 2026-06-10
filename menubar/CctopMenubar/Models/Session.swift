@@ -160,7 +160,7 @@ enum SessionLifecycle: Int, Equatable {
 }
 
 struct Session: Codable, Identifiable, Equatable {
-    let sessionId: String
+    var sessionId: String
     let projectPath: String
     let projectName: String
     var branch: String
@@ -410,34 +410,14 @@ struct Session: Codable, Identifiable, Equatable {
 
     /// Returns a copy with a new session_id (and optionally updated branch/terminal).
     /// Used when the same OS process gets a new CC session_id on resume.
+    /// Copy-mutation preserves every other field by construction, so fields added
+    /// to `Session` later can never be silently dropped on session-id rotation.
     func withSessionId(_ newId: String, branch: String? = nil, terminal: TerminalInfo? = nil) -> Session {
-        Session(
-            sessionId: newId,
-            projectPath: projectPath,
-            projectName: projectName,
-            branch: branch ?? self.branch,
-            status: status,
-            lastPrompt: lastPrompt,
-            lastActivity: lastActivity,
-            startedAt: startedAt,
-            terminal: terminal ?? self.terminal,
-            pid: pid,
-            pidStartTime: pidStartTime,
-            lastTool: lastTool,
-            lastToolDetail: lastToolDetail,
-            notificationMessage: notificationMessage,
-            sessionName: sessionName,
-            desktopProjectName: desktopProjectName,
-            workspaceFile: workspaceFile,
-            source: source,
-            endedAt: endedAt,
-            disconnectedAt: disconnectedAt,
-            activeSubagents: activeSubagents,
-            isSubagentSession: isSubagentSession,
-            hidden: hidden,
-            createdByHookVersion: createdByHookVersion,
-            lastWrittenByHookVersion: lastWrittenByHookVersion
-        )
+        var copy = self
+        copy.sessionId = newId
+        if let branch { copy.branch = branch }
+        if let terminal { copy.terminal = terminal }
+        return copy
     }
 
     /// Look for a `.code-workspace` file in the given directory.
