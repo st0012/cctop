@@ -52,7 +52,7 @@ enum HookHandler {
             session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: isNewSessionFile)
 
             let suffix = newStatus == nil ? " (preserved)" : ""
-            HookLogger.appendHookLog(
+            HookLogger().appendHookLog(
                 sessionId: safeId, event: hookName, label: label,
                 transition: "\(oldStatus) -> \(session.status.rawValue)\(suffix)"
             )
@@ -364,9 +364,9 @@ extension HookHandler {
                 }
                 session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
                 try? session.writeToFile(path: path)
-                HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
+                HookLogger().appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
             } else {
-                HookLogger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
+                HookLogger().appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
                 removeSession(at: path, sessionId: safeId)
             }
         }
@@ -428,7 +428,7 @@ extension HookHandler {
     private static func removeSession(at path: String, sessionId: String) {
         try? FileManager.default.removeItem(atPath: path)
         // Never remove the .lock here: unlinking a held lock splits the flock inode.
-        HookLogger.cleanupSessionLog(sessionId: sessionId)
+        HookLogger().cleanupSessionLog(sessionId: sessionId)
     }
 
     private static func isPIDAlive(_ pid: UInt32) -> Bool {
@@ -441,19 +441,23 @@ extension HookHandler {
 /// Acquire an exclusive flock on a `.lock` file alongside the session file.
 /// This serializes concurrent hook processes operating on the same session,
 /// preventing read-modify-write races when multiple hooks fire simultaneously.
-func withSessionLock(sessionPath: String, body: () throws -> Void) throws {
+func withSessionLock(
+    sessionPath: String,
+    onError: (String) -> Void = { HookLogger().logError($0) },
+    body: () throws -> Void
+) throws {
     let lockPath = sessionPath + ".lock"
     let fd = open(lockPath, O_CREAT | O_WRONLY, 0o600)
     guard fd >= 0 else {
         let err = errno
-        HookLogger.logError("withSessionLock: open(\(lockPath)) failed: \(err)")
+        onError("withSessionLock: open(\(lockPath)) failed: \(err)")
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
                       userInfo: [NSLocalizedDescriptionKey: "Failed to open lock file: \(lockPath)"])
     }
     defer { close(fd) }
     guard flock(fd, LOCK_EX) == 0 else {
         let err = errno
-        HookLogger.logError("withSessionLock: flock(\(lockPath)) failed: \(err)")
+        onError("withSessionLock: flock(\(lockPath)) failed: \(err)")
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
                       userInfo: [NSLocalizedDescriptionKey: "Failed to acquire lock: \(lockPath)"])
     }

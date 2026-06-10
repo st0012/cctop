@@ -1,21 +1,25 @@
 import Foundation
 
-enum HookLogger {
+/// Writes per-session hook logs and the error log under `logsDir`
+/// (default: `~/.cctop/logs`). Construct with a custom directory to keep
+/// test runs out of the real home directory.
+struct HookLogger {
+    let logsDir: String
+
+    init(logsDir: String = HookLogger.defaultLogsDir()) {
+        self.logsDir = logsDir
+    }
+
+    static func defaultLogsDir() -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return (home as NSString).appendingPathComponent(".cctop/logs")
+    }
+
     private static let dateFormatter: ISO8601DateFormatter = {
         let fmt = ISO8601DateFormatter()
         fmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return fmt
     }()
-
-    private static func logsDir() -> String? {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return (home as NSString).appendingPathComponent(".cctop/logs")
-    }
-
-    private static func sessionLogPath(sessionId: String) -> String? {
-        guard let dir = logsDir() else { return nil }
-        return (dir as NSString).appendingPathComponent("\(sessionId).log")
-    }
 
     static func sessionLabel(cwd: String, sessionId: String) -> String {
         let project = URL(fileURLWithPath: cwd).lastPathComponent
@@ -23,25 +27,43 @@ enum HookLogger {
         return "\(project):\(abbrev)"
     }
 
-    static func appendHookLog(
+    /// Convenience for call sites without an injected logger (e.g. HookMain's
+    /// argument/stdin errors, before any dependencies are constructed).
+    /// Writes to the default logs directory.
+    static func logError(_ msg: String) {
+        HookLogger().logError(msg)
+    }
+
+    // Temporary shim while call sites migrate to instance loggers.
+    static func cleanupSessionLog(sessionId: String) {
+        HookLogger().cleanupSessionLog(sessionId: sessionId)
+    }
+
+    func appendHookLog(
         sessionId: String,
         event: String,
         label: String,
         transition: String
     ) {
-        guard let logPath = sessionLogPath(sessionId: sessionId) else { return }
-        let timestamp = dateFormatter.string(from: Date())
-        appendLine("\(timestamp) HOOK \(event) \(label) \(transition)\n", to: logPath)
+        let timestamp = Self.dateFormatter.string(from: Date())
+        appendLine("\(timestamp) HOOK \(event) \(label) \(transition)\n", to: sessionLogPath(sessionId: sessionId))
     }
 
-    static func logError(_ msg: String) {
-        guard let dir = logsDir() else { return }
-        let logPath = (dir as NSString).appendingPathComponent("_errors.log")
-        let timestamp = dateFormatter.string(from: Date())
+    func logError(_ msg: String) {
+        let logPath = (logsDir as NSString).appendingPathComponent("_errors.log")
+        let timestamp = Self.dateFormatter.string(from: Date())
         appendLine("\(timestamp) ERROR \(msg)\n", to: logPath)
     }
 
-    private static func appendLine(_ line: String, to path: String) {
+    func cleanupSessionLog(sessionId: String) {
+        try? FileManager.default.removeItem(atPath: sessionLogPath(sessionId: sessionId))
+    }
+
+    private func sessionLogPath(sessionId: String) -> String {
+        (logsDir as NSString).appendingPathComponent("\(sessionId).log")
+    }
+
+    private func appendLine(_ line: String, to path: String) {
         let fm = FileManager.default
         let dir = (path as NSString).deletingLastPathComponent
         try? fm.createDirectory(
@@ -56,10 +78,5 @@ enum HookLogger {
         } else {
             fm.createFile(atPath: path, contents: Data(line.utf8), attributes: [.posixPermissions: 0o600])
         }
-    }
-
-    static func cleanupSessionLog(sessionId: String) {
-        guard let logPath = sessionLogPath(sessionId: sessionId) else { return }
-        try? FileManager.default.removeItem(atPath: logPath)
     }
 }
