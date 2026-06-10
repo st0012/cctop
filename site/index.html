@@ -745,6 +745,10 @@
         <p>By default, by the project directory name. In Claude Code, /rename gives the session a custom label and cctop picks it up.</p>
       </details>
       <details class="reveal">
+        <summary>Why doesn't cctop track sessions from the Codex desktop app?</summary>
+        <p>Codex only runs hooks you've explicitly reviewed and trusted (see the <a href="https://developers.openai.com/codex/hooks">Codex hooks docs</a>). cctop installs its hooks, but the Codex desktop app currently doesn't surface the trust prompt, so they stay inert. The workaround: start one new Codex CLI session in a terminal and choose &ldquo;Trust all and continue&rdquo; when Codex asks to review the new hooks &mdash; the desktop app shares that trust state and starts tracking too.</p>
+      </details>
+      <details class="reveal">
         <summary>Why does the app need to live in /Applications/?</summary>
         <p>Plugins look for the cctop helper inside /Applications/cctop.app or ~/.cctop/bin/. Installing elsewhere breaks the integration.</p>
       </details>
