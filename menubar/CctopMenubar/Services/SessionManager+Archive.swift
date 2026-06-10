@@ -13,6 +13,35 @@ struct DesktopAppConnectionLookup {
     }
 }
 
+/// Every external input SessionManager consults while deriving session state: the sessions
+/// directory, the Codex/Claude Desktop archive stores, desktop-app liveness, process liveness,
+/// the notification preference, and the clock. Production uses `.live()`; tests override
+/// individual fields to run the full pipeline against temp directories, stub lookups, and a
+/// deterministic clock.
+struct SessionDataSources {
+    var sessionsDir: URL
+    var codexThreads: any CodexThreadStateProviding
+    var claudeDesktopSessions: any ClaudeDesktopSessionStateProviding
+    var desktopAppConnection: DesktopAppConnectionLookup
+    var processAlive: (Session) -> Bool
+    var notificationsEnabled: () -> Bool
+    var now: () -> Date
+
+    /// A function rather than a stored constant so `Config.sessionsDir()` (and the lookup
+    /// paths behind the live stores) are resolved when the caller constructs its sources.
+    static func live() -> SessionDataSources {
+        SessionDataSources(
+            sessionsDir: URL(fileURLWithPath: Config.sessionsDir()),
+            codexThreads: CodexThreadArchiveLookup(),
+            claudeDesktopSessions: ClaudeDesktopSessionArchiveLookup(),
+            desktopAppConnection: .live,
+            processAlive: { $0.isAlive },
+            notificationsEnabled: { UserDefaults.standard.bool(forKey: "notificationsEnabled") },
+            now: Date.init
+        )
+    }
+}
+
 struct SessionVisibilitySnapshot {
     let archivedCodexThreadIDs: Set<String>
     let codexSubagentThreadIDs: Set<String>
@@ -173,7 +202,10 @@ extension SessionManager {
             )
             do {
                 try withSessionLock(sessionPath: candidate.path) {
-                    guard let hiddenSession = try Self.codexSubagentHiddenSessionSnapshot(path: candidate.path) else {
+                    guard let hiddenSession = try Self.codexSubagentHiddenSessionSnapshot(
+                        path: candidate.path,
+                        codexThreads: dataSources.codexThreads
+                    ) else {
                         return
                     }
                     try hiddenSession.writeToFile(path: candidate.path)

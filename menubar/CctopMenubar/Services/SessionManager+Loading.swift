@@ -9,6 +9,44 @@ struct SessionLoadSummary {
 }
 
 extension SessionManager {
+    func decodedSessions(from jsonFiles: [URL]) -> [(url: URL, session: Session)] {
+        jsonFiles.compactMap { url in
+            guard let data = try? Data(contentsOf: url) else {
+                sessionManagerLogger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
+                return nil
+            }
+            do {
+                let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+                return (url, session)
+            } catch {
+                sessionManagerLogger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
+                return nil
+            }
+        }
+    }
+
+    /// Derives lifecycle-stamped candidates and the visibility classification for one load pass,
+    /// reading desktop archive state and process liveness through the injected data sources.
+    func deriveVisibility(from visibleDecoded: [(url: URL, session: Session)]) -> SessionVisibilitySnapshot {
+        let claudeMetadata = Self.claudeDesktopMetadataSnapshot(
+            in: visibleDecoded.map(\.session),
+            claudeDesktopSessions: dataSources.claudeDesktopSessions
+        )
+        let candidates = Self.buildCandidates(
+            visibleDecoded,
+            now: dataSources.now(),
+            desktopAppConnectionLookup: dataSources.desktopAppConnection,
+            claudeMetadata: claudeMetadata,
+            codexThreads: dataSources.codexThreads,
+            processAlive: dataSources.processAlive
+        )
+        return Self.visibilitySnapshot(
+            in: candidates,
+            claudeMetadata: claudeMetadata,
+            codexThreads: dataSources.codexThreads
+        )
+    }
+
     func currentStatusesByStableKey() -> [String: SessionStatus] {
         Dictionary(
             sessions.map { (SessionIdentityPolicy.stableKey(for: $0), $0.status) },

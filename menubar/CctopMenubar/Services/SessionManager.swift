@@ -5,7 +5,6 @@ import UserNotifications
 import os.log
 
 let sessionManagerLogger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
-private typealias SessionFile = (url: URL, session: Session)
 
 @MainActor
 // swiftlint:disable:next type_body_length
@@ -13,9 +12,9 @@ class SessionManager: ObservableObject {
     @Published var sessions: [Session] = []
 
     let historyManager: HistoryManager
+    let dataSources: SessionDataSources
 
     private let sessionsDir: URL
-    private let desktopAppConnectionLookup: DesktopAppConnectionLookup
     private var source: DispatchSourceFileSystemObject?
     private var debounceTask: DispatchWorkItem?
     private var livenessTimer: Timer?
@@ -25,14 +24,18 @@ class SessionManager: ObservableObject {
     /// fallback recency threshold and `retention` controls dormant desktop cleanup.
     nonisolated static let lifecycleWindows = LifecycleWindows(active: 600, retention: 1_209_600)
 
+    /// `startMonitoring: false` skips the directory watcher and the periodic timers so tests can
+    /// drive `loadSessions()`/`garbageCollectFinished()` explicitly without background reloads.
     init(
         historyManager: HistoryManager,
-        desktopAppConnectionLookup: DesktopAppConnectionLookup = .live
+        dataSources: SessionDataSources = .live(),
+        startMonitoring: Bool = true
     ) {
         self.historyManager = historyManager
-        self.desktopAppConnectionLookup = desktopAppConnectionLookup
-        self.sessionsDir = URL(fileURLWithPath: Config.sessionsDir())
+        self.dataSources = dataSources
+        self.sessionsDir = dataSources.sessionsDir
         loadSessions()
+        guard startMonitoring else { return }
         startWatching()
         // Pass 1 (fast): read, derive lifecycle, dedup, publish.
         livenessTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
@@ -42,6 +45,15 @@ class SessionManager: ObservableObject {
         gcTimer = Timer.scheduledTimer(withTimeInterval: 45, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.garbageCollectFinished() }
         }
+    }
+
+    convenience init(
+        historyManager: HistoryManager,
+        desktopAppConnectionLookup: DesktopAppConnectionLookup
+    ) {
+        var dataSources = SessionDataSources.live()
+        dataSources.desktopAppConnection = desktopAppConnectionLookup
+        self.init(historyManager: historyManager, dataSources: dataSources)
     }
 
     func loadSessions() {
@@ -63,15 +75,7 @@ class SessionManager: ObservableObject {
         let hidden = allDecoded.filter { $0.session.hidden }
         let autoHidden = allDecoded.filter { !$0.session.hidden && $0.session.shouldAutoHide }
         let visibleDecoded = allDecoded.filter { !$0.session.hidden && !$0.session.shouldAutoHide }
-        let visibleSessions = visibleDecoded.map(\.session)
-        let claudeMetadata = Self.claudeDesktopMetadataSnapshot(in: visibleSessions)
-        let candidates = Self.buildCandidates(
-            visibleDecoded,
-            now: Date(),
-            desktopAppConnectionLookup: desktopAppConnectionLookup,
-            claudeMetadata: claudeMetadata
-        )
-        let visibility = Self.visibilitySnapshot(in: candidates, claudeMetadata: claudeMetadata)
+        let visibility = deriveVisibility(from: visibleDecoded)
         let liveCandidates = visibility.liveCandidates
         let summary = SessionLoadSummary(
             files: jsonFiles.count,
@@ -99,8 +103,8 @@ class SessionManager: ObservableObject {
 
         hideAutoHiddenSessions(autoHidden)
         hideCodexSubagentSessions(visibility.codexSubagentCandidates)
-        clearReconnectedDesktopSessions(liveCandidates, now: Date())
-        stampDisconnectedDesktopSessions(liveCandidates, now: Date())
+        clearReconnectedDesktopSessions(liveCandidates, now: dataSources.now())
+        stampDisconnectedDesktopSessions(liveCandidates, now: dataSources.now())
 
         // Non-desktop finished sessions keep today's behavior: archive to Recent Projects and
         // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped
@@ -111,28 +115,12 @@ class SessionManager: ObservableObject {
 
     private func sendTransitionNotifications(for newSessions: [Session], oldStatuses: [String: SessionStatus]) {
         // Notifications: only a LIVE (active) session that NEWLY needs attention. Dormant never notifies.
-        guard UserDefaults.standard.bool(forKey: "notificationsEnabled") else { return }
+        guard dataSources.notificationsEnabled() else { return }
         for session in newSessions where session.lifecycle == .active {
             guard session.status.needsAttention,
                   let oldStatus = oldStatuses[SessionIdentityPolicy.stableKey(for: session)],
                   !oldStatus.needsAttention else { continue }
             sendNotification(for: session)
-        }
-    }
-
-    private func decodedSessions(from jsonFiles: [URL]) -> [SessionFile] {
-        jsonFiles.compactMap { url in
-            guard let data = try? Data(contentsOf: url) else {
-                sessionManagerLogger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
-                return nil
-            }
-            do {
-                let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
-                return (url, session)
-            } catch {
-                sessionManagerLogger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
-                return nil
-            }
         }
     }
 
@@ -206,10 +194,10 @@ class SessionManager: ObservableObject {
                 let lifecycle = SessionLifecyclePolicy.lifecycle(
                     for: session,
                     hostClass: SessionHostClass.desktop,
-                    processAlive: session.isAlive,
+                    processAlive: dataSources.processAlive(session),
                     now: now,
                     windows: Self.lifecycleWindows,
-                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: desktopAppConnectionLookup)
+                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
                 )
                 guard lifecycle == .active else { return }
                 session.disconnectedAt = nil
@@ -232,10 +220,10 @@ class SessionManager: ObservableObject {
                 let lifecycle = SessionLifecyclePolicy.lifecycle(
                     for: session,
                     hostClass: SessionHostClass.desktop,
-                    processAlive: session.isAlive,
+                    processAlive: dataSources.processAlive(session),
                     now: now,
                     windows: Self.lifecycleWindows,
-                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: desktopAppConnectionLookup)
+                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
                 )
                 guard lifecycle == .dormant else { return }
                 session.disconnectedAt = now
@@ -250,7 +238,7 @@ class SessionManager: ObservableObject {
     func garbageCollectFinished() {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
-        let now = Date()
+        let now = dataSources.now()
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
         var removedAny = false
         for url in jsonFiles {
@@ -269,15 +257,19 @@ class SessionManager: ObservableObject {
                 let life = SessionLifecyclePolicy.lifecycle(
                     for: session,
                     hostClass: hostClass,
-                    processAlive: session.isAlive,
+                    processAlive: dataSources.processAlive(session),
                     now: now,
                     windows: Self.lifecycleWindows,
-                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: desktopAppConnectionLookup)
+                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
                 )
                 guard life == .finished else { return }
                 // Re-read external desktop archive state under the lock, right before deleting. A session
                 // archived after the directory scan must keep its .json so a later unarchive can restore it.
-                guard !Self.isArchivedDesktopSession(session) else { return }
+                guard !Self.isArchivedDesktopSession(
+                    session,
+                    codexThreads: dataSources.codexThreads,
+                    claudeDesktopSessions: dataSources.claudeDesktopSessions
+                ) else { return }
                 try? fm.removeItem(at: url)   // .json ONLY — never the .lock
                 removedAny = true
             }
@@ -298,7 +290,7 @@ class SessionManager: ObservableObject {
             return result
         }
         var result = adjustPermissionStatus(session)
-        result = Self.adjustIdleTimeout(result)
+        result = Self.adjustIdleTimeout(result, now: dataSources.now())
         return result
     }
 
@@ -306,9 +298,9 @@ class SessionManager: ObservableObject {
 
     /// If a session has been in `waitingInput` for over 60 minutes, treat it as
     /// `idle` for display. The user likely walked away.
-    private static func adjustIdleTimeout(_ session: Session) -> Session {
+    static func adjustIdleTimeout(_ session: Session, now: Date) -> Session {
         guard session.status == .waitingInput,
-              -session.lastActivity.timeIntervalSinceNow > Self.idleTimeoutSeconds else {
+              now.timeIntervalSince(session.lastActivity) > Self.idleTimeoutSeconds else {
             return session
         }
         var adjusted = session
