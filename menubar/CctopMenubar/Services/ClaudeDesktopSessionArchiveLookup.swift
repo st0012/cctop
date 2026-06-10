@@ -1,5 +1,14 @@
 import Foundation
 
+/// Read-side seam over Claude Desktop's session metadata store. The live implementation scans
+/// `~/Library/Application Support/Claude/claude-code-sessions`; tests substitute stubs so
+/// archive/orphan filtering can run without metadata files on disk. `nil` keeps the lookup's
+/// contract: the store exists but a matching read was uncertain.
+protocol ClaudeDesktopSessionStateProviding {
+    func archivedSessionIDs(matching sessionIDs: Set<String>) -> Set<String>?
+    func metadataSnapshot(matching sessionIDs: Set<String>) -> ClaudeDesktopSessionMetadataSnapshot?
+}
+
 struct ClaudeDesktopSessionArchiveLookup {
     let sessionsDirectory: String
 
@@ -166,6 +175,8 @@ struct ClaudeDesktopSessionArchiveLookup {
         return nonEmpty((normalized as NSString).lastPathComponent)
     }
 }
+
+extension ClaudeDesktopSessionArchiveLookup: ClaudeDesktopSessionStateProviding {}
 
 struct ClaudeDesktopSessionMetadataSnapshot: Equatable {
     let matchedSessionIDs: Set<String>

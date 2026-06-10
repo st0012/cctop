@@ -1,6 +1,17 @@
 import Foundation
 import SQLite3
 
+/// Read-side seam over Codex's local thread state. `CodexThreadArchiveLookup` is the live
+/// SQLite-backed implementation; tests substitute in-memory stubs so visibility and archive
+/// logic can run without a database on disk. All methods share the lookup's nil contract:
+/// `nil` means "the store exists but could not be read" (callers fail safe or open per site).
+protocol CodexThreadStateProviding {
+    func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
+    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
+    func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
+    func projectNames(matching threadIDs: Set<String>) -> [String: String]?
+}
+
 struct CodexThreadArchiveLookup {
     let stateDatabasePath: String
 
@@ -254,5 +265,7 @@ struct CodexThreadArchiveLookup {
         return true
     }
 }
+
+extension CodexThreadArchiveLookup: CodexThreadStateProviding {}
 
 private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
