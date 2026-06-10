@@ -39,7 +39,7 @@ extension Session {
     /// Explicit non-desktop harnesses keep their harness badge even if a GUI bundle ID leaked
     /// through the environment.
     var agentBadge: AgentBadge {
-        switch SessionIdentityPolicy.trustedHostApp(for: self) {
+        switch trustedHostApp {
         case .claudeDesktop: return .claudeDesktop
         case .codexDesktop: return .codexDesktop
         default: break

@@ -131,23 +131,35 @@ enum HostApp {
 }
 
 extension Session {
+    /// GUI environments can leak `__CFBundleIdentifier` into child tools; an explicit
+    /// non-desktop harness must not become "Codex Desktop" or "Claude Desktop" because
+    /// of inherited env. Other sources keep the previous bundle-first behavior, including
+    /// nil-source legacy desktop records.
+    var trustedHostApp: HostApp? {
+        guard let app = HostApp.from(bundleIdentifier: terminal?.bundleId) else { return nil }
+        if app.isDesktopApp && Session.isExplicitNonDesktopHarness(source) {
+            return nil
+        }
+        return app
+    }
+
     /// True when the session is hosted by an AI desktop app (Claude Desktop, Codex Desktop)
     /// rather than a terminal/editor. These sessions have no project folder worth reopening,
     /// so they're excluded from Recent Projects.
     var isHostedByDesktopApp: Bool {
-        SessionIdentityPolicy.trustedHostApp(for: self)?.isDesktopApp == true
+        trustedHostApp?.isDesktopApp == true
     }
 
     /// True when the session is hosted by the Codex Desktop app, after validating the bundle ID
     /// against the resolved harness. Nil-source legacy files may still use the bundle alone.
     var isCodexDesktopHost: Bool {
-        SessionIdentityPolicy.trustedHostApp(for: self) == .codexDesktop
+        trustedHostApp == .codexDesktop
     }
 
     /// True when the session is hosted by the Claude Desktop app, after validating the bundle ID
     /// against the resolved harness. Nil-source legacy files may still use the bundle alone.
     var isClaudeDesktopHost: Bool {
-        SessionIdentityPolicy.trustedHostApp(for: self) == .claudeDesktop
+        trustedHostApp == .claudeDesktop
     }
 }
 
@@ -169,7 +181,11 @@ extension Session {
     /// above, so a leaked `TMUX` env can't misclassify a desktop session here. Everything
     /// else (no/unknown bundle id, only env-copyable `tty` or program name) → ambiguous.
     var hostClass: SessionHostClass {
-        SessionIdentityPolicy.hostClass(for: self)
+        if let app = trustedHostApp {
+            return app.isDesktopApp ? .desktop : .terminal
+        }
+        if terminal?.multiplexer != nil { return .terminal }
+        return .ambiguous
     }
 }
 

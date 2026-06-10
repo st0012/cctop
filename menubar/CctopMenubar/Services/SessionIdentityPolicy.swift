@@ -4,28 +4,6 @@ enum SessionIdentityPolicy {
     static let notificationSessionIDKey = "sessionID"
     static let notificationSessionPIDKey = "sessionPID"
 
-    /// GUI environments can leak `__CFBundleIdentifier` into child tools; an explicit
-    /// non-desktop harness must not become "Codex Desktop" or "Claude Desktop" because
-    /// of inherited env. Other sources keep the previous bundle-first behavior, including
-    /// nil-source legacy desktop records.
-    static func trustedHostApp(for session: Session) -> HostApp? {
-        guard let app = HostApp.from(bundleIdentifier: session.terminal?.bundleId) else { return nil }
-        if app.isDesktopApp && Session.isExplicitNonDesktopHarness(session.source) {
-            return nil
-        }
-        return app
-    }
-
-    /// File-local host classification. Deliberately strict: source alone never classifies desktop
-    /// vs CLI because both integrations share source strings with their desktop counterparts.
-    static func hostClass(for session: Session) -> SessionHostClass {
-        if let app = trustedHostApp(for: session) {
-            return app.isDesktopApp ? .desktop : .terminal
-        }
-        if session.terminal?.multiplexer != nil { return .terminal }
-        return .ambiguous
-    }
-
     /// UI identity. Codex multiplexes many conversations onto one host process, so its PID is
     /// not unique per conversation; every other source keeps the existing PID identity.
     static func displayID(for session: Session) -> String {
@@ -38,7 +16,7 @@ enum SessionIdentityPolicy {
         if session.isCodex {
             return "codex:\(session.sessionId)"
         }
-        if hostClass(for: session) == .desktop {
+        if session.hostClass == .desktop {
             return "desktop:\(session.sessionId)"
         }
         return "active:\(displayID(for: session))"

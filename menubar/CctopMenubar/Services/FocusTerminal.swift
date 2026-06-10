@@ -34,7 +34,7 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
     // Prefer trusted bundle_id (from __CFBundleIdentifier) over program name: it
     // identifies VS Code forks that all set TERM_PROGRAM=vscode. Explicit non-desktop
     // harnesses ignore leaked AI desktop bundle IDs before this fallback.
-    let hostApp = SessionIdentityPolicy.trustedHostApp(for: session)
+    let hostApp = session.trustedHostApp
         ?? HostApp.from(editorName: terminal.program)
     let target = session.workspaceFile ?? session.projectPath
 
