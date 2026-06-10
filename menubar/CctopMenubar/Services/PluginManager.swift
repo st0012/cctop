@@ -66,7 +66,8 @@ class PluginManager: ObservableObject {
             featureEnabled: codexConfigText.map(CodexPluginInstaller.isFeatureFlagEnabled) ?? true,
             needsUpdate: codexHookFilesInstalled && (Self.codexShimStale() || codexLegacyKey),
             configText: codexConfigText,
-            legacyConfigKey: codexLegacyKey
+            legacyConfigKey: codexLegacyKey,
+            hooksJsonPath: CodexPluginInstaller.hooksJsonPath.path
         ))
         codexConfigExists = codexSnapshot.configExists
         codexNeedsUpdate = codexSnapshot.needsUpdate

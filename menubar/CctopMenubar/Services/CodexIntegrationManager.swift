@@ -47,6 +47,10 @@ struct CodexIntegrationObservation: Equatable {
     let needsUpdate: Bool
     let configText: String?
     let legacyConfigKey: Bool
+    /// Absolute path of the observed hooks.json. Codex keys its trust
+    /// records by this path, so it is part of the observation instead of
+    /// being read from the installer at derivation time.
+    let hooksJsonPath: String
 }
 
 enum CodexIntegrationManager {
@@ -55,7 +59,8 @@ enum CodexIntegrationManager {
             installed: observation.hookFilesInstalled,
             featureEnabled: observation.featureEnabled,
             needsUpdate: observation.needsUpdate,
-            configText: observation.configText
+            configText: observation.configText,
+            hooksJsonPath: observation.hooksJsonPath
         )
         // Derive the published update flag from the status so every UI
         // surface agrees with the status-driven Settings row.
@@ -74,7 +79,8 @@ enum CodexIntegrationManager {
         installed: Bool,
         featureEnabled: Bool,
         needsUpdate: Bool,
-        configText: String?
+        configText: String?,
+        hooksJsonPath: String
     ) -> CodexHookStatus {
         guard installed else {
             return featureEnabled ? .notInstalled : .hooksDisabled
@@ -86,9 +92,7 @@ enum CodexIntegrationManager {
             return .needsUpdate
         }
         if let configText,
-           hasTrustedCctopHookState(
-               in: configText, hooksPath: CodexPluginInstaller.hooksJsonPath.path
-           ) {
+           hasTrustedCctopHookState(in: configText, hooksPath: hooksJsonPath) {
             return .trusted
         }
         return .installedUntrusted

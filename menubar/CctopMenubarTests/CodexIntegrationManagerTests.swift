@@ -2,6 +2,8 @@ import XCTest
 @testable import CctopMenubar
 
 final class CodexIntegrationManagerTests: XCTestCase {
+    private let hooksPath = "/Users/tester/.codex/hooks.json"
+
     func testSnapshotReportsUntrustedHooksAsInstalledButNeedingTrust() {
         let snapshot = CodexIntegrationManager.snapshot(CodexIntegrationObservation(
             configExists: true,
@@ -9,7 +11,8 @@ final class CodexIntegrationManagerTests: XCTestCase {
             featureEnabled: true,
             needsUpdate: false,
             configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys.dropLast()),
-            legacyConfigKey: false
+            legacyConfigKey: false,
+            hooksJsonPath: hooksPath
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .installedUntrusted)
@@ -25,13 +28,34 @@ final class CodexIntegrationManagerTests: XCTestCase {
             featureEnabled: true,
             needsUpdate: false,
             configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys),
-            legacyConfigKey: false
+            legacyConfigKey: false,
+            hooksJsonPath: hooksPath
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .trusted)
         XCTAssertFalse(snapshot.hookStatus.needsTrust)
         XCTAssertTrue(snapshot.installed)
         XCTAssertFalse(snapshot.needsUpdate)
+    }
+
+    func testSnapshotTreatsTrustForDifferentHooksPathAsUntrusted() {
+        // Fully-trusted records keyed to another hooks.json file must not
+        // count for the observed install — trust is per hooks-file path.
+        let snapshot = CodexIntegrationManager.snapshot(CodexIntegrationObservation(
+            configExists: true,
+            hookFilesInstalled: true,
+            featureEnabled: true,
+            needsUpdate: false,
+            configText: trustStateConfig(
+                hooksPath: "/Users/tester/elsewhere/.codex/hooks.json",
+                events: CodexIntegrationManager.trustStateEventKeys
+            ),
+            legacyConfigKey: false,
+            hooksJsonPath: hooksPath
+        ))
+
+        XCTAssertEqual(snapshot.hookStatus, .installedUntrusted)
+        XCTAssertTrue(snapshot.hookStatus.needsTrust)
     }
 
     func testSnapshotTreatsStaleInstallAsNeedsUpdate() {
@@ -41,7 +65,8 @@ final class CodexIntegrationManagerTests: XCTestCase {
             featureEnabled: true,
             needsUpdate: true,
             configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys),
-            legacyConfigKey: false
+            legacyConfigKey: false,
+            hooksJsonPath: hooksPath
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .needsUpdate)
@@ -59,7 +84,8 @@ final class CodexIntegrationManagerTests: XCTestCase {
             featureEnabled: false,
             needsUpdate: true,
             configText: nil,
-            legacyConfigKey: false
+            legacyConfigKey: false,
+            hooksJsonPath: hooksPath
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .hooksDisabled)
@@ -76,7 +102,8 @@ final class CodexIntegrationManagerTests: XCTestCase {
             featureEnabled: true,
             needsUpdate: false,
             configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys),
-            legacyConfigKey: false
+            legacyConfigKey: false,
+            hooksJsonPath: hooksPath
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .notInstalled)
@@ -90,15 +117,14 @@ final class CodexIntegrationManagerTests: XCTestCase {
             featureEnabled: true,
             needsUpdate: false,
             configText: nil,
-            legacyConfigKey: true
+            legacyConfigKey: true,
+            hooksJsonPath: hooksPath
         ))
 
         XCTAssertTrue(snapshot.legacyConfigKey)
     }
 
     // MARK: - Trust-record parsing
-
-    private let hooksPath = "/Users/tester/.codex/hooks.json"
 
     func testHasTrustedCctopHookStateRequiresAllRegisteredEvents() {
         let config = trustStateConfig(
@@ -216,49 +242,57 @@ final class CodexIntegrationManagerTests: XCTestCase {
 
         XCTAssertEqual(
             CodexIntegrationManager.hookStatus(
-                installed: false, featureEnabled: true, needsUpdate: false, configText: nil
+                installed: false, featureEnabled: true, needsUpdate: false,
+                configText: nil, hooksJsonPath: hooksPath
             ),
             .notInstalled
         )
         XCTAssertEqual(
             CodexIntegrationManager.hookStatus(
-                installed: false, featureEnabled: false, needsUpdate: false, configText: nil
+                installed: false, featureEnabled: false, needsUpdate: false,
+                configText: nil, hooksJsonPath: hooksPath
             ),
             .hooksDisabled
         )
         XCTAssertEqual(
             CodexIntegrationManager.hookStatus(
-                installed: true, featureEnabled: true, needsUpdate: true, configText: trustedConfig
+                installed: true, featureEnabled: true, needsUpdate: true,
+                configText: trustedConfig, hooksJsonPath: hooksPath
             ),
             .needsUpdate
         )
         XCTAssertEqual(
             CodexIntegrationManager.hookStatus(
-                installed: true, featureEnabled: false, needsUpdate: false, configText: trustedConfig
+                installed: true, featureEnabled: false, needsUpdate: false,
+                configText: trustedConfig, hooksJsonPath: hooksPath
             ),
             .hooksDisabled
         )
         XCTAssertEqual(
             CodexIntegrationManager.hookStatus(
-                installed: true, featureEnabled: false, needsUpdate: true, configText: trustedConfig
+                installed: true, featureEnabled: false, needsUpdate: true,
+                configText: trustedConfig, hooksJsonPath: hooksPath
             ),
             .hooksDisabled
         )
         XCTAssertEqual(
             CodexIntegrationManager.hookStatus(
-                installed: true, featureEnabled: true, needsUpdate: false, configText: partialConfig
+                installed: true, featureEnabled: true, needsUpdate: false,
+                configText: partialConfig, hooksJsonPath: hooksPath
             ),
             .installedUntrusted
         )
         XCTAssertEqual(
             CodexIntegrationManager.hookStatus(
-                installed: true, featureEnabled: true, needsUpdate: false, configText: nil
+                installed: true, featureEnabled: true, needsUpdate: false,
+                configText: nil, hooksJsonPath: hooksPath
             ),
             .installedUntrusted
         )
         XCTAssertEqual(
             CodexIntegrationManager.hookStatus(
-                installed: true, featureEnabled: true, needsUpdate: false, configText: trustedConfig
+                installed: true, featureEnabled: true, needsUpdate: false,
+                configText: trustedConfig, hooksJsonPath: hooksPath
             ),
             .trusted
         )
@@ -274,10 +308,10 @@ final class CodexIntegrationManagerTests: XCTestCase {
 
     // MARK: - Test helpers
 
-    /// Builds config.toml trust entries for the path `hookStatus` checks at
-    /// runtime (`CodexPluginInstaller.hooksJsonPath`).
+    /// Builds config.toml trust entries keyed to the same fixed `hooksPath`
+    /// the tests pass as the observed hooks.json path.
     private func makeTrustedConfig(events: some Sequence<String>) -> String {
-        trustStateConfig(hooksPath: CodexPluginInstaller.hooksJsonPath.path, events: events)
+        trustStateConfig(hooksPath: hooksPath, events: events)
     }
 
     private func trustStateConfig(hooksPath: String, events: some Sequence<String>) -> String {
