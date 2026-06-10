@@ -81,6 +81,69 @@ struct PanelGeometryModel {
     func hasCustomPosition(forScreenKey key: String) -> Bool {
         savedPositions()[key] != nil
     }
+
+    // MARK: - Geometry decisions
+
+    /// Resolve the frame for showing the panel, preferring the click screen's
+    /// saved custom position and falling back to the anchor.
+    func showFrame(
+        clickScreenKey: String?,
+        clickLocation: NSPoint?,
+        anchorRect: NSRect?,
+        panelSize: NSSize,
+        screens: [ScreenLayout]
+    ) -> NSRect? {
+        PanelPositioning.resolveShowPosition(
+            savedPositions: savedPositions(),
+            clickScreenKey: clickScreenKey,
+            clickLocation: clickLocation,
+            anchorRect: anchorRect,
+            panelSize: panelSize,
+            screens: screens
+        )
+    }
+
+    /// Resolve the frame after a content resize. If the panel's screen has a
+    /// custom saved position, keep the top-left corner stable; otherwise keep
+    /// midX centered with the top edge stable.
+    func resizedFrame(from oldFrame: NSRect, to size: NSSize, panelScreenKey: String?) -> NSRect {
+        let hasPositionOnCurrentScreen = panelScreenKey.map { savedPositions()[$0] != nil } ?? false
+        if hasPositionOnCurrentScreen {
+            // Keep top-left corner stable
+            return NSRect(
+                x: oldFrame.origin.x, y: oldFrame.maxY - size.height,
+                width: size.width, height: size.height
+            )
+        }
+        // Keep midX centered, top edge stable
+        return NSRect(
+            x: oldFrame.midX - size.width / 2, y: oldFrame.maxY - size.height,
+            width: size.width, height: size.height
+        )
+    }
+
+    /// Resolve where the panel lands on double-click reset.
+    func resetFrame(
+        anchorRect: NSRect?,
+        panelScreenIndex: Int?,
+        panelSize: NSSize,
+        screens: [ScreenLayout]
+    ) -> NSRect? {
+        PanelPositioning.resolveResetPosition(
+            anchorRect: anchorRect,
+            panelScreenIndex: panelScreenIndex,
+            panelSize: panelSize,
+            screens: screens
+        )
+    }
+
+    /// After a screen-parameter change, overwrite the saved position for the
+    /// panel's screen with the panel's current (possibly clamped) frame — but
+    /// only if a custom position already exists for that screen key.
+    func resaveAfterScreenChange(panelScreenKey: String?, panelFrame: NSRect) {
+        guard let key = panelScreenKey, savedPositions()[key] != nil else { return }
+        saveCustomPosition(originX: panelFrame.origin.x, topY: panelFrame.maxY, forScreenKey: key)
+    }
 }
 
 /// Pure positioning math for the floating panel.

@@ -251,18 +251,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     // MARK: - Custom panel position (per-screen)
 
-    private func saveCustomPanelPosition(originX: CGFloat, topY: CGFloat, forScreenKey key: String) {
-        panelGeometry.saveCustomPosition(originX: originX, topY: topY, forScreenKey: key)
-    }
-
-    private func clearCustomPanelPosition(forScreenKey key: String) {
-        panelGeometry.clearCustomPosition(forScreenKey: key)
-    }
-
-    private func savedPanelPositions() -> [String: (originX: CGFloat, topY: CGFloat)] {
-        panelGeometry.savedPositions()
-    }
-
     /// The screen key for the screen the panel is currently on.
     @MainActor private func panelScreenKey() -> String? {
         guard let panelScreen = panel.screen ?? NSScreen.main else { return nil }
@@ -281,7 +269,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let topY = ud.double(forKey: PanelPositionKeys.legacyTopY)
         let point = NSPoint(x: originX, y: topY)
         let key = screenKey(at: point) ?? NSScreen.main?.screenKey ?? "builtin"
-        saveCustomPanelPosition(originX: CGFloat(originX), topY: CGFloat(topY), forScreenKey: key)
+        panelGeometry.saveCustomPosition(originX: CGFloat(originX), topY: CGFloat(topY), forScreenKey: key)
         ud.removeObject(forKey: PanelPositionKeys.legacyOriginX)
         ud.removeObject(forKey: PanelPositionKeys.legacyTopY)
     }
@@ -320,8 +308,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let size = panelFittingSize() else { return }
         let clickKey = focusLocation.flatMap { screenKey(at: $0) }
             ?? panelScreenKey()
-        if let frame = PanelPositioning.resolveShowPosition(
-            savedPositions: savedPanelPositions(),
+        if let frame = panelGeometry.showFrame(
             clickScreenKey: clickKey,
             clickLocation: focusLocation,
             anchorRect: anchorRect(),
@@ -351,7 +338,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let panelIdx = (panel.screen ?? NSScreen.main).flatMap { screen in
             layouts.firstIndex { $0.frame == ScreenLayout(screen).frame }
         }
-        if let frame = PanelPositioning.resolveResetPosition(
+        if let frame = panelGeometry.resetFrame(
             anchorRect: anchorRect(),
             panelScreenIndex: panelIdx,
             panelSize: size,
@@ -384,13 +371,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             guard self.panel.isVisible else { return }
             self.positionPanel(animate: false)
             // Update saved position if it was clamped to new screen bounds
-            if let key = self.panelScreenKey(),
-               self.savedPanelPositions()[key] != nil {
-                let frame = self.panel.frame
-                self.saveCustomPanelPosition(
-                    originX: frame.origin.x, topY: frame.maxY, forScreenKey: key
-                )
-            }
+            self.panelGeometry.resaveAfterScreenChange(
+                panelScreenKey: self.panelScreenKey(), panelFrame: self.panel.frame
+            )
         }
         screenChangeWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
@@ -399,22 +382,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @MainActor private func resizePanel(animate: Bool = false) {
         guard !suppressResize else { return }
         guard let size = panelFittingSize() else { return }
-        let oldFrame = panel.frame
-        let hasPositionOnCurrentScreen = panelScreenKey().map { savedPanelPositions()[$0] != nil } ?? false
-        let newFrame: NSRect
-        if hasPositionOnCurrentScreen {
-            // Keep top-left corner stable
-            newFrame = NSRect(
-                x: oldFrame.origin.x, y: oldFrame.maxY - size.height,
-                width: size.width, height: size.height
-            )
-        } else {
-            // Keep midX centered, top edge stable
-            newFrame = NSRect(
-                x: oldFrame.midX - size.width / 2, y: oldFrame.maxY - size.height,
-                width: size.width, height: size.height
-            )
-        }
+        let newFrame = panelGeometry.resizedFrame(
+            from: panel.frame, to: size, panelScreenKey: panelScreenKey()
+        )
         setPanelFrame(newFrame, animate: animate)
     }
 
@@ -496,7 +466,7 @@ extension AppDelegate {
                 if let click = focusLocation,
                    let clickKey = screenKey(at: click),
                    panelScreenKey() != clickKey {
-                    clearCustomPanelPosition(forScreenKey: clickKey)
+                    panelGeometry.clearCustomPosition(forScreenKey: clickKey)
                     positionPanel()
                 }
             case .activateApp:
@@ -587,12 +557,12 @@ extension AppDelegate {
 extension AppDelegate: FloatingPanelDelegate {
     @MainActor func panelDidDrag(originX: CGFloat, topY: CGFloat) {
         guard let key = panelScreenKey() else { return }
-        saveCustomPanelPosition(originX: originX, topY: topY, forScreenKey: key)
+        panelGeometry.saveCustomPosition(originX: originX, topY: topY, forScreenKey: key)
     }
 
     @MainActor func panelDidRequestReset() {
         if let key = panelScreenKey() {
-            clearCustomPanelPosition(forScreenKey: key)
+            panelGeometry.clearCustomPosition(forScreenKey: key)
         }
         resetPanelToCurrentScreen(animate: true)
     }
