@@ -14,8 +14,11 @@ private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "Cod
 /// so reinstall is idempotent and uninstall never touches entries it did not create.
 enum CodexPluginInstaller {
 
-    /// Mirrors `CodexIntegrationManager.trustStateEventKeys` (the snake_case
-    /// keys Codex uses for trust records) — keep both lists in sync.
+    /// The one Swift source for the events cctop registers with Codex.
+    /// `CodexIntegrationManager.trustStateEventKeys` derives its snake_case
+    /// trust-record keys from this list, and validate-hook-contract.py
+    /// checks it against the hook-input schema — keep the literal
+    /// `[String] = [...]` shape the validator scrapes.
     static let registeredEvents: [String] = [
         "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"
     ]

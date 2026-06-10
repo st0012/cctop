@@ -126,6 +126,16 @@ final class CodexIntegrationManagerTests: XCTestCase {
 
     // MARK: - Trust-record parsing
 
+    func testTrustStateEventKeysPinCodexTrustRecordFormat() {
+        // Derived from CodexPluginInstaller.registeredEvents; pin the exact
+        // snake_case output so the derivation can never silently mangle a
+        // key Codex writes into [hooks.state].
+        XCTAssertEqual(
+            CodexIntegrationManager.trustStateEventKeys,
+            ["session_start", "user_prompt_submit", "pre_tool_use", "post_tool_use", "stop"]
+        )
+    }
+
     func testHasTrustedCctopHookStateRequiresAllRegisteredEvents() {
         let config = trustStateConfig(
             hooksPath: hooksPath, events: CodexIntegrationManager.trustStateEventKeys
