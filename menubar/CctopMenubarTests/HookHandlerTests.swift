@@ -4,22 +4,70 @@ import XCTest
 final class HookHandlerTests: XCTestCase {
 
     private var sessionsDir: String!
+    private var logsDir: String!
 
     override func setUp() {
         super.setUp()
         sessionsDir = NSTemporaryDirectory() + "cctop-test-\(UUID().uuidString)"
+        logsDir = NSTemporaryDirectory() + "cctop-test-logs-\(UUID().uuidString)"
         try? FileManager.default.createDirectory(
             atPath: sessionsDir, withIntermediateDirectories: true
         )
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
     }
 
     override func tearDown() {
-        unsetenv("CCTOP_SESSIONS_DIR")
         try? FileManager.default.removeItem(atPath: sessionsDir)
-        HookLogger.cleanupSessionLog(sessionId: "test-session-001")
+        try? FileManager.default.removeItem(atPath: logsDir)
         super.tearDown()
     }
+
+    // MARK: - Injected dependencies
+
+    /// Scripted process prober: a fixed parent PID (4242 by default, so session
+    /// files land at a deterministic "4242.json"), a scripted start time, and a
+    /// scripted liveness answer — no getppid/sysctl/kill against the test runner.
+    private struct FakeProcessProber: ProcessProbing {
+        var pid: UInt32 = 4242
+        var start: TimeInterval? = 1000
+        var alive: Bool = true
+        var tty: String?
+
+        func parentPID() -> UInt32 { pid }
+        func startTime(pid: UInt32) -> TimeInterval? { start }
+        func isAlive(pid: UInt32) -> Bool { alive }
+        func controllingTTY() -> String? { tty }
+    }
+
+    /// Name resolver that answers from fixed values (all nil by default), so tests
+    /// never scan the real transcript/index/session-store locations.
+    private struct StubNameResolver: SessionNameResolving {
+        var codexName: String?
+        var desktopTitle: String?
+        var transcriptName: String?
+
+        func codexThreadName(sessionId: String) -> String? { codexName }
+        func claudeDesktopTitle(cliSessionId: String) -> String? { desktopTitle }
+        func transcriptSessionName(transcriptPath: String?, sessionId: String) -> String? { transcriptName }
+    }
+
+    private func makeDeps(
+        pid: UInt32 = 4242,
+        startTime: TimeInterval? = 1000,
+        env: [String: String] = [:],
+        branch: String = "main",
+        names: any SessionNameResolving = StubNameResolver()
+    ) -> HookDependencies {
+        HookDependencies(
+            sessionsDir: { self.sessionsDir },
+            environment: { env },
+            currentBranch: { _ in branch },
+            process: FakeProcessProber(pid: pid, start: startTime),
+            names: names,
+            logger: HookLogger(logsDir: logsDir)
+        )
+    }
+
+    // MARK: - Helpers
 
     private func loadFixture(_ name: String) throws -> Data {
         let projectDir = ProcessInfo.processInfo.environment["PROJECT_DIR"]
@@ -32,29 +80,34 @@ final class HookHandlerTests: XCTestCase {
         return try Data(contentsOf: URL(fileURLWithPath: path))
     }
 
-    private func handleFixture(_ name: String, hookName: String? = nil) throws {
+    private func handleFixture(_ name: String, hookName: String? = nil, deps: HookDependencies? = nil) throws {
         let data = try loadFixture(name)
         let input = try JSONDecoder().decode(HookInput.self, from: data)
-        try HookHandler.handleHook(hookName: hookName ?? input.hookEventName, input: input)
+        try HookHandler.handleHook(hookName: hookName ?? input.hookEventName, input: input, deps: deps ?? makeDeps())
     }
 
-    private func loadSession() throws -> Session {
-        try Session.fromFile(path: sessionFilePath())
+    private func handleHook(_ json: String, hookName: String, deps: HookDependencies? = nil) throws {
+        let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
+        try HookHandler.handleHook(hookName: hookName, input: input, deps: deps ?? makeDeps())
     }
 
-    private func sessionFilePath() throws -> String {
-        let entries = try FileManager.default.contentsOfDirectory(atPath: sessionsDir)
-        let jsonFiles = entries.filter { $0.hasSuffix(".json") }
-        XCTAssertEqual(
-            jsonFiles.count, 1,
-            "Expected exactly 1 session file, found \(jsonFiles.count): \(jsonFiles)"
-        )
-        return (sessionsDir as NSString).appendingPathComponent(jsonFiles[0])
+    /// PID-keyed sessions land at "4242.json" (FakeProcessProber's fixed parent PID);
+    /// Codex sessions are keyed by session id instead.
+    private func sessionFilePath(_ fileName: String = "4242.json") -> String {
+        (sessionsDir as NSString).appendingPathComponent(fileName)
     }
 
-    private func sessionFileExists() -> Bool {
-        let entries = (try? FileManager.default.contentsOfDirectory(atPath: sessionsDir)) ?? []
-        return entries.contains { $0.hasSuffix(".json") }
+    private func loadSession(_ fileName: String = "4242.json") throws -> Session {
+        try Session.fromFile(path: sessionFilePath(fileName))
+    }
+
+    private func sessionFileExists(_ fileName: String = "4242.json") -> Bool {
+        FileManager.default.fileExists(atPath: sessionFilePath(fileName))
+    }
+
+    private func jsonString(_ value: String) throws -> String {
+        let data = try JSONEncoder().encode(value)
+        return String(decoding: data, as: UTF8.self)
     }
 
     // MARK: - Shared host app bundle IDs
@@ -73,7 +126,7 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.sessionId, "test-session-001")
         XCTAssertEqual(session.projectPath, "/tmp/test-project")
         XCTAssertEqual(session.projectName, "test-project")
-        XCTAssertNotNil(session.pid)
+        XCTAssertEqual(session.pid, 4242)
         XCTAssertEqual(session.activeSubagents?.count, 0)
     }
 
@@ -88,7 +141,7 @@ final class HookHandlerTests: XCTestCase {
     func testCurrentHookUpdateDoesNotBackfillLegacyCreatedByVersion() throws {
         try handleFixture("SessionStart")
 
-        let path = try sessionFilePath()
+        let path = sessionFilePath()
         var legacy = try Session.fromFile(path: path)
         legacy.createdByHookVersion = nil
         legacy.lastWrittenByHookVersion = nil
@@ -104,7 +157,7 @@ final class HookHandlerTests: XCTestCase {
     func testSessionEndRefreshesLastWrittenByHookVersion() throws {
         try handleFixture("SessionStart")
 
-        let path = try sessionFilePath()
+        let path = sessionFilePath()
         var session = try Session.fromFile(path: path)
         session.lastWrittenByHookVersion = "0.16.0-dev"
         try session.writeToFile(path: path)
@@ -275,13 +328,12 @@ final class HookHandlerTests: XCTestCase {
     }
 
     func testDesktopSessionEndStampsDisconnectedAt() throws {
-        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
-        defer { unsetenv("__CFBundleIdentifier") }
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.claudeDesktop])
 
-        try handleFixture("SessionStart")
+        try handleFixture("SessionStart", deps: deps)
         XCTAssertNil(try loadSession().disconnectedAt)
 
-        try handleFixture("SessionEnd")
+        try handleFixture("SessionEnd", deps: deps)
 
         let session = try loadSession()
         XCTAssertNotNil(session.endedAt)
@@ -289,16 +341,15 @@ final class HookHandlerTests: XCTestCase {
     }
 
     func testOpencodeSessionEndIgnoresLeakedCodexDesktopBundle() throws {
-        setenv("__CFBundleIdentifier", HostAppBundleID.codexDesktop, 1)
-        defer { unsetenv("__CFBundleIdentifier") }
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.codexDesktop])
 
-        try handleFixture("SessionStart-opencode")
+        try handleFixture("SessionStart-opencode", deps: deps)
         XCTAssertEqual(try loadSession().source, "opencode")
         XCTAssertNil(try loadSession().disconnectedAt)
 
         try handleHook("""
         {"session_id":"opencode-12345","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"opencode"}
-        """, hookName: "SessionEnd")
+        """, hookName: "SessionEnd", deps: deps)
 
         let session = try loadSession()
         XCTAssertNotNil(session.endedAt)
@@ -306,15 +357,14 @@ final class HookHandlerTests: XCTestCase {
     }
 
     func testSessionStartClearsEndedAndDisconnectedAt() throws {
-        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
-        defer { unsetenv("__CFBundleIdentifier") }
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.claudeDesktop])
 
-        try handleFixture("SessionStart")
-        try handleFixture("SessionEnd")
+        try handleFixture("SessionStart", deps: deps)
+        try handleFixture("SessionEnd", deps: deps)
         XCTAssertNotNil(try loadSession().endedAt)
         XCTAssertNotNil(try loadSession().disconnectedAt)
 
-        try handleFixture("SessionStart")
+        try handleFixture("SessionStart", deps: deps)
 
         let session = try loadSession()
         XCTAssertNil(session.endedAt)
@@ -322,45 +372,43 @@ final class HookHandlerTests: XCTestCase {
     }
 
     func testNoOpHooksPreserveEndedAndDisconnectedAt() throws {
-        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
-        defer { unsetenv("__CFBundleIdentifier") }
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.claudeDesktop])
 
-        try handleFixture("SessionStart")
-        try handleFixture("SessionEnd")
+        try handleFixture("SessionStart", deps: deps)
+        try handleFixture("SessionEnd", deps: deps)
         let endedAt = try XCTUnwrap(try loadSession().endedAt)
         let disconnectedAt = try XCTUnwrap(try loadSession().disconnectedAt)
 
-        try handleFixture("Notification-permission", hookName: "Notification")
+        try handleFixture("Notification-permission", hookName: "Notification", deps: deps)
         XCTAssertEqual(try loadSession().endedAt, endedAt)
         XCTAssertEqual(try loadSession().disconnectedAt, disconnectedAt)
 
         try handleHook("""
         {"session_id":"test-session-001","cwd":"/tmp/test-project","hook_event_name":"Notification","notification_type":"future_type"}
-        """, hookName: "Notification")
+        """, hookName: "Notification", deps: deps)
         XCTAssertEqual(try loadSession().endedAt, endedAt)
         XCTAssertEqual(try loadSession().disconnectedAt, disconnectedAt)
 
-        try handleFixture("SessionStart", hookName: "FutureHook")
+        try handleFixture("SessionStart", hookName: "FutureHook", deps: deps)
         XCTAssertEqual(try loadSession().endedAt, endedAt)
         XCTAssertEqual(try loadSession().disconnectedAt, disconnectedAt)
     }
 
     func testSubagentHooksPreserveEndedAndDisconnectedAt() throws {
-        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
-        defer { unsetenv("__CFBundleIdentifier") }
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.claudeDesktop])
 
-        try handleFixture("SessionStart")
-        try handleFixture("SessionEnd")
+        try handleFixture("SessionStart", deps: deps)
+        try handleFixture("SessionEnd", deps: deps)
         let endedAt = try XCTUnwrap(try loadSession().endedAt)
         let disconnectedAt = try XCTUnwrap(try loadSession().disconnectedAt)
 
-        try handleFixture("SubagentStart")
+        try handleFixture("SubagentStart", deps: deps)
         var session = try loadSession()
         XCTAssertEqual(session.endedAt, endedAt)
         XCTAssertEqual(session.disconnectedAt, disconnectedAt)
         XCTAssertEqual(session.activeSubagents?.count, 1)
 
-        try handleFixture("SubagentStop")
+        try handleFixture("SubagentStop", deps: deps)
         session = try loadSession()
         XCTAssertEqual(session.endedAt, endedAt)
         XCTAssertEqual(session.disconnectedAt, disconnectedAt)
@@ -402,8 +450,8 @@ final class HookHandlerTests: XCTestCase {
         try handleFixture("SessionStart-opencode")  // sets sessionName = "Fix login bug"
         XCTAssertEqual(try loadSession().sessionName, "Fix login bug")
 
-        // Same session_id, UserPromptSubmit with no `session_name` field and no
-        // transcript_path. Lookup will return nil. sessionName should be preserved.
+        // Same session_id, UserPromptSubmit with no `session_name` field and a
+        // name resolver that returns nil. sessionName should be preserved.
         try handleFixture("UserPromptSubmit-opencode")
         XCTAssertEqual(try loadSession().sessionName, "Fix login bug",
                        "sessionName should be preserved when lookup returns nil within the same session")
@@ -421,8 +469,8 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(first.sessionName, "Fix login bug")
         XCTAssertEqual(first.projectName, "test-project")
 
-        // Same PID (test runner), different session_id. Simulates Codex Desktop
-        // spawning a new conversation inside the same OS process.
+        // Same PID (FakeProcessProber's 4242), different session_id. Simulates Codex
+        // Desktop spawning a new conversation inside the same OS process.
         try handleFixture("SessionStart")
         let second = try loadSession()
         XCTAssertEqual(second.sessionId, "test-session-001",
@@ -433,6 +481,41 @@ final class HookHandlerTests: XCTestCase {
                        "PID liveness metadata should carry over")
         XCTAssertEqual(second.pidStartTime, first.pidStartTime,
                        "pidStartTime should carry over for the process-alive check")
+    }
+
+    // MARK: - PID reuse detection
+
+    /// Same PID, same process start time: the same process is still running, so a
+    /// repeated SessionStart must keep the existing session state.
+    func testSessionStart_samePIDSameStartTime_keepsSessionState() throws {
+        try handleFixture("SessionStart-opencode")
+        try handleFixture("UserPromptSubmit-opencode")
+        XCTAssertEqual(try loadSession().lastPrompt, "Help me debug this")
+
+        try handleFixture("SessionStart-opencode")
+        XCTAssertEqual(try loadSession().lastPrompt, "Help me debug this")
+    }
+
+    /// Same PID but a different process start time: the OS reused the PID for a new
+    /// process, so SessionStart must start fresh instead of inheriting the previous
+    /// process's conversation state.
+    func testSessionStart_samePIDDifferentStartTime_dropsPreviousSessionState() throws {
+        try handleFixture("SessionStart-opencode", deps: makeDeps(startTime: 1000))
+        try handleFixture("UserPromptSubmit-opencode", deps: makeDeps(startTime: 1000))
+        XCTAssertEqual(try loadSession().lastPrompt, "Help me debug this")
+
+        try handleFixture("SessionStart-opencode", deps: makeDeps(startTime: 2000))
+
+        let session = try loadSession()
+        XCTAssertNil(session.lastPrompt, "conversation state must not leak across PID reuse")
+        XCTAssertEqual(session.pidStartTime, 2000)
+    }
+
+    // MARK: - Git branch capture
+
+    func testBranchFromDepsLandsInSession() throws {
+        try handleFixture("SessionStart", deps: makeDeps(branch: "feature-x"))
+        XCTAssertEqual(try loadSession().branch, "feature-x")
     }
 
     // MARK: - Full lifecycle sequence
@@ -470,11 +553,12 @@ final class HookHandlerTests: XCTestCase {
         """
         try content.write(toFile: ccsDir + "/local_x.json", atomically: true, encoding: .utf8)
 
-        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", ccsDir, 1)
-        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
-        defer { unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR"); unsetenv("__CFBundleIdentifier") }
+        let deps = makeDeps(
+            env: ["__CFBundleIdentifier": HostAppBundleID.claudeDesktop],
+            names: LiveSessionNameResolver(claudeSessionsDir: ccsDir)
+        )
 
-        try handleFixture("SessionStart")  // session_id test-session-001, no session_name
+        try handleFixture("SessionStart", deps: deps)  // session_id test-session-001, no session_name
         XCTAssertEqual(try loadSession().sessionName, "Investigate RBS RDoc plugin")
     }
 
@@ -486,12 +570,13 @@ final class HookHandlerTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: ccsDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: ccsDir) }
 
-        setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", ccsDir, 1)
-        setenv("__CFBundleIdentifier", HostAppBundleID.claudeDesktop, 1)
-        defer { unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR"); unsetenv("__CFBundleIdentifier") }
+        let deps = makeDeps(
+            env: ["__CFBundleIdentifier": HostAppBundleID.claudeDesktop],
+            names: LiveSessionNameResolver(claudeSessionsDir: ccsDir)
+        )
 
         // No title file yet → name stays nil at SessionStart.
-        try handleFixture("SessionStart")
+        try handleFixture("SessionStart", deps: deps)
         XCTAssertNil(try loadSession().sessionName)
 
         // Claude Desktop writes the auto title after the first turn.
@@ -501,7 +586,7 @@ final class HookHandlerTests: XCTestCase {
         try content.write(toFile: ccsDir + "/local_x.json", atomically: true, encoding: .utf8)
 
         // Stop re-runs the lookup and picks it up.
-        try handleFixture("Stop")
+        try handleFixture("Stop", deps: deps)
         XCTAssertEqual(try loadSession().sessionName, "Auto title")
     }
 
@@ -511,20 +596,14 @@ final class HookHandlerTests: XCTestCase {
     func testCodex_fillsNameOnToolEventWhileNil() throws {
         let idx = NSTemporaryDirectory() + "cctop-codex-\(UUID().uuidString).jsonl"
         defer { try? FileManager.default.removeItem(atPath: idx) }
-        setenv("CCTOP_CODEX_SESSION_INDEX", idx, 1)
-        defer { unsetenv("CCTOP_CODEX_SESSION_INDEX") }
-
-        func handle(_ json: String, _ hook: String) throws {
-            let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
-            try HookHandler.handleHook(hookName: hook, input: input)
-        }
+        let deps = makeDeps(names: LiveSessionNameResolver(codexIndexPath: idx))
 
         // SessionStart before Codex has titled the thread → name stays nil.
         let startJSON = """
         {"session_id":"codex-1","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"codex"}
         """
-        try handle(startJSON, "SessionStart")
-        XCTAssertNil(try loadSession().sessionName)
+        try handleHook(startJSON, hookName: "SessionStart", deps: deps)
+        XCTAssertNil(try loadSession("codex-codex-1.json").sessionName)
 
         // Codex writes the thread name to its index mid-turn.
         try """
@@ -535,24 +614,18 @@ final class HookHandlerTests: XCTestCase {
         let toolJSON = """
         {"session_id":"codex-1","cwd":"/tmp/p","hook_event_name":"PreToolUse","harness_name":"codex","tool_name":"Bash"}
         """
-        try handle(toolJSON, "PreToolUse")
-        XCTAssertEqual(try loadSession().sessionName, "Investigate session name capture")
+        try handleHook(toolJSON, hookName: "PreToolUse", deps: deps)
+        XCTAssertEqual(try loadSession("codex-codex-1.json").sessionName, "Investigate session name capture")
     }
 
     func testCodexDesktopTitleGenerationPromptWritesHiddenSession() throws {
-        setenv("__CFBundleIdentifier", HostAppBundleID.codexDesktop, 1)
-        defer { unsetenv("__CFBundleIdentifier") }
-
-        func handle(_ json: String, _ hook: String) throws {
-            let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
-            try HookHandler.handleHook(hookName: hook, input: input)
-        }
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.codexDesktop])
 
         let startJSON = """
         {"session_id":"title-helper","cwd":"/tmp/cctop","hook_event_name":"SessionStart","harness_name":"codex"}
         """
-        try handle(startJSON, "SessionStart")
-        XCTAssertFalse(try loadSession().hidden)
+        try handleHook(startJSON, hookName: "SessionStart", deps: deps)
+        XCTAssertFalse(try loadSession("codex-title-helper.json").hidden)
 
         let titlePrompt = """
         You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title for a task that will be created from that prompt.
@@ -566,12 +639,12 @@ final class HookHandlerTests: XCTestCase {
         let promptJSON = """
         {"session_id":"title-helper","cwd":"/tmp/cctop","hook_event_name":"UserPromptSubmit","harness_name":"codex","prompt":\(try jsonString(titlePrompt))}
         """
-        try handle(promptJSON, "UserPromptSubmit")
-        XCTAssertTrue(try loadSession().hidden)
+        try handleHook(promptJSON, hookName: "UserPromptSubmit", deps: deps)
+        XCTAssertTrue(try loadSession("codex-title-helper.json").hidden)
     }
 
     func testHookInputMarkedSubagentWritesHiddenSession() throws {
-        let json = """
+        try handleHook("""
         {
           "session_id": "delegated-agent-session",
           "cwd": "/tmp/p",
@@ -579,16 +652,16 @@ final class HookHandlerTests: XCTestCase {
           "harness_name": "opencode",
           "is_subagent": true
         }
-        """
-        let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
-        try HookHandler.handleHook(hookName: "SessionStart", input: input)
+        """, hookName: "SessionStart")
 
         XCTAssertTrue(try loadSession().hidden)
     }
 
+    // MARK: - Project cleanup (stale-PID GC)
+
     func testProjectCleanupPreservesHookMarkedSubagentSession() throws {
         let project = "/tmp/cctop-subagent-cleanup-\(UUID().uuidString)"
-        let json = """
+        try handleHook("""
         {
           "session_id": "delegated-agent-session",
           "cwd": "\(project)",
@@ -596,28 +669,20 @@ final class HookHandlerTests: XCTestCase {
           "harness_name": "opencode",
           "is_subagent": true
         }
-        """
-        let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
-        try HookHandler.handleHook(hookName: "SessionStart", input: input)
+        """, hookName: "SessionStart")
 
-        let path = try sessionFilePath()
-        var session = try Session.fromFile(path: path)
-        session.pid = 999_999
-        try session.writeToFile(path: path)
-
+        // Even with the owning PID dead, hidden subagent sessions must be preserved.
         HookHandler.cleanupSessionsForProject(
-            sessionsDir: sessionsDir,
-            projectPath: project,
-            currentPid: UInt32(getpid())
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 1,
+            process: FakeProcessProber(alive: false), logger: HookLogger(logsDir: logsDir)
         )
 
-        XCTAssertTrue(FileManager.default.fileExists(atPath: path))
+        XCTAssertTrue(sessionFileExists())
     }
 
     func testProjectCleanupRemovesStaleOpencodeWithLeakedCodexDesktopBundle() throws {
         let project = "/tmp/cctop-opencode-cleanup-\(UUID().uuidString)"
-        setenv("__CFBundleIdentifier", HostAppBundleID.codexDesktop, 1)
-        defer { unsetenv("__CFBundleIdentifier") }
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.codexDesktop])
 
         try handleHook("""
         {
@@ -626,38 +691,74 @@ final class HookHandlerTests: XCTestCase {
           "hook_event_name": "SessionStart",
           "harness_name": "opencode"
         }
-        """, hookName: "SessionStart")
+        """, hookName: "SessionStart", deps: deps)
 
-        let path = try sessionFilePath()
-        var session = try Session.fromFile(path: path)
-        session.pid = 999_999
-        try session.writeToFile(path: path)
-
+        // The leaked desktop bundle id must not shield an explicit opencode session
+        // from PID-staleness GC.
         HookHandler.cleanupSessionsForProject(
-            sessionsDir: sessionsDir,
-            projectPath: project,
-            currentPid: UInt32(getpid())
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 1,
+            process: FakeProcessProber(alive: false), logger: HookLogger(logsDir: logsDir)
         )
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+        XCTAssertFalse(sessionFileExists())
+    }
+
+    func testProjectCleanupRemovesSessionWhosePIDIsDead() throws {
+        let project = "/tmp/cctop-stale-cleanup-\(UUID().uuidString)"
+        try handleHook("""
+        {"session_id":"stale-cc","cwd":"\(project)","hook_event_name":"SessionStart"}
+        """, hookName: "SessionStart")
+        XCTAssertTrue(sessionFileExists())
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 1,
+            process: FakeProcessProber(alive: false), logger: HookLogger(logsDir: logsDir)
+        )
+
+        XCTAssertFalse(sessionFileExists())
+    }
+
+    func testProjectCleanupKeepsSessionWhosePIDIsAlive() throws {
+        let project = "/tmp/cctop-alive-cleanup-\(UUID().uuidString)"
+        try handleHook("""
+        {"session_id":"alive-cc","cwd":"\(project)","hook_event_name":"SessionStart"}
+        """, hookName: "SessionStart")
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 1,
+            process: FakeProcessProber(start: 1000, alive: true), logger: HookLogger(logsDir: logsDir)
+        )
+
+        XCTAssertTrue(sessionFileExists())
+    }
+
+    func testProjectCleanupRemovesSessionWhosePIDWasReused() throws {
+        let project = "/tmp/cctop-reuse-cleanup-\(UUID().uuidString)"
+        try handleHook("""
+        {"session_id":"reused-cc","cwd":"\(project)","hook_event_name":"SessionStart"}
+        """, hookName: "SessionStart")  // stored pidStartTime = 1000
+
+        // PID is alive but now belongs to a different process (start time moved).
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 1,
+            process: FakeProcessProber(start: 2000, alive: true), logger: HookLogger(logsDir: logsDir)
+        )
+
+        XCTAssertFalse(sessionFileExists())
     }
 
     /// Codex Desktop fires every conversation's hooks from one shared host process, so
     /// PID keying collapses them into a single file. Keyed by session_id, two concurrent
-    /// Codex conversations (same host PID — here the test runner's PID) get two files.
+    /// Codex conversations (same host PID) get two files.
     func testCodex_keepsSeparateFilePerSessionId() throws {
-        func handle(_ json: String, _ hook: String) throws {
-            let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
-            try HookHandler.handleHook(hookName: hook, input: input)
-        }
         let convoA = """
         {"session_id":"019e0000-aaaa-7000-8000-000000000001","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"codex"}
         """
         let convoB = """
         {"session_id":"019e0000-bbbb-7000-8000-000000000002","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"codex"}
         """
-        try handle(convoA, "SessionStart")
-        try handle(convoB, "SessionStart")
+        try handleHook(convoA, hookName: "SessionStart")
+        try handleHook(convoB, hookName: "SessionStart")
 
         let files = try FileManager.default.contentsOfDirectory(atPath: sessionsDir)
             .filter { $0.hasSuffix(".json") }.sorted()
@@ -665,15 +766,5 @@ final class HookHandlerTests: XCTestCase {
             "codex-019e0000-aaaa-7000-8000-000000000001.json",
             "codex-019e0000-bbbb-7000-8000-000000000002.json"
         ])
-    }
-
-    private func jsonString(_ value: String) throws -> String {
-        let data = try JSONEncoder().encode(value)
-        return String(decoding: data, as: UTF8.self)
-    }
-
-    private func handleHook(_ json: String, hookName: String) throws {
-        let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
-        try HookHandler.handleHook(hookName: hookName, input: input)
     }
 }

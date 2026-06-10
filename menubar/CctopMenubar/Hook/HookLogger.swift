@@ -34,11 +34,6 @@ struct HookLogger {
         HookLogger().logError(msg)
     }
 
-    // Temporary shim while call sites migrate to instance loggers.
-    static func cleanupSessionLog(sessionId: String) {
-        HookLogger().cleanupSessionLog(sessionId: sessionId)
-    }
-
     func appendHookLog(
         sessionId: String,
         event: String,
