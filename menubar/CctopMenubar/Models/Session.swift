@@ -336,32 +336,24 @@ struct Session: Codable, Identifiable, Equatable {
     }
 
     /// Convenience init for creating new sessions (used by cctop-hook).
+    /// Delegates to the memberwise init so fields added to `Session` later pick up
+    /// their memberwise defaults here instead of needing a second hand-synced list.
     init(sessionId: String, projectPath: String, branch: String, terminal: TerminalInfo) {
-        self.sessionId = sessionId
-        self.projectPath = projectPath
-        self.projectName = Self.extractProjectName(projectPath)
-        self.branch = branch
-        self.status = .idle
-        self.lastPrompt = nil
-        self.lastActivity = Date()
-        self.startedAt = Date()
-        self.terminal = terminal
-        self.pid = nil
-        self.pidStartTime = nil
-        self.lastTool = nil
-        self.lastToolDetail = nil
-        self.notificationMessage = nil
-        self.sessionName = nil
-        self.desktopProjectName = nil
-        self.workspaceFile = nil
-        self.source = nil
-        self.endedAt = nil
-        self.disconnectedAt = nil
-        self.activeSubagents = nil
-        self.isSubagentSession = false
-        self.hidden = false
-        self.createdByHookVersion = nil
-        self.lastWrittenByHookVersion = nil
+        self.init(
+            sessionId: sessionId,
+            projectPath: projectPath,
+            projectName: Self.extractProjectName(projectPath),
+            branch: branch,
+            status: .idle,
+            lastPrompt: nil,
+            lastActivity: Date(),
+            startedAt: Date(),
+            terminal: terminal,
+            pid: nil,
+            lastTool: nil,
+            lastToolDetail: nil,
+            notificationMessage: nil
+        )
     }
 
     mutating func markWrittenByHook(version: String, isNewSessionFile: Bool) {
