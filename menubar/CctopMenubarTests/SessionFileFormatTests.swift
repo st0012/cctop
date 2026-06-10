@@ -1854,6 +1854,129 @@ final class SessionFileFormatTests: XCTestCase {
         // Recent activity means active even with a dead/irrelevant PID.
         XCTAssertEqual(life(recent, .desktop, alive: false), .active)
     }
+
+    // MARK: - Visibility filtering with stub providers (no SQLite or metadata files on disk)
+
+    func testVisibilitySnapshotFiltersArchivedSubagentExecHelperAndOrphanedSessions() {
+        let archived = candidate(sessionId: "archived-thread", pid: 1, bundleId: HostAppBundleID.codexDesktop,
+                                 lifecycleRank: 0, source: Session.codexSource, path: "/archived.json")
+        let subagent = candidate(sessionId: "subagent-thread", pid: 2, bundleId: HostAppBundleID.codexDesktop,
+                                 lifecycleRank: 0, source: Session.codexSource, path: "/subagent.json")
+        let execHelper = candidate(sessionId: "exec-helper-thread", pid: 3, bundleId: HostAppBundleID.codexDesktop,
+                                   lifecycleRank: 0, source: Session.codexSource, path: "/exec.json")
+        let archivedClaude = candidate(sessionId: "archived-claude", pid: 4, bundleId: HostAppBundleID.claudeDesktop,
+                                       lifecycleRank: 0, source: "cc", path: "/claude-archived.json")
+        // Ended, with authoritative metadata that does not know the session → orphaned, filtered.
+        let orphanClaude = candidate(sessionId: "orphan-claude", pid: 5, bundleId: HostAppBundleID.claudeDesktop,
+                                     lifecycleRank: 0, source: "cc",
+                                     endedAt: Date(timeIntervalSince1970: 2000), path: "/claude-orphan.json")
+        let visibleCodex = candidate(sessionId: "visible-thread", pid: 6, bundleId: HostAppBundleID.codexDesktop,
+                                     lifecycleRank: 0, source: Session.codexSource, path: "/visible.json")
+        let visibleClaude = candidate(sessionId: "visible-claude", pid: 7, bundleId: HostAppBundleID.claudeDesktop,
+                                      lifecycleRank: 0, source: "cc", path: "/claude-visible.json")
+
+        let codexThreads = StubCodexThreadState(
+            archived: ["archived-thread"],
+            subagents: ["subagent-thread"],
+            execHelpers: ["exec-helper-thread"]
+        )
+        let claudeMetadata = ClaudeDesktopSessionMetadataSnapshot(
+            matchedSessionIDs: ["archived-claude", "visible-claude"],
+            archivedSessionIDs: ["archived-claude"],
+            isAuthoritative: true
+        )
+
+        let visibility = SessionManager.visibilitySnapshot(
+            in: [archived, subagent, execHelper, archivedClaude, orphanClaude, visibleCodex, visibleClaude],
+            claudeMetadata: claudeMetadata,
+            codexThreads: codexThreads
+        )
+
+        XCTAssertEqual(
+            visibility.liveCandidates.map(\.session.sessionId).sorted(),
+            ["visible-claude", "visible-thread"]
+        )
+        XCTAssertEqual(visibility.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
+        XCTAssertEqual(visibility.archivedCodexThreadIDs, ["archived-thread"])
+        XCTAssertEqual(visibility.codexSubagentThreadIDs, ["subagent-thread"])
+        XCTAssertEqual(visibility.codexExecHelperThreadIDs, ["exec-helper-thread"])
+        XCTAssertEqual(visibility.archivedClaudeSessionIDs, ["archived-claude"])
+    }
+
+    // The display path never deletes files, so unreadable external stores must fail OPEN: the
+    // sessions stay visible for the pass rather than vanishing on lookup uncertainty.
+    func testVisibilitySnapshotFailsOpenWhenExternalStoresAreUnreadable() {
+        let codexThread = candidate(sessionId: "maybe-archived", pid: 1, bundleId: HostAppBundleID.codexDesktop,
+                                    lifecycleRank: 0, source: Session.codexSource, path: "/maybe.json")
+        let claudeSession = candidate(sessionId: "maybe-orphaned", pid: 2, bundleId: HostAppBundleID.claudeDesktop,
+                                      lifecycleRank: 0, source: "cc",
+                                      endedAt: Date(timeIntervalSince1970: 2000), path: "/claude-maybe.json")
+
+        let visibility = SessionManager.visibilitySnapshot(
+            in: [codexThread, claudeSession],
+            codexThreads: StubCodexThreadState(archived: nil, subagents: nil, execHelpers: nil),
+            claudeDesktopSessions: StubClaudeDesktopState(snapshot: nil)
+        )
+
+        XCTAssertEqual(
+            visibility.liveCandidates.map(\.session.sessionId).sorted(),
+            ["maybe-archived", "maybe-orphaned"]
+        )
+        XCTAssertEqual(visibility.codexSubagentCandidates.map(\.session.sessionId), [])
+    }
+
+    // MARK: - Lifecycle derivation via injected process liveness
+
+    // Lifecycle used to be testable only by fabricating PIDs that could not exist; with liveness
+    // injected, the same session flips between finished and active purely by the injected answer.
+    func testBuildCandidatesDerivesLifecycleFromInjectedProcessAlive() {
+        var session = Session(
+            sessionId: "terminal-session", projectPath: "/tmp/p", branch: "main",
+            terminal: TerminalInfo(program: "zsh", bundleId: "com.googlecode.iterm2")
+        )
+        session.source = "cc"
+        session.pid = 12345
+        session.lastActivity = Self.lifeNow.addingTimeInterval(-60)
+        let files = [(url: URL(fileURLWithPath: "/nonexistent/12345.json"), session: session)]
+        let noDesktopApps = DesktopAppConnectionLookup { _ in false }
+
+        let dead = SessionManager.buildCandidates(
+            files, now: Self.lifeNow,
+            desktopAppConnectionLookup: noDesktopApps,
+            claudeMetadata: nil,
+            codexThreads: StubCodexThreadState(),
+            processAlive: { _ in false }
+        )
+        XCTAssertEqual(dead.map(\.session.lifecycle), [.finished])
+
+        let alive = SessionManager.buildCandidates(
+            files, now: Self.lifeNow,
+            desktopAppConnectionLookup: noDesktopApps,
+            claudeMetadata: nil,
+            codexThreads: StubCodexThreadState(),
+            processAlive: { _ in true }
+        )
+        XCTAssertEqual(alive.map(\.session.lifecycle), [.active])
+    }
+
+    // MARK: - Idle timeout with an injected clock
+
+    func testAdjustIdleTimeoutUsesInjectedNow() {
+        var session = Session(sessionId: "s", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        session.status = .waitingInput
+        session.lastActivity = Date(timeIntervalSince1970: 1_000_000)
+
+        let justUnderTimeout = session.lastActivity.addingTimeInterval(3_599)
+        XCTAssertEqual(SessionManager.adjustIdleTimeout(session, now: justUnderTimeout).status, .waitingInput)
+
+        let pastTimeout = session.lastActivity.addingTimeInterval(3_601)
+        XCTAssertEqual(SessionManager.adjustIdleTimeout(session, now: pastTimeout).status, .idle)
+
+        // Only waitingInput times out; other statuses pass through untouched.
+        var working = session
+        working.status = .working
+        XCTAssertEqual(SessionManager.adjustIdleTimeout(working, now: pastTimeout).status, .working)
+    }
 }
 
 /// In-memory stand-in for Codex's thread state database, so visibility and archive logic can be

@@ -298,7 +298,7 @@ class SessionManager: ObservableObject {
 
     /// If a session has been in `waitingInput` for over 60 minutes, treat it as
     /// `idle` for display. The user likely walked away.
-    static func adjustIdleTimeout(_ session: Session, now: Date) -> Session {
+    nonisolated static func adjustIdleTimeout(_ session: Session, now: Date) -> Session {
         guard session.status == .waitingInput,
               now.timeIntervalSince(session.lastActivity) > Self.idleTimeoutSeconds else {
             return session
