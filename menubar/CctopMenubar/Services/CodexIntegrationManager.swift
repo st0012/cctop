@@ -142,13 +142,14 @@ enum CodexIntegrationManager {
 
     /// Parses a `[hooks.state."<hooksPath>:<event>:..."]` header. Returns the
     /// cctop event key when the source path matches `hooksPath`, else nil.
+    /// TOML allows both quote styles for keys, so strip `'` as well as `"`.
     private static func parseCctopHookStateEvent(_ line: String, hooksPath: String) -> String? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("[hooks.state.") && trimmed.hasSuffix("]") else { return nil }
         let key = trimmed
             .dropFirst("[hooks.state.".count)
             .dropLast()
-            .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
         for event in trustStateEventKeys {
             let marker = ":\(event):"
             guard let markerRange = key.range(of: marker) else { continue }

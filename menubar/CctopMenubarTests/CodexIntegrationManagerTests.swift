@@ -141,6 +141,21 @@ final class CodexIntegrationManagerTests: XCTestCase {
         }
     }
 
+    func testHasTrustedCctopHookStateAcceptsSingleQuotedKeys() {
+        // TOML permits single-quoted (literal) keys; a formatter or future
+        // Codex version may emit them. Both styles must match.
+        var lines: [String] = []
+        for event in CodexIntegrationManager.trustStateEventKeys {
+            lines.append("[hooks.state.'\(hooksPath):\(event):0:0']")
+            lines.append("trusted_hash = \"sha256:abc123\"")
+        }
+        XCTAssertTrue(
+            CodexIntegrationManager.hasTrustedCctopHookState(
+                in: lines.joined(separator: "\n"), hooksPath: hooksPath
+            )
+        )
+    }
+
     func testHasTrustedCctopHookStateAcceptsExplicitlyEnabledEntries() {
         var lines: [String] = []
         for event in CodexIntegrationManager.trustStateEventKeys {
