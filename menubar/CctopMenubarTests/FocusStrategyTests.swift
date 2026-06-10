@@ -84,7 +84,33 @@ final class FocusStrategyTests: XCTestCase {
             sessionId: "w0t0p0:ABC123-DEF-456"
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .iTerm2(guid: "ABC123-DEF-456"))
+        XCTAssertEqual(strategy, .iTerm2(guid: "ABC123-DEF-456", jumpToMark: false))
+    }
+
+    func testITerm2WaitingSessionJumpsToMark() {
+        var session = makeSession(
+            program: "iTerm2",
+            sessionId: "w0t0p0:ABC123-DEF-456"
+        )
+        session.status = .waitingInput
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .iTerm2(guid: "ABC123-DEF-456", jumpToMark: true))
+    }
+
+    func testITerm2DoesNotJumpToMarkWhenFocusDoesNotMatchSession() {
+        XCTAssertFalse(shouldJumpToITerm2Mark(didMatchSession: false, jumpToMark: true))
+    }
+
+    func testITerm2JumpsToMarkWhenFocusMatchesWaitingSession() {
+        XCTAssertTrue(shouldJumpToITerm2Mark(didMatchSession: true, jumpToMark: true))
+    }
+
+    func testITerm2FocusScriptReturnsExplicitMatchSentinel() {
+        let script = buildITerm2FocusScript(guid: #"ABC"123"#)
+
+        XCTAssertTrue(script.contains("return true"))
+        XCTAssertTrue(script.contains("return false"))
+        XCTAssertTrue(script.contains(#"ABC\"123"#))
     }
 
     func testITerm2WithoutGUIDFallsBackToActivate() {
