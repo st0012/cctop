@@ -2,7 +2,7 @@ import Foundation
 
 /// Classifies the application hosting a coding session (editor or terminal).
 /// Used by focusTerminal, openInEditor, and editorIcon.
-enum HostApp {
+enum HostApp: CaseIterable {
     case vscode
     case cursor
     case windsurf
@@ -106,17 +106,13 @@ enum HostApp {
         }
     }
 
-    /// Reverse lookup: bundle ID → HostApp.
-    static let allByBundleID: [String: HostApp] = {
-        let all: [HostApp] = [
-            .vscode, .cursor, .windsurf, .zed,
-            .iterm2, .warp, .terminal, .ghostty, .kitty,
-            .claudeDesktop, .codexDesktop
-        ]
-        return Dictionary(uniqueKeysWithValues: all.compactMap { app in
+    /// Reverse lookup: bundle ID → HostApp. Derived from `allCases` so a newly added
+    /// case can't be silently forgotten; `.unknown` has no bundle ID and drops out.
+    static let allByBundleID: [String: HostApp] = Dictionary(
+        uniqueKeysWithValues: allCases.compactMap { app in
             app.bundleID.map { ($0, app) }
-        })
-    }()
+        }
+    )
 
     /// CLI command name for opening files (used by focusTerminal for active sessions).
     var cliCommand: String? {
