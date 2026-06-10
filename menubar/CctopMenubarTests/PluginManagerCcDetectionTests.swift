@@ -72,3 +72,82 @@ final class PluginManagerCcDetectionTests: XCTestCase {
         }
     }
 }
+
+/// Integration coverage for `refresh()` against a staged home directory.
+/// Only the oc/pi/cc flags are asserted: Codex detection reads `~/.codex`
+/// through `CodexPluginInstaller`, which is not derived from the injected
+/// home directory.
+@MainActor
+final class PluginManagerRefreshTests: XCTestCase {
+
+    func testRefreshDetectsPluginsInStagedHomeDirectory() throws {
+        let home = makeTempHome()
+        try stage(home, file: ".config/opencode/plugins/cctop.js", contents: "// plugin")
+        try stage(home, file: ".pi/agent/extensions/cctop.ts", contents: "// extension")
+        try stage(
+            home,
+            file: ".claude/plugins/cache/cctop/cctop/0.15.3/\(PluginManager.ccPluginManifestPath)",
+            contents: "{}"
+        )
+
+        let manager = PluginManager(homeDirectory: home)
+
+        XCTAssertTrue(manager.ccInstalled)
+        XCTAssertTrue(manager.ocConfigExists)
+        XCTAssertTrue(manager.ocInstalled)
+        XCTAssertTrue(manager.piConfigExists)
+        XCTAssertTrue(manager.piInstalled)
+    }
+
+    func testRefreshAgainstEmptyHomeReportsNothingInstalled() {
+        let manager = PluginManager(homeDirectory: makeTempHome())
+
+        XCTAssertFalse(manager.ccInstalled)
+        XCTAssertFalse(manager.ocConfigExists)
+        XCTAssertFalse(manager.ocInstalled)
+        XCTAssertFalse(manager.ocNeedsUpdate)
+        XCTAssertFalse(manager.piConfigExists)
+        XCTAssertFalse(manager.piInstalled)
+    }
+
+    func testInertManagerStartsWithAllFlagsFalse() {
+        // The preview/snapshot construction: no refresh, no home-dir IO, so
+        // every published flag starts deterministically false regardless of
+        // what is installed on the machine running the tests.
+        let manager = PluginManager(
+            homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false
+        )
+
+        XCTAssertFalse(manager.ccInstalled)
+        XCTAssertFalse(manager.ocInstalled)
+        XCTAssertFalse(manager.ocNeedsUpdate)
+        XCTAssertFalse(manager.ocConfigExists)
+        XCTAssertFalse(manager.piInstalled)
+        XCTAssertFalse(manager.piConfigExists)
+        XCTAssertFalse(manager.codexInstalled)
+        XCTAssertFalse(manager.codexNeedsUpdate)
+        XCTAssertFalse(manager.codexConfigExists)
+        XCTAssertFalse(manager.codexLegacyConfigKey)
+        XCTAssertEqual(manager.codexHookStatus, .notInstalled)
+    }
+
+    // MARK: - Helpers
+
+    private func makeTempHome() -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-home-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: url)
+        }
+        return url
+    }
+
+    private func stage(_ home: URL, file relativePath: String, contents: String) throws {
+        let url = home.appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        try contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+}

@@ -20,37 +20,50 @@ class PluginManager: ObservableObject {
     static let ccInstallCommand =
         "claude plugin marketplace add st0012/cctop && claude plugin install cctop"
 
-    private static let home = FileManager.default.homeDirectoryForCurrentUser
-    private static let ocPluginPath = home.appendingPathComponent(
-        ".config/opencode/plugins/cctop.js"
-    )
-    private static let piPluginPath = home.appendingPathComponent(
-        ".pi/agent/extensions/cctop.ts"
-    )
-    private static let ccPluginCacheDir = home.appendingPathComponent(
-        ".claude/plugins/cache/cctop/cctop"
-    )
+    private let homeDirectory: URL
+    private let ocPluginPath: URL
+    private let piPluginPath: URL
+    private let ccPluginCacheDir: URL
     static let ccOrphanedMarker = ".orphaned_at"
     static let ccPluginManifestPath = ".claude-plugin/plugin.json"
 
-    init() {
-        refresh()
+    /// `homeDirectory` controls where plugin detection looks, so tests and
+    /// previews can stage a directory (or point at a nonexistent one) instead
+    /// of reading the developer's real home. `refreshOnInit: false` yields an
+    /// inert manager whose published flags all start false — preview and
+    /// snapshot setups override exactly the flags they mean to show.
+    init(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        refreshOnInit: Bool = true
+    ) {
+        self.homeDirectory = homeDirectory
+        self.ocPluginPath = homeDirectory.appendingPathComponent(
+            ".config/opencode/plugins/cctop.js"
+        )
+        self.piPluginPath = homeDirectory.appendingPathComponent(
+            ".pi/agent/extensions/cctop.ts"
+        )
+        self.ccPluginCacheDir = homeDirectory.appendingPathComponent(
+            ".claude/plugins/cache/cctop/cctop"
+        )
+        if refreshOnInit {
+            refresh()
+        }
     }
 
     func refresh() {
         let fm = FileManager.default
-        let home = Self.home
 
-        ccInstalled = Self.hasActiveClaudeCodePluginVersion(in: Self.ccPluginCacheDir)
+        ccInstalled = Self.hasActiveClaudeCodePluginVersion(in: ccPluginCacheDir)
 
-        let ocConfigDir = home.appendingPathComponent(".config/opencode")
+        let ocConfigDir = homeDirectory.appendingPathComponent(".config/opencode")
         ocConfigExists = fm.fileExists(atPath: ocConfigDir.path)
-        ocInstalled = fm.fileExists(atPath: Self.ocPluginPath.path)
-        ocNeedsUpdate = ocInstalled && Self.installedPluginOutdated()
+        ocInstalled = fm.fileExists(atPath: ocPluginPath.path)
+        ocNeedsUpdate = ocInstalled && Self.installedPluginOutdated(at: ocPluginPath)
 
-        let piConfigDir = home.appendingPathComponent(".pi")
+        let piConfigDir = homeDirectory.appendingPathComponent(".pi")
         piConfigExists = fm.fileExists(atPath: piConfigDir.path)
-        piInstalled = fm.fileExists(atPath: Self.piPluginPath.path)
+        piInstalled = fm.fileExists(atPath: piPluginPath.path)
 
         let codexDirExists = CodexPluginInstaller.codexConfigExists()
         let codexConfigText: String? = codexDirExists
@@ -92,7 +105,7 @@ class PluginManager: ObservableObject {
         }
     }
 
-    private static func installedPluginOutdated() -> Bool {
+    private static func installedPluginOutdated(at ocPluginPath: URL) -> Bool {
         guard let bundledData = loadBundledResource(name: "opencode-plugin", ext: "js"),
               let installedData = try? Data(contentsOf: ocPluginPath) else {
             return false
@@ -146,23 +159,23 @@ class PluginManager: ObservableObject {
     func installOpenCodePlugin() -> Bool {
         installBundledPlugin(
             resource: "opencode-plugin", ext: "js",
-            destination: Self.ocPluginPath, name: "opencode"
+            destination: ocPluginPath, name: "opencode"
         )
     }
 
     func removeOpenCodePlugin() -> Bool {
-        removeBundledPlugin(path: Self.ocPluginPath, name: "opencode")
+        removeBundledPlugin(path: ocPluginPath, name: "opencode")
     }
 
     func installPiPlugin() -> Bool {
         installBundledPlugin(
             resource: "pi-plugin", ext: "ts",
-            destination: Self.piPluginPath, name: "pi"
+            destination: piPluginPath, name: "pi"
         )
     }
 
     func removePiPlugin() -> Bool {
-        removeBundledPlugin(path: Self.piPluginPath, name: "pi")
+        removeBundledPlugin(path: piPluginPath, name: "pi")
     }
 
     // MARK: - Private
