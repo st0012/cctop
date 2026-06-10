@@ -767,4 +767,28 @@ final class HookHandlerTests: XCTestCase {
             "codex-019e0000-bbbb-7000-8000-000000000002.json"
         ])
     }
+
+    // MARK: - Session file naming contract
+
+    /// Pins the writer-side naming rule directly: Codex files are keyed by session id
+    /// (one host PID serves many conversations), everything else by PID. The codex-
+    /// prefix must also keep matching what SessionManager.isLegacyUUIDFilename skips.
+    func testSessionFileNameKeysCodexBySessionIdAndOthersByPID() throws {
+        func input(_ json: String) throws -> HookInput {
+            try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
+        }
+        let codex = try input("""
+        {"session_id":"thread-1","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"codex"}
+        """)
+        let claude = try input("""
+        {"session_id":"thread-1","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"cc"}
+        """)
+        let legacy = try input("""
+        {"session_id":"thread-1","cwd":"/tmp/p","hook_event_name":"SessionStart"}
+        """)
+
+        XCTAssertEqual(sessionFileName(input: codex, pid: 4242, safeSessionId: "thread-1"), "codex-thread-1.json")
+        XCTAssertEqual(sessionFileName(input: claude, pid: 4242, safeSessionId: "thread-1"), "4242.json")
+        XCTAssertEqual(sessionFileName(input: legacy, pid: 4242, safeSessionId: "thread-1"), "4242.json")
+    }
 }

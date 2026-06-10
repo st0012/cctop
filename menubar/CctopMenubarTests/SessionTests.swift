@@ -668,4 +668,104 @@ final class SessionTests: XCTestCase {
         XCTAssertNotEqual(base, dormant)
         XCTAssertEqual(base.lifecycle, .active)
     }
+
+    // MARK: - Schema tripwire
+
+    /// A `Session` with every optional field populated, both Bools true, and distinct values
+    /// per field. Dates carry whole milliseconds so the sessionEncoder's fractional-second
+    /// ISO 8601 format round-trips them exactly. `lifecycle` is deliberately left at `.active`
+    /// because it is transient and never persisted.
+    private func makeFullyPopulatedSession() -> Session {
+        Session(
+            sessionId: "full-fixture-1",
+            projectPath: "/Users/test/projects/full-fixture",
+            projectName: "full-fixture",
+            branch: "feature/full-coverage",
+            status: .working,
+            lastPrompt: "Wire every field through",
+            lastActivity: isoDate("2026-02-08T12:00:00.123Z"),
+            startedAt: isoDate("2026-02-08T11:00:00.456Z"),
+            terminal: TerminalInfo(
+                program: "iTerm.app",
+                sessionId: "w0t0p0:1A2B3C4D",
+                tty: "/dev/ttys003",
+                bundleId: "com.googlecode.iterm2",
+                socket: "/tmp/kitty-socket",
+                multiplexer: .tmux(socket: "/tmp/tmux-501/default", paneId: "%1", binaryPath: "/opt/homebrew/bin/tmux"),
+                binaryPaths: ["tmux": "/opt/homebrew/bin/tmux"]
+            ),
+            pid: 4242,
+            pidStartTime: 1707400000.5,
+            lastTool: "Bash",
+            lastToolDetail: "npm test",
+            notificationMessage: "Permission needed",
+            sessionName: "full fixture session",
+            desktopProjectName: "full-fixture-desktop",
+            workspaceFile: "/Users/test/projects/full-fixture/full-fixture.code-workspace",
+            source: "codex",
+            endedAt: isoDate("2026-02-08T13:00:00.789Z"),
+            disconnectedAt: isoDate("2026-02-08T12:30:00.012Z"),
+            activeSubagents: [
+                SubagentInfo(agentId: "agent-1", agentType: "explore", startedAt: isoDate("2026-02-08T12:10:00.345Z"))
+            ],
+            isSubagentSession: true,
+            hidden: true,
+            createdByHookVersion: "0.16.0",
+            lastWrittenByHookVersion: "0.17.2"
+        )
+    }
+
+    private func isoDate(_ string: String) -> Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: string)!
+    }
+
+    private func encodeToDictionary(_ session: Session) throws -> [String: Any] {
+        let data = try JSONEncoder.sessionEncoder.encode(session)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    // 25 persisted fields + the transient `lifecycle`. If this fails, a stored property was
+    // added or removed: wire it through CodingKeys, init(from:), the memberwise init, and
+    // makeFullyPopulatedSession() above, then update this count.
+    func testStoredPropertyCountTripwire() {
+        XCTAssertEqual(Mirror(reflecting: makeFullyPopulatedSession()).children.count, 26)
+    }
+
+    // Catches asymmetry between CodingKeys, init(from:), and the synthesized encode: a field
+    // that encodes but doesn't decode (or vice versa) breaks equality after a round-trip.
+    func testFullyPopulatedSessionRoundTripsThroughSessionCoders() throws {
+        let session = makeFullyPopulatedSession()
+        let data = try JSONEncoder.sessionEncoder.encode(session)
+        let decoded = try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+        XCTAssertEqual(decoded, session)
+    }
+
+    // Session-id rotation must be lossless: the rotated copy's persisted JSON differs from the
+    // original in session_id only, so a future field forgotten in withSessionId fails loudly
+    // instead of silently resetting on every Claude Code resume.
+    func testWithSessionIdPreservesEveryPersistedField() throws {
+        let session = makeFullyPopulatedSession()
+        let rotated = session.withSessionId("rotated-id")
+
+        var original = try encodeToDictionary(session)
+        var copy = try encodeToDictionary(rotated)
+        XCTAssertEqual(original["session_id"] as? String, "full-fixture-1")
+        XCTAssertEqual(copy["session_id"] as? String, "rotated-id")
+        original.removeValue(forKey: "session_id")
+        copy.removeValue(forKey: "session_id")
+        XCTAssertEqual(original as NSDictionary, copy as NSDictionary)
+    }
+
+    func testWithSessionIdAppliesBranchAndTerminalOverrides() {
+        let session = makeFullyPopulatedSession()
+        let newTerminal = TerminalInfo(program: "WezTerm", bundleId: "com.github.wez.wezterm")
+
+        let rotated = session.withSessionId("rotated-id", branch: "hotfix/rotation", terminal: newTerminal)
+
+        XCTAssertEqual(rotated.sessionId, "rotated-id")
+        XCTAssertEqual(rotated.branch, "hotfix/rotation")
+        XCTAssertEqual(rotated.terminal, newTerminal)
+    }
 }
