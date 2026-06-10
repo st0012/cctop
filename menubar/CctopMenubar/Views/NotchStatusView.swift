@@ -64,9 +64,9 @@ private struct StatusBar: View {
                 ) { index, seg in
                     if index == segments.count - 1 {
                         // Last segment fills remaining space to avoid float rounding gaps
-                        seg.color.color
+                        StatusColors.color(for: seg.kind).color
                     } else {
-                        seg.color.color.frame(width: geo.size.width * seg.proportion)
+                        StatusColors.color(for: seg.kind).color.frame(width: geo.size.width * seg.proportion)
                     }
                 }
             }

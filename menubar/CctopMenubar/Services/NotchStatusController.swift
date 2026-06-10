@@ -13,11 +13,19 @@ class NotchStatusController {
     private var panel: NotchStatusPanel?
     private var hostingView: NSHostingView<NotchStatusView>?
 
+    /// Provides the current theme identifier; injected so tests and previews
+    /// don't have to go through the ThemeManager singleton.
+    private let themeId: @MainActor () -> String
+
     /// Called when the notch pill is clicked.
     var onPillClicked: (() -> Void)?
 
     /// Last counts received, used when creating or updating the panel.
     private(set) var lastCounts = StatusCounts.zero
+
+    init(themeId: @escaping @MainActor () -> String = { ThemeManager.shared.themeId }) {
+        self.themeId = themeId
+    }
 
     /// The pill's current frame in screen coordinates, if visible.
     var pillFrame: NSRect? {
@@ -36,9 +44,7 @@ class NotchStatusController {
 
         if let panel {
             if counts != lastCounts {
-                hostingView?.rootView = NotchStatusView(
-                    counts: counts, themeId: ThemeManager.shared.themeId
-                )
+                hostingView?.rootView = NotchStatusView(counts: counts, themeId: themeId())
                 lastCounts = counts
             }
             panel.setFrame(frame, display: true)
@@ -46,7 +52,7 @@ class NotchStatusController {
             return
         }
 
-        let statusView = NotchStatusView(counts: counts, themeId: ThemeManager.shared.themeId)
+        let statusView = NotchStatusView(counts: counts, themeId: themeId())
         let hosting = NSHostingView(rootView: statusView)
         hosting.autoresizingMask = [.width, .height]
 
@@ -68,7 +74,7 @@ class NotchStatusController {
     func update(counts: StatusCounts) {
         lastCounts = counts
         guard let hostingView else { return }
-        hostingView.rootView = NotchStatusView(counts: counts, themeId: ThemeManager.shared.themeId)
+        hostingView.rootView = NotchStatusView(counts: counts, themeId: themeId())
     }
 
     /// Remove the notch panel. Hide first, then release views.

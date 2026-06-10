@@ -20,6 +20,16 @@ enum StatusColors {
     /// Accent — used to tint icons when sessions need attention.
     static var accent: RGBColor { permission }
 
+    /// Resolve the current theme color for a semantic segment kind.
+    static func color(for kind: StatusCounts.SegmentKind) -> RGBColor {
+        switch kind {
+        case .permission: return permission
+        case .attention: return attention
+        case .working: return working
+        case .idle: return idle
+        }
+    }
+
     struct RGBColor: Hashable {
         let red: Double
         let green: Double

@@ -61,7 +61,7 @@ enum MenubarIconRenderer {
             let segWidth = index == segments.count - 1
                 ? max(0, barRect.maxX - xPos)
                 : barRect.width * seg.proportion
-            seg.color.nsColor.setFill()
+            StatusColors.color(for: seg.kind).nsColor.setFill()
             NSRect(
                 x: xPos, y: barRect.minY,
                 width: segWidth, height: barRect.height

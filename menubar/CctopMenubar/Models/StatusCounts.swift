@@ -1,6 +1,14 @@
 /// Aggregated session status counts used by the menubar icon, notch pill, and accessibility labels.
-@MainActor
 struct StatusCounts: Equatable {
+    /// Semantic identity of a status-bar segment. Renderers resolve the
+    /// theme color for a kind at render time (see `StatusColors.color(for:)`).
+    enum SegmentKind: Equatable {
+        case permission, attention, working, idle
+
+        /// Whether this segment represents sessions needing user action.
+        var needsAction: Bool { self == .permission || self == .attention }
+    }
+
     let permission: Int
     let attention: Int
     let working: Int
@@ -37,35 +45,32 @@ struct StatusCounts: Equatable {
     var total: Int { permission + attention + working + idle }
     var needsAction: Int { permission + attention }
 
-    /// Proportional bar segments: (fraction of total, color).
+    /// Proportional bar segments: (fraction of total, semantic kind).
     /// Used by both MenubarIconRenderer (AppKit) and NotchStatusView (SwiftUI).
-    var barSegments: [(proportion: Double, color: StatusColors.RGBColor)] {
+    var barSegments: [(proportion: Double, kind: SegmentKind)] {
         guard total > 0 else { return [] }
-        var segs: [(Double, StatusColors.RGBColor)] = []
+        var segs: [(Double, SegmentKind)] = []
         if permission > 0 {
-            segs.append((Double(permission) / Double(total), StatusColors.permission))
+            segs.append((Double(permission) / Double(total), .permission))
         }
         if attention > 0 {
-            segs.append((Double(attention) / Double(total), StatusColors.attention))
+            segs.append((Double(attention) / Double(total), .attention))
         }
         if working > 0 {
-            segs.append((Double(working) / Double(total), StatusColors.working))
+            segs.append((Double(working) / Double(total), .working))
         }
         if idle > 0 {
-            segs.append((Double(idle) / Double(total), StatusColors.idle))
+            segs.append((Double(idle) / Double(total), .idle))
         }
         return segs
     }
 
     /// Minimum width in points for action-needing segments (permission, attention).
     private static let minActionWidth: Double = 5
-    private static var actionColors: Set<StatusColors.RGBColor> {
-        [StatusColors.permission, StatusColors.attention]
-    }
 
     /// Bar segments with minimum width enforcement for action-needing segments.
     /// Steals space proportionally from non-action segments (working, idle).
-    func barSegments(forWidth barWidth: Double) -> [(proportion: Double, color: StatusColors.RGBColor)] {
+    func barSegments(forWidth barWidth: Double) -> [(proportion: Double, kind: SegmentKind)] {
         let raw = barSegments
         guard !raw.isEmpty, barWidth > 0 else { return raw }
 
@@ -75,7 +80,7 @@ struct StatusCounts: Equatable {
         var nonActionTotal = 0.0
         var totalActionClamped = 0.0
         for seg in raw {
-            if Self.actionColors.contains(seg.color) {
+            if seg.kind.needsAction {
                 totalActionClamped += max(seg.proportion, minProportion)
                 if seg.proportion < minProportion {
                     deficit += minProportion - seg.proportion
@@ -91,11 +96,11 @@ struct StatusCounts: Equatable {
         guard totalActionClamped <= 0.8 else { return raw }
 
         var result = raw.map { seg in
-            if Self.actionColors.contains(seg.color) && seg.proportion < minProportion {
-                return (minProportion, seg.color)
-            } else if !Self.actionColors.contains(seg.color) {
+            if seg.kind.needsAction && seg.proportion < minProportion {
+                return (minProportion, seg.kind)
+            } else if !seg.kind.needsAction {
                 let shrink = deficit * (seg.proportion / nonActionTotal)
-                return (max(seg.proportion - shrink, 0), seg.color)
+                return (max(seg.proportion - shrink, 0), seg.kind)
             }
             return seg
         }

@@ -1,7 +1,6 @@
 import XCTest
 @testable import CctopMenubar
 
-@MainActor
 final class StatusCountsTests: XCTestCase {
     func testTotal() {
         let counts = StatusCounts(permission: 1, attention: 2, working: 3, idle: 4)
@@ -75,16 +74,16 @@ final class StatusCountsTests: XCTestCase {
     func testBarSegments_permissionAndAttentionSeparate() {
         let counts = StatusCounts(permission: 1, attention: 1, working: 0, idle: 0)
         XCTAssertEqual(counts.barSegments.count, 2)
-        XCTAssertEqual(counts.barSegments[0].color, StatusColors.permission)
+        XCTAssertEqual(counts.barSegments[0].kind, .permission)
         XCTAssertEqual(counts.barSegments[0].proportion, 0.5, accuracy: 0.001)
-        XCTAssertEqual(counts.barSegments[1].color, StatusColors.attention)
+        XCTAssertEqual(counts.barSegments[1].kind, .attention)
         XCTAssertEqual(counts.barSegments[1].proportion, 0.5, accuracy: 0.001)
     }
 
-    func testBarSegments_attentionOnlyUsesAttentionColor() {
+    func testBarSegments_attentionOnlyUsesAttentionKind() {
         let counts = StatusCounts(permission: 0, attention: 2, working: 0, idle: 0)
         XCTAssertEqual(counts.barSegments.count, 1)
-        XCTAssertEqual(counts.barSegments[0].color, StatusColors.attention)
+        XCTAssertEqual(counts.barSegments[0].kind, .attention)
         XCTAssertEqual(counts.barSegments[0].proportion, 1.0, accuracy: 0.001)
     }
 
@@ -98,25 +97,25 @@ final class StatusCountsTests: XCTestCase {
     func testBarSegments_order_permissionAttentionWorkingIdle() {
         let counts = StatusCounts(permission: 1, attention: 1, working: 1, idle: 1)
         XCTAssertEqual(counts.barSegments.count, 4)
-        XCTAssertEqual(counts.barSegments[0].color, StatusColors.permission)
-        XCTAssertEqual(counts.barSegments[1].color, StatusColors.attention)
-        XCTAssertEqual(counts.barSegments[2].color, StatusColors.working)
-        XCTAssertEqual(counts.barSegments[3].color, StatusColors.idle)
+        XCTAssertEqual(counts.barSegments[0].kind, .permission)
+        XCTAssertEqual(counts.barSegments[1].kind, .attention)
+        XCTAssertEqual(counts.barSegments[2].kind, .working)
+        XCTAssertEqual(counts.barSegments[3].kind, .idle)
     }
 
     func testBarSegments_attentionFirstWhenNoPermission() {
         let counts = StatusCounts(permission: 0, attention: 1, working: 2, idle: 1)
         XCTAssertEqual(counts.barSegments.count, 3)
-        XCTAssertEqual(counts.barSegments[0].color, StatusColors.attention)
-        XCTAssertEqual(counts.barSegments[1].color, StatusColors.working)
-        XCTAssertEqual(counts.barSegments[2].color, StatusColors.idle)
+        XCTAssertEqual(counts.barSegments[0].kind, .attention)
+        XCTAssertEqual(counts.barSegments[1].kind, .working)
+        XCTAssertEqual(counts.barSegments[2].kind, .idle)
     }
 
     func testBarSegments_allAttention_singleSegment() {
         let counts = StatusCounts(permission: 0, attention: 5, working: 0, idle: 0)
         XCTAssertEqual(counts.barSegments.count, 1)
         XCTAssertEqual(counts.barSegments[0].proportion, 1.0, accuracy: 0.001)
-        XCTAssertEqual(counts.barSegments[0].color, StatusColors.attention)
+        XCTAssertEqual(counts.barSegments[0].kind, .attention)
     }
 
     func testBarSegments_proportionsSumToOne() {
@@ -142,7 +141,7 @@ final class StatusCountsTests: XCTestCase {
         // 1 attention out of 10 = 10% of 22pt = 2.2pt, below 5pt minimum
         let counts = StatusCounts(permission: 0, attention: 1, working: 5, idle: 4)
         let segs = counts.barSegments(forWidth: 22)
-        let attentionSeg = segs.first { $0.color == StatusColors.attention }!
+        let attentionSeg = segs.first { $0.kind == .attention }!
         XCTAssertEqual(attentionSeg.proportion, 5.0 / 22.0, accuracy: 0.001)
     }
 
@@ -187,8 +186,8 @@ final class StatusCountsTests: XCTestCase {
         // 1 permission + 1 attention + 18 working = both action at 5% of 22pt = 1.1pt
         let counts = StatusCounts(permission: 1, attention: 1, working: 18, idle: 0)
         let segs = counts.barSegments(forWidth: 22)
-        let permSeg = segs.first { $0.color == StatusColors.permission }!
-        let attnSeg = segs.first { $0.color == StatusColors.attention }!
+        let permSeg = segs.first { $0.kind == .permission }!
+        let attnSeg = segs.first { $0.kind == .attention }!
         XCTAssertEqual(permSeg.proportion, 5.0 / 22.0, accuracy: 0.001)
         XCTAssertEqual(attnSeg.proportion, 5.0 / 22.0, accuracy: 0.001)
         let sum = segs.map(\.proportion).reduce(0, +)
@@ -207,7 +206,7 @@ final class StatusCountsTests: XCTestCase {
         // 1 permission + 99 working at 100pt bar
         let counts = StatusCounts(permission: 1, attention: 0, working: 99, idle: 0)
         let segs = counts.barSegments(forWidth: 100)
-        let permSeg = segs.first { $0.color == StatusColors.permission }!
+        let permSeg = segs.first { $0.kind == .permission }!
         XCTAssertEqual(permSeg.proportion, 5.0 / 100.0, accuracy: 0.001)
         let sum = segs.map(\.proportion).reduce(0, +)
         XCTAssertEqual(sum, 1.0, accuracy: 0.001)
