@@ -2,8 +2,9 @@
 """Validate cctop hook contract drift across schema, fixtures, Swift, and plugins.
 
 The JSON Schema remains the source of truth. This script intentionally stays
-narrow: it checks that consumers agree with schema-owned event and harness
-metadata, while validate-fixtures.sh handles full fixture schema validation.
+narrow: it checks that consumers agree with schema-owned event, harness, and
+cctop-hook binary-location metadata, while validate-fixtures.sh handles full
+fixture schema validation.
 """
 
 from __future__ import annotations
@@ -60,16 +61,16 @@ def quoted_strings(text: str) -> set[str]:
     return set(re.findall(r'"([^"]+)"', text))
 
 
-def schema_contract(errors: list[str]) -> tuple[set[str], set[str], dict[str, set[str]]]:
+def schema_contract(errors: list[str]) -> tuple[set[str], set[str], dict[str, set[str]], list[str]]:
     schema = load_json(SCHEMA)
     if not isinstance(schema, dict):
         errors.append("hook-input.schema.json must be a JSON object")
-        return set(), set(), {}
+        return set(), set(), {}, []
 
     properties = schema.get("properties", {})
     if not isinstance(properties, dict):
         errors.append("schema properties must be an object")
-        return set(), set(), {}
+        return set(), set(), {}, []
 
     event_schema = properties.get("hook_event_name", {})
     events = set(event_schema.get("enum", [])) if isinstance(event_schema, dict) else set()
@@ -96,10 +97,26 @@ def schema_contract(errors: list[str]) -> tuple[set[str], set[str], dict[str, se
     metadata = schema.get("x-cctop")
     expect(isinstance(metadata, dict), "schema must define x-cctop contract metadata", errors)
     if not isinstance(metadata, dict):
-        return events, harnesses, {}
+        return events, harnesses, {}, []
 
     metadata_harnesses = set(metadata.get("harnesses", []))
     compare_sets("x-cctop harnesses", harnesses, metadata_harnesses, errors)
+
+    raw_binary_locations = metadata.get("binary_locations")
+    expect(
+        isinstance(raw_binary_locations, list) and bool(raw_binary_locations),
+        "x-cctop binary_locations must be a non-empty array",
+        errors,
+    )
+    binary_locations: list[str] = []
+    if isinstance(raw_binary_locations, list):
+        for location in raw_binary_locations:
+            if isinstance(location, str) and (location.startswith("~/") or location.startswith("/")):
+                binary_locations.append(location)
+            else:
+                errors.append(
+                    f"x-cctop binary_locations entry {location!r} must be a string starting with ~/ or /"
+                )
 
     raw_harness_events = metadata.get("events_by_harness", {})
     expect(isinstance(raw_harness_events, dict), "x-cctop events_by_harness must be an object", errors)
@@ -116,7 +133,7 @@ def schema_contract(errors: list[str]) -> tuple[set[str], set[str], dict[str, se
                 errors,
             )
 
-    return events, harnesses, harness_events
+    return events, harnesses, harness_events, binary_locations
 
 
 def fixture_contract(
@@ -251,6 +268,30 @@ def plugin_contract(harnesses: set[str], harness_events: dict[str, set[str]], er
         )
 
 
+def binary_location_contract(binary_locations: list[str], errors: list[str]) -> None:
+    """Require every client to look for cctop-hook at the schema-owned discovery locations.
+
+    Home-relative (~/) locations must appear anchored to the home directory ($HOME/ in
+    shell, homedir() in JS/TS) so the bare /Applications entry cannot satisfy the
+    ~/Applications check. Absolute locations must appear verbatim and not as the tail of
+    a $HOME-prefixed path, so the ~/Applications entry cannot satisfy the bare one either.
+    """
+    clients = [CC_SHIM, CODEX_SHIM, OPENCODE_PLUGIN, PI_PLUGIN]
+    for client in clients:
+        text = read_text(client)
+        for location in binary_locations:
+            if location.startswith("~/"):
+                suffix = re.escape(location[2:])
+                pattern = r'(\$HOME/|homedir\(\), ?")' + suffix
+            else:
+                pattern = r"(?<!\$HOME)" + re.escape(location)
+            expect(
+                re.search(pattern, text) is not None,
+                f"{client.relative_to(ROOT)} does not look for cctop-hook at {location}",
+                errors,
+            )
+
+
 def main() -> int:
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     if mode not in {"all", "fixtures", "hooks"}:
@@ -258,13 +299,14 @@ def main() -> int:
         return 2
 
     errors: list[str] = []
-    schema_events, harnesses, harness_events = schema_contract(errors)
+    schema_events, harnesses, harness_events, binary_locations = schema_contract(errors)
     if mode in {"all", "fixtures"}:
         fixture_contract(schema_events, harnesses, harness_events, errors)
     if mode in {"all", "hooks"}:
         swift_events(schema_events, errors)
         swift_harnesses(harnesses, errors)
         plugin_contract(harnesses, harness_events, errors)
+        binary_location_contract(binary_locations, errors)
 
     if errors:
         for error in errors:

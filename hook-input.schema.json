@@ -56,6 +56,11 @@
   "additionalProperties": true,
   "x-cctop": {
     "harnesses": ["cc", "codex", "opencode", "pi"],
+    "binary_locations": [
+      "~/.cctop/bin/cctop-hook",
+      "/Applications/cctop.app/Contents/MacOS/cctop-hook",
+      "~/Applications/cctop.app/Contents/MacOS/cctop-hook"
+    ],
     "events_by_harness": {
       "cc": [
         "SessionStart",
