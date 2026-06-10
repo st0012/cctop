@@ -191,6 +191,26 @@ final class SessionFileFormatTests: XCTestCase {
         """
     }
 
+    /// Constructs a SessionManager against a temp sessions directory with injected data sources
+    /// and no background monitoring, replacing the old setenv(CCTOP_SESSIONS_DIR) ceremony.
+    @MainActor
+    private func makeManager(
+        sessionsDir: String,
+        historyDir: String,
+        desktopAppConnection: DesktopAppConnectionLookup? = nil
+    ) -> SessionManager {
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        if let desktopAppConnection {
+            sources.desktopAppConnection = desktopAppConnection
+        }
+        return SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+    }
+
     func testLegacyUUIDFilenameClassification() {
         // Pre-PID files were keyed by a bare session UUID → should be removed.
         XCTAssertTrue(SessionManager.isLegacyUUIDFilename("019e4b0c-9473-7a33-a4b9-749fd2c83a9e"))
@@ -335,10 +355,8 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_MEMORIES_DIR", memoriesDir, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_MEMORIES_DIR")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -348,18 +366,14 @@ final class SessionFileFormatTests: XCTestCase {
         try memorySession.writeToFile(path: memoryPath)
         FileManager.default.createFile(atPath: memoryPath + ".lock", contents: nil)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertEqual(manager.sessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: memoryPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: memoryPath + ".lock"))
         XCTAssertTrue(try Session.fromFile(path: memoryPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
     }
 
     @MainActor
@@ -370,11 +384,7 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
-        defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
-            try? FileManager.default.removeItem(atPath: root)
-        }
+        defer { try? FileManager.default.removeItem(atPath: root) }
 
         var titleGeneration = codexDesktopSession(
             sessionId: "title-helper",
@@ -385,18 +395,14 @@ final class SessionFileFormatTests: XCTestCase {
         try titleGeneration.writeToFile(path: titleHelperPath)
         FileManager.default.createFile(atPath: titleHelperPath + ".lock", contents: nil)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertEqual(manager.sessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: titleHelperPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: titleHelperPath + ".lock"))
         XCTAssertTrue(try Session.fromFile(path: titleHelperPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
     }
 
     func testAutoHiddenSessionSnapshotPreservesLatestFileFields() throws {
@@ -457,11 +463,7 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
-        defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
-            try? FileManager.default.removeItem(atPath: root)
-        }
+        defer { try? FileManager.default.removeItem(atPath: root) }
 
         var hidden = Session(
             sessionId: "hidden-review",
@@ -474,16 +476,12 @@ final class SessionFileFormatTests: XCTestCase {
         let hiddenPath = (sessionsDir as NSString).appendingPathComponent("999999.json")
         try hidden.writeToFile(path: hiddenPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertEqual(manager.sessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: hiddenPath))
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
     }
 
     @MainActor
@@ -494,11 +492,7 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
-        defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
-            try? FileManager.default.removeItem(atPath: root)
-        }
+        defer { try? FileManager.default.removeItem(atPath: root) }
 
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("12345.json")
         let now = ISO8601DateFormatter().string(from: Date())
@@ -520,18 +514,14 @@ final class SessionFileFormatTests: XCTestCase {
         try json.write(toFile: sessionPath, atomically: true, encoding: .utf8)
         FileManager.default.createFile(atPath: sessionPath + ".lock", contents: nil)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertEqual(manager.sessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath + ".lock"))
         XCTAssertTrue(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
     }
 
     @MainActor
@@ -548,10 +538,8 @@ final class SessionFileFormatTests: XCTestCase {
             subagentThreads: ["codex-cli-subagent", "codex-desktop-subagent"]
         )
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_STATE_DB")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -569,12 +557,10 @@ final class SessionFileFormatTests: XCTestCase {
         FileManager.default.createFile(atPath: cliPath + ".lock", contents: nil)
         FileManager.default.createFile(atPath: desktopPath + ".lock", contents: nil)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertEqual(manager.sessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: cliPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: desktopPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: cliPath + ".lock"))
@@ -582,8 +568,6 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertTrue(try Session.fromFile(path: cliPath).hidden)
         XCTAssertTrue(try Session.fromFile(path: desktopPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
     }
 
     @MainActor
@@ -600,10 +584,8 @@ final class SessionFileFormatTests: XCTestCase {
             execHelperThreads: ["codex-exec-helper"]
         )
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_STATE_DB")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -615,19 +597,18 @@ final class SessionFileFormatTests: XCTestCase {
         ).writeToFile(path: sessionPath)
         FileManager.default.createFile(atPath: sessionPath + ".lock", contents: nil)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in true }
         )
-        manager?.loadSessions()
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions, [])
+        XCTAssertEqual(manager.sessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath + ".lock"))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
     }
 
     @MainActor
@@ -644,10 +625,8 @@ final class SessionFileFormatTests: XCTestCase {
             userExecThreads: ["codex-user-exec"]
         )
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_STATE_DB")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -658,16 +637,15 @@ final class SessionFileFormatTests: XCTestCase {
             projectPath: (root as NSString).appendingPathComponent("projects/cctop")
         ).writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in true }
         )
-        manager?.loadSessions()
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["codex-user-exec"])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["codex-user-exec"])
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
-
-        manager = nil
     }
 
     @MainActor
@@ -684,10 +662,8 @@ final class SessionFileFormatTests: XCTestCase {
             execThreadsWithFirstUserMessage: ["codex-exec-first-message": "Review this diff"]
         )
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_STATE_DB")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -698,16 +674,15 @@ final class SessionFileFormatTests: XCTestCase {
             projectPath: (root as NSString).appendingPathComponent("projects/cctop")
         ).writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in true }
         )
-        manager?.loadSessions()
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["codex-exec-first-message"])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["codex-exec-first-message"])
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
-
-        manager = nil
     }
 
     @MainActor
@@ -720,10 +695,8 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_STATE_DB")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -738,16 +711,15 @@ final class SessionFileFormatTests: XCTestCase {
         ]
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in true }
         )
-        manager?.loadSessions()
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["parent-thread"])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["parent-thread"])
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
-
-        manager = nil
     }
 
     // MARK: - Desktop dedup by session_id (Phase 1, total order)
@@ -872,11 +844,7 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
-        defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
-            try? FileManager.default.removeItem(atPath: root)
-        }
+        defer { try? FileManager.default.removeItem(atPath: root) }
 
         var oldPidKeyed = Session(
             sessionId: "conv-a", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo()
@@ -896,17 +864,13 @@ final class SessionFileFormatTests: XCTestCase {
         let desktopPath = (sessionsDir as NSString).appendingPathComponent("codex-conv-a.json")
         try desktopKeyed.writeToFile(path: desktopPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: oldPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: desktopPath))
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["conv-a"])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["conv-a"])
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
     }
 
     @MainActor
@@ -919,10 +883,8 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
         try writeCodexStateDatabase(path: stateDB, archivedThreads: ["archived-thread"])
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_STATE_DB")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -932,23 +894,19 @@ final class SessionFileFormatTests: XCTestCase {
         session.lastActivity = Date()
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
 
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        manager?.loadSessions()
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-thread"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
-
-        manager = nil
     }
 
     @MainActor
@@ -961,10 +919,8 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
         try writeCodexStateDatabase(path: stateDB, archivedThreads: ["archived-without-source"])
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_STATE_DB")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -975,23 +931,19 @@ final class SessionFileFormatTests: XCTestCase {
         session.lastActivity = Date()
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
 
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        manager?.loadSessions()
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["archived-without-source"])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-without-source"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
-
-        manager = nil
     }
 
     @MainActor
@@ -1008,10 +960,8 @@ final class SessionFileFormatTests: XCTestCase {
             isArchived: true
         )
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -1021,12 +971,10 @@ final class SessionFileFormatTests: XCTestCase {
         session.lastActivity = Date()
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
@@ -1037,12 +985,10 @@ final class SessionFileFormatTests: XCTestCase {
             cliSessionId: "archived-claude-session",
             isArchived: false
         )
-        manager?.loadSessions()
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), ["archived-claude-session"])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-claude-session"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
-
-        manager = nil
     }
 
     @MainActor
@@ -1059,10 +1005,8 @@ final class SessionFileFormatTests: XCTestCase {
             isArchived: true
         )
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -1073,17 +1017,13 @@ final class SessionFileFormatTests: XCTestCase {
         session.lastActivity = Date()
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
     }
 
     @MainActor
@@ -1100,10 +1040,8 @@ final class SessionFileFormatTests: XCTestCase {
             isArchived: false
         )
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -1117,17 +1055,13 @@ final class SessionFileFormatTests: XCTestCase {
         session.disconnectedAt = ended
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
-        )
-        manager?.loadSessions()
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
 
-        XCTAssertEqual(manager?.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
-
-        manager = nil
     }
 
     // The GC deletion decision must read live Codex archive state on every call, not a snapshot,
@@ -1228,10 +1162,8 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_STATE_DB")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -1244,20 +1176,19 @@ final class SessionFileFormatTests: XCTestCase {
         session.disconnectedAt = old
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in false }
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in false }
         )
 
         try writeCodexStateDatabase(path: stateDB, archivedThreads: ["finished-thread"])
-        manager?.garbageCollectFinished()
+        manager.garbageCollectFinished()
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
 
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        manager?.garbageCollectFinished()
+        manager.garbageCollectFinished()
         XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
-
-        manager = nil
     }
 
     // GC keeps a finished Claude Desktop file while its session metadata is archived, then reaps
@@ -1271,10 +1202,8 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR", claudeDir, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CLAUDE_CODE_SESSIONS_DIR")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -1286,9 +1215,10 @@ final class SessionFileFormatTests: XCTestCase {
         session.disconnectedAt = old
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in false }
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in false }
         )
 
         try writeClaudeDesktopSessionMetadata(
@@ -1296,7 +1226,7 @@ final class SessionFileFormatTests: XCTestCase {
             cliSessionId: "finished-claude-session",
             isArchived: true
         )
-        manager?.garbageCollectFinished()
+        manager.garbageCollectFinished()
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
 
         try FileManager.default.removeItem(atPath: claudeDir)
@@ -1305,10 +1235,8 @@ final class SessionFileFormatTests: XCTestCase {
             cliSessionId: "finished-claude-session",
             isArchived: false
         )
-        manager?.garbageCollectFinished()
+        manager.garbageCollectFinished()
         XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
-
-        manager = nil
     }
 
     // A missing DB means "no Codex state ⇒ nothing archived" → empty set (deletable). A DB that
@@ -1589,10 +1517,8 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
             unsetenv("CCTOP_CODEX_STATE_DB")
             try? FileManager.default.removeItem(atPath: root)
         }
@@ -1607,21 +1533,20 @@ final class SessionFileFormatTests: XCTestCase {
 
         // DB present but unparseable → lookup returns nil → GC fails safe and keeps the file.
         try Data("not a database".utf8).write(to: URL(fileURLWithPath: stateDB))
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in false }
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in false }
         )
-        manager?.garbageCollectFinished()
+        manager.garbageCollectFinished()
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
 
         // Once the DB is readable and shows the thread is not archived, GC reaps it. (Remove the
         // corrupt bytes first — sqlite3 cannot DROP/CREATE over a non-database file.)
         try FileManager.default.removeItem(atPath: stateDB)
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        manager?.garbageCollectFinished()
+        manager.garbageCollectFinished()
         XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
-
-        manager = nil
     }
 
     // Distinct conversations never collapse.
@@ -1710,11 +1635,7 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
-        defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
-            try? FileManager.default.removeItem(atPath: root)
-        }
+        defer { try? FileManager.default.removeItem(atPath: root) }
 
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-reconnected.json")
         var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
@@ -1722,17 +1643,16 @@ final class SessionFileFormatTests: XCTestCase {
         session.pid = nil
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { bundleID in
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { bundleID in
                 bundleID == HostAppBundleID.codexDesktop
             }
         )
 
-        XCTAssertEqual(manager?.sessions.map(\.lifecycle), [.active])
+        XCTAssertEqual(manager.sessions.map(\.lifecycle), [.active])
         XCTAssertNil(try Session.fromFile(path: sessionPath).disconnectedAt)
-
-        manager = nil
     }
 
     @MainActor
@@ -1743,11 +1663,7 @@ final class SessionFileFormatTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
 
-        setenv("CCTOP_SESSIONS_DIR", sessionsDir, 1)
-        defer {
-            unsetenv("CCTOP_SESSIONS_DIR")
-            try? FileManager.default.removeItem(atPath: root)
-        }
+        defer { try? FileManager.default.removeItem(atPath: root) }
 
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-ended.json")
         var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
@@ -1758,17 +1674,16 @@ final class SessionFileFormatTests: XCTestCase {
         session.disconnectedAt = disconnectedAt
         try session.writeToFile(path: sessionPath)
 
-        var manager: SessionManager? = SessionManager(
-            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { bundleID in
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { bundleID in
                 bundleID == HostAppBundleID.codexDesktop
             }
         )
 
-        XCTAssertEqual(manager?.sessions.map(\.lifecycle), [.dormant])
+        XCTAssertEqual(manager.sessions.map(\.lifecycle), [.dormant])
         XCTAssertEqual(try Session.fromFile(path: sessionPath).disconnectedAt, disconnectedAt)
-
-        manager = nil
     }
 
     func testIdentityPolicyNamesStableGroupingRules() {
@@ -1938,5 +1853,44 @@ final class SessionFileFormatTests: XCTestCase {
         recent.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         // Recent activity means active even with a dead/irrelevant PID.
         XCTAssertEqual(life(recent, .desktop, alive: false), .active)
+    }
+}
+
+/// In-memory stand-in for Codex's thread state database, so visibility and archive logic can be
+/// exercised without SQLite fixtures on disk. Set a field to `nil` to simulate an unreadable store.
+private struct StubCodexThreadState: CodexThreadStateProviding {
+    var archived: Set<String>? = []
+    var subagents: Set<String>? = []
+    var execHelpers: Set<String>? = []
+    var projectNamesByThreadID: [String: String]? = [:]
+
+    func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        archived.map { $0.intersection(threadIDs) }
+    }
+
+    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        subagents.map { $0.intersection(threadIDs) }
+    }
+
+    func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        execHelpers.map { $0.intersection(threadIDs) }
+    }
+
+    func projectNames(matching threadIDs: Set<String>) -> [String: String]? {
+        projectNamesByThreadID.map { $0.filter { threadIDs.contains($0.key) } }
+    }
+}
+
+/// In-memory stand-in for Claude Desktop's session metadata store. `nil` simulates an
+/// unreadable store.
+private struct StubClaudeDesktopState: ClaudeDesktopSessionStateProviding {
+    var snapshot: ClaudeDesktopSessionMetadataSnapshot?
+
+    func archivedSessionIDs(matching sessionIDs: Set<String>) -> Set<String>? {
+        snapshot?.archivedSessionIDs
+    }
+
+    func metadataSnapshot(matching sessionIDs: Set<String>) -> ClaudeDesktopSessionMetadataSnapshot? {
+        snapshot
     }
 }
