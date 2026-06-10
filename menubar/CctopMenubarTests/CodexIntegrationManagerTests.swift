@@ -8,7 +8,8 @@ final class CodexIntegrationManagerTests: XCTestCase {
             hookFilesInstalled: true,
             featureEnabled: true,
             needsUpdate: false,
-            configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys.dropLast())
+            configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys.dropLast()),
+            legacyConfigKey: false
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .installedUntrusted)
@@ -23,7 +24,8 @@ final class CodexIntegrationManagerTests: XCTestCase {
             hookFilesInstalled: true,
             featureEnabled: true,
             needsUpdate: false,
-            configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys)
+            configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys),
+            legacyConfigKey: false
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .trusted)
@@ -38,7 +40,8 @@ final class CodexIntegrationManagerTests: XCTestCase {
             hookFilesInstalled: true,
             featureEnabled: true,
             needsUpdate: true,
-            configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys)
+            configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys),
+            legacyConfigKey: false
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .needsUpdate)
@@ -55,7 +58,8 @@ final class CodexIntegrationManagerTests: XCTestCase {
             hookFilesInstalled: true,
             featureEnabled: false,
             needsUpdate: true,
-            configText: nil
+            configText: nil,
+            legacyConfigKey: false
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .hooksDisabled)
@@ -71,11 +75,25 @@ final class CodexIntegrationManagerTests: XCTestCase {
             hookFilesInstalled: false,
             featureEnabled: true,
             needsUpdate: false,
-            configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys)
+            configText: makeTrustedConfig(events: CodexIntegrationManager.trustStateEventKeys),
+            legacyConfigKey: false
         ))
 
         XCTAssertEqual(snapshot.hookStatus, .notInstalled)
         XCTAssertFalse(snapshot.installed)
+    }
+
+    func testSnapshotPassesLegacyConfigKeyThrough() {
+        let snapshot = CodexIntegrationManager.snapshot(CodexIntegrationObservation(
+            configExists: true,
+            hookFilesInstalled: false,
+            featureEnabled: true,
+            needsUpdate: false,
+            configText: nil,
+            legacyConfigKey: true
+        ))
+
+        XCTAssertTrue(snapshot.legacyConfigKey)
     }
 
     // MARK: - Trust-record parsing
@@ -119,24 +137,26 @@ final class CodexIntegrationManagerTests: XCTestCase {
     func testHasTrustedCctopHookStateRejectsDisabledTrustedEntries() {
         // Disabling a trusted hook in Codex upserts `enabled = false` into
         // the same [hooks.state] table, keeping the old trusted_hash. The
-        // flag must win regardless of where it sits in the table.
-        for disabledEvent in ["session_start", "stop"] {
+        // flag must win wherever it sits in the table, so cover both line
+        // orders within a section.
+        for flagBeforeHash in [true, false] {
             var lines: [String] = []
             for event in CodexIntegrationManager.trustStateEventKeys {
                 lines.append("[hooks.state.\"\(hooksPath):\(event):0:0\"]")
-                if event == disabledEvent && event == "session_start" {
-                    lines.append("enabled = false")  // before the hash
+                if event == "stop" && flagBeforeHash {
+                    lines.append("enabled = false")
                 }
                 lines.append("trusted_hash = \"sha256:abc123\"")
-                if event == disabledEvent && event == "stop" {
-                    lines.append("enabled = false")  // after the hash
+                if event == "stop" && !flagBeforeHash {
+                    lines.append("enabled = false")
                 }
             }
             XCTAssertFalse(
                 CodexIntegrationManager.hasTrustedCctopHookState(
                     in: lines.joined(separator: "\n"), hooksPath: hooksPath
                 ),
-                "a disabled \(disabledEvent) hook must not count as trusted"
+                "a disabled hook must not count as trusted "
+                    + "(enabled = false \(flagBeforeHash ? "before" : "after") the hash)"
             )
         }
     }

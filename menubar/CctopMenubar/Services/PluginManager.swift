@@ -57,18 +57,22 @@ class PluginManager: ObservableObject {
             ? (try? String(contentsOf: CodexPluginInstaller.configTomlPath, encoding: .utf8))
             : nil
         let codexHookFilesInstalled = CodexPluginInstaller.hasInstalledHookFiles()
+        // The legacy key feeds both the update flag and the cleanup hint —
+        // compute it once per refresh.
+        let codexLegacyKey = codexConfigText.map(CodexPluginInstaller.configTomlHasLegacyKey) ?? false
         let codexSnapshot = CodexIntegrationManager.snapshot(CodexIntegrationObservation(
             configExists: codexDirExists,
             hookFilesInstalled: codexHookFilesInstalled,
             featureEnabled: codexConfigText.map(CodexPluginInstaller.isFeatureFlagEnabled) ?? true,
-            needsUpdate: codexHookFilesInstalled && Self.codexInstallStale(configText: codexConfigText),
-            configText: codexConfigText
+            needsUpdate: codexHookFilesInstalled && (Self.codexShimStale() || codexLegacyKey),
+            configText: codexConfigText,
+            legacyConfigKey: codexLegacyKey
         ))
         codexConfigExists = codexSnapshot.configExists
         codexNeedsUpdate = codexSnapshot.needsUpdate
         codexHookStatus = codexSnapshot.hookStatus
         codexInstalled = codexSnapshot.installed
-        codexLegacyConfigKey = codexConfigText.map(CodexPluginInstaller.configTomlHasLegacyKey) ?? false
+        codexLegacyConfigKey = codexSnapshot.legacyConfigKey
     }
 
     /// Cache layout is `<marketplace>/<plugin>/<version>/`. Claude Code writes a `.orphaned_at`
@@ -95,20 +99,16 @@ class PluginManager: ObservableObject {
         return bundledData != installedData
     }
 
-    /// "Update Available" fires when either the bundled shim differs from the
-    /// installed one OR the supplied config.toml content still contains the
-    /// deprecated `[features].codex_hooks` key. The install action handles
-    /// both: it rewrites the shim and migrates the TOML key in one click.
-    /// Takes the config text as a parameter so callers can dedupe the disk read.
-    private static func codexInstallStale(configText: String?) -> Bool {
-        if let data = loadBundledResource(name: "codex-shim", ext: "sh"),
-           CodexPluginInstaller.needsUpdate(bundledShim: data) {
-            return true
+    /// True when the bundled shim differs from the installed one. The other
+    /// "Update Available" trigger — a deprecated `codex_hooks` key — is
+    /// supplied by the caller, which already computed it for the snapshot.
+    /// The update action handles both: it rewrites the shim and migrates the
+    /// TOML key in one click.
+    private static func codexShimStale() -> Bool {
+        guard let data = loadBundledResource(name: "codex-shim", ext: "sh") else {
+            return false
         }
-        if let text = configText, CodexPluginInstaller.configTomlHasLegacyKey(text) {
-            return true
-        }
-        return false
+        return CodexPluginInstaller.needsUpdate(bundledShim: data)
     }
 
     /// Read a bundled Resources file. Logs and returns nil if missing or unreadable.

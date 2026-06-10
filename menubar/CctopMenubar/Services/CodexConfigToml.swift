@@ -155,8 +155,9 @@ enum CodexConfigToml {
     }
 
     /// Strip any TOML inline comment and trim. Comments inside string literals
-    /// are not handled — none of the values we care about are strings.
-    private static func stripCommentAndTrim(_ line: String) -> String {
+    /// are not handled — none of the values we care about are strings. Also
+    /// used by `CodexIntegrationManager`'s trust-record line predicates.
+    static func stripCommentAndTrim(_ line: String) -> String {
         let withoutComment: String
         if let hashIdx = line.firstIndex(of: "#") {
             withoutComment = String(line[..<hashIdx])

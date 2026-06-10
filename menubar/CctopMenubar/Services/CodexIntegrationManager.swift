@@ -29,6 +29,9 @@ struct CodexIntegrationSnapshot: Equatable {
     let configExists: Bool
     let hookStatus: CodexHookStatus
     let needsUpdate: Bool
+    /// A deprecated `[features].codex_hooks` key is present — Codex warns on
+    /// every load until it's migrated to the current `hooks` name.
+    let legacyConfigKey: Bool
 
     var installed: Bool {
         hookStatus.isInstalled
@@ -43,6 +46,7 @@ struct CodexIntegrationObservation: Equatable {
     let featureEnabled: Bool
     let needsUpdate: Bool
     let configText: String?
+    let legacyConfigKey: Bool
 }
 
 enum CodexIntegrationManager {
@@ -58,7 +62,8 @@ enum CodexIntegrationManager {
         return CodexIntegrationSnapshot(
             configExists: observation.configExists,
             hookStatus: status,
-            needsUpdate: status == .needsUpdate
+            needsUpdate: status == .needsUpdate,
+            legacyConfigKey: observation.legacyConfigKey
         )
     }
 
@@ -161,17 +166,12 @@ enum CodexIntegrationManager {
     }
 
     private static func isTrustedHashLine(_ line: String) -> Bool {
-        let trimmed = stripTomlComment(line).trimmingCharacters(in: .whitespaces)
+        let trimmed = CodexConfigToml.stripCommentAndTrim(line)
         guard trimmed.hasPrefix("trusted_hash") else { return false }
         return trimmed.contains("=") && trimmed.contains("\"sha256:")
     }
 
     private static func isDisabledLine(_ line: String) -> Bool {
-        stripTomlComment(line).filter { !$0.isWhitespace } == "enabled=false"
-    }
-
-    private static func stripTomlComment(_ line: String) -> String {
-        guard let hashIdx = line.firstIndex(of: "#") else { return line }
-        return String(line[..<hashIdx])
+        CodexConfigToml.stripCommentAndTrim(line).filter { !$0.isWhitespace } == "enabled=false"
     }
 }
