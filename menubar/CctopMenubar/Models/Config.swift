@@ -7,7 +7,7 @@ extension Bundle {
 }
 
 enum Config {
-    static let hookVersion = "0.17.0"
+    static let hookVersion = "0.17.1"
 
     static func sessionsDir() -> String {
         if let override = ProcessInfo.processInfo.environment["CCTOP_SESSIONS_DIR"],
