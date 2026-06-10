@@ -358,7 +358,7 @@ private func previewPluginManager(
     codex: Bool = false, codexConfig: Bool = false,
     codexHookStatus: CodexHookStatus = .notInstalled
 ) -> PluginManager {
-    let pm = PluginManager()
+    let pm = PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
     pm.ccInstalled = cc
     pm.ocInstalled = oc
     pm.ocConfigExists = ocConfig

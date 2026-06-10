@@ -180,7 +180,10 @@ final class QASnapshotTests: XCTestCase {
         name: String,
         colorScheme: ColorScheme = .light
     ) throws {
-        let view = SettingsSection(updater: updater, pluginManager: PluginManager())
+        let view = SettingsSection(
+            updater: updater,
+            pluginManager: PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
+        )
             .frame(width: 320)
             .padding()
             .background(Color(NSColor.windowBackgroundColor))

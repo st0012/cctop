@@ -35,7 +35,7 @@ final class SnapshotTests: XCTestCase {
     ///     -only-testing:CctopMenubarTests/SnapshotTests/testGenerateEmptyStateScreenshot \
     ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
     func testGenerateEmptyStateScreenshot() throws {
-        let pm = PluginManager()
+        let pm = PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
         pm.ccInstalled = false
         pm.ocInstalled = false
         pm.ocConfigExists = true
@@ -51,7 +51,7 @@ final class SnapshotTests: XCTestCase {
     }
 
     func testGenerateOnboardingSettingsScreenshot() throws {
-        let pm = PluginManager()
+        let pm = PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
         pm.ccInstalled = false
         pm.ocInstalled = false
         pm.ocConfigExists = true

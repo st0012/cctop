@@ -272,7 +272,7 @@ struct HooksReadyBadge: View {
 // MARK: - Previews
 
 @MainActor private func previewCodexPM(status: CodexHookStatus) -> PluginManager {
-    let pm = PluginManager()
+    let pm = PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
     pm.codexConfigExists = true
     pm.codexHookStatus = status
     pm.codexInstalled = status.isInstalled
