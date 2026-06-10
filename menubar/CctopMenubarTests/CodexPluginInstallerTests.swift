@@ -218,6 +218,31 @@ final class CodexPluginInstallerTests: XCTestCase {
         }
     }
 
+    // MARK: - Legacy key migration on remove
+
+    func testRemoveMigratesDeprecatedLegacyKey() throws {
+        let dir = makeTempCodexDir()
+        let template = try loadCodexHooksTemplate()
+        let shim = try loadCodexShim()
+        try withHomeDir(dir.parent) {
+            XCTAssertTrue(
+                CodexPluginInstaller.install(shimContents: shim, hooksTemplate: template)
+            )
+            // Simulate an old cctop install that wrote the experimental flag
+            // name; an opt-out value must survive the rename.
+            try Data("[features]\ncodex_hooks = false\n".utf8)
+                .write(to: CodexPluginInstaller.configTomlPath, options: .atomic)
+
+            XCTAssertTrue(CodexPluginInstaller.remove())
+
+            let config = try String(
+                contentsOf: CodexPluginInstaller.configTomlPath, encoding: .utf8
+            )
+            XCTAssertFalse(CodexPluginInstaller.configTomlHasLegacyKey(config))
+            XCTAssertFalse(CodexPluginInstaller.isFeatureFlagEnabled(config))
+        }
+    }
+
     // MARK: - Codex hook trust state
     // Trust-record parsing tests live in CodexIntegrationManagerTests.
 

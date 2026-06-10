@@ -47,6 +47,31 @@ enum CodexConfigToml {
         return changed ? updated.joined(separator: "\n") : input
     }
 
+    /// Value-preserving migration of the deprecated `codex_hooks` key to the
+    /// current `hooks` name. Unlike `patchEnableHooks` this never changes the
+    /// effective setting — it renames an opt-out instead of overriding it —
+    /// so it's safe to run outside the install path (e.g. on remove, or as a
+    /// standalone cleanup): the only observable change is that Codex stops
+    /// printing the deprecation warning.
+    static func migrateLegacyKey(_ input: String) -> String {
+        let lines = input.components(separatedBy: "\n")
+        let scan = scan(lines)
+        guard let legacyIdx = scan.legacyHooksInFeaturesIndex else { return input }
+
+        var updated = lines
+        if scan.hooksInFeaturesIndex != nil || isLegacyTrueLine(lines[legacyIdx]) {
+            // Either `hooks` already wins over the alias, or the alias holds
+            // the Codex default (true) — dropping the line preserves behavior
+            // without writing a noise flag.
+            updated.remove(at: legacyIdx)
+        } else {
+            // An effective opt-out with no `hooks` key: carry it over so the
+            // rename doesn't silently re-enable hooks.
+            updated[legacyIdx] = "hooks = false"
+        }
+        return updated.joined(separator: "\n")
+    }
+
     /// True if hooks will fire. Mirrors Codex's own resolution: `hooks` wins
     /// if set, `codex_hooks` is the fallback, an absent flag defers to the
     /// Codex default (true). Returns false only on an explicit opt-out under

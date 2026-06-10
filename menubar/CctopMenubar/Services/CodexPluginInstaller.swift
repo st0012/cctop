@@ -119,7 +119,9 @@ enum CodexPluginInstaller {
     }
 
     /// Remove cctop's hooks entries and delete the shim. Leaves the feature flag and
-    /// any user-defined hooks untouched.
+    /// any user-defined hooks untouched, but migrates the deprecated `codex_hooks`
+    /// key (old cctop versions wrote it) so the user isn't left with Codex's
+    /// startup deprecation warning after uninstalling.
     static func remove() -> Bool {
         do {
             try removeHooksEntries()
@@ -127,10 +129,32 @@ enum CodexPluginInstaller {
             if FileManager.default.fileExists(atPath: shimPath.path) {
                 try FileManager.default.removeItem(at: shimPath)
             }
+            // Best-effort: a failed migration shouldn't fail the remove.
+            _ = migrateLegacyConfigKey()
             logger.info("Removed Codex plugin")
             return true
         } catch {
             logger.error("Failed to remove Codex plugin: \(error, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Rename a lingering `[features].codex_hooks` key to `hooks` in
+    /// config.toml, preserving its effective value (see
+    /// `CodexConfigToml.migrateLegacyKey`). Returns false only when the
+    /// rewrite fails; a missing file or absent key is a successful no-op.
+    static func migrateLegacyConfigKey() -> Bool {
+        guard let raw = try? String(contentsOf: configTomlPath, encoding: .utf8) else {
+            return true
+        }
+        let migrated = CodexConfigToml.migrateLegacyKey(raw)
+        guard migrated != raw else { return true }
+        do {
+            try Data(migrated.utf8).write(to: configTomlPath, options: .atomic)
+            logger.info("Migrated deprecated codex_hooks key in config.toml")
+            return true
+        } catch {
+            logger.error("Failed to migrate codex_hooks key: \(error, privacy: .public)")
             return false
         }
     }

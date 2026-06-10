@@ -249,4 +249,40 @@ final class CodexPluginTomlTests: XCTestCase {
         )
         XCTAssertFalse(CodexPluginInstaller.configTomlHasLegacyKey(""))
     }
+
+    // MARK: - migrateLegacyKey: value-preserving rename, never an enable
+
+    func testMigrateIsNoOpWithoutLegacyKey() {
+        let clean = "[features]\nhooks = false"
+        XCTAssertEqual(CodexConfigToml.migrateLegacyKey(clean), clean)
+        XCTAssertEqual(CodexConfigToml.migrateLegacyKey(""), "")
+    }
+
+    func testMigrateDropsTrueLegacyKeyWithoutWritingNoiseFlag() {
+        let migrated = CodexConfigToml.migrateLegacyKey("[features]\ncodex_hooks = true\nother = 1")
+        XCTAssertEqual(migrated, "[features]\nother = 1")
+        // Effective value preserved: true via the Codex default.
+        XCTAssertTrue(CodexConfigToml.isHooksEnabled(migrated))
+    }
+
+    func testMigratePreservesOptOutUnderNewName() {
+        let migrated = CodexConfigToml.migrateLegacyKey("[features]\ncodex_hooks = false")
+        XCTAssertEqual(migrated, "[features]\nhooks = false")
+        XCTAssertFalse(CodexConfigToml.isHooksEnabled(migrated))
+    }
+
+    func testMigrateDropsLegacyKeyWhenHooksKeyAlreadyWins() {
+        // `hooks` beats the alias in Codex's resolution, so the alias can go
+        // even when the values disagree.
+        let migrated = CodexConfigToml.migrateLegacyKey(
+            "[features]\nhooks = false\ncodex_hooks = true"
+        )
+        XCTAssertEqual(migrated, "[features]\nhooks = false")
+        XCTAssertFalse(CodexConfigToml.isHooksEnabled(migrated))
+    }
+
+    func testMigrateIgnoresLegacyKeyOutsideFeatures() {
+        let input = "[other]\ncodex_hooks = true"
+        XCTAssertEqual(CodexConfigToml.migrateLegacyKey(input), input)
+    }
 }

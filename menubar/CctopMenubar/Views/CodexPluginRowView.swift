@@ -39,6 +39,9 @@ struct CodexPluginRowView: View {
                     textColor: Color.textMuted
                 )
                 .transition(.opacity)
+            } else if showsLegacyKeyCleanup {
+                legacyKeyCleanupHint
+                    .transition(.opacity)
             }
 
             if installFailed {
@@ -79,6 +82,34 @@ struct CodexPluginRowView: View {
                 HooksReadyBadge()
                 removeButton
             }
+        }
+    }
+
+    /// Old cctop versions wrote the experimental `codex_hooks` flag; Codex
+    /// warns on every load of the deprecated name. Install/Update/Remove all
+    /// migrate it as part of their work, so a standalone cleanup is only
+    /// offered when nothing is installed and no other action would fix it.
+    private var showsLegacyKeyCleanup: Bool {
+        pluginManager.codexHookStatus == .notInstalled && pluginManager.codexLegacyConfigKey
+    }
+
+    private var legacyKeyCleanupHint: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 9))
+                .foregroundStyle(Color.statusAttention)
+            Text("Deprecated codex_hooks key in config.toml")
+                .font(.system(size: 10))
+                .foregroundStyle(Color.textMuted)
+            Button {
+                if !pluginManager.cleanUpCodexLegacyConfig() { flashFailed() }
+            } label: {
+                Text("Clean Up")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.amber)
+            }
+            .buttonStyle(.plain)
+            Spacer()
         }
     }
 
@@ -271,4 +302,10 @@ struct HooksReadyBadge: View {
         pluginManager: previewCodexPM(status: .trusted), installFailed: .constant(false)
     )
     .frame(width: 320).padding()
+}
+#Preview("Stray legacy key") {
+    let pm = previewCodexPM(status: .notInstalled)
+    pm.codexLegacyConfigKey = true
+    return CodexPluginRowView(pluginManager: pm, installFailed: .constant(false))
+        .frame(width: 320).padding()
 }

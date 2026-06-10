@@ -15,6 +15,7 @@ class PluginManager: ObservableObject {
     @Published var codexNeedsUpdate: Bool = false
     @Published var codexConfigExists: Bool = false
     @Published var codexHookStatus: CodexHookStatus = .notInstalled
+    @Published var codexLegacyConfigKey: Bool = false
 
     static let ccInstallCommand =
         "claude plugin marketplace add st0012/cctop && claude plugin install cctop"
@@ -67,6 +68,7 @@ class PluginManager: ObservableObject {
         codexNeedsUpdate = codexSnapshot.needsUpdate
         codexHookStatus = codexSnapshot.hookStatus
         codexInstalled = codexSnapshot.installed
+        codexLegacyConfigKey = codexConfigText.map(CodexPluginInstaller.configTomlHasLegacyKey) ?? false
     }
 
     /// Cache layout is `<marketplace>/<plugin>/<version>/`. Claude Code writes a `.orphaned_at`
@@ -130,6 +132,14 @@ class PluginManager: ObservableObject {
     func removeCodexPlugin() -> Bool {
         defer { refresh() }
         return CodexPluginInstaller.remove()
+    }
+
+    /// Cleanup-only path for a deprecated `codex_hooks` key left behind
+    /// without an install (e.g. hooks removed by an older cctop that didn't
+    /// migrate). Install and remove already migrate as part of their work.
+    func cleanUpCodexLegacyConfig() -> Bool {
+        defer { refresh() }
+        return CodexPluginInstaller.migrateLegacyConfigKey()
     }
 
     func installOpenCodePlugin() -> Bool {
