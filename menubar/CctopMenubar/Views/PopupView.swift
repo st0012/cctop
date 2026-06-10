@@ -2,10 +2,6 @@ import Combine
 import KeyboardShortcuts
 import SwiftUI
 
-extension Notification.Name {
-    static let layoutChanged = Notification.Name("layoutChanged")
-}
-
 enum PopupTab {
     case active, recent
 }
@@ -21,6 +17,8 @@ struct PopupView: View {
     var navigate: NavigateController?
     @ObservedObject var overlayController: OverlayController = OverlayController()
     var initialTab: PopupTab = .active
+    /// Called (async on main) whenever content layout changes so the host can resize the panel.
+    var onLayoutChanged: () -> Void = {}
     @State private var selectedTab: PopupTab = .active
     @State private var selectedIndex: Int?
     @State private var gearHovered = false
@@ -345,7 +343,7 @@ extension PopupView {
     }
 
     private func notifyLayoutChanged() {
-        DispatchQueue.main.async { NotificationCenter.default.post(name: .layoutChanged, object: nil) }
+        DispatchQueue.main.async { onLayoutChanged() }
     }
     private func openInFinder(path: String) { NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path) }
     private func copyPath(_ path: String) {

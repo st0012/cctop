@@ -1,8 +1,11 @@
 import AppKit
 
 /// A borderless, non-activating panel for displaying status in the notch area.
-/// Clicking the pill posts a notification that AppDelegate uses to toggle the main panel.
+/// Clicking the pill invokes `onPillClick`, which the owner uses to toggle the main panel.
 class NotchStatusPanel: NSPanel {
+    /// Called when the pill is clicked.
+    var onPillClick: (() -> Void)?
+
     override init(
         contentRect: NSRect,
         styleMask: NSWindow.StyleMask,
@@ -32,10 +35,6 @@ class NotchStatusPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 
     override func mouseDown(with event: NSEvent) {
-        NotificationCenter.default.post(name: .notchPillClicked, object: nil)
+        onPillClick?()
     }
-}
-
-extension Notification.Name {
-    static let notchPillClicked = Notification.Name("notchPillClicked")
 }

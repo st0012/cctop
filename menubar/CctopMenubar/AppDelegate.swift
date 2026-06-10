@@ -43,6 +43,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         installHookBinaryIfNeeded()
         UNUserNotificationCenter.current().delegate = self
         notchController = NotchStatusController()
+        notchController.onPillClicked = { [weak self] in self?.togglePanel() }
         historyManager = HistoryManager()
         sessionManager = SessionManager(historyManager: historyManager)
         updater = makeUpdater()
@@ -56,7 +57,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             historyManager: historyManager,
             updater: updater,
             pluginManager: pluginManager,
-            navigate: navigateController
+            navigate: navigateController,
+            onLayoutChanged: { [weak self] in self?.resizePanel(animate: true) }
         )
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
@@ -98,9 +100,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         nc.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in self?.applyAppearance() }
-        nc.addObserver(
-            forName: .layoutChanged, object: nil, queue: .main
-        ) { [weak self] _ in self?.resizePanel(animate: true) }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didDeactivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] notification in
@@ -124,11 +123,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             self?.updateNotchVisibility()
-        }
-        nc.addObserver(
-            forName: .notchPillClicked, object: nil, queue: .main
-        ) { [weak self] _ in
-            self?.togglePanel()
         }
     }
 

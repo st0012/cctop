@@ -13,6 +13,9 @@ class NotchStatusController {
     private var panel: NotchStatusPanel?
     private var hostingView: NSHostingView<NotchStatusView>?
 
+    /// Called when the notch pill is clicked.
+    var onPillClicked: (() -> Void)?
+
     /// Last counts received, used when creating or updating the panel.
     private(set) var lastCounts = StatusCounts.zero
 
@@ -51,6 +54,7 @@ class NotchStatusController {
             contentRect: .zero, styleMask: [],
             backing: .buffered, defer: false
         )
+        newPanel.onPillClick = { [weak self] in self?.onPillClicked?() }
         newPanel.contentView = hosting
         newPanel.setFrame(frame, display: true)
         newPanel.orderFrontRegardless()

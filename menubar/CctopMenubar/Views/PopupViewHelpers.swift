@@ -97,6 +97,8 @@ struct PanelContentView: View {
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @ObservedObject var navigate: NavigateController
+    /// Called (async on main) whenever content layout changes so the host can resize the panel.
+    var onLayoutChanged: () -> Void = {}
     @ObservedObject private var themeManager = ThemeManager.shared
     @StateObject private var overlayController = OverlayController()
 
@@ -107,7 +109,8 @@ struct PanelContentView: View {
             updater: updater,
             pluginManager: pluginManager,
             navigate: navigate,
-            overlayController: overlayController
+            overlayController: overlayController,
+            onLayoutChanged: onLayoutChanged
         )
         .frame(width: 320)
         .background(Color.panelBackground)
