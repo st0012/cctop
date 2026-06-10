@@ -102,21 +102,35 @@ enum CodexIntegrationManager {
     /// config.toml. Reading them is a conservative UI signal only: cctop
     /// never writes these entries and does not try to reproduce Codex's
     /// private trust-hash calculation. True when every registered cctop
-    /// event has a `trusted_hash` entry for `hooksPath`.
+    /// event has a `trusted_hash` entry for `hooksPath` and none of them
+    /// is switched off — disabling a trusted hook in Codex upserts
+    /// `enabled = false` into the same table while keeping the old hash.
     static func hasTrustedCctopHookState(in configText: String, hooksPath: String) -> Bool {
         var trustedEvents: Set<String> = []
         var currentCctopEvent: String?
+        var currentTrusted = false
+        var currentDisabled = false
+
+        func commitCurrentSection() {
+            if let event = currentCctopEvent, currentTrusted, !currentDisabled {
+                trustedEvents.insert(event)
+            }
+            currentCctopEvent = nil
+            currentTrusted = false
+            currentDisabled = false
+        }
 
         for line in configText.components(separatedBy: "\n") {
             if isTomlSectionHeader(line) {
+                commitCurrentSection()
                 currentCctopEvent = parseCctopHookStateEvent(line, hooksPath: hooksPath)
                 continue
             }
-            if let event = currentCctopEvent, isTrustedHashLine(line) {
-                trustedEvents.insert(event)
-                currentCctopEvent = nil
-            }
+            guard currentCctopEvent != nil else { continue }
+            if isTrustedHashLine(line) { currentTrusted = true }
+            if isDisabledLine(line) { currentDisabled = true }
         }
+        commitCurrentSection()
 
         return Set(trustStateEventKeys).isSubset(of: trustedEvents)
     }
@@ -146,14 +160,17 @@ enum CodexIntegrationManager {
     }
 
     private static func isTrustedHashLine(_ line: String) -> Bool {
-        let effective: String
-        if let hashIdx = line.firstIndex(of: "#") {
-            effective = String(line[..<hashIdx])
-        } else {
-            effective = line
-        }
-        let trimmed = effective.trimmingCharacters(in: .whitespaces)
+        let trimmed = stripTomlComment(line).trimmingCharacters(in: .whitespaces)
         guard trimmed.hasPrefix("trusted_hash") else { return false }
         return trimmed.contains("=") && trimmed.contains("\"sha256:")
+    }
+
+    private static func isDisabledLine(_ line: String) -> Bool {
+        stripTomlComment(line).filter { !$0.isWhitespace } == "enabled=false"
+    }
+
+    private static func stripTomlComment(_ line: String) -> String {
+        guard let hashIdx = line.firstIndex(of: "#") else { return line }
+        return String(line[..<hashIdx])
     }
 }

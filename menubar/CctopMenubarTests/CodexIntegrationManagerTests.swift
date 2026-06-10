@@ -116,6 +116,45 @@ final class CodexIntegrationManagerTests: XCTestCase {
         }
     }
 
+    func testHasTrustedCctopHookStateRejectsDisabledTrustedEntries() {
+        // Disabling a trusted hook in Codex upserts `enabled = false` into
+        // the same [hooks.state] table, keeping the old trusted_hash. The
+        // flag must win regardless of where it sits in the table.
+        for disabledEvent in ["session_start", "stop"] {
+            var lines: [String] = []
+            for event in CodexIntegrationManager.trustStateEventKeys {
+                lines.append("[hooks.state.\"\(hooksPath):\(event):0:0\"]")
+                if event == disabledEvent && event == "session_start" {
+                    lines.append("enabled = false")  // before the hash
+                }
+                lines.append("trusted_hash = \"sha256:abc123\"")
+                if event == disabledEvent && event == "stop" {
+                    lines.append("enabled = false")  // after the hash
+                }
+            }
+            XCTAssertFalse(
+                CodexIntegrationManager.hasTrustedCctopHookState(
+                    in: lines.joined(separator: "\n"), hooksPath: hooksPath
+                ),
+                "a disabled \(disabledEvent) hook must not count as trusted"
+            )
+        }
+    }
+
+    func testHasTrustedCctopHookStateAcceptsExplicitlyEnabledEntries() {
+        var lines: [String] = []
+        for event in CodexIntegrationManager.trustStateEventKeys {
+            lines.append("[hooks.state.\"\(hooksPath):\(event):0:0\"]")
+            lines.append("trusted_hash = \"sha256:abc123\"")
+            lines.append("enabled = true")
+        }
+        XCTAssertTrue(
+            CodexIntegrationManager.hasTrustedCctopHookState(
+                in: lines.joined(separator: "\n"), hooksPath: hooksPath
+            )
+        )
+    }
+
     func testHasTrustedCctopHookStateDoesNotCarryEventAcrossUnrelatedSections() {
         var lines = ["[hooks.state]"]
         for event in CodexIntegrationManager.trustStateEventKeys {
