@@ -249,6 +249,33 @@ final class PanelPositioningTests: XCTestCase {
         XCTAssertNotNil(result)
     }
 
+    // MARK: - Persisted panelPositions format (UserDefaults compatibility)
+
+    /// Pins the exact dictionary shape persisted under the "panelPositions"
+    /// UserDefaults key: `[screenKey: ["originX": x, "topY": y]]`. Existing
+    /// installs have this on disk, so any refactor of the persistence path
+    /// must keep reading and writing this exact format.
+    func testPanelPositionsPersistedFormatRoundTrip() throws {
+        let suiteName = "PanelPositioningTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer {
+            UserDefaults.standard.removeSuite(named: suiteName)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let persisted: [String: [String: CGFloat]] = [
+            "primary": ["originX": 200, "topY": 700],
+            "secondary": ["originX": 2200.5, "topY": 901.25]
+        ]
+        defaults.set(persisted, forKey: "panelPositions")
+
+        let readBack = defaults.dictionary(forKey: "panelPositions") as? [String: [String: CGFloat]]
+        XCTAssertEqual(
+            readBack, persisted,
+            "panelPositions must round-trip through UserDefaults in the established format"
+        )
+    }
+
     // MARK: - Edge cases
 
     func testSingleScreen() {
