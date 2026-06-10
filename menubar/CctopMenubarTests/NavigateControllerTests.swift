@@ -19,8 +19,6 @@ final class NavigateControllerTests: XCTestCase {
     func testInitialState() {
         XCTAssertFalse(sut.isActive)
         XCTAssertTrue(sut.frozenSessions.isEmpty)
-        XCTAssertNil(sut.previousApp)
-        XCTAssertFalse(sut.panelWasClosedBeforeNavigate)
     }
 
     // MARK: - Activate
@@ -166,17 +164,6 @@ final class NavigateControllerTests: XCTestCase {
         waitForExpectations(timeout: 1.0)
     }
 
-    // MARK: - Panel state tracking
-
-    func testPanelWasClosedBeforeNavigateDefaultsFalse() {
-        XCTAssertFalse(sut.panelWasClosedBeforeNavigate)
-    }
-
-    func testPanelWasClosedBeforeNavigateTracksState() {
-        sut.activate(sessions: [], previousApp: nil, panelWasClosed: true)
-        XCTAssertTrue(sut.panelWasClosedBeforeNavigate)
-    }
-
     // MARK: - Activate → Deactivate cycle
 
     func testFullActivateDeactivateCycle() {
@@ -186,22 +173,16 @@ final class NavigateControllerTests: XCTestCase {
         ]
 
         // Activate
-        sut.activate(sessions: sessions, previousApp: nil, panelWasClosed: true)
+        sut.activate(sessions: sessions)
 
         XCTAssertTrue(sut.isActive)
         XCTAssertEqual(sut.frozenSessions.count, 2)
-        XCTAssertTrue(sut.panelWasClosedBeforeNavigate)
 
         // Deactivate resets all state
-        let state = sut.deactivate()
+        sut.deactivate()
 
         XCTAssertFalse(sut.isActive)
         XCTAssertTrue(sut.frozenSessions.isEmpty)
-        XCTAssertFalse(sut.panelWasClosedBeforeNavigate)
-        XCTAssertNil(sut.previousApp)
-        // Returned state preserves pre-deactivation values
-        XCTAssertTrue(state.panelWasClosed)
-        XCTAssertNil(state.previousApp)
     }
 
     func testMultipleActivateDeactivateCycles() {

@@ -1,5 +1,5 @@
-import AppKit
 import Combine
+import Foundation
 
 class NavigateController: ObservableObject {
     @Published var isActive = false
@@ -9,14 +9,7 @@ class NavigateController: ObservableObject {
     /// Sorted session snapshot captured when navigate activates.
     /// Prevents reordering while badges are visible.
     private(set) var frozenSessions: [Session] = []
-    private(set) var previousApp: NSRunningApplication?
-    private(set) var panelWasClosedBeforeNavigate = false
     private var timeoutWork: DispatchWorkItem?
-
-    struct DeactivationState {
-        let previousApp: NSRunningApplication?
-        let panelWasClosed: Bool
-    }
 
     func activate(sessions: [Session]) {
         frozenSessions = Session.sorted(sessions)
@@ -24,25 +17,11 @@ class NavigateController: ObservableObject {
         didActivateSubject.send()
     }
 
-    func activate(sessions: [Session], previousApp: NSRunningApplication?, panelWasClosed: Bool) {
-        self.previousApp = previousApp
-        self.panelWasClosedBeforeNavigate = panelWasClosed
-        activate(sessions: sessions)
-    }
-
-    /// Resets all navigate state and returns the state needed for teardown.
-    @discardableResult
-    func deactivate() -> DeactivationState {
-        let state = DeactivationState(
-            previousApp: previousApp,
-            panelWasClosed: panelWasClosedBeforeNavigate
-        )
+    /// Resets all navigate state.
+    func deactivate() {
         isActive = false
         frozenSessions = []
-        previousApp = nil
-        panelWasClosedBeforeNavigate = false
         cancelTimeout()
-        return state
     }
 
     func startTimeout(duration: TimeInterval = 5, onTimeout: @escaping () -> Void) {

@@ -480,12 +480,8 @@ extension AppDelegate {
                 if let prev = previousApp, prev != NSRunningApplication.current {
                     lastExternalApp = prev
                 }
-            case .startNavigateMode(let panelWasClosed):
-                navigateController.activate(
-                    sessions: sessionManager.sessions,
-                    previousApp: NSWorkspace.shared.frontmostApplication,
-                    panelWasClosed: panelWasClosed
-                )
+            case .startNavigateMode:
+                navigateController.activate(sessions: sessionManager.sessions)
                 navigateController.startTimeout { [weak self] in
                     self?.handleEvent(.navigateTimedOut)
                 }
