@@ -3,11 +3,6 @@ import Foundation
 
 private let maxToolDetailLen = 120
 
-enum HostAppBundleID {
-    static let claudeDesktop = "com.anthropic.claudefordesktop"
-    static let codexDesktop = "com.openai.codex"
-}
-
 enum HookHandler {
     // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
     private static let noPIDMaxAge: TimeInterval = 300
@@ -451,8 +446,10 @@ extension HookHandler {
 
 // MARK: - Session File Naming
 
-/// Session files are keyed by PID, except Codex where one host process can emit hooks
-/// for multiple conversations. The `codex-` prefix avoids legacy UUID-file cleanup.
+/// The single writer-side source of truth for session file naming. Files are keyed by
+/// PID, except Codex where one host process can emit hooks for multiple conversations.
+/// The `codex-` prefix also keeps Codex files out of the reader-side legacy UUID-file
+/// sweep (`SessionManager.isLegacyUUIDFilename`) — keep both sides in sync.
 func sessionFileName(input: HookInput, pid: UInt32, safeSessionId: String) -> String {
     if input.resolvedHarnessName == Session.codexSource {
         return "codex-\(safeSessionId).json"

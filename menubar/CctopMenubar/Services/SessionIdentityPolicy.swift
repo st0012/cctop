@@ -33,15 +33,6 @@ enum SessionIdentityPolicy {
         return session.pid.map { String($0) } ?? session.sessionId
     }
 
-    /// Durable file identity. Codex uses session_id to avoid shared-PID collisions and to avoid
-    /// legacy UUID-file cleanup; other sources remain PID-keyed.
-    static func fileName(harnessName: String?, pid: UInt32, safeSessionId: String) -> String {
-        if harnessName == Session.codexSource {
-            return "codex-\(safeSessionId).json"
-        }
-        return "\(pid).json"
-    }
-
     /// Stable grouping key shared by dedup and notification transition guards.
     static func stableKey(for session: Session) -> String {
         if session.isCodex {

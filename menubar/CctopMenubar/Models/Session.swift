@@ -46,6 +46,14 @@ extension JSONDecoder {
     }()
 }
 
+/// Bundle identifiers of the desktop apps that host coding sessions in-app.
+/// Single source of truth for both targets: the hook trusts these IDs when
+/// classifying desktop-hosted sessions, and the app maps them to `HostApp` cases.
+enum HostAppBundleID {
+    static let claudeDesktop = "com.anthropic.claudefordesktop"
+    static let codexDesktop = "com.openai.codex"
+}
+
 struct TerminalInfo: Codable, Equatable {
     let program: String
     let sessionId: String?
