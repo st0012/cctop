@@ -372,18 +372,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
     }
 
-    @MainActor private func positionPanelAtAnchor(animate: Bool = false) {
-        guard let size = panelFittingSize() else { return }
-        if let frame = PanelPositioning.resolveAnchorPosition(
-            anchorRect: anchorRect(),
-            clickLocation: focusLocation,
-            panelSize: size,
-            screens: screenLayouts
-        ) {
-            setPanelFrame(frame, animate: animate)
-        }
-    }
-
     @MainActor private func handleScreenChange() {
         screenChangeWork?.cancel()
         suppressResize = true
