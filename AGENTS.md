@@ -53,10 +53,11 @@ cctop/
 │   │   ├── Models/                # Session, SessionStatus, HookEvent, Config (shared)
 │   │   ├── Views/                 # PopupView, SessionCardView, QuitButton, etc.
 │   │   ├── Services/              # SessionManager, FocusTerminal
-│   │   └── Hook/                  # cctop-hook CLI target only
+│   │   └── Hook/                  # cctop-hook CLI core (HookMain is CLI-only; the rest also compile into the app)
 │   │       ├── HookMain.swift     # CLI entry point (stdin, args, dispatch)
 │   │       ├── HookInput.swift    # Codable struct for cctop-hook input JSON from all integrations
 │   │       ├── HookHandler.swift       # Core logic (transitions, cleanup, PID)
+│   │       ├── HookDependencies.swift  # Injected seams: process probing, paths, name lookups, logger, session file lock
 │   │       ├── SessionNameLookup.swift # Session name from transcript/index
 │   │       └── HookLogger.swift        # Per-session logging
 │   └── CctopMenubarTests/

@@ -63,7 +63,7 @@ swiftlint lint --strict
 - `Models/` — Shared between both Swift targets (Session, SessionStatus, HookEvent, Config)
 - `Views/` — Menubar app only (SwiftUI views)
 - `Services/` — Menubar app only (SessionManager, FocusTerminal)
-- `Hook/` — cctop-hook CLI only (HookMain, HookHandler, HookInput, HookLogger)
+- `Hook/` — cctop-hook CLI core (HookMain is CLI-only; HookHandler, HookInput, HookDependencies, HookLogger, and SessionNameLookup also compile into the app)
 
 **opencode plugin** (in `plugins/opencode/`). A single JS file that runs in-process in Bun.
 
