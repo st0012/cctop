@@ -27,11 +27,13 @@ class PluginManager: ObservableObject {
     static let ccOrphanedMarker = ".orphaned_at"
     static let ccPluginManifestPath = ".claude-plugin/plugin.json"
 
-    /// `homeDirectory` controls where plugin detection looks, so tests and
-    /// previews can stage a directory (or point at a nonexistent one) instead
-    /// of reading the developer's real home. `refreshOnInit: false` yields an
-    /// inert manager whose published flags all start false — preview and
-    /// snapshot setups override exactly the flags they mean to show.
+    /// `homeDirectory` controls where Claude Code, opencode, and pi detection
+    /// looks, so tests and previews can stage a directory (or point at a
+    /// nonexistent one) instead of reading the developer's real home. Codex
+    /// detection and install/remove still go through `CodexPluginInstaller`'s
+    /// real-home paths and are NOT redirected by this seam. `refreshOnInit:
+    /// false` yields an inert manager whose published flags all start false —
+    /// preview and snapshot setups override exactly the flags they mean to show.
     init(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         refreshOnInit: Bool = true

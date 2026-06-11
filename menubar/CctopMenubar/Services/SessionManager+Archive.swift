@@ -13,11 +13,12 @@ struct DesktopAppConnectionLookup {
     }
 }
 
-/// Every external input SessionManager consults while deriving session state: the sessions
+/// The external inputs SessionManager consults while deriving session state: the sessions
 /// directory, the Codex/Claude Desktop archive stores, desktop-app liveness, process liveness,
 /// the notification preference, and the clock. Production uses `.live()`; tests override
 /// individual fields to run the full pipeline against temp directories, stub lookups, and a
-/// deterministic clock.
+/// deterministic clock. One state-deriving input remains outside this seam:
+/// `adjustPermissionStatus` probes the live process tree (`proc_listchildpids`) directly.
 struct SessionDataSources {
     var sessionsDir: URL
     var codexThreads: any CodexThreadStateProviding
@@ -29,6 +30,8 @@ struct SessionDataSources {
 
     /// A function rather than a stored constant so `Config.sessionsDir()` (and the lookup
     /// paths behind the live stores) are resolved when the caller constructs its sources.
+    /// The store paths are then FROZEN for this value's lifetime — env-var overrides
+    /// (e.g. in tests) must be in place before `live()` is called, not after.
     static func live() -> SessionDataSources {
         SessionDataSources(
             sessionsDir: URL(fileURLWithPath: Config.sessionsDir()),

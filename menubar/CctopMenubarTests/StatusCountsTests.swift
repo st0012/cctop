@@ -239,4 +239,19 @@ final class StatusCountsTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(sum, 1.0 - 1e-9, "Sum below 1.0 at \(barWidth)pt")
         }
     }
+
+    // MARK: - Segment kind to rendered color
+
+    /// Pins the kind-to-color resolution both renderers rely on. The four
+    /// theme colors are distinct in every theme, so a transposed case in
+    /// `StatusColors.color(for:)` fails here instead of shipping wrong
+    /// menubar/notch colors.
+    @MainActor
+    func testStatusColorsResolveEachSegmentKind() {
+        XCTAssertEqual(StatusColors.color(for: .permission), StatusColors.permission)
+        XCTAssertEqual(StatusColors.color(for: .attention), StatusColors.attention)
+        XCTAssertEqual(StatusColors.color(for: .working), StatusColors.working)
+        XCTAssertEqual(StatusColors.color(for: .idle), StatusColors.idle)
+        XCTAssertNotEqual(StatusColors.permission, StatusColors.attention)
+    }
 }
