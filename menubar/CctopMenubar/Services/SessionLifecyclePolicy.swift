@@ -48,6 +48,13 @@ enum SessionLifecyclePolicy {
         for session: Session, hostClass: SessionHostClass, processAlive: Bool,
         now: Date, windows: LifecycleWindows, desktopAppRunning: Bool? = nil
     ) -> SessionLifecycle {
+        // Absolute idle age-cap for desktop sessions (issue #155): past the retention
+        // window a session is finished outright, even while its app keeps running.
+        // Without this, retirement depends on disconnectedAt — which is only stamped
+        // once the session goes dormant, impossible while the app stays open.
+        if hostClass == .desktop, now.timeIntervalSince(session.lastActivity) > windows.retention {
+            return .finished
+        }
         let connection = connectionState(
             for: session,
             hostClass: hostClass,

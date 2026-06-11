@@ -25,6 +25,17 @@ enum HookHandler {
         let terminal = captureTerminalInfo(env: deps.environment(), process: deps.process)
         let startTime = deps.process.startTime(pid: pid)
 
+        // Capture-side diagnostic (issue #155 P5): the parent walk should land on this
+        // harness's own process. A foreign-harness PID means liveness for this file will
+        // track the wrong process — log it so the adoption path can be confirmed in the field.
+        if let parentComm = deps.process.commandName(pid: pid),
+           Session.isForeignHarnessComm(parentComm, source: input.resolvedHarnessName) {
+            deps.logger.appendHookLog(
+                sessionId: safeId, event: hookName, label: label,
+                transition: "warning: parent pid \(pid) is '\(parentComm)', a foreign harness"
+            )
+        }
+
         // Lock the session file for the entire read-modify-write cycle.
         // Without this, concurrent hook processes (e.g. SubagentStart + PreToolUse
         // firing simultaneously) race: both read the old file, apply changes
@@ -256,8 +267,10 @@ enum HookHandler {
 
     private static func processName(_ pid: pid_t) -> String {
         guard var info = procInfo(pid) else { return "" }
+        // p_comm stores MAXCOMLEN chars + NUL; the +1 keeps a full-length comm's
+        // terminator inside the rebound region.
         return withUnsafePointer(to: &info.kp_proc.p_comm) { ptr in
-            ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN)) { cStr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN) + 1) { cStr in
                 String(cString: cStr)
             }
         }
@@ -357,24 +370,59 @@ extension HookHandler {
     private static func handleSessionEnd(hookName: String, input: HookInput, deps: HookDependencies) {
         let pid = deps.process.parentPID()
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
-        let path = (deps.sessionsDir() as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
+        let sessionsDir = deps.sessionsDir()
+        let primaryPath = (sessionsDir as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
+
+        // The end-time parent walk can resolve a different PID than at start (ancestors
+        // exit during teardown), so the PID-derived path may miss the session's file or
+        // hold a different conversation. Key the stamp to session_id (issue #155 P3).
+        guard let path = sessionEndTargetPath(primaryPath: primaryPath, sessionsDir: sessionsDir, safeId: safeId) else {
+            // No file holds this session. Keep the legacy corrupt-file cleanup on the
+            // primary path, but never touch another conversation's healthy file.
+            try? withSessionLock(sessionPath: primaryPath, onError: deps.logger.logError) {
+                guard (try? Session.fromFile(path: primaryPath)) == nil else { return }
+                deps.logger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
+                removeSession(at: primaryPath, sessionId: safeId, logger: deps.logger)
+            }
+            return
+        }
+
         // Stamp endedAt instead of deleting — the menubar app archives to history on next poll.
         try? withSessionLock(sessionPath: path, onError: deps.logger.logError) {
-            if var session = try? Session.fromFile(path: path) {
-                let endedAt = Date()
-                session.endedAt = endedAt
-                if hasTrustedDesktopBundle(session, sourceOverride: input.resolvedHarnessName) {
-                    session.disconnectedAt = session.disconnectedAt ?? endedAt
-                }
-                session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
-                try? session.writeToFile(path: path)
-                deps.logger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
-            } else {
-                deps.logger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
-                removeSession(at: path, sessionId: safeId, logger: deps.logger)
+            // Re-validate under the lock: the file can change between the scan and the stamp.
+            guard var session = try? Session.fromFile(path: path), session.sessionId == safeId else { return }
+            let endedAt = Date()
+            session.endedAt = endedAt
+            if hasTrustedDesktopBundle(session, sourceOverride: input.resolvedHarnessName) {
+                session.disconnectedAt = session.disconnectedAt ?? endedAt
+            }
+            session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
+            try? session.writeToFile(path: path)
+            deps.logger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
+        }
+    }
+
+    /// Path of the session file owning `safeId`: the PID-derived path when it matches;
+    /// otherwise the best directory match by session_id — preferring a file not yet
+    /// ended (the live conversation), then the most recently active one.
+    private static func sessionEndTargetPath(primaryPath: String, sessionsDir: String, safeId: String) -> String? {
+        if let session = try? Session.fromFile(path: primaryPath), session.sessionId == safeId {
+            return primaryPath
+        }
+        var best: (path: String, session: Session)?
+        forEachSession(in: sessionsDir) { path, session in
+            guard session.sessionId == safeId else { return }
+            guard let current = best else { best = (path, session); return }
+            let candidateUnended = session.endedAt == nil
+            let currentUnended = current.session.endedAt == nil
+            if candidateUnended != currentUnended {
+                if candidateUnended { best = (path, session) }
+            } else if session.lastActivity > current.session.lastActivity {
+                best = (path, session)
             }
         }
+        return best?.path
     }
 
     static func cleanupSessionsForProject(
@@ -399,6 +447,9 @@ extension HookHandler {
                           let currentStart = process.startTime(pid: pid),
                           abs(storedStart - currentStart) > 1.0 {
                     isStale = true  // PID reused by a different process
+                } else if let comm = process.commandName(pid: pid),
+                          Session.isForeignHarnessComm(comm, source: session.source) {
+                    isStale = true  // PID adopted from/reused by another harness (issue #155)
                 } else {
                     isStale = false
                 }
@@ -413,14 +464,11 @@ extension HookHandler {
         }
     }
 
-    private static func isDesktopBundleId(_ bundleId: String?) -> Bool {
-        bundleId == HostAppBundleID.claudeDesktop || bundleId == HostAppBundleID.codexDesktop
-    }
-
     private static func hasTrustedDesktopBundle(_ session: Session, sourceOverride: String? = nil) -> Bool {
-        let source = session.source ?? sourceOverride
-        guard !Session.isExplicitNonDesktopHarness(source) else { return false }
-        return isDesktopBundleId(session.terminal?.bundleId)
+        Session.trustsDesktopBundle(
+            source: session.source ?? sourceOverride,
+            bundleId: session.terminal?.bundleId
+        )
     }
 
     private static func forEachSession(in dir: String, body: (String, Session) -> Void) {
@@ -436,7 +484,16 @@ extension HookHandler {
     private static func removeSession(at path: String, sessionId: String, logger: HookLogger) {
         try? FileManager.default.removeItem(atPath: path)
         // Never remove the .lock here: unlinking a held lock splits the flock inode.
-        logger.cleanupSessionLog(sessionId: sessionId)
+        // The per-session log is keyed by session_id, which another live file can share
+        // (one conversation dual-written as <pid>.json and codex-<sid>.json) — only
+        // remove the log when no surviving session file still owns it.
+        var sharedByOtherFile = false
+        forEachSession(in: (path as NSString).deletingLastPathComponent) { otherPath, session in
+            if otherPath != path, session.sessionId == sessionId { sharedByOtherFile = true }
+        }
+        if !sharedByOtherFile {
+            logger.cleanupSessionLog(sessionId: sessionId)
+        }
     }
 
     static func isPIDAlive(_ pid: UInt32) -> Bool {

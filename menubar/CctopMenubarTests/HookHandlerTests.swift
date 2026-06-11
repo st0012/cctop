@@ -30,11 +30,13 @@ final class HookHandlerTests: XCTestCase {
         var pid: UInt32 = 4242
         var start: TimeInterval? = 1000
         var alive: Bool = true
+        var comm: String?
         var tty: String?
 
         func parentPID() -> UInt32 { pid }
         func startTime(pid: UInt32) -> TimeInterval? { start }
         func isAlive(pid: UInt32) -> Bool { alive }
+        func commandName(pid: UInt32) -> String? { comm }
         func controllingTTY() -> String? { tty }
     }
 
@@ -354,6 +356,99 @@ final class HookHandlerTests: XCTestCase {
         let session = try loadSession()
         XCTAssertNotNil(session.endedAt)
         XCTAssertNil(session.disconnectedAt)
+    }
+
+    // A `cc` session launched from a Codex Desktop environment inherits that bundle id,
+    // but is never actually hosted by Codex Desktop — SessionEnd must not give it the
+    // desktop disconnectedAt treatment (issue #155).
+    func testCcSessionEndWithLeakedCodexDesktopBundleSkipsDisconnectedAt() throws {
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.codexDesktop])
+
+        try handleHook("""
+        {"session_id":"cc-under-codex","cwd":"/tmp/test-project","hook_event_name":"SessionStart","harness_name":"cc"}
+        """, hookName: "SessionStart", deps: deps)
+        XCTAssertNil(try loadSession().disconnectedAt)
+
+        try handleHook("""
+        {"session_id":"cc-under-codex","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"cc"}
+        """, hookName: "SessionEnd", deps: deps)
+
+        let session = try loadSession()
+        XCTAssertNotNil(session.endedAt)
+        XCTAssertNil(session.disconnectedAt)
+    }
+
+    // The end-time parent walk can resolve a different PID than at start (ancestors exit
+    // during teardown), missing the PID-derived path. SessionEnd must find the session's
+    // file by session_id instead of silently stamping nothing (issue #155 P3).
+    func testSessionEndStampsFileFoundBySessionIdWhenPidPathMisses() throws {
+        // 7777.json — NOT the fake prober's parent PID (4242), so the primary path misses.
+        let session = Session.mock(id: "end-by-sid", pid: 7777)
+        let path = (sessionsDir as NSString).appendingPathComponent("7777.json")
+        try session.writeToFile(path: path)
+
+        try handleHook("""
+        {"session_id":"end-by-sid","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"cc"}
+        """, hookName: "SessionEnd")
+
+        XCTAssertNotNil(try Session.fromFile(path: path).endedAt)
+    }
+
+    // The PID-derived path can hold a DIFFERENT conversation. SessionEnd must never
+    // stamp a foreign session file.
+    func testSessionEndLeavesOtherSessionAtPidPathUntouched() throws {
+        try handleFixture("SessionStart")
+        XCTAssertEqual(try loadSession().sessionId, "test-session-001")
+
+        try handleHook("""
+        {"session_id":"some-other-conversation","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"cc"}
+        """, hookName: "SessionEnd")
+
+        XCTAssertNil(try loadSession().endedAt)
+    }
+
+    // Legacy cleanup preserved: a corrupt file at the PID-derived path is still removed.
+    func testSessionEndRemovesCorruptPrimaryFile() throws {
+        try handleFixture("SessionStart")
+        let path = sessionFilePath()
+        try Data("not json".utf8).write(to: URL(fileURLWithPath: path))
+
+        try handleFixture("SessionEnd")
+
+        XCTAssertFalse(sessionFileExists())
+    }
+
+    // When two files share a session_id, the PID-derived path is authoritative.
+    func testSessionEndPrefersPidPathWhenTwoFilesShareSessionId() throws {
+        try handleFixture("SessionStart")
+        let primary = sessionFilePath()
+        let twinPath = (sessionsDir as NSString).appendingPathComponent("7777.json")
+        try Session.mock(id: "test-session-001", pid: 7777).writeToFile(path: twinPath)
+
+        try handleFixture("SessionEnd")
+
+        XCTAssertNotNil(try Session.fromFile(path: primary).endedAt)
+        XCTAssertNil(try Session.fromFile(path: twinPath).endedAt)
+    }
+
+    // When the PID-derived path misses, the by-session_id scan must pick the live
+    // (un-ended) duplicate, not a stale already-ended one.
+    func testSessionEndStampsUnendedDuplicateWhenPrimaryMisses() throws {
+        var stale = Session.mock(id: "dup-sid", pid: 1111)
+        let staleEnd = Date(timeIntervalSince1970: 1_000)
+        stale.endedAt = staleEnd
+        let stalePath = (sessionsDir as NSString).appendingPathComponent("1111.json")
+        try stale.writeToFile(path: stalePath)
+
+        let livePath = (sessionsDir as NSString).appendingPathComponent("2222.json")
+        try Session.mock(id: "dup-sid", pid: 2222).writeToFile(path: livePath)
+
+        try handleHook("""
+        {"session_id":"dup-sid","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"cc"}
+        """, hookName: "SessionEnd")
+
+        XCTAssertNotNil(try Session.fromFile(path: livePath).endedAt)
+        XCTAssertEqual(try Session.fromFile(path: stalePath).endedAt, staleEnd)
     }
 
     func testSessionStartClearsEndedAndDisconnectedAt() throws {
@@ -745,6 +840,108 @@ final class HookHandlerTests: XCTestCase {
         )
 
         XCTAssertFalse(sessionFileExists())
+    }
+
+    // A `cc` file with a leaked Codex Desktop bundle id is NOT a desktop conversation;
+    // once its PID is gone it is stale and must be reaped like any terminal session
+    // (issue #155 — these files previously survived forever as "desktop" cards).
+    func testProjectCleanupRemovesStaleCcWithLeakedCodexDesktopBundle() throws {
+        let project = "/tmp/cctop-cc-cleanup-\(UUID().uuidString)"
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.codexDesktop])
+
+        try handleHook("""
+        {
+          "session_id": "cc-stale",
+          "cwd": "\(project)",
+          "hook_event_name": "SessionStart",
+          "harness_name": "cc"
+        }
+        """, hookName: "SessionStart", deps: deps)
+        XCTAssertTrue(sessionFileExists())
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 1,
+            process: FakeProcessProber(alive: false), logger: HookLogger(logsDir: logsDir)
+        )
+
+        XCTAssertFalse(sessionFileExists())
+    }
+
+    // A live PID owned by a DIFFERENT harness's binary is not this session's process —
+    // start-time coincidence must not keep the file alive (issue #155 P2).
+    func testProjectCleanupRemovesSessionWhosePidRunsForeignHarness() throws {
+        let project = "/tmp/cctop-foreign-pid-\(UUID().uuidString)"
+        try handleHook("""
+        {
+          "session_id": "cc-foreign-pid",
+          "cwd": "\(project)",
+          "hook_event_name": "SessionStart",
+          "harness_name": "cc"
+        }
+        """, hookName: "SessionStart")  // stored pidStartTime = 1000
+
+        // PID alive, start time matches — but the process is the codex binary.
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 1,
+            process: FakeProcessProber(start: 1000, alive: true, comm: "codex"),
+            logger: HookLogger(logsDir: logsDir)
+        )
+
+        XCTAssertFalse(sessionFileExists())
+    }
+
+    // The same comm answer must NOT reap the harness's own session.
+    func testProjectCleanupKeepsSessionWhosePidRunsOwnHarness() throws {
+        let project = "/tmp/cctop-own-pid-\(UUID().uuidString)"
+        try handleHook("""
+        {
+          "session_id": "019e0000-cccc-7000-8000-000000000003",
+          "cwd": "\(project)",
+          "hook_event_name": "SessionStart",
+          "harness_name": "codex"
+        }
+        """, hookName: "SessionStart")
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 1,
+            process: FakeProcessProber(start: 1000, alive: true, comm: "codex"),
+            logger: HookLogger(logsDir: logsDir)
+        )
+
+        XCTAssertTrue(sessionFileExists("codex-019e0000-cccc-7000-8000-000000000003.json"))
+    }
+
+    // Reaping a stale duplicate must not delete the per-session log that a surviving
+    // file with the same session_id still owns (dual-write case from issue #155).
+    func testProjectCleanupKeepsSessionLogWhenAnotherFileSharesSessionId() throws {
+        let project = "/tmp/cctop-shared-log-\(UUID().uuidString)"
+        let sid = "shared-log-sid"
+        let logger = HookLogger(logsDir: logsDir)
+
+        var stale = Session(sessionId: sid, projectPath: project, branch: "main", terminal: TerminalInfo())
+        stale.pid = 999_999
+        let stalePath = (sessionsDir as NSString).appendingPathComponent("999999.json")
+        try stale.writeToFile(path: stalePath)
+
+        // Same conversation dual-written under the codex key; its PID is the currentPid,
+        // so cleanup skips it and it remains the log's owner.
+        var survivor = Session(sessionId: sid, projectPath: project, branch: "main", terminal: TerminalInfo())
+        survivor.pid = 4242
+        let survivorPath = (sessionsDir as NSString).appendingPathComponent("codex-\(sid).json")
+        try survivor.writeToFile(path: survivorPath)
+
+        logger.appendHookLog(sessionId: sid, event: "Test", label: "t", transition: "noop")
+        let logPath = (logsDir as NSString).appendingPathComponent("\(sid).log")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: logPath))
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 4242,
+            process: FakeProcessProber(alive: false), logger: logger
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stalePath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: survivorPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: logPath), "Shared session log must survive")
     }
 
     /// Codex Desktop fires every conversation's hooks from one shared host process, so

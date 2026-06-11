@@ -127,13 +127,15 @@ enum HostApp: CaseIterable {
 }
 
 extension Session {
-    /// GUI environments can leak `__CFBundleIdentifier` into child tools; an explicit
-    /// non-desktop harness must not become "Codex Desktop" or "Claude Desktop" because
-    /// of inherited env. Other sources keep the previous bundle-first behavior, including
-    /// nil-source legacy desktop records.
+    /// GUI environments can leak `__CFBundleIdentifier` into child tools; a desktop bundle
+    /// id is only trusted when it is the harness's own desktop app (cc -> Claude Desktop,
+    /// codex -> Codex Desktop; nil-source legacy records keep bundle-first behavior).
+    /// A `cc` session "hosted by" Codex Desktop is impossible — that pairing is leaked
+    /// launcher environment, not identity (issue #155).
     var trustedHostApp: HostApp? {
         guard let app = HostApp.from(bundleIdentifier: terminal?.bundleId) else { return nil }
-        if app.isDesktopApp && Session.isExplicitNonDesktopHarness(source) {
+        if app.isDesktopApp,
+           !Session.trustsDesktopBundle(source: source, bundleId: terminal?.bundleId) {
             return nil
         }
         return app

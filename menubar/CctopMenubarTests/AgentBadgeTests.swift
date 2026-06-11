@@ -61,23 +61,23 @@ final class AgentBadgeTests: XCTestCase {
         XCTAssertEqual(session.agentBadge, .codexDesktop)
     }
 
-    func testCodexDesktopBundle_overridesMismatchedSource() {
-        // Defensive: bundle ID wins even if source disagrees. Shouldn't happen
-        // in practice, but guarantees the visual classification matches the
-        // host app the user actually sees on screen.
+    func testCcSource_ignoresLeakedCodexDesktopBundle() {
+        // A cc session is never hosted by Codex Desktop — that bundle id is launcher
+        // environment leaked into a Claude Code child process (issue #155). The badge
+        // must follow the harness, not the leaked bundle.
         let session = Session.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "cc"
         )
-        XCTAssertEqual(session.agentBadge, .codexDesktop)
+        XCTAssertEqual(session.agentBadge, .cc)
     }
 
-    func testClaudeDesktopBundle_overridesMismatchedSource() {
+    func testCodexSource_ignoresLeakedClaudeDesktopBundle() {
         let session = Session.mock(
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: "codex"
         )
-        XCTAssertEqual(session.agentBadge, .claudeDesktop)
+        XCTAssertEqual(session.agentBadge, .codex)
     }
 
     func testOpencodeSource_returnsOpencode() {

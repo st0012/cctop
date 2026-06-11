@@ -9,6 +9,7 @@ protocol ProcessProbing {
     func parentPID() -> UInt32
     func startTime(pid: UInt32) -> TimeInterval?
     func isAlive(pid: UInt32) -> Bool
+    func commandName(pid: UInt32) -> String?
     func controllingTTY() -> String?
 }
 
@@ -17,6 +18,7 @@ struct LiveProcessProber: ProcessProbing {
     func parentPID() -> UInt32 { HookHandler.getParentPID() }
     func startTime(pid: UInt32) -> TimeInterval? { Session.processStartTime(pid: pid) }
     func isAlive(pid: UInt32) -> Bool { HookHandler.isPIDAlive(pid) }
+    func commandName(pid: UInt32) -> String? { Session.processCommandName(pid: pid) }
     func controllingTTY() -> String? { HookHandler.findTTY() }
 }
 

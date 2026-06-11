@@ -203,16 +203,28 @@ struct Session: Codable, Identifiable, Equatable {
 
     /// Harness id Codex reports (CLI and Desktop both pass `--harness codex`).
     static let codexSource = "codex"
+    static let ccSource = "cc"
     static let opencodeSource = "opencode"
     static let piSource = "pi"
 
     var isCodex: Bool { source == Self.codexSource }
 
-    /// Harnesses that never run inside Claude Desktop or Codex Desktop. Their
-    /// subprocesses can inherit GUI bundle IDs from a launcher environment, so
-    /// those desktop bundle IDs are not trusted for identity or lifecycle.
-    static func isExplicitNonDesktopHarness(_ source: String?) -> Bool {
-        source == Self.opencodeSource || source == Self.piSource
+    /// Whether a desktop-app bundle id is believable for this harness. GUI launchers leak
+    /// `__CFBundleIdentifier` into child tools, so a desktop bundle proves desktop hosting
+    /// only when it is the harness's OWN desktop app: cc -> Claude Desktop,
+    /// codex -> Codex Desktop. Explicit non-desktop harnesses (opencode, pi) trust none;
+    /// nil-source legacy records keep the previous bundle-first behavior.
+    static func trustsDesktopBundle(source: String?, bundleId: String?) -> Bool {
+        switch source {
+        case nil:
+            return bundleId == HostAppBundleID.claudeDesktop || bundleId == HostAppBundleID.codexDesktop
+        case Self.ccSource?:
+            return bundleId == HostAppBundleID.claudeDesktop
+        case Self.codexSource?:
+            return bundleId == HostAppBundleID.codexDesktop
+        default:
+            return false
+        }
     }
 
     // Codex multiplexes many conversations onto one host process, so the PID is not unique
@@ -539,6 +551,11 @@ extension Session {
             if abs(stored - current) > 1.0 { return false }
         }
 
+        // A live process that is identifiably a DIFFERENT harness's binary cannot be this
+        // session's host: the capture-time parent walk can adopt a foreign harness PID, and
+        // rapid PID reuse can land within the 1s start-time tolerance (issue #155).
+        if Self.isForeignHarnessComm(Self.commandName(from: info), source: source) { return false }
+
         // Suspended (Ctrl+Z) or orphaned (PPID=1) processes are unreachable
         if info.kp_proc.p_stat == 4 { return false }
         if info.kp_eproc.e_ppid == 1 { return false }
@@ -549,5 +566,40 @@ extension Session {
     private static func startTime(from info: kinfo_proc) -> TimeInterval {
         let tv = info.kp_proc.p_starttime
         return TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000
+    }
+
+    /// Kernel-reported executable basename (`p_comm`, truncated to MAXCOMLEN).
+    /// p_comm stores MAXCOMLEN chars + NUL; the +1 keeps a full-length comm's
+    /// terminator inside the rebound region.
+    static func commandName(from info: kinfo_proc) -> String {
+        var proc = info.kp_proc
+        return withUnsafePointer(to: &proc.p_comm) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN) + 1) { cStr in
+                String(cString: cStr)
+            }
+        }
+    }
+
+    static func processCommandName(pid: UInt32) -> String? {
+        processInfo(pid: pid).map { commandName(from: $0) }
+    }
+
+    /// Maps a process name to the harness that owns that binary. Codex also ships
+    /// arch-suffixed binaries (`codex-aarch64-apple-darwin`, truncated by MAXCOMLEN),
+    /// hence the prefix match.
+    static func harnessOwningComm(_ comm: String) -> String? {
+        if comm == "claude" { return ccSource }
+        if comm == "codex" || comm.hasPrefix("codex-") { return codexSource }
+        if comm == "opencode" { return opencodeSource }
+        if comm == "pi" { return piSource }
+        return nil
+    }
+
+    /// True when the process name belongs to a DIFFERENT harness than this session's.
+    /// Conservative: an unrecognized name proves nothing (claude could run under a
+    /// wrapper). Legacy nil sources are Claude Code sessions.
+    static func isForeignHarnessComm(_ comm: String, source: String?) -> Bool {
+        guard let owner = harnessOwningComm(comm) else { return false }
+        return owner != (source ?? ccSource)
     }
 }

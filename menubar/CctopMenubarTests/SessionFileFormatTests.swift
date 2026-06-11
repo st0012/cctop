@@ -1641,6 +1641,9 @@ final class SessionFileFormatTests: XCTestCase {
         var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
         session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         session.pid = nil
+        // SessionManager derives lifecycle against the real clock; keep the session idle
+        // but inside the retention window so the issue #155 age-cap doesn't apply here.
+        session.lastActivity = Date().addingTimeInterval(-10_000)
         try session.writeToFile(path: sessionPath)
 
         let manager = makeManager(
@@ -1669,6 +1672,9 @@ final class SessionFileFormatTests: XCTestCase {
         var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
         session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         session.pid = nil
+        // SessionManager derives lifecycle against the real clock; keep the session idle
+        // but inside the retention window so the issue #155 age-cap doesn't apply here.
+        session.lastActivity = Date().addingTimeInterval(-10_000)
         let disconnectedAt = Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970) - 60)
         session.endedAt = disconnectedAt.addingTimeInterval(30)
         session.disconnectedAt = disconnectedAt
@@ -1684,6 +1690,85 @@ final class SessionFileFormatTests: XCTestCase {
 
         XCTAssertEqual(manager.sessions.map(\.lifecycle), [.dormant])
         XCTAssertEqual(try Session.fromFile(path: sessionPath).disconnectedAt, disconnectedAt)
+    }
+
+    // The headline issue #155 file class: a DEAD Claude Code session that inherited
+    // com.openai.codex from its launcher. It used to classify as Codex Desktop and ride
+    // the running app's liveness forever; it must now drain even while Codex Desktop runs.
+    @MainActor
+    func testSessionManagerDrainsDeadCcSessionWithLeakedCodexDesktopBundle() throws {
+        let root = NSTemporaryDirectory() + "cctop-cc-ghost-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("54321.json")
+        var session = Session(sessionId: "cc-ghost", projectPath: "/tmp/p", branch: "main",
+                              terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop))
+        session.source = "cc"
+        session.pid = 999_999
+        session.lastActivity = Date().addingTimeInterval(-3_600)
+        try session.writeToFile(path: sessionPath)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { bundleID in
+                bundleID == HostAppBundleID.codexDesktop   // Codex Desktop IS running
+            }
+        )
+
+        XCTAssertEqual(manager.sessions.count, 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
+    }
+
+    // The live variant must survive: same leaked bundle, but the session's process exists.
+    @MainActor
+    func testSessionManagerKeepsLiveCcSessionWithLeakedCodexDesktopBundle() throws {
+        let root = NSTemporaryDirectory() + "cctop-cc-live-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        // A real child of the test runner with an unrecognized name plays the host process.
+        let fakeDir = NSTemporaryDirectory() + "cctop-fakehost-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: fakeDir, withIntermediateDirectories: true)
+        let bin = (fakeDir as NSString).appendingPathComponent("fakehost")
+        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: bin)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: bin)
+        process.arguments = ["30"]
+        try process.run()
+        addTeardownBlock {
+            process.terminate()
+            process.waitUntilExit()
+            try? FileManager.default.removeItem(atPath: fakeDir)
+        }
+
+        let pid = UInt32(process.processIdentifier)
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(pid).json")
+        var session = Session(sessionId: "cc-live", projectPath: "/tmp/p", branch: "main",
+                              terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop))
+        session.source = "cc"
+        session.pid = pid
+        session.pidStartTime = Session.processStartTime(pid: pid)
+        session.lastActivity = Date().addingTimeInterval(-60)
+        try session.writeToFile(path: sessionPath)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { bundleID in
+                bundleID == HostAppBundleID.codexDesktop
+            }
+        )
+
+        XCTAssertEqual(manager.sessions.map(\.lifecycle), [.active])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
     }
 
     func testIdentityPolicyNamesStableGroupingRules() {
@@ -1740,19 +1825,43 @@ final class SessionFileFormatTests: XCTestCase {
         )
     }
 
-    func testLifecycleDesktopDeadUsesDisconnectedAtInsteadOfLastActivityForRetention() {
+    func testLifecycleDesktopDeadWithoutDisconnectedAtStartsDormant() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 600), .desktop, alive: false), .dormant)
+    }
+
+    // Issue #155 P4: absolute idle age-cap. A desktop session idle past the retention
+    // window is finished outright — even while its app keeps running — so stale desktop
+    // cards drain without depending on disconnectedAt (which is only stamped after the
+    // session manages to go dormant, a circular dependency while the app stays open).
+    func testLifecycleDesktopIdlePastRetentionIsFinishedEvenWhileAppRunning() {
+        XCTAssertEqual(
+            life(lifeSession(agoSeconds: 100_000), .desktop, alive: true, desktopAppRunning: true),
+            .finished
+        )
+    }
+
+    func testLifecycleDesktopIdlePastRetentionIsFinishedDespiteRecentDisconnect() {
         XCTAssertEqual(
             life(lifeSession(agoSeconds: 100_000, disconnectedAgoSeconds: 60), .desktop, alive: false),
+            .finished
+        )
+    }
+
+    func testLifecycleDesktopIdleWithinRetentionKeepsDormantGrace() {
+        XCTAssertEqual(
+            life(lifeSession(agoSeconds: 600, disconnectedAgoSeconds: 60), .desktop, alive: false),
             .dormant
         )
     }
 
-    func testLifecycleDesktopDeadWithoutDisconnectedAtStartsDormant() {
-        XCTAssertEqual(life(lifeSession(agoSeconds: 100_000), .desktop, alive: false), .dormant)
+    // The age-cap is desktop-only: a terminal session with a live PID is active no matter
+    // how long it has been idle.
+    func testLifecycleTerminalIdlePastRetentionWithLivePidStaysActive() {
+        XCTAssertEqual(life(lifeSession(agoSeconds: 100_000), .terminal, alive: true), .active)
     }
 
     func testLifecycleClaudeDesktopUsesDesktopDormantPolicy() {
-        var session = lifeSession(agoSeconds: 100_000, disconnectedAgoSeconds: 60)
+        var session = lifeSession(agoSeconds: 600, disconnectedAgoSeconds: 60)
         session.terminal = TerminalInfo(bundleId: HostAppBundleID.claudeDesktop)
 
         XCTAssertEqual(session.hostClass, .desktop)

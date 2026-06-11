@@ -384,6 +384,81 @@ final class SessionTests: XCTestCase {
         XCTAssertGreaterThan(startTime ?? 0, 0)
     }
 
+    // MARK: - Liveness executable identity (issue #155)
+
+    /// Spawn a real process whose kernel `p_comm` is `name` by copying /bin/sleep
+    /// under that basename in a temp dir.
+    private func spawnProcess(named name: String) throws -> Process {
+        let dir = NSTemporaryDirectory() + "cctop-comm-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let bin = (dir as NSString).appendingPathComponent(name)
+        try FileManager.default.copyItem(atPath: "/bin/sleep", toPath: bin)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: bin)
+        process.arguments = ["30"]
+        try process.run()
+        addTeardownBlock {
+            process.terminate()
+            process.waitUntilExit()
+            try? FileManager.default.removeItem(atPath: dir)
+        }
+        return process
+    }
+
+    // A PID that now belongs to a DIFFERENT harness's binary cannot be this session's
+    // host process, even when the start time matches (PID adoption/reuse, issue #155).
+    func testIsAliveRejectsPidOwnedByForeignHarnessBinary() throws {
+        let process = try spawnProcess(named: "codex")
+        let pid = UInt32(process.processIdentifier)
+        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
+        let session = Session.mock(pid: pid, pidStartTime: start, source: "cc")
+        XCTAssertFalse(session.isAlive)
+    }
+
+    func testIsAliveAcceptsPidOwnedByOwnHarnessBinary() throws {
+        let process = try spawnProcess(named: "codex")
+        let pid = UInt32(process.processIdentifier)
+        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
+        let session = Session.mock(pid: pid, pidStartTime: start, source: "codex")
+        XCTAssertTrue(session.isAlive)
+    }
+
+    // Conservative by design: a comm that is not a known harness binary proves nothing.
+    func testIsAliveAcceptsUnrecognizedProcessName() throws {
+        let process = try spawnProcess(named: "sleepyhead")
+        let pid = UInt32(process.processIdentifier)
+        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
+        let session = Session.mock(pid: pid, pidStartTime: start, source: "cc")
+        XCTAssertTrue(session.isAlive)
+    }
+
+    // Legacy files without a source are Claude Code sessions, so a codex-owned PID is foreign.
+    func testIsAliveTreatsNilSourceAsClaudeCodeForIdentityCheck() throws {
+        let process = try spawnProcess(named: "codex")
+        let pid = UInt32(process.processIdentifier)
+        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
+        let session = Session.mock(pid: pid, pidStartTime: start, source: nil)
+        XCTAssertFalse(session.isAlive)
+    }
+
+    func testHarnessOwningCommRecognizesTruncatedArchSuffixedCodexBinary() {
+        // Kernel p_comm of codex-aarch64-apple-darwin, truncated to MAXCOMLEN (16).
+        XCTAssertEqual(Session.harnessOwningComm("codex-aarch64-ap"), Session.codexSource)
+        XCTAssertTrue(Session.isForeignHarnessComm("codex-aarch64-ap", source: Session.ccSource))
+        XCTAssertFalse(Session.isForeignHarnessComm("codex-aarch64-ap", source: Session.codexSource))
+    }
+
+    // Codex also ships arch-suffixed binaries; the kernel truncates p_comm to MAXCOMLEN.
+    // The codex- prefix match must own the truncated name end to end.
+    func testIsAliveRejectsPidOwnedByTruncatedArchSuffixedCodexBinary() throws {
+        let process = try spawnProcess(named: "codex-aarch64-apple-darwin")
+        let pid = UInt32(process.processIdentifier)
+        XCTAssertEqual(Session.processCommandName(pid: pid), "codex-aarch64-ap")
+        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
+        XCTAssertFalse(Session.mock(pid: pid, pidStartTime: start, source: "cc").isAlive)
+        XCTAssertTrue(Session.mock(pid: pid, pidStartTime: start, source: "codex").isAlive)
+    }
+
     func testDecodesWorkspaceFile() throws {
         let json = """
         {
@@ -545,6 +620,48 @@ final class SessionTests: XCTestCase {
     func testHostClassCodexDesktopIsDesktop() {
         let session = Session.mock(terminal: TerminalInfo(bundleId: "com.openai.codex"))
         XCTAssertEqual(session.hostClass, .desktop)
+    }
+
+    // A `cc` session is never hosted by Codex Desktop: that bundle id can only be
+    // launcher environment leaked into a Claude Code child process (issue #155).
+    func testHostClassCcIgnoresLeakedCodexDesktopBundle() {
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.openai.codex"),
+            source: "cc"
+        )
+        XCTAssertEqual(session.hostClass, .ambiguous)
+        XCTAssertFalse(session.isHostedByDesktopApp)
+        XCTAssertFalse(session.isCodexDesktopHost)
+    }
+
+    // Symmetric: a `codex` session is never hosted by Claude Desktop.
+    func testHostClassCodexIgnoresLeakedClaudeDesktopBundle() {
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
+            source: "codex"
+        )
+        XCTAssertEqual(session.hostClass, .ambiguous)
+        XCTAssertFalse(session.isHostedByDesktopApp)
+        XCTAssertFalse(session.isClaudeDesktopHost)
+    }
+
+    // The matching desktop apps stay trusted: cc -> Claude Desktop, codex -> Codex Desktop.
+    func testHostClassCcWithClaudeDesktopBundleIsDesktop() {
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
+            source: "cc"
+        )
+        XCTAssertEqual(session.hostClass, .desktop)
+        XCTAssertTrue(session.isClaudeDesktopHost)
+    }
+
+    func testHostClassCodexWithCodexDesktopBundleIsDesktop() {
+        let session = Session.mock(
+            terminal: TerminalInfo(bundleId: "com.openai.codex"),
+            source: "codex"
+        )
+        XCTAssertEqual(session.hostClass, .desktop)
+        XCTAssertTrue(session.isCodexDesktopHost)
     }
 
     func testHostClassOpencodeIgnoresLeakedCodexDesktopBundle() {
