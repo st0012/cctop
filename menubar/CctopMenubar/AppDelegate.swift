@@ -315,17 +315,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     /// The screen-space rect of the anchor (notch pill or menubar icon).
     @MainActor private func anchorRect() -> NSRect? {
-        if let pillFrame = notchController.pillFrame {
-            return pillFrame
-        } else if let button = statusItem.button, let buttonWindow = button.window {
-            return buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
-        }
-        return nil
+        notchController.pillFrame ?? menubarIconRect()
+    }
+
+    /// The screen-space rect of the menubar icon, even when the notch pill
+    /// is the anchor (the pill only exists on the built-in screen).
+    @MainActor private func menubarIconRect() -> NSRect? {
+        guard let button = statusItem.button, let buttonWindow = button.window else { return nil }
+        return buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
     }
 
     /// Reset panel position on double-click. If the panel is on the same screen
     /// as the anchor (menubar icon / notch pill), snap to anchor. Otherwise, snap
-    /// to the top-center of the panel's current screen so it doesn't jump across screens.
+    /// under the menubar icon's mirrored position on the panel's current screen
+    /// so it doesn't jump across screens.
     @MainActor private func resetPanelToCurrentScreen(animate: Bool = false) {
         guard let size = panelFittingSize() else { return }
         let layouts = screenLayouts
@@ -334,6 +337,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
         if let frame = panelGeometry.resetFrame(
             anchorRect: anchorRect(),
+            menubarIconRect: menubarIconRect(),
             panelScreenIndex: panelIdx,
             panelSize: size,
             screens: layouts
@@ -363,10 +367,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             self.hasNotch = NSScreen.builtin?.hasPhysicalNotch == true
             self.refreshStatusDisplay(counts: StatusCounts(sessions: self.sessionManager.sessions))
             guard self.panel.isVisible else { return }
+            // A click location captured before the debounce must not drive
+            // screen-change repositioning; clearing it keeps the key below
+            // and positionPanel's internal key identical.
+            self.focusLocation = nil
+            // Capture the key before repositioning: positionPanel may snap the
+            // panel home to the anchor screen, and resaving under that screen's
+            // key would overwrite a user-dragged position with the anchor frame.
+            let key = self.panelScreenKey()
             self.positionPanel(animate: false)
             // Update saved position if it was clamped to new screen bounds
             self.panelGeometry.resaveAfterScreenChange(
-                panelScreenKey: self.panelScreenKey(), panelFrame: self.panel.frame
+                panelScreenKey: key, panelFrame: self.panel.frame
             )
         }
         screenChangeWork = work

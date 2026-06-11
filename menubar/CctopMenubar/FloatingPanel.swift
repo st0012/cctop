@@ -10,6 +10,28 @@ class FloatingPanel: NSPanel {
     /// Height of the header drag zone (matches HeaderView padding + content).
     private let headerDragHeight: CGFloat = 44
 
+    enum HeaderClickAction: Equatable {
+        case resetPosition
+        case drag
+    }
+
+    /// macOS chains clickCount (1, 2, 3, …) for stationary clicks within the
+    /// double-click interval, so a click right after a double-click reset
+    /// arrives as count 3. Routing it into the drag loop would let the reset
+    /// animation's frame movement read as a user drag; re-triggering the
+    /// idempotent reset is always the intended outcome for counts ≥ 2.
+    static func headerClickAction(forClickCount count: Int) -> HeaderClickAction {
+        count >= 2 ? .resetPosition : .drag
+    }
+
+    /// The frame can move under a stationary click — reset and resize run
+    /// setFrame(animate: true) — and persisting that movement as a drag
+    /// would resurrect the saved position a reset just cleared. Only a real
+    /// mouse drag may persist.
+    static func shouldPersistDrag(sawDragEvents: Bool, originMoved: Bool) -> Bool {
+        sawDragEvents && originMoved
+    }
+
     override init(
         contentRect: NSRect,
         styleMask: NSWindow.StyleMask,
@@ -45,11 +67,12 @@ class FloatingPanel: NSPanel {
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown && isInHeaderArea(event) {
-            if event.clickCount == 2 {
+            switch Self.headerClickAction(forClickCount: event.clickCount) {
+            case .resetPosition:
                 panelDelegate?.panelDidRequestReset()
-                return
+            case .drag:
+                handleHeaderDrag()
             }
-            handleHeaderDrag()
             return
         }
         super.sendEvent(event)
@@ -58,6 +81,7 @@ class FloatingPanel: NSPanel {
     private func handleHeaderDrag() {
         let startLocation = NSEvent.mouseLocation
         let startOrigin = frame.origin
+        var sawDragEvents = false
 
         // Tight event-tracking loop — runs in eventTracking mode,
         // preventing SwiftUI layout passes from interleaving.
@@ -70,6 +94,7 @@ class FloatingPanel: NSPanel {
             ) else { continue }
 
             if event.type == .leftMouseUp { break }
+            sawDragEvents = true
 
             let current = NSEvent.mouseLocation
             setFrameOrigin(NSPoint(
@@ -78,7 +103,10 @@ class FloatingPanel: NSPanel {
             ))
         }
 
-        if frame.origin != startOrigin {
+        if Self.shouldPersistDrag(
+            sawDragEvents: sawDragEvents,
+            originMoved: frame.origin != startOrigin
+        ) {
             panelDelegate?.panelDidDrag(originX: frame.origin.x, topY: frame.maxY)
         }
     }

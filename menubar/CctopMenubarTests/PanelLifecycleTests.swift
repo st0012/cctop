@@ -124,9 +124,14 @@ private struct PanelLifecycleDriver {
     mutating func handleScreenChange() {
         guard isVisible else { return }
 
-        // positionPanel with focusLocation = nil (always cleared by this point)
+        // Capture the key before repositioning (mirrors AppDelegate): the
+        // resave must key off the screen the panel was on, not where it lands
+        let key = panelScreenKey
+
+        // positionPanel with focusLocation = nil (explicitly cleared at the
+        // top of AppDelegate's screen-change work item)
         if let frame = model.showFrame(
-            clickScreenKey: panelScreenKey,
+            clickScreenKey: key,
             clickLocation: nil,
             anchorRect: anchorRect,
             panelSize: panelSize,
@@ -137,7 +142,7 @@ private struct PanelLifecycleDriver {
 
         // Overwrite the saved position with the possibly clamped frame, if one exists
         if let frame = panelFrame {
-            model.resaveAfterScreenChange(panelScreenKey: panelScreenKey, panelFrame: frame)
+            model.resaveAfterScreenChange(panelScreenKey: key, panelFrame: frame)
         }
     }
 
@@ -174,6 +179,8 @@ private struct PanelLifecycleDriver {
             )
         }
 
+        // Models the no-pill case only: menubarIconRect defaults to nil and
+        // falls back to anchorRect (the pill case is covered by unit tests)
         if let frame = model.resetFrame(
             anchorRect: anchorRect,
             panelScreenIndex: panelIdx,
@@ -270,13 +277,10 @@ final class PanelLifecycleTests: XCTestCase {
 
     // MARK: - Screen change while on different screen
 
-    /// The deleted hand-written simulation asserted the primary position
-    /// survived this scenario, but it computed the resave key BEFORE
-    /// repositioning. Production AppDelegate reads the panel's screen AFTER
-    /// positionPanel: with no custom position on secondary, the screen change
-    /// snaps the panel back to the anchor on primary and the clamp-resave then
-    /// overwrites primary's saved entry with the anchor frame. This now pins
-    /// the real behavior the simulation drifted from.
+    /// The clamp-resave must key off the screen the panel was on BEFORE
+    /// repositioning. With no custom position on secondary, the screen change
+    /// snaps the panel back to the anchor on primary — but primary's
+    /// user-dragged entry must not be overwritten with the anchor frame.
     func testScreenChangeWhileOnSecondaryPreservesPrimaryPosition() {
         var lc = makeLifecycle()
 
@@ -292,27 +296,35 @@ final class PanelLifecycleTests: XCTestCase {
         lc.handleScreenChange()
 
         // No custom position on secondary → the panel snaps back to the anchor
-        // on primary, and the resave overwrites primary's entry with that frame
+        // on primary, but the resave keys off secondary and is a no-op
         XCTAssertLessThan(
             lc.panelFrame!.maxX, primary.frame.maxX,
             "Panel should snap back to the anchor screen"
         )
         XCTAssertEqual(
-            lc.savedPositions["primary"]!.originX, lc.panelFrame!.origin.x, accuracy: 0.5,
-            "Resave overwrites primary's entry with the panel's new frame"
+            lc.savedPositions["primary"]!.originX, 200, accuracy: 0.5,
+            "Dragged primary position must survive the resave"
         )
         XCTAssertEqual(
-            lc.savedPositions["primary"]!.topY, lc.panelFrame!.maxY, accuracy: 0.5,
-            "Resave overwrites primary's entry with the panel's new frame"
+            lc.savedPositions["primary"]!.topY, 700, accuracy: 0.5,
+            "Dragged primary position must survive the resave"
+        )
+        XCTAssertNil(
+            lc.savedPositions["secondary"],
+            "The no-op resave must not invent an entry for secondary"
         )
 
         lc.dismiss()
 
-        // Show on primary — the dragged position was overwritten by the resave
+        // Show on primary — the dragged position is restored
         lc.show(clickAt: clickOnPrimary)
-        XCTAssertNotEqual(
-            lc.panelFrame!.origin.x, 200,
-            "The dragged position does not survive a screen change that snaps the panel home"
+        XCTAssertEqual(
+            lc.panelFrame!.origin.x, 200, accuracy: 1,
+            "Custom position must survive a screen change fired while on secondary"
+        )
+        XCTAssertEqual(
+            lc.panelFrame!.maxY, 700, accuracy: 1,
+            "Custom position must survive a screen change fired while on secondary"
         )
     }
 
@@ -400,6 +412,31 @@ final class PanelLifecycleTests: XCTestCase {
         XCTAssertNotEqual(
             lc.panelFrame!.origin.x, 200,
             "After reset, should use anchor not custom position"
+        )
+    }
+
+    // MARK: - Double-click reset on a different screen
+
+    func testResetOnSecondarySnapsUnderMirroredIcon() {
+        var lc = makeLifecycle()
+
+        // Show on primary, drag the panel onto the secondary screen
+        lc.show(clickAt: clickOnPrimary)
+        lc.drag(toOriginX: 2200, topY: 700)
+
+        lc.resetPosition()
+
+        XCTAssertNil(lc.savedPositions["secondary"], "Reset clears the panel screen's entry")
+        // Panel stays on secondary, under the icon's mirrored position
+        // (same offset from the right edge), not centered on the screen
+        let mirroredMidX = secondary.frame.maxX - (primary.frame.maxX - anchorOnPrimary.midX)
+        let expectedX = min(
+            mirroredMidX - panelSize.width / 2,
+            secondary.visibleFrame.maxX - panelSize.width - PanelPositioning.margin
+        )
+        XCTAssertEqual(lc.panelFrame!.origin.x, expectedX, accuracy: 1)
+        XCTAssertEqual(
+            lc.panelFrame!.maxY, anchorOnPrimary.minY - PanelPositioning.margin, accuracy: 1
         )
     }
 
@@ -547,6 +584,35 @@ final class PanelLifecycleTests: XCTestCase {
             smaller.visibleFrame.maxX - panelSize.width - margin,
             "Saved position should be clamped to smaller screen"
         )
+    }
+
+    // MARK: - Header click routing and drag persistence (reset resurrection bug)
+
+    /// macOS chains clickCount (1, 2, 3, …) for stationary clicks within the
+    /// double-click interval. A chained click after a double-click reset must
+    /// re-trigger the (idempotent) reset, NOT fall into the drag loop where
+    /// the reset animation's frame movement reads as a user drag.
+    func testChainedHeaderClicksKeepResetting() {
+        XCTAssertEqual(FloatingPanel.headerClickAction(forClickCount: 1), .drag)
+        XCTAssertEqual(FloatingPanel.headerClickAction(forClickCount: 2), .resetPosition)
+        XCTAssertEqual(
+            FloatingPanel.headerClickAction(forClickCount: 3), .resetPosition,
+            "A chained third click must not enter the drag loop"
+        )
+        XCTAssertEqual(FloatingPanel.headerClickAction(forClickCount: 4), .resetPosition)
+    }
+
+    /// The panel frame can move under a stationary click (reset/resize runs
+    /// setFrame(animate: true)). Persisting that movement as a drag would
+    /// resurrect the saved position the reset just cleared.
+    func testAnimationMovementAloneDoesNotPersistAsDrag() {
+        XCTAssertFalse(
+            FloatingPanel.shouldPersistDrag(sawDragEvents: false, originMoved: true),
+            "Frame moved by animation, not the user — must not save"
+        )
+        XCTAssertTrue(FloatingPanel.shouldPersistDrag(sawDragEvents: true, originMoved: true))
+        XCTAssertFalse(FloatingPanel.shouldPersistDrag(sawDragEvents: true, originMoved: false))
+        XCTAssertFalse(FloatingPanel.shouldPersistDrag(sawDragEvents: false, originMoved: false))
     }
 
     // MARK: - Navigate shortcut opens on mouse screen (regression for #69)

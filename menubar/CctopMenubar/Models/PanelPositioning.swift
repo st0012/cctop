@@ -125,12 +125,14 @@ struct PanelGeometryModel {
     /// Resolve where the panel lands on double-click reset.
     func resetFrame(
         anchorRect: NSRect?,
+        menubarIconRect: NSRect? = nil,
         panelScreenIndex: Int?,
         panelSize: NSSize,
         screens: [ScreenLayout]
     ) -> NSRect? {
         PanelPositioning.resolveResetPosition(
             anchorRect: anchorRect,
+            menubarIconRect: menubarIconRect,
             panelScreenIndex: panelScreenIndex,
             panelSize: panelSize,
             screens: screens
@@ -139,7 +141,10 @@ struct PanelGeometryModel {
 
     /// After a screen-parameter change, overwrite the saved position for the
     /// panel's screen with the panel's current (possibly clamped) frame — but
-    /// only if a custom position already exists for that screen key.
+    /// only if a custom position already exists for that screen key. The key
+    /// must be captured before repositioning: if the change snapped the panel
+    /// to another screen, resaving under the landing screen's key would
+    /// overwrite that screen's user-dragged position with the new frame.
     func resaveAfterScreenChange(panelScreenKey: String?, panelFrame: NSRect) {
         guard let key = panelScreenKey, savedPositions()[key] != nil else { return }
         saveCustomPosition(originX: panelFrame.origin.x, topY: panelFrame.maxY, forScreenKey: key)
@@ -251,17 +256,46 @@ enum PanelPositioning {
     }
 
     /// Resolve where to position the panel on double-click reset.
-    /// Same screen as anchor → snap to anchor. Different screen → top-center.
+    /// Same screen as anchor → snap to anchor. Different screen → snap under
+    /// the menubar icon's mirrored position on the panel's screen: the menu
+    /// bar is mirrored on every display, so the icon keeps its offset from
+    /// the screen's right edge. `menubarIconRect` is the icon even when the
+    /// anchor is the notch pill (the pill only exists on the built-in screen).
     static func resolveResetPosition(
         anchorRect: NSRect?,
+        menubarIconRect: NSRect? = nil,
         panelScreenIndex: Int?,
         panelSize: NSSize,
         screens: [ScreenLayout]
     ) -> NSRect? {
         let anchorIdx = anchorRect.flatMap { screenIndex(containing: $0.origin, in: screens) }
 
-        // Center on panel's screen if it differs from the anchor screen
+        // Panel on a different screen than the anchor → stay on the panel's screen
         if let pIdx = panelScreenIndex, pIdx < screens.count, anchorIdx != pIdx {
+            let icon = menubarIconRect ?? anchorRect
+            if let icon, let iconIdx = screenIndex(containing: icon.origin, in: screens) {
+                let iconScreen = screens[iconIdx]
+                let panelScreen = screens[pIdx]
+                // Mirror against the visible-area top, not the frame top:
+                // menu bar heights differ across displays (notched vs not),
+                // and the panel must stay flush under the destination's bar
+                let mirrored = NSRect(
+                    x: panelScreen.frame.maxX - (iconScreen.frame.maxX - icon.minX),
+                    y: panelScreen.visibleFrame.maxY + (icon.minY - iconScreen.visibleFrame.maxY),
+                    width: icon.width,
+                    height: icon.height
+                )
+                if panelScreen.frame.contains(mirrored.origin) {
+                    return resolveAnchorPosition(
+                        anchorRect: mirrored,
+                        clickLocation: nil,
+                        panelSize: panelSize,
+                        screens: screens
+                    )
+                }
+            }
+            // No mirrorable icon, or the mirrored position falls outside the
+            // panel's screen (much narrower display) → top-center fallback
             let vf = screens[pIdx].visibleFrame
             let panelX = max(
                 vf.minX + margin,

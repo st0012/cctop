@@ -224,7 +224,7 @@ final class PanelPositioningTests: XCTestCase {
         XCTAssertLessThan(result!.maxX, primary.frame.maxX)
     }
 
-    func testResetOnDifferentScreenCentersOnPanelScreen() {
+    func testResetOnDifferentScreenSnapsUnderMirroredIcon() {
         let result = PanelPositioning.resolveResetPosition(
             anchorRect: anchorOnPrimary,
             panelScreenIndex: 1,
@@ -232,11 +232,75 @@ final class PanelPositioningTests: XCTestCase {
         )
         XCTAssertNotNil(result)
         XCTAssertGreaterThanOrEqual(result!.origin.x, secondary.frame.minX)
-        XCTAssertEqual(result!.midX, secondary.visibleFrame.midX, accuracy: 1)
+        // The menu bar is mirrored on every display, so the icon keeps its
+        // offset from the right edge — the panel snaps under that, not center
+        let mirroredMidX = secondary.frame.maxX - (primary.frame.maxX - anchorOnPrimary.midX)
+        let expectedX = min(
+            mirroredMidX - panelSize.width / 2,
+            secondary.visibleFrame.maxX - panelSize.width - margin
+        )
+        XCTAssertEqual(result!.origin.x, expectedX, accuracy: 1)
+        XCTAssertEqual(result!.maxY, anchorOnPrimary.minY - margin, accuracy: 1)
+        XCTAssertNotEqual(
+            result!.midX, secondary.visibleFrame.midX,
+            "Reset must snap under the mirrored icon, not center on the screen"
+        )
+    }
+
+    func testResetOnDifferentScreenMirrorsIconRectNotPillAnchor() {
+        // Notch pill anchor near the middle of the primary screen; the real
+        // menubar icon at the right edge is what's visible on other displays
+        let pillAnchor = NSRect(x: 980, y: 1056, width: 160, height: 24)
+        let result = PanelPositioning.resolveResetPosition(
+            anchorRect: pillAnchor,
+            menubarIconRect: anchorOnPrimary,
+            panelScreenIndex: 1,
+            panelSize: panelSize, screens: screens
+        )
+        XCTAssertNotNil(result)
+        let mirroredMidX = secondary.frame.maxX - (primary.frame.maxX - anchorOnPrimary.midX)
+        let expectedX = min(
+            mirroredMidX - panelSize.width / 2,
+            secondary.visibleFrame.maxX - panelSize.width - margin
+        )
         XCTAssertEqual(
-            result!.maxY,
-            secondary.visibleFrame.maxY - margin,
-            accuracy: 1
+            result!.origin.x, expectedX, accuracy: 1,
+            "Cross-screen reset must mirror the icon, not the pill"
+        )
+    }
+
+    func testResetOnDifferentScreenMirrorsIconOffsetUnclamped() {
+        // Icon far enough from the right edge that the clamp doesn't engage,
+        // asserting the mirror arithmetic itself
+        let innerIcon = NSRect(x: 1600, y: 1058, width: 40, height: 22)
+        let result = PanelPositioning.resolveResetPosition(
+            anchorRect: innerIcon,
+            panelScreenIndex: 1,
+            panelSize: panelSize, screens: screens
+        )
+        XCTAssertNotNil(result)
+        let mirroredMidX = secondary.frame.maxX - (primary.frame.maxX - innerIcon.midX)
+        XCTAssertEqual(result!.origin.x, mirroredMidX - panelSize.width / 2, accuracy: 1)
+        XCTAssertEqual(result!.maxY, innerIcon.minY - margin, accuracy: 1)
+    }
+
+    func testResetMirrorKeepsPanelBelowTallerMenubar() {
+        // Destination screen has a taller menu bar (e.g. notched display);
+        // the mirrored anchor must track the visible-area top, not frame top
+        let notched = ScreenLayout(
+            frame: NSRect(x: 1920, y: 0, width: 1920, height: 1080),
+            visibleFrame: NSRect(x: 1920, y: 0, width: 1920, height: 1042),
+            key: "notched"
+        )
+        let result = PanelPositioning.resolveResetPosition(
+            anchorRect: anchorOnPrimary,
+            panelScreenIndex: 1,
+            panelSize: panelSize, screens: [primary, notched]
+        )
+        XCTAssertNotNil(result)
+        XCTAssertLessThanOrEqual(
+            result!.maxY, notched.visibleFrame.maxY,
+            "Panel must stay below the destination screen's menu bar"
         )
     }
 
