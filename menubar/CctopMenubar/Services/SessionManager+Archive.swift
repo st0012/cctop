@@ -47,6 +47,7 @@ struct SessionDataSources {
 
 struct SessionVisibilitySnapshot {
     let archivedCodexThreadIDs: Set<String>
+    let missingCodexDesktopThreadIDs: Set<String>
     let codexSubagentThreadIDs: Set<String>
     let codexExecHelperThreadIDs: Set<String>
     let archivedClaudeSessionIDs: Set<String>
@@ -85,6 +86,7 @@ extension SessionManager {
         codexThreads: any CodexThreadStateProviding
     ) -> SessionVisibilitySnapshot {
         let archivedCodexThreadIDs = archivedCodexDesktopThreadIDs(in: sessions, codexThreads: codexThreads)
+        let missingCodexDesktopThreadIDs = missingCodexDesktopThreadIDs(in: sessions, codexThreads: codexThreads)
         let codexSubagentThreadIDs = codexSubagentThreadIDs(in: sessions, codexThreads: codexThreads)
         let codexExecHelperThreadIDs = codexExecHelperThreadIDs(in: sessions, codexThreads: codexThreads)
         let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
@@ -93,6 +95,7 @@ extension SessionManager {
         }
         let liveCandidates = candidates.filter {
             !isArchivedCodexDesktopSession($0.session, archivedThreadIDs: archivedCodexThreadIDs)
+                && !isMissingCodexDesktopSession($0.session, missingThreadIDs: missingCodexDesktopThreadIDs)
                 && !isCodexSubagentSession($0.session, subagentThreadIDs: codexSubagentThreadIDs)
                 && !isCodexExecHelperSession($0.session, execHelperThreadIDs: codexExecHelperThreadIDs)
                 && !isArchivedClaudeDesktopSession($0.session, archivedSessionIDs: archivedClaudeSessionIDs)
@@ -100,6 +103,7 @@ extension SessionManager {
         }
         return SessionVisibilitySnapshot(
             archivedCodexThreadIDs: archivedCodexThreadIDs,
+            missingCodexDesktopThreadIDs: missingCodexDesktopThreadIDs,
             codexSubagentThreadIDs: codexSubagentThreadIDs,
             codexExecHelperThreadIDs: codexExecHelperThreadIDs,
             archivedClaudeSessionIDs: archivedClaudeSessionIDs,
@@ -127,6 +131,30 @@ extension SessionManager {
         archivedThreadIDs: Set<String>
     ) -> Bool {
         session.isCodexDesktopHost && archivedThreadIDs.contains(session.sessionId)
+    }
+
+    /// Codex Desktop sessions should correspond to a Codex thread row. If the thread store is
+    /// readable and the row is gone, the app should not publish the stale hook session.
+    nonisolated static func missingCodexDesktopThreadIDs(
+        in sessions: [Session],
+        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
+    ) -> Set<String> {
+        let threadIDs = Set(
+            sessions
+                .filter { $0.source == Session.codexSource && $0.isCodexDesktopHost }
+                .map(\.sessionId)
+        )
+        guard let existingThreadIDs = codexThreads.existingThreadIDs(matching: threadIDs) else { return [] }
+        return threadIDs.subtracting(existingThreadIDs)
+    }
+
+    nonisolated static func isMissingCodexDesktopSession(
+        _ session: Session,
+        missingThreadIDs: Set<String>
+    ) -> Bool {
+        session.source == Session.codexSource
+            && session.isCodexDesktopHost
+            && missingThreadIDs.contains(session.sessionId)
     }
 
     /// Codex records whether a thread is user-owned or subagent-owned in its local thread

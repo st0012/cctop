@@ -64,6 +64,7 @@ extension SessionManager {
             "loadSessions: \(summary.live) visible candidates, \(summary.hidden) hidden, \(summary.autoHidden) auto-hidden"
         )
         sessionManagerLogger.info("loadSessions: \(visibility.archivedCodexThreadIDs.count) codex-archived")
+        sessionManagerLogger.info("loadSessions: \(visibility.missingCodexDesktopThreadIDs.count) codex-missing-state")
         sessionManagerLogger.info("loadSessions: \(visibility.codexSubagentThreadIDs.count) codex-subagent")
         sessionManagerLogger.info("loadSessions: \(visibility.codexExecHelperThreadIDs.count) codex-exec-helper")
         sessionManagerLogger.info("loadSessions: \(visibility.archivedClaudeSessionIDs.count) claude-archived")

@@ -3,9 +3,10 @@ import SQLite3
 
 /// Read-side seam over Codex's local thread state. `CodexThreadArchiveLookup` is the live
 /// SQLite-backed implementation; tests substitute in-memory stubs so visibility and archive
-/// logic can run without a database on disk. All methods share the lookup's nil contract:
-/// `nil` means "the store exists but could not be read" (callers fail safe or open per site).
+/// logic can run without a database on disk. `nil` means the lookup could not prove an answer,
+/// either because the store was unreadable or because absence is intentionally treated as unknown.
 protocol CodexThreadStateProviding {
+    func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
     func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
     func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
     func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
@@ -17,6 +18,13 @@ struct CodexThreadArchiveLookup {
 
     init(stateDatabasePath: String = Config.codexStateDatabasePath()) {
         self.stateDatabasePath = stateDatabasePath
+    }
+
+    /// Returns the subset of `threadIDs` present in Codex's thread state. Unlike archive
+    /// lookups, a missing database is unknown rather than proof of absence, so callers
+    /// should fail OPEN when this returns `nil`.
+    func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        matchingThreadIDs(matching: threadIDs, whereClause: "1 = 1", missingDatabaseResult: nil)
     }
 
     /// Returns the subset of `threadIDs` that Codex has archived, or `nil` when the database
@@ -145,9 +153,13 @@ struct CodexThreadArchiveLookup {
         }
     }
 
-    private func matchingThreadIDs(matching threadIDs: Set<String>, whereClause predicate: String) -> Set<String>? {
+    private func matchingThreadIDs(
+        matching threadIDs: Set<String>,
+        whereClause predicate: String,
+        missingDatabaseResult: Set<String>? = []
+    ) -> Set<String>? {
         guard !threadIDs.isEmpty else { return [] }
-        guard FileManager.default.fileExists(atPath: stateDatabasePath) else { return [] }
+        guard FileManager.default.fileExists(atPath: stateDatabasePath) else { return missingDatabaseResult }
 
         var database: OpaquePointer?
         let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX

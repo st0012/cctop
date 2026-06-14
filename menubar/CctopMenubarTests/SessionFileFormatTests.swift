@@ -612,6 +612,51 @@ final class SessionFileFormatTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionManagerFiltersCodexDesktopSessionsMissingFromReadableStateWithoutRemovingFiles() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-missing-state-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: ["visible-thread"])
+
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let missingPath = (sessionsDir as NSString).appendingPathComponent("codex-missing-thread.json")
+        let visiblePath = (sessionsDir as NSString).appendingPathComponent("codex-visible-thread.json")
+        try codexDesktopSession(
+            sessionId: "missing-thread",
+            projectPath: (root as NSString).appendingPathComponent("projects/probe")
+        ).writeToFile(path: missingPath)
+        try codexDesktopSession(
+            sessionId: "visible-thread",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        ).writeToFile(path: visiblePath)
+        FileManager.default.createFile(atPath: missingPath + ".lock", contents: nil)
+        FileManager.default.createFile(atPath: visiblePath + ".lock", contents: nil)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in true }
+        )
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["visible-thread"])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: missingPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: missingPath + ".lock"))
+        XCTAssertFalse(try Session.fromFile(path: missingPath).hidden)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: visiblePath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: visiblePath + ".lock"))
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+    }
+
+    @MainActor
     func testSessionManagerKeepsUserVisibleCodexExecThreads() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-user-exec-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
@@ -693,7 +738,7 @@ final class SessionFileFormatTests: XCTestCase {
         let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
-        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: ["parent-thread"])
 
         setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
         defer {
@@ -841,10 +886,16 @@ final class SessionFileFormatTests: XCTestCase {
         let root = NSTemporaryDirectory() + "cctop-codex-dedup-cleanup-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
         let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: ["conv-a"])
 
-        defer { try? FileManager.default.removeItem(atPath: root) }
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
 
         var oldPidKeyed = Session(
             sessionId: "conv-a", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo()
@@ -902,7 +953,7 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
 
-        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: ["archived-thread"])
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-thread"])
@@ -1632,10 +1683,16 @@ final class SessionFileFormatTests: XCTestCase {
         let root = NSTemporaryDirectory() + "cctop-desktop-reconnected-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
         let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: ["s"])
 
-        defer { try? FileManager.default.removeItem(atPath: root) }
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
 
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-reconnected.json")
         var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
@@ -1663,10 +1720,16 @@ final class SessionFileFormatTests: XCTestCase {
         let root = NSTemporaryDirectory() + "cctop-ended-desktop-running-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
         let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: ["s"])
 
-        defer { try? FileManager.default.removeItem(atPath: root) }
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
 
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-ended.json")
         var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
@@ -2091,10 +2154,15 @@ final class SessionFileFormatTests: XCTestCase {
 /// In-memory stand-in for Codex's thread state database, so visibility and archive logic can be
 /// exercised without SQLite fixtures on disk. Set a field to `nil` to simulate an unreadable store.
 private struct StubCodexThreadState: CodexThreadStateProviding {
+    var existing: Set<String>? = nil
     var archived: Set<String>? = []
     var subagents: Set<String>? = []
     var execHelpers: Set<String>? = []
     var projectNamesByThreadID: [String: String]? = [:]
+
+    func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        existing.map { $0.intersection(threadIDs) }
+    }
 
     func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
         archived.map { $0.intersection(threadIDs) }
