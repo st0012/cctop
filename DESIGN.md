@@ -73,9 +73,10 @@ variants. The Swift app exposes them via the semantic token API in
 | Idle               | `statusIdle`                                               | Quiet / dimmed (muted family)                    |
 | Compacting         | (reuses `agentBadge`)                                      | Context compaction in progress (purple family)   |
 | Subagent badge     | `agentBadge`                                               | Active subagent count (purple family)            |
-| Source: opencode   | `opencodeBadge`                                            | Blue family across themes                        |
-| Source: pi         | `piBadge`                                                  | Teal family across themes                        |
-| Source: codex      | `codexBadge`                                               | Gold/bronze family across themes                 |
+| Session source     | `textMuted`                                                | Quiet harness/source metadata                    |
+| Integration: opencode | `opencodeBadge`                                         | Setup/install accents, blue family across themes |
+| Integration: pi    | `piBadge`                                                  | Setup/install accents, teal family across themes |
+| Integration: codex | `codexBadge`                                               | Setup/install accents, gold/bronze family        |
 | Primary text       | `textPrimary`                                              | Project names, header titles                     |
 | Secondary text     | `textSecondary`                                            | Branch, meta, "Working" status label             |
 | Muted text         | `textMuted`                                                | Timestamps, idle status, footer                  |
@@ -287,12 +288,12 @@ glance at it from peripheral vision.
 | **Row 1 — title**         | 14 px semibold · `textPrimary` (`textSecondary` when idle)     |
 | Navigate chip (row 1 lead)| 16×16 status-colored square, 3 px radius, white digit (1–9)   |
 | Subagent count            | 10 px · `agentBadge` (purple)                                  |
-| Status label              | 10.5 px semibold · status-tinted; "Waiting" / "Permission" rendered as a static rounded pill (`statusAttention` bg 0.10, no pulse) |
+| Status label              | 10.5 px medium. Idle/Dormant use `textMuted`; Working/Waiting/Compacting use a 5 px status dot plus neutral `textSecondary` text; Permission uses a static outlined `statusPermission` pill. |
 | Timestamp                 | 10 px · refreshed by the shared 10 s `PopupView` relative-time timer, never by row-local timers. "Just now" (≤ 5 s) → `statusGreen`; > 7 d → `textMuted` at 0.55 |
 | **Row 2 — meta (CLI)**    | `folder · branch · source` — folder shown only when `sessionName != projectName`. Branch 10 px monospaced, separators muted dots. |
-| **Row 2 — meta (Desktop)**| Source badge only. Folder + branch are dropped because Desktop sessions often run in auto-generated worktree dirs (`focused-dirac-1baeb9`) and the wider "Claude Desktop" chip causes wrapping when combined with them. |
-| **Row 3 — working**       | Static monospace command stripe with `›` prompt (`statusGreen` @ 0.7) + `Session.contextLine`; no trailing indicator or per-row animation |
-| **Row 3 — waiting**       | Italic `statusAttention` note: `notificationMessage ?? contextLine ?? "Waiting for input"` |
+| **Row 2 — meta (Desktop)**| `desktopProjectName · source`. Folder + branch are dropped because Desktop sessions often run in auto-generated worktree dirs (`focused-dirac-1baeb9`); project name is 11.5 px medium `textSecondary`, source is quiet metadata. |
+| **Row 3 — working**       | Monospace command stripe with `›` prompt (`statusGreen` @ 0.7) + `Session.contextLine`; no blinking caret. |
+| **Row 3 — waiting**       | 10.5 px `textSecondary` note: `notificationMessage ?? contextLine ?? "Waiting for input"`. Permission notes remain 11 px italic `statusAttention`. |
 | Selected / hover          | `cardSelectionStyle` overlay (no shadow)                       |
 | Source badge visibility   | Shown only when `Set(sessions.map(\.agentBadge)).count > 1` (keyed on `agentBadge`, not `sourceLabel`, so CC + Claude Desktop counts as multiple sources) |
 
@@ -300,14 +301,14 @@ glance at it from peripheral vision.
 
 | Variant         | Render                                  | Color token              |
 |-----------------|-----------------------------------------|--------------------------|
-| `cc`            | Bare uppercase text                     | `amber` (accent)         |
-| `claudeDesktop` | Filled chip with leading `✦` marker     | `claudeDesktopBadge`     |
-| `codex`         | Bare uppercase text                     | `codexBadge`             |
-| `codexDesktop`  | Filled chip with leading `✦` marker     | `codexDesktopBadge`      |
-| `opencode`      | Bare uppercase text ("OC")              | `opencodeBadge`          |
-| `pi`            | Bare uppercase text ("Pi")              | `piBadge`                |
+| `cc`            | Bare uppercase text                     | `textMuted` @ 0.82       |
+| `claudeDesktop` | Bare full app label                     | `textMuted` @ 0.82       |
+| `codex`         | Bare uppercase text                     | `textMuted` @ 0.82       |
+| `codexDesktop`  | Bare full app label                     | `textMuted` @ 0.82       |
+| `opencode`      | Bare uppercase text ("OC")              | `textMuted` @ 0.82       |
+| `pi`            | Bare title-case text ("Pi")             | `textMuted` @ 0.82       |
 
-CLI = bare text, Desktop = filled chip. The `✦` marker mirrors `HostApp.sfSymbol`'s `"sparkles"` for Desktop apps elsewhere in the app. Classification logic lives in `Session.agentBadge` (`Models/AgentBadge.swift`).
+All source labels render as neutral metadata so the project name and session state stay primary. Classification logic lives in `Session.agentBadge` (`Models/AgentBadge.swift`).
 
 ### Header bar (`HeaderView.swift`)
 
@@ -760,9 +761,10 @@ Site serif:  'Instrument Serif', ui-serif, Georgia
 ### Type ladder (app)
 
 ```
-9   source badge
-10  branch (mono), timestamp, status label, segment label
-11  settings label, context line, shortcut badge (mono)
+9.5 source badge
+10  branch (mono), timestamp, segment label
+10.5 status label, waiting note, context line
+11  settings label, permission note, shortcut badge (mono)
 12  empty state, banner body
 13  project name (medium), header title (semibold)
 ```

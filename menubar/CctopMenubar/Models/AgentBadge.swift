@@ -22,8 +22,7 @@ enum AgentBadge: Equatable {
         }
     }
 
-    /// Desktop variants render as a filled chip with a ✦ sparkle marker.
-    /// CLI variants render as bare brand-colored text.
+    /// Desktop variants keep their full app label and desktop-specific layout behavior.
     var isDesktop: Bool {
         switch self {
         case .claudeDesktop, .codexDesktop: return true

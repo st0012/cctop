@@ -64,15 +64,14 @@ struct SessionCardView: View {
     @ViewBuilder
     private var metaRow: some View {
         // For Desktop sessions, folder + branch are usually noise (worktree dirs,
-        // "unknown" branches), and the long "Claude Desktop" chip causes the row
-        // to wrap when combined with them. Show only the Desktop app's own project
-        // label plus the source badge.
+        // "unknown" branches). Show only the Desktop app's own project label plus
+        // quiet source metadata.
         if session.agentBadge.isDesktop {
             if session.desktopProjectName != nil || showSourceBadge {
                 HStack(spacing: 5) {
                     if let desktopProjectName = session.desktopProjectName {
                         Text(desktopProjectName)
-                            .font(.system(size: 11))
+                            .font(.system(size: 11.5, weight: .medium))
                             .foregroundStyle(Color.textSecondary)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -134,9 +133,9 @@ struct SessionCardView: View {
             .padding(.top, 3)
         } else if let note = attentionNoteText {
             Text(note)
-                .font(.system(size: 11))
-                .italic()
-                .foregroundStyle(Color.statusAttention)
+                .font(.system(size: session.status == .waitingPermission ? 11 : 10.5))
+                .italic(session.status == .waitingPermission)
+                .foregroundStyle(attentionNoteColor)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .padding(.top, 3)
@@ -145,53 +144,60 @@ struct SessionCardView: View {
 
     // MARK: - Status label
 
+    @ViewBuilder
     private var statusLabel: some View {
-        Text(statusLabelText)
-            .font(.system(size: 10.5, weight: statusLabelWeight))
-            .foregroundStyle(statusLabelColor)
-            .padding(.horizontal, isAttentionStatus ? 6 : 0)
-            .padding(.vertical, isAttentionStatus ? 1.5 : 0)
-            .background {
-                if isAttentionStatus {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.statusAttention.opacity(0.10))
-                }
+        if session.lifecycle == .dormant {
+            statusText("Dormant", color: Color.textMuted)
+        } else {
+            switch session.status {
+            case .idle:
+                statusText("Idle", color: Color.textMuted)
+            case .working:
+                statusDotLabel("Working", dotColor: Color.statusGreen)
+            case .compacting:
+                statusDotLabel("Compacting", dotColor: Color.agentBadge)
+            case .waitingPermission:
+                permissionStatusLabel
+            case .waitingInput, .needsAttention:
+                statusDotLabel("Waiting", dotColor: Color.statusAttention)
             }
-    }
-
-    private var statusLabelText: String {
-        if session.lifecycle == .dormant { return "Dormant" }
-        switch session.status {
-        case .idle: return "Idle"
-        case .working: return "Working"
-        case .compacting: return "Compacting"
-        case .waitingPermission: return "Permission"
-        case .waitingInput, .needsAttention: return "Waiting"
         }
     }
 
-    private var statusLabelWeight: Font.Weight {
-        switch session.status {
-        case .working, .waitingInput, .needsAttention, .waitingPermission: return .semibold
-        case .compacting, .idle: return .medium
-        }
+    private func statusText(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 10.5, weight: .medium))
+            .foregroundStyle(color)
+            .fixedSize(horizontal: true, vertical: false)
     }
 
-    private var statusLabelColor: Color {
-        switch session.status {
-        case .waitingPermission: return Color.statusPermission
-        case .waitingInput, .needsAttention: return Color.statusAttention
-        case .working: return Color.statusGreen
-        case .compacting: return Color.textSecondary
-        case .idle: return Color.textMuted
+    private func statusDotLabel(_ text: String, dotColor: Color) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: 5, height: 5)
+            Text(text)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(Color.textSecondary)
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
-    private var isAttentionStatus: Bool {
-        switch session.status {
-        case .waitingInput, .needsAttention, .waitingPermission: return true
-        default: return false
-        }
+    private var permissionStatusLabel: some View {
+        Text("Permission")
+            .font(.system(size: 10.5, weight: .semibold))
+            .foregroundStyle(Color.statusPermission)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1.5)
+            .background {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.statusPermission.opacity(0.08))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(Color.statusPermission.opacity(0.28), lineWidth: 1)
+            }
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     // MARK: - Navigate chip
@@ -218,7 +224,7 @@ struct SessionCardView: View {
         return session.contextLine
     }
 
-    /// Italic warm note for waiting/permission/needs-attention states.
+    /// Context note for waiting/permission/needs-attention states.
     private var attentionNoteText: String? {
         switch session.status {
         case .waitingPermission:
@@ -228,6 +234,10 @@ struct SessionCardView: View {
         default:
             return nil
         }
+    }
+
+    private var attentionNoteColor: Color {
+        session.status == .waitingPermission ? Color.statusAttention : Color.textSecondary
     }
 
     private var timeColor: Color {
@@ -294,6 +304,19 @@ struct SessionCardView: View {
             sessionName: "Verify migration safety",
             status: .waitingPermission,
             notificationMessage: "Allow Bash: rm -rf node_modules",
+            source: "cc"
+        ),
+        showSourceBadge: true
+    )
+    .frame(width: 340).padding()
+}
+
+#Preview("Waiting — Input") {
+    SessionCardView(
+        session: .mock(
+            sessionName: "Investigate staging deploy regression",
+            status: .waitingInput,
+            lastPrompt: "Should we retry failed imports or surface the error?",
             source: "cc"
         ),
         showSourceBadge: true
