@@ -19,6 +19,7 @@ class SessionManager: ObservableObject {
     private var debounceTask: DispatchWorkItem?
     private var livenessTimer: Timer?
     private var gcTimer: Timer?
+    private var lastDisplaySignature = SessionDisplayPolicy.Signature.empty
 
     /// Lifecycle windows: desktop app liveness decides connection when available; `active` is the
     /// fallback recency threshold and `retention` controls dormant desktop cleanup.
@@ -62,6 +63,7 @@ class SessionManager: ObservableObject {
             includingPropertiesForKeys: [.contentModificationDateKey]
         ) else {
             sessionManagerLogger.warning("loadSessions: could not read directory")
+            lastDisplaySignature = .empty
             sessions = []
             return
         }
@@ -88,23 +90,27 @@ class SessionManager: ObservableObject {
 
         // Publish active + dormant; finished are hidden (swept below / by GC).
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(liveCandidates)
+        let now = dataSources.now()
         let newSessions = winners
             .filter { $0.session.lifecycle != .finished }
             .map { adjustDisplayStatus($0.session) }
+        let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
 
         sendTransitionNotifications(for: newSessions, oldStatuses: oldStatuses)
-        // Only publish when data actually changed to avoid unnecessary SwiftUI re-renders.
-        if newSessions != sessions {
+        // Only publish when data actually changed, or when the presentation bucket changed
+        // because an active idle session crossed the stale-idle threshold.
+        if newSessions != sessions || displaySignature != lastDisplaySignature {
             if newSessions.count != sessions.count {
                 sessionManagerLogger.info("loadSessions: session count \(self.sessions.count) -> \(newSessions.count)")
             }
+            lastDisplaySignature = displaySignature
             sessions = newSessions
         }
 
         hideAutoHiddenSessions(autoHidden)
         hideCodexSubagentSessions(visibility.codexSubagentCandidates)
-        clearReconnectedDesktopSessions(liveCandidates, now: dataSources.now())
-        stampDisconnectedDesktopSessions(liveCandidates, now: dataSources.now())
+        clearReconnectedDesktopSessions(liveCandidates, now: now)
+        stampDisconnectedDesktopSessions(liveCandidates, now: now)
 
         // Non-desktop finished sessions keep today's behavior: archive to Recent Projects and
         // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped

@@ -14,6 +14,40 @@ final class StatusCountsSessionInitTests: XCTestCase {
         XCTAssertEqual(counts.working, 0)
     }
 
+    func testFreshActiveIdle_countsAsIdle() {
+        let now = Date()
+        var session = Session.mock(status: .idle)
+        session.lifecycle = .active
+        session.lastActivity = now.addingTimeInterval(-SessionDisplayPolicy.staleIdleInterval + 60)
+
+        let counts = StatusCounts(sessions: [session], now: now)
+
+        XCTAssertEqual(counts.idle, 1)
+        XCTAssertEqual(counts.total, 1)
+    }
+
+    func testStaleActiveIdle_isExcludedFromCounts() {
+        let now = Date()
+        var session = Session.mock(status: .idle)
+        session.lifecycle = .active
+        session.lastActivity = now.addingTimeInterval(-SessionDisplayPolicy.staleIdleInterval - 60)
+
+        let counts = StatusCounts(sessions: [session], now: now)
+
+        XCTAssertEqual(counts.idle, 0)
+        XCTAssertEqual(counts.total, 0)
+    }
+
+    func testDormantSession_isExcludedFromCounts() {
+        var session = Session.mock(status: .waitingPermission)
+        session.lifecycle = .dormant
+
+        let counts = StatusCounts(sessions: [session])
+
+        XCTAssertEqual(counts.permission, 0)
+        XCTAssertEqual(counts.total, 0)
+    }
+
     func testWorking_countsAsWorking() {
         let sessions = [Session.mock(status: .working)]
         let counts = StatusCounts(sessions: sessions)

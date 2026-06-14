@@ -1,3 +1,5 @@
+import Foundation
+
 /// Aggregated session status counts used by the menubar icon, notch pill, and accessibility labels.
 struct StatusCounts: Equatable {
     /// Semantic identity of a status-bar segment. Renderers resolve the
@@ -24,11 +26,11 @@ struct StatusCounts: Equatable {
     }
 
     /// Create counts by aggregating session statuses.
-    init(sessions: [Session]) {
+    init(sessions: [Session], now: Date = Date()) {
         var perm = 0, attn = 0, work = 0, idleCount = 0
-        // Only live (active) sessions drive the menubar badge. Dormant cards are reachable
-        // history, not live work, so they never inflate counts or trigger the attention pill.
-        for session in sessions where session.lifecycle == .active {
+        // Only presentation-active sessions drive the menubar badge. Dormant and stale-idle
+        // cards are retained for reachability, not live work, so they never inflate counts.
+        for session in SessionDisplayPolicy.activeSessions(from: sessions, now: now) {
             switch session.status {
             case .idle: idleCount += 1
             case .working, .compacting: work += 1

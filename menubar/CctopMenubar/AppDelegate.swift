@@ -481,7 +481,7 @@ extension AppDelegate {
                     lastExternalApp = prev
                 }
             case .startNavigateMode:
-                navigateController.activate(sessions: sessionManager.sessions)
+                navigateController.activate(sessions: SessionDisplayPolicy.activeSessions(from: sessionManager.sessions))
                 navigateController.startTimeout { [weak self] in
                     self?.handleEvent(.navigateTimedOut)
                 }

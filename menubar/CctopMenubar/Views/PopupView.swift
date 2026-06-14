@@ -3,7 +3,7 @@ import KeyboardShortcuts
 import SwiftUI
 
 enum PopupTab {
-    case active, recent
+    case active, idle, recent
 }
 
 private let overlayAnimationDuration: TimeInterval = 0.2
@@ -37,7 +37,7 @@ struct PopupView: View {
         pluginManager.piConfigExists && !pluginManager.piInstalled && !piBannerDismissed
     }
 
-    private var showTabs: Bool { !recentProjects.isEmpty }
+    private var showTabs: Bool { availableTabs.count > 1 }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -51,6 +51,7 @@ struct PopupView: View {
                 Group {
                     switch selectedTab {
                     case .active: activeContent
+                    case .idle: idleContent
                     case .recent: recentContent
                     }
                 }
@@ -76,7 +77,7 @@ struct PopupView: View {
         }
         .onReceive(navigate?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
-            if selectedTab == .recent { selectedTab = .active }
+            if selectedTab != .active { selectedTab = .active }
             if overlayController.active != nil { closeOverlay(animated: false) }
         }
         .onReceive(navigate?.navActionSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { action in
@@ -84,15 +85,24 @@ struct PopupView: View {
             handleNavAction(action)
         }
         .onChange(of: selectedTab) { _ in selectedIndex = nil }
-        .onAppear { selectedTab = initialTab }
+        .onChange(of: sessions) { _ in ensureSelectedTabAvailable() }
+        .onChange(of: recentProjects.map(\.id)) { _ in ensureSelectedTabAvailable() }
+        .onAppear {
+            selectedTab = availableTabs.contains(initialTab) ? initialTab : .active
+        }
     }
 
     // MARK: - Tab picker
 
     private var tabPicker: some View {
         HStack(spacing: 6) {
-            tabButton("Active", count: sessions.count, tab: .active)
-            tabButton("Recent", count: recentProjects.count, tab: .recent)
+            tabButton("Active", count: sortedActiveSessions.count, tab: .active)
+            if !sortedIdleSessions.isEmpty {
+                tabButton("Idle", count: sortedIdleSessions.count, tab: .idle)
+            }
+            if !recentProjects.isEmpty {
+                tabButton("Recent", count: recentProjects.count, tab: .recent)
+            }
             Spacer()
         }
         .padding(.horizontal, 12)
@@ -111,80 +121,41 @@ struct PopupView: View {
         Group {
             if sessions.isEmpty {
                 EmptyStateView(pluginManager: pluginManager)
+            } else if sortedActiveSessions.isEmpty {
+                noActiveSessionsContent
             } else {
                 VStack(spacing: 0) {
-                if showOcBanner {
-                    ToolInstallBanner(
-                        toolName: "opencode", iconLabel: ">_", iconColor: .blue,
-                        installAction: { pluginManager.installOpenCodePlugin() },
-                        installed: $ocBannerInstalled, dismissed: $ocBannerDismissed)
-                }
-                if showPiBanner {
-                    ToolInstallBanner(
-                        toolName: "pi", iconLabel: "\u{03C0}", iconColor: .green,
-                        installAction: { pluginManager.installPiPlugin() },
-                        installed: $piBannerInstalled, dismissed: $piBannerDismissed)
-                }
-                ScrollViewReader { proxy in
-                    ScrollView(showsIndicators: false) {
-                        LazyVStack(spacing: 0) {
-                            ForEach(Array(sortedSessions.enumerated()), id: \.element.id) { index, session in
-                                if index > 0 && selectedIndex != index && selectedIndex != index - 1 {
-                                    Divider()
-                                        .padding(.horizontal, 16)
-                                }
-                                SessionCardView(
-                                    session: session,
-                                    navigateIndex: isNavigateActive ? index + 1 : nil,
-                                    showSourceBadge: hasMultipleSources,
-                                    isSelected: selectedIndex == index
-                                )
-                                .id(session.id)
-                                .onTapGesture { focusSession(session) }
-                                .contextMenu {
-                                    Button { focusSession(session) } label: {
-                                        Label("Jump to Terminal", systemImage: "terminal")
-                                    }
-                                    Button { openInFinder(path: session.projectPath) } label: {
-                                        Label("Open in Finder", systemImage: "folder")
-                                    }
-                                    Button { copyPath(session.projectPath) } label: {
-                                        Label("Copy Project Path", systemImage: "doc.on.doc")
-                                    }
-                                }
-                                .help("Click to jump to session")
-                            }
-                        }
-                        .padding(.vertical, 4)
+                    if showOcBanner {
+                        ToolInstallBanner(
+                            toolName: "opencode", iconLabel: ">_", iconColor: .blue,
+                            installAction: { pluginManager.installOpenCodePlugin() },
+                            installed: $ocBannerInstalled, dismissed: $ocBannerDismissed)
                     }
-                    .frame(maxHeight: popupContentHeight)
-                    .onChange(of: selectedIndex) { newIndex in
-                        guard selectedTab == .active,
-                              let idx = newIndex, idx < sortedSessions.count else { return }
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            proxy.scrollTo(sortedSessions[idx].id, anchor: .center)
-                        }
+                    if showPiBanner {
+                        ToolInstallBanner(
+                            toolName: "pi", iconLabel: "\u{03C0}", iconColor: .green,
+                            installAction: { pluginManager.installPiPlugin() },
+                            installed: $piBannerInstalled, dismissed: $piBannerDismissed)
                     }
-                }
+                    sessionList(sortedActiveSessions, tab: .active, showNavigateNumbers: true)
                 }
             }
+        }
+    }
+    // MARK: - Idle tab
+    @ViewBuilder
+    private var idleContent: some View {
+        if sortedIdleSessions.isEmpty {
+            noIdleSessionsContent
+        } else {
+            sessionList(sortedIdleSessions, tab: .idle)
         }
     }
     // MARK: - Recent tab
     @ViewBuilder
     private var recentContent: some View {
         if recentProjects.isEmpty {
-            VStack(spacing: 8) {
-                Image(systemName: "clock")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.textMuted)
-                Text("Recent projects will appear here\nafter sessions end")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.textMuted)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
+            emptyPlaceholder(systemImage: "clock", title: "Recent projects will appear here\nafter sessions end")
         } else {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
@@ -227,6 +198,72 @@ struct PopupView: View {
                 }
             }
             .help("Click to open in \(project.lastEditor ?? "editor")")
+    }
+
+    private func sessionList(_ list: [Session], tab: PopupTab, showNavigateNumbers: Bool = false) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(list.enumerated()), id: \.element.id) { index, session in
+                        if index > 0 && selectedIndex != index && selectedIndex != index - 1 {
+                            Divider()
+                                .padding(.horizontal, 16)
+                        }
+                        SessionCardView(
+                            session: session,
+                            navigateIndex: showNavigateNumbers && isNavigateActive ? index + 1 : nil,
+                            showSourceBadge: hasMultipleSources,
+                            isSelected: selectedIndex == index
+                        )
+                        .id(session.id)
+                        .onTapGesture { focusSession(session) }
+                        .contextMenu {
+                            Button { focusSession(session) } label: {
+                                Label("Jump to Terminal", systemImage: "terminal")
+                            }
+                            Button { openInFinder(path: session.projectPath) } label: {
+                                Label("Open in Finder", systemImage: "folder")
+                            }
+                            Button { copyPath(session.projectPath) } label: {
+                                Label("Copy Project Path", systemImage: "doc.on.doc")
+                            }
+                        }
+                        .help("Click to jump to session")
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .frame(maxHeight: popupContentHeight)
+            .onChange(of: selectedIndex) { newIndex in
+                guard selectedTab == tab,
+                      let idx = newIndex, idx < list.count else { return }
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo(list[idx].id, anchor: .center)
+                }
+            }
+        }
+    }
+
+    private var noActiveSessionsContent: some View {
+        emptyPlaceholder(systemImage: "circle.dotted", title: "No active sessions")
+    }
+
+    private var noIdleSessionsContent: some View {
+        emptyPlaceholder(systemImage: "moon", title: "No idle sessions")
+    }
+
+    private func emptyPlaceholder(systemImage: String, title: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 20))
+                .foregroundStyle(Color.textMuted)
+            Text(title)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.textMuted)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 
 }
@@ -312,11 +349,20 @@ extension PopupView {
     }
     private var isNavigateActive: Bool { navigate?.isActive ?? false }
     private var hasMultipleSources: Bool { Set(sessions.map(\.agentBadge)).count > 1 }
-    private var sortedSessions: [Session] {
+    private var sortedActiveSessions: [Session] {
         if isNavigateActive, let frozen = navigate?.frozenSessions, !frozen.isEmpty {
             return frozen
         }
-        return Session.sorted(sessions)
+        return Session.sorted(SessionDisplayPolicy.activeSessions(from: sessions))
+    }
+    private var sortedIdleSessions: [Session] {
+        Session.sorted(SessionDisplayPolicy.idleSessions(from: sessions))
+    }
+    private var availableTabs: [PopupTab] {
+        var tabs: [PopupTab] = [.active]
+        if !sortedIdleSessions.isEmpty { tabs.append(.idle) }
+        if !recentProjects.isEmpty { tabs.append(.recent) }
+        return tabs
     }
 
     private func focusSession(_ session: Session) {
@@ -362,7 +408,12 @@ extension PopupView {
     }
 
     private func moveSelection(by delta: Int) {
-        let count = selectedTab == .active ? sortedSessions.count : recentProjects.count
+        let count: Int
+        switch selectedTab {
+        case .active: count = sortedActiveSessions.count
+        case .idle: count = sortedIdleSessions.count
+        case .recent: count = recentProjects.count
+        }
         guard count > 0 else { return }
         selectedIndex = selectedIndex.map { ($0 + delta + count) % count } ?? (delta > 0 ? 0 : count - 1)
     }
@@ -371,8 +422,11 @@ extension PopupView {
         guard let index = selectedIndex else { return }
         switch selectedTab {
         case .active:
-            guard index < sortedSessions.count else { return }
-            focusSession(sortedSessions[index])
+            guard index < sortedActiveSessions.count else { return }
+            focusSession(sortedActiveSessions[index])
+        case .idle:
+            guard index < sortedIdleSessions.count else { return }
+            focusSession(sortedIdleSessions[index])
         case .recent:
             guard index < recentProjects.count else { return }
             openInEditor(project: recentProjects[index])
@@ -385,11 +439,31 @@ extension PopupView {
 
     private func switchTab(to action: PanelNavAction) {
         guard showTabs else { return }
-        let newTab: PopupTab = action == .previousTab ? .active : action == .nextTab ? .recent
-            : (selectedTab == .active ? .recent : .active)
+        let tabs = availableTabs
+        guard let currentIndex = tabs.firstIndex(of: selectedTab) else {
+            selectedTab = .active
+            return
+        }
+        let newIndex: Int
+        switch action {
+        case .previousTab:
+            newIndex = (currentIndex - 1 + tabs.count) % tabs.count
+        case .nextTab, .toggleTab:
+            newIndex = (currentIndex + 1) % tabs.count
+        default:
+            return
+        }
+        let newTab = tabs[newIndex]
         guard newTab != selectedTab else { return }
         if overlayController.active != nil { closeOverlay(animated: true) }
         withAnimation(.easeInOut(duration: 0.15)) { selectedTab = newTab }
         notifyLayoutChanged()
+    }
+
+    private func ensureSelectedTabAvailable() {
+        guard availableTabs.contains(selectedTab) else {
+            selectedTab = .active
+            return
+        }
     }
 }
