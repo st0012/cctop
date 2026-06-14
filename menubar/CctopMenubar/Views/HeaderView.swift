@@ -95,7 +95,7 @@ struct HeaderView: View {
             StatusChip(count: counts.permission, color: Color.statusPermission, categoryLabel: "need permission")
             StatusChip(count: counts.attention, color: Color.statusAttention, categoryLabel: "need attention")
             StatusChip(count: counts.working, color: Color.statusGreen, categoryLabel: "working")
-            StatusChip(count: counts.idle, color: Color.textMuted, categoryLabel: "idle")
+            StatusChip(count: counts.idle, color: Color.statusIdle, categoryLabel: "idle")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)

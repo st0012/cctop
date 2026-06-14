@@ -49,6 +49,13 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
     var segmentBackground: ColorPair { Self.sharedSegBg }
     var settingsBackground: ColorPair { Self.sharedCard }
     var settingsBorder: ColorPair { Self.sharedBorder }
+    var panelMaterialOverlay: ColorPair { Self.sharedPanelMaterialOverlay }
+    var panelControlBackground: ColorPair { Self.sharedPanelControlBackground }
+    var panelControlBorder: ColorPair { Self.sharedPanelControlBorder }
+    var panelSelectionBackground: ColorPair { Self.selectionBackgrounds[self]! }
+    var groupedContentBackground: ColorPair { Self.sharedGroupedContentBackground }
+    var groupedRowBackground: ColorPair { Self.sharedGroupedRowBackground }
+    var groupedRowBorder: ColorPair { Self.sharedGroupedRowBorder }
 }
 
 // MARK: - Color tables
@@ -63,9 +70,27 @@ private extension AppTheme {
     static let sharedSegBg = ColorPair(
         dark: NSColor(white: 1, alpha: 0.06), light: NSColor(white: 0, alpha: 0.04)
     )
+    static let sharedPanelMaterialOverlay = ColorPair(
+        dark: NSColor(white: 1, alpha: 0.04), light: NSColor(white: 1, alpha: 0.24)
+    )
+    static let sharedPanelControlBackground = ColorPair(
+        dark: NSColor(white: 1, alpha: 0.035), light: NSColor(white: 0, alpha: 0.026)
+    )
+    static let sharedPanelControlBorder = ColorPair(
+        dark: NSColor(white: 1, alpha: 0.09), light: NSColor(white: 0, alpha: 0.085)
+    )
+    static let sharedGroupedContentBackground = ColorPair(
+        dark: NSColor(white: 0, alpha: 0.08), light: NSColor(white: 1, alpha: 0.30)
+    )
+    static let sharedGroupedRowBackground = ColorPair(
+        dark: NSColor(white: 1, alpha: 0.035), light: NSColor(white: 1, alpha: 0.62)
+    )
+    static let sharedGroupedRowBorder = ColorPair(
+        dark: NSColor(white: 1, alpha: 0.085), light: NSColor(white: 0, alpha: 0.085)
+    )
 
-    static func hex(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat) -> NSColor {
-        NSColor(red: red / 255.0, green: green / 255.0, blue: blue / 255.0, alpha: 1)
+    static func hex(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, alpha: CGFloat = 1) -> NSColor {
+        NSColor(red: red / 255.0, green: green / 255.0, blue: blue / 255.0, alpha: alpha)
     }
 
     // Brand accent — source badges, header bar
@@ -109,23 +134,23 @@ private extension AppTheme {
 
     static let secondaries: [AppTheme: ColorPair] = [
         .claude: ColorPair(dark: hex(0xC4, 0xC2, 0xB9), light: hex(0x30, 0x30, 0x2E)),
-        .tokyoNight: ColorPair(dark: hex(0x78, 0x7C, 0x99), light: hex(0x36, 0x3C, 0x4D)),
+        .tokyoNight: ColorPair(dark: hex(0x8E, 0x94, 0xAD), light: hex(0x36, 0x3C, 0x4D)),
         .gruvbox: ColorPair(dark: hex(0xA8, 0x99, 0x84), light: hex(0x50, 0x49, 0x45)),
         .nord: ColorPair(dark: hex(0xD8, 0xDE, 0xE9), light: hex(0x3B, 0x42, 0x52)),
     ]
 
     static let muteds: [AppTheme: ColorPair] = [
-        .claude: ColorPair(dark: hex(0x87, 0x86, 0x7F), light: hex(0x87, 0x86, 0x7F)),
-        .tokyoNight: ColorPair(dark: hex(0x63, 0x6A, 0x85), light: hex(0x70, 0x72, 0x80)),
-        .gruvbox: ColorPair(dark: hex(0x7C, 0x6F, 0x64), light: hex(0x7C, 0x6F, 0x64)),
-        .nord: ColorPair(dark: hex(0x61, 0x6E, 0x88), light: hex(0x4C, 0x56, 0x6A)),
+        .claude: ColorPair(dark: hex(0x87, 0x86, 0x7F), light: hex(0x76, 0x74, 0x6D)),
+        .tokyoNight: ColorPair(dark: hex(0x70, 0x78, 0x95), light: hex(0x70, 0x72, 0x80)),
+        .gruvbox: ColorPair(dark: hex(0x92, 0x83, 0x74), light: hex(0x7C, 0x6F, 0x64)),
+        .nord: ColorPair(dark: hex(0x83, 0x90, 0xA8), light: hex(0x4C, 0x56, 0x6A)),
     ]
 
     static let dimmeds: [AppTheme: ColorPair] = [
-        .claude: ColorPair(dark: hex(0x87, 0x86, 0x7F), light: hex(0x87, 0x86, 0x7F)),
-        .tokyoNight: ColorPair(dark: hex(0x56, 0x5D, 0x78), light: hex(0x88, 0x8B, 0x94)),
-        .gruvbox: ColorPair(dark: hex(0x92, 0x83, 0x74), light: hex(0x92, 0x83, 0x74)),
-        .nord: ColorPair(dark: hex(0x59, 0x64, 0x78), light: hex(0x4C, 0x56, 0x6A)),
+        .claude: ColorPair(dark: hex(0x87, 0x86, 0x7F), light: hex(0x76, 0x74, 0x6D)),
+        .tokyoNight: ColorPair(dark: hex(0x69, 0x71, 0x8E), light: hex(0x83, 0x87, 0x92)),
+        .gruvbox: ColorPair(dark: hex(0x88, 0x7A, 0x6E), light: hex(0x92, 0x83, 0x74)),
+        .nord: ColorPair(dark: hex(0x7F, 0x8A, 0xA2), light: hex(0x4C, 0x56, 0x6A)),
     ]
 
     static let panels: [AppTheme: ColorPair] = [
@@ -135,11 +160,26 @@ private extension AppTheme {
         .nord: ColorPair(dark: hex(0x2E, 0x34, 0x40), light: hex(0xEC, 0xEF, 0xF4)),
     ]
 
+    static let selectionBackgrounds: [AppTheme: ColorPair] = [
+        .claude: ColorPair(
+            dark: hex(0xD9, 0x77, 0x57, alpha: 0.095), light: hex(0xD9, 0x77, 0x57, alpha: 0.075)
+        ),
+        .tokyoNight: ColorPair(
+            dark: hex(0xC0, 0xCA, 0xF5, alpha: 0.085), light: hex(0x29, 0x59, 0xAA, alpha: 0.085)
+        ),
+        .gruvbox: ColorPair(
+            dark: hex(0xFE, 0x80, 0x19, alpha: 0.085), light: hex(0xAF, 0x3A, 0x03, alpha: 0.065)
+        ),
+        .nord: ColorPair(
+            dark: hex(0xD8, 0xDE, 0xE9, alpha: 0.085), light: hex(0x5E, 0x81, 0xAC, alpha: 0.085)
+        ),
+    ]
+
     static let idles: [AppTheme: ColorPair] = [
         .claude: ColorPair(dark: hex(0x87, 0x86, 0x7F), light: hex(0x87, 0x86, 0x7F)),
-        .tokyoNight: ColorPair(dark: hex(0x56, 0x5D, 0x78), light: hex(0x70, 0x72, 0x80)),
-        .gruvbox: ColorPair(dark: hex(0x66, 0x5C, 0x54), light: hex(0x92, 0x83, 0x74)),
-        .nord: ColorPair(dark: hex(0x59, 0x64, 0x78), light: hex(0x4C, 0x56, 0x6A)),
+        .tokyoNight: ColorPair(dark: hex(0x69, 0x71, 0x8E), light: hex(0x70, 0x72, 0x80)),
+        .gruvbox: ColorPair(dark: hex(0x88, 0x7A, 0x6E), light: hex(0x92, 0x83, 0x74)),
+        .nord: ColorPair(dark: hex(0x7F, 0x8A, 0xA2), light: hex(0x4C, 0x56, 0x6A)),
     ]
 
     // Subagent count badge. Claude dark was #7216AB (~3.1:1 contrast, fails AA at 9pt)

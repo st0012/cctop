@@ -39,11 +39,11 @@ struct ToolInstallBanner: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius)
                 .fill(iconColor.opacity(bannerHovered ? 0.08 : 0.05))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius)
                 .strokeBorder(iconColor.opacity(0.10), lineWidth: 1)
         )
         .onHover { bannerHovered = $0 }
@@ -64,11 +64,11 @@ struct ToolInstallBanner: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 2)
                 .background(
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius)
                         .fill(installHovered ? iconColor : .clear)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius)
                         .strokeBorder(
                             iconColor.opacity(installHovered ? 0 : 0.3),
                             lineWidth: 1
@@ -91,11 +91,8 @@ struct ToolInstallBanner: View {
                 )
                 .frame(width: 20, height: 20)
                 .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(
-                            Color.textPrimary
-                                .opacity(dismissHovered ? 0.06 : 0)
-                        )
+                    RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius)
+                        .fill(dismissHovered ? Color.panelSelectionBackground : Color.clear)
                 )
         }
         .buttonStyle(.plain)
@@ -109,7 +106,7 @@ struct ToolInstallBanner: View {
         HStack(spacing: 6) {
             Image(systemName: "checkmark")
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.statusGreen)
             Text("Installed \u{2014} restart \(toolName) to start tracking")
                 .font(.system(size: 10))
                 .foregroundStyle(Color.textMuted)
@@ -118,12 +115,12 @@ struct ToolInstallBanner: View {
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.green.opacity(0.05))
+            RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius)
+                .fill(Color.statusGreen.opacity(0.05))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(Color.green.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius)
+                .strokeBorder(Color.statusGreen.opacity(0.08), lineWidth: 1)
         )
     }
 
@@ -135,7 +132,7 @@ struct ToolInstallBanner: View {
             .foregroundStyle(iconColor)
             .frame(width: 20, height: 20)
             .background(
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius)
                     .fill(iconColor.opacity(0.12))
             )
     }

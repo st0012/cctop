@@ -24,18 +24,18 @@ struct CardSelectionStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(backgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 
     private var backgroundColor: Color {
-        if isSelected { return Color.textPrimary.opacity(0.12) }
-        if isHovered { return Color.textPrimary.opacity(0.07) }
+        if isSelected { return Color.panelSelectionBackground }
+        if isHovered { return Color.panelSelectionBackground.opacity(0.62) }
         return .clear
     }
 }
 
 extension View {
-    func cardSelectionStyle(isSelected: Bool, isHovered: Bool, cornerRadius: CGFloat = 6) -> some View {
+    func cardSelectionStyle(isSelected: Bool, isHovered: Bool, cornerRadius: CGFloat = AppChrome.selectionCornerRadius) -> some View {
         modifier(CardSelectionStyle(isSelected: isSelected, isHovered: isHovered, cornerRadius: cornerRadius))
     }
 }
@@ -75,17 +75,23 @@ struct TabButtonView: View {
                     .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
-                    .background(isSelected ? Color.textPrimary.opacity(0.12) : Color.textPrimary.opacity(0.05))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .background(Color.panelControlBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(isSelected || isHovered ? Color.textPrimary.opacity(0.1) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .background(tabBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+    }
+
+    private var tabBackground: Color {
+        if isSelected { return Color.panelSelectionBackground }
+        if isHovered { return Color.panelControlBackground }
+        return .clear
     }
 }
 
@@ -113,8 +119,17 @@ struct PanelContentView: View {
             onLayoutChanged: onLayoutChanged
         )
         .frame(width: 320)
-        .background(Color.panelBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .background {
+            ZStack {
+                Color.panelBackground
+                Color.panelMaterialOverlay
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous)
+                .stroke(Color.panelControlBorder, lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous))
         .id(themeManager.themeId)
     }
 }

@@ -82,8 +82,15 @@ variants. The Swift app exposes them via the semantic token API in
 | Muted text         | `textMuted`                                                | Timestamps, idle status, footer                  |
 | Dimmed text        | `textDimmed`                                               | Idle project names                               |
 | Panel background   | `panelBackground` / `--bg`                                 | Main popup panel surface                         |
-| Card background    | `cardBackground`                                           | Selected card / settings rows (white@4% / black@2%) |
-| Card border        | `cardBorder`                                               | Hairline divider (white@4% / black@4%)           |
+| Panel material     | `panelMaterialOverlay`                                     | Subtle material wash over the panel base         |
+| Panel chrome bg    | `panelControlBackground`                                   | Header, tabs, footer, small controls             |
+| Panel chrome border| `panelControlBorder`                                       | Hairline separators in panel chrome              |
+| Panel selection    | `panelSelectionBackground`                                 | Rounded row/tab/gear hover selection             |
+| Grouped content    | `groupedContentBackground`                                 | Sunk background for secondary grouped views      |
+| Grouped row        | `groupedRowBackground`                                     | Settings grouped row surface                     |
+| Grouped row border | `groupedRowBorder`                                         | Group outline and inner separators               |
+| Card background    | `cardBackground`                                           | Legacy/utility subtle surface (empty-state cards) |
+| Card border        | `cardBorder`                                               | Legacy/utility hairline for subtle cards         |
 
 **Forward-compatible decoding.** `SessionStatus.init(from:)` first tries to
 match the raw string against a known case, then falls back by name: unknown
@@ -103,8 +110,8 @@ working session.
 | statusGreen        | `#7EAA6E` | `#4A8238` |
 | textPrimary        | `#E8E6DC` | `#141413` |
 | textSecondary      | `#C4C2B9` | `#30302E` |
-| textMuted          | `#87867F` | `#87867F` |
-| textDimmed         | `#87867F` | `#87867F` |
+| textMuted          | `#87867F` | `#76746D` |
+| textDimmed         | `#87867F` | `#76746D` |
 | panelBackground    | `#262624` | `#E8E6DC` |
 | statusIdle         | `#87867F` | `#87867F` |
 | agentBadge         | `#A256C8` | `#7A3580` |
@@ -121,11 +128,11 @@ working session.
 | statusAttention    | `#FF9E64` | `#965027` |
 | statusGreen        | `#9ECE6A` | `#33635C` |
 | textPrimary        | `#C0CAF5` | `#343B59` |
-| textSecondary      | `#787C99` | `#363C4D` |
-| textMuted          | `#636A85` | `#707280` |
-| textDimmed         | `#565D78` | `#888B94` |
+| textSecondary      | `#8E94AD` | `#363C4D` |
+| textMuted          | `#707895` | `#707280` |
+| textDimmed         | `#69718E` | `#838792` |
 | panelBackground    | `#1A1B26` | `#E6E7ED` |
-| statusIdle         | `#565D78` | `#707280` |
+| statusIdle         | `#69718E` | `#707280` |
 | agentBadge         | `#BB9AF7` | `#7B43BA` |
 | opencodeBadge      | `#7AA2F7` | `#3A5BA0` |
 | piBadge            | `#5DBFB1` | `#1F6B5D` |
@@ -141,10 +148,10 @@ working session.
 | statusGreen        | `#B8BB26` | `#427B58` |
 | textPrimary        | `#EBDBB2` | `#3C3836` |
 | textSecondary      | `#A89984` | `#504945` |
-| textMuted          | `#7C6F64` | `#7C6F64` |
-| textDimmed         | `#928374` | `#928374` |
+| textMuted          | `#928374` | `#7C6F64` |
+| textDimmed         | `#887A6E` | `#928374` |
 | panelBackground    | `#282828` | `#FBF1C7` |
-| statusIdle         | `#665C54` | `#928374` |
+| statusIdle         | `#887A6E` | `#928374` |
 | agentBadge         | `#D3869B` | `#8F3F71` |
 | opencodeBadge      | `#83A598` | `#076678` |
 | piBadge            | `#8EC07C` | `#427B58` |
@@ -160,10 +167,10 @@ working session.
 | statusGreen        | `#A3BE8C` | `#4E7A35` |
 | textPrimary        | `#ECEFF4` | `#2E3440` |
 | textSecondary      | `#D8DEE9` | `#3B4252` |
-| textMuted          | `#616E88` | `#4C566A` |
-| textDimmed         | `#596478` | `#4C566A` |
+| textMuted          | `#8390A8` | `#4C566A` |
+| textDimmed         | `#7F8AA2` | `#4C566A` |
 | panelBackground    | `#2E3440` | `#ECEFF4` |
-| statusIdle         | `#596478` | `#4C566A` |
+| statusIdle         | `#7F8AA2` | `#4C566A` |
 | agentBadge         | `#B48EAD` | `#8B6A86` |
 | opencodeBadge      | `#81A1C1` | `#5E81AC` |
 | piBadge            | `#8FBCBB` | `#4C7271` |
@@ -203,6 +210,12 @@ the Tokyo Night blue family.
 | `cardBackground`    | white @ 4% alpha   | black @ 2% alpha   |
 | `cardBorder`        | white @ 4% alpha   | black @ 4% alpha   |
 | `segmentBackground` | white @ 6% alpha   | black @ 4% alpha   |
+| `panelMaterialOverlay` | white @ 4% alpha | white @ 24% alpha  |
+| `panelControlBackground` | white @ 3.5% alpha | black @ 2.6% alpha |
+| `panelControlBorder` | white @ 9% alpha  | black @ 8.5% alpha |
+| `groupedContentBackground` | black @ 8% alpha | white @ 30% alpha |
+| `groupedRowBackground` | white @ 3.5% alpha | white @ 62% alpha |
+| `groupedRowBorder` | white @ 8.5% alpha | black @ 8.5% alpha |
 
 ## 3. Typography Rules
 
@@ -265,7 +278,7 @@ CSS custom properties in `site/index.html` `:root`:
 
 Status meaning is **always** carried by both color and text — never color
 alone. The "Working" label is gray, not green; only the proportional bar
-and accent stripe carry the green. This keeps the panel readable when you
+and status dot carry the green. This keeps the panel readable when you
 glance at it from peripheral vision.
 
 ## 4. Component Stylings
@@ -286,7 +299,7 @@ glance at it from peripheral vision.
 |---------------------------|----------------------------------------------------------------|
 | Padding                   | 14 px horizontal · 9 px vertical                               |
 | **Row 1 — title**         | 14 px semibold · `textPrimary` (`textSecondary` when idle)     |
-| Navigate chip (row 1 lead)| 16×16 status-colored square, 3 px radius, white digit (1–9)   |
+| Navigate chip (row 1 lead)| 16×16 status-colored square, `AppChrome.controlCornerRadius`, white digit (1–9) |
 | Subagent count            | 10 px · `agentBadge` (purple)                                  |
 | Status label              | 10.5 px medium. Idle/Dormant use `textMuted`; Working/Waiting/Compacting use a 5 px status dot plus neutral `textSecondary` text; Permission uses a static outlined `statusPermission` pill. |
 | Timestamp                 | 10 px · refreshed by the shared 10 s `PopupView` relative-time timer, never by row-local timers. "Just now" (≤ 5 s) → `statusGreen`; > 7 d → `textMuted` at 0.55 |
@@ -294,7 +307,7 @@ glance at it from peripheral vision.
 | **Row 2 — meta (Desktop)**| `desktopProjectName · source`. Folder + branch are dropped because Desktop sessions often run in auto-generated worktree dirs (`focused-dirac-1baeb9`); project name is 11.5 px medium `textSecondary`, source is quiet metadata. |
 | **Row 3 — working**       | Monospace command stripe with `›` prompt (`statusGreen` @ 0.7) + `Session.contextLine`; no blinking caret. |
 | **Row 3 — waiting**       | 10.5 px `textSecondary` note: `notificationMessage ?? contextLine ?? "Waiting for input"`. Permission notes remain 11 px italic `statusAttention`. |
-| Selected / hover          | `cardSelectionStyle` overlay (no shadow)                       |
+| Selected / hover          | `cardSelectionStyle` uses `panelSelectionBackground`, `AppChrome.selectionCornerRadius`, and a 6 px horizontal inset. No shadow, no left accent bar. |
 | Source badge visibility   | Shown only when `Set(sessions.map(\.agentBadge)).count > 1` (keyed on `agentBadge`, not `sourceLabel`, so CC + Claude Desktop counts as multiple sources) |
 
 #### Source badge (`SourceBadgeView.swift`) — six variants
@@ -327,8 +340,9 @@ All source labels render as neutral metadata so the project name and session sta
 | Dot           | 5×5 px filled circle, status color                   |
 | Count         | 10 px in matching color                              |
 | Padding       | 6 px horizontal · 2 px vertical                      |
-| Background    | Status color @ 10% opacity                           |
-| Radius        | 4 px                                                 |
+| Background    | Neutral `panelControlBackground`                     |
+| Border        | `panelControlBorder` hairline                        |
+| Radius        | `AppChrome.controlCornerRadius`                     |
 | Visibility    | Hidden when count is 0                               |
 
 ### Notch pill (`NotchStatusView.swift`)
@@ -347,13 +361,14 @@ Always black, regardless of theme — it's OS chrome that meets the camera notch
 
 | Property         | Value                                                |
 |------------------|------------------------------------------------------|
-| Outer radius     | 5 px                                                 |
-| Inner radius     | 3 px                                                 |
+| Outer radius     | `AppChrome.controlCornerRadius`                      |
+| Inner radius     | `AppChrome.controlCornerRadius`                      |
 | Outer padding    | 2 px                                                 |
 | Label            | 10 px medium                                         |
 | Inner padding    | 8 px horizontal · 3 px vertical                      |
-| Active fill      | `textPrimary` @ 10% opacity                          |
-| Hover fill       | `textPrimary` @ 5% opacity                           |
+| Outer fill       | `panelControlBackground` with `panelControlBorder` hairline |
+| Active fill      | `panelSelectionBackground`                           |
+| Hover fill       | `panelControlBackground`                             |
 | Active text      | `segmentActiveText` (= `textPrimary`)                |
 | Inactive text    | `segmentText` (= `textMuted`)                        |
 | Animation        | `easeOut(0.15)`                                      |
@@ -364,13 +379,30 @@ Always black, regardless of theme — it's OS chrome that meets the camera notch
 |---------------|------------------------------------------------------|
 | Font          | 10 px medium monospaced                              |
 | Padding       | 6 px horizontal · 2 px vertical                      |
-| Background    | `textPrimary` @ 8% (12% on hover)                    |
-| Radius        | 3 px                                                 |
+| Background    | `panelControlBackground` (`panelSelectionBackground` on hover) |
+| Border        | `panelControlBorder` hairline                        |
+| Radius        | `AppChrome.controlCornerRadius`                      |
 
-### Tab button (Active / Recent)
+### Tab button (Active / Idle / Recent)
 
-Selected tab gets the accent underline. Counts render as inline `(n)` in
-`textMuted`. 6 px horizontal padding between tabs.
+Selected tab uses `panelSelectionBackground`; hover uses
+`panelControlBackground`. Counts render in a small neutral chrome badge so the
+tab label stays calm and readable. 6 px horizontal padding between tabs.
+
+### Settings grouped list
+
+Settings uses a native grouped-list structure. Active, Idle, and Recent all use
+the same flat, dense panel list renderer so tab changes do not change the
+component vocabulary.
+
+| Property            | Value                                                  |
+|---------------------|--------------------------------------------------------|
+| Content background  | `groupedContentBackground`                             |
+| Group row surface   | `groupedRowBackground`                                 |
+| Group border        | `groupedRowBorder`, 1 px                               |
+| Group radius        | `AppChrome.groupCornerRadius`                          |
+| Settings row padding| 10 px horizontal · 8 px vertical                       |
+| Section labels      | 10 px semibold · `textMuted`; no uppercase transform, no tracking |
 
 ### Hero pill (`site/index.html` — `.hero-pill`)
 
@@ -439,11 +471,11 @@ site-only and reserved for sections, not components.
 | Width                     | Fixed (~320 px)                                |
 | Header padding            | 16 / 12 (h / v)                                |
 | Tab bar padding           | 12 / 6                                         |
-| Card padding              | 8 / 9                                          |
+| Card padding              | 10 px inner horizontal + 6 px selection inset · 9 px vertical |
 | Footer padding            | 16 / 7                                         |
 | Scroll area max height    | 290 px (then scrolls)                          |
-| Card spacing              | 0 (dividers between, padded 16 px horizontal)  |
-| Settings overlay padding  | 8 px vertical, fills remaining height          |
+| Active/Idle/Recent spacing| 0 (shared list renderer, `panelControlBorder` dividers padded 16 px horizontal) |
+| Settings overlay padding  | 8 px horizontal · 10 px top · 16 px bottom, grouped-list background |
 
 The panel reflows in **height only**; width is fixed to keep card layout
 predictable. When sessions overflow 290 px, the inner area scrolls and the
@@ -504,18 +536,15 @@ website.
 
 ### Radius scale
 
-| Radius | Usage                                                              |
-|--------|--------------------------------------------------------------------|
-| 1.5 px | Session-card accent stripe                                         |
-| 2 px   | Navigate-mode badge (16×16 status square)                          |
-| 3 px   | Inner segment of segmented picker, shortcut badge                  |
-| 4 px   | Status chip, gear button hover background                          |
-| 5 px   | Outer segmented picker container                                   |
-| 6 px   | Notch tab (bottom-left only), brew code block, focus-visible outline |
-| 8 px   | Theme card image, install card brew row                            |
-| 10 px  | Panels, theme cards, tool cards, install card (`--radius`)         |
-| 14 px  | Hero screenshot frame                                              |
-| 999 px | Pills, hero pill, status bar capsule                               |
+App chrome uses one normal radius token:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `AppChrome.cornerRadius` | 8 px | Panel shell, controls, grouped settings rows, row selection, install buttons, shortcut badges |
+
+Only shape-specific elements break the token: circles, capsules, thin status
+bars, the blinking caret, and the small brand/status marks. The website keeps
+its own radius scale for larger marketing cards and full pills.
 
 ### Surface elevation
 
@@ -526,14 +555,15 @@ not shadow.
 
 | Layer            | Treatment                                                          |
 |------------------|--------------------------------------------------------------------|
-| Panel base       | `panelBackground` (per-theme)                                      |
-| Card resting     | Transparent — only the accent stripe and text                      |
-| Card hover       | `cardSelectionStyle` (subtle tint via `cardBackground`)            |
-| Card selected    | Same overlay as hover                                              |
-| Status chip      | Status color @ 10% over panel                                      |
-| Settings overlay | `panelBackground` (opaque), entered with `move(edge: .top)`        |
+| Panel base       | `panelBackground` + `panelMaterialOverlay`                         |
+| Header/tabs/footer | `panelControlBackground` + `panelControlBorder` hairlines        |
+| Card resting     | Transparent — text and status carry meaning                        |
+| Card hover       | `panelSelectionBackground` @ 62% through `cardSelectionStyle`      |
+| Card selected    | `panelSelectionBackground`, `AppChrome.selectionCornerRadius`, 6 px horizontal inset |
+| Status chip      | Neutral `panelControlBackground`; dot/count carry status color     |
+| Settings overlay | Material panel with grouped-list content, entered with `move(edge: .top)` |
 | Settings exit    | Custom `RollUpEffect` instead of move-out                          |
-| Divider          | `cardBorder` 1 px (white@4% / black@4%)                            |
+| Divider          | `panelControlBorder` for panel lists; `groupedRowBorder` inside Settings |
 
 #### Site
 
@@ -640,7 +670,7 @@ view."
 | Use warm- or cool-tinted grays                         | Use neutral grays (`textPrimary`, `textMuted`, …)   |
 | Introduce a fifth status color                         | Map new statuses through the existing 5 roles       |
 | Hand-edit version strings                              | Use `scripts/bump-version.sh`                       |
-| Add a new theme without all 14 token roles             | Match the four-theme matrix in `AppTheme.swift`     |
+| Add a new theme without all semantic token roles       | Match the four-theme matrix in `AppTheme.swift`     |
 | Use raw `Color.blue`/`.green`/etc. in views            | Use semantic tokens (`textPrimary`, `statusGreen`)  |
 | Drop a custom font into the app bundle                 | Stay on `.system` for the app                       |
 | Override the `--ease-out` curve                        | Reuse it everywhere for consistent motion           |
@@ -779,16 +809,9 @@ Site serif:  'Instrument Serif', ui-serif, Georgia
 ### Radius ladder
 
 ```
-1.5  card accent stripe
-2    navigate badge
-3    inner segment, shortcut badge
-4    chip, hover background
-5    outer segment
-6    notch tab, brew code, focus ring
-8    theme card image
-10   panel, theme card, tool card, install card
-14   hero screenshot frame
-999  pills, status bar capsule
+App:  8 via AppChrome.cornerRadius for normal rounded UI
+Site: 10 for cards, 14 for screenshot frames, 999 for pills/status capsules
+Exceptions: circles, thin status bars, caret, and brand/status marks
 ```
 
 ### Ready-to-use prompt fragments

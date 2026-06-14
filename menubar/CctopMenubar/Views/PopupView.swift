@@ -7,7 +7,6 @@ enum PopupTab {
 }
 
 private let overlayAnimationDuration: TimeInterval = 0.2
-private let popupContentHeight: CGFloat = 290
 private let relativeTimeRefresh = Timer.publish(every: 10, on: .main, in: .common).autoconnect()
 
 struct PopupView: View {
@@ -44,10 +43,12 @@ struct PopupView: View {
     var body: some View {
         VStack(spacing: 0) {
             HeaderView(sessions: sessions)
-            Divider()
+                .background(Color.panelControlBackground)
+            panelDivider
             if showTabs {
                 tabPicker
-                Divider()
+                    .background(Color.panelControlBackground)
+                panelDivider
             }
             ZStack(alignment: .top) {
                 Group {
@@ -71,11 +72,12 @@ struct PopupView: View {
                     }
                 }
             }
-            .frame(minHeight: overlayController.active != nil ? popupContentHeight : 0)
+            .frame(minHeight: overlayController.active != nil ? AppChrome.overlayMinimumContentHeight : 0)
             .clipped()
             .animation(.easeInOut(duration: overlayAnimationDuration), value: overlayController.active)
-            Divider()
+            panelDivider
             footerBar
+                .background(Color.panelControlBackground)
         }
         .onReceive(navigate?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
@@ -97,6 +99,12 @@ struct PopupView: View {
 
     // MARK: - Tab picker
 
+    private var panelDivider: some View {
+        Rectangle()
+            .fill(Color.panelControlBorder)
+            .frame(height: 1)
+    }
+
     private var tabPicker: some View {
         HStack(spacing: 6) {
             tabButton("Active", count: sortedActiveSessions.count, tab: .active)
@@ -114,7 +122,7 @@ struct PopupView: View {
 
     private func tabButton(_ label: String, count: Int, tab: PopupTab) -> some View {
         TabButtonView(label: label, count: count, isSelected: selectedTab == tab) {
-            if overlayController.active != nil { closeOverlay(animated: true) }
+            if overlayController.active != nil { closeOverlay(animated: false) }
             withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
             notifyLayoutChanged()
         }
@@ -130,13 +138,13 @@ struct PopupView: View {
                 VStack(spacing: 0) {
                     if showOcBanner {
                         ToolInstallBanner(
-                            toolName: "opencode", iconLabel: ">_", iconColor: .blue,
+                            toolName: "opencode", iconLabel: ">_", iconColor: Color.opencodeBadge,
                             installAction: { pluginManager.installOpenCodePlugin() },
                             installed: $ocBannerInstalled, dismissed: $ocBannerDismissed)
                     }
                     if showPiBanner {
                         ToolInstallBanner(
-                            toolName: "pi", iconLabel: "\u{03C0}", iconColor: .green,
+                            toolName: "pi", iconLabel: "\u{03C0}", iconColor: Color.piBadge,
                             installAction: { pluginManager.installPiPlugin() },
                             installed: $piBannerInstalled, dismissed: $piBannerDismissed)
                     }
@@ -160,27 +168,8 @@ struct PopupView: View {
         if recentProjects.isEmpty {
             emptyPlaceholder(systemImage: "clock", title: "Recent projects will appear here\nafter sessions end")
         } else {
-            ScrollViewReader { proxy in
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(recentProjects.enumerated()), id: \.element.id) { index, project in
-                            if index > 0 && selectedIndex != index && selectedIndex != index - 1 {
-                                Divider()
-                                    .padding(.horizontal, 16)
-                            }
-                            recentCard(project, isSelected: selectedIndex == index)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-                .frame(maxHeight: popupContentHeight)
-                .onChange(of: selectedIndex) { newIndex in
-                    guard selectedTab == .recent,
-                          let idx = newIndex, idx < recentProjects.count else { return }
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo(recentProjects[idx].id, anchor: .center)
-                    }
-                }
+            panelList(recentProjects, tab: .recent) { _, project, isSelected in
+                recentCard(project, isSelected: isSelected)
             }
         }
     }
@@ -204,40 +193,52 @@ struct PopupView: View {
     }
 
     private func sessionList(_ list: [Session], tab: PopupTab, showNavigateNumbers: Bool = false) -> some View {
+        panelList(list, tab: tab) { index, session, isSelected in
+            SessionCardView(
+                session: session,
+                navigateIndex: showNavigateNumbers && isNavigateActive ? index + 1 : nil,
+                showSourceBadge: hasMultipleSources,
+                isSelected: isSelected,
+                relativeTimeNow: relativeTimeNow
+            )
+            .onTapGesture { focusSession(session) }
+            .contextMenu {
+                Button { focusSession(session) } label: {
+                    Label("Jump to Terminal", systemImage: "terminal")
+                }
+                Button { openInFinder(path: session.projectPath) } label: {
+                    Label("Open in Finder", systemImage: "folder")
+                }
+                Button { copyPath(session.projectPath) } label: {
+                    Label("Copy Project Path", systemImage: "doc.on.doc")
+                }
+            }
+            .help("Click to jump to session")
+        }
+    }
+
+    private func panelList<Item: Identifiable, Row: View>(
+        _ list: [Item],
+        tab: PopupTab,
+        @ViewBuilder row: @escaping (Int, Item, Bool) -> Row
+    ) -> some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(list.enumerated()), id: \.element.id) { index, session in
+                    ForEach(Array(list.enumerated()), id: \.element.id) { index, item in
                         if index > 0 && selectedIndex != index && selectedIndex != index - 1 {
-                            Divider()
+                            Rectangle()
+                                .fill(Color.panelControlBorder)
+                                .frame(height: 1)
                                 .padding(.horizontal, 16)
                         }
-                        SessionCardView(
-                            session: session,
-                            navigateIndex: showNavigateNumbers && isNavigateActive ? index + 1 : nil,
-                            showSourceBadge: hasMultipleSources,
-                            isSelected: selectedIndex == index,
-                            relativeTimeNow: relativeTimeNow
-                        )
-                        .id(session.id)
-                        .onTapGesture { focusSession(session) }
-                        .contextMenu {
-                            Button { focusSession(session) } label: {
-                                Label("Jump to Terminal", systemImage: "terminal")
-                            }
-                            Button { openInFinder(path: session.projectPath) } label: {
-                                Label("Open in Finder", systemImage: "folder")
-                            }
-                            Button { copyPath(session.projectPath) } label: {
-                                Label("Copy Project Path", systemImage: "doc.on.doc")
-                            }
-                        }
-                        .help("Click to jump to session")
+                        row(index, item, selectedIndex == index)
+                            .id(item.id)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, AppChrome.listVerticalPadding)
             }
-            .frame(maxHeight: popupContentHeight)
+            .frame(maxHeight: AppChrome.overlayMinimumContentHeight)
             .onChange(of: selectedIndex) { newIndex in
                 guard selectedTab == tab,
                       let idx = newIndex, idx < list.count else { return }
@@ -276,12 +277,15 @@ struct PopupView: View {
 
 extension PopupView {
     func overlayPanel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 0) {
-            content().padding(.vertical, 8)
-            Spacer(minLength: 0)
+        content()
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: AppChrome.overlayMinimumContentHeight, alignment: .top)
+        .background {
+            ZStack {
+                Color.panelBackground
+                Color.panelMaterialOverlay
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.panelBackground)
         .transition(.asymmetric(
             insertion: .move(edge: .top),
             removal: .modifier(
@@ -305,7 +309,7 @@ extension PopupView {
 
     private var versionButton: some View {
         let isActive = overlayController.active == .about
-        let color: Color = isActive ? .amber : (versionHovered ? .primary : .textMuted)
+        let color: Color = isActive ? .amber : (versionHovered ? .textPrimary : .textMuted)
         return Button { toggleOverlay(.about) } label: {
             Text("v\(Bundle.main.appVersion)")
                 .font(.system(size: 10))
@@ -320,11 +324,11 @@ extension PopupView {
         Button { toggleOverlay(.settings) } label: {
             Image(systemName: "gearshape")
                 .font(.system(size: 14))
-                .foregroundStyle(overlayController.active == .settings ? Color.amber : Color.secondary)
+                .foregroundStyle(overlayController.active == .settings ? Color.amber : Color.textMuted)
                 .frame(width: 28, height: 28)
                 .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.textPrimary.opacity(gearHovered ? 0.1 : 0))
+                    RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
+                        .fill(gearHovered ? Color.panelSelectionBackground : Color.clear)
                 )
                 .overlay(alignment: .topTrailing) {
                     if updater.pendingUpdateVersion != nil && overlayController.active != .settings {
@@ -343,7 +347,7 @@ extension PopupView {
             Button { toggleOverlay(.settings) } label: {
                 Text("\(sc.description) navigate")
                     .font(.system(size: 10))
-                    .foregroundStyle(shortcutHovered ? Color.primary : Color.textSecondary)
+                    .foregroundStyle(shortcutHovered ? Color.textPrimary : Color.textSecondary)
                     .underline(shortcutHovered)
                     .lineLimit(1)
             }

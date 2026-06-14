@@ -137,8 +137,7 @@ final class QASnapshotTests: XCTestCase {
     private func popupView(for sessions: [Session]) -> some View {
         PopupView(sessions: sessions, updater: DisabledUpdater(), pluginManager: inertPluginManager())
             .frame(width: 320)
-            .background(Color(NSColor.windowBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .panelSnapshotChrome()
             .environment(\.colorScheme, .light)
     }
 
@@ -157,8 +156,7 @@ final class QASnapshotTests: XCTestCase {
     ) throws {
         let view = PopupView(sessions: sessions, updater: DisabledUpdater(), pluginManager: inertPluginManager())
             .frame(width: 320)
-            .background(Color(NSColor.windowBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .panelSnapshotChrome()
             .environment(\.colorScheme, colorScheme)
 
         let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
@@ -226,6 +224,22 @@ final class QASnapshotTests: XCTestCase {
 
         try pngData.write(to: URL(fileURLWithPath: path))
         print("QA snapshot saved: \(path)")
+    }
+}
+
+private extension View {
+    func panelSnapshotChrome() -> some View {
+        background {
+            ZStack {
+                Color.panelBackground
+                Color.panelMaterialOverlay
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous)
+                .stroke(Color.panelControlBorder, lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous))
     }
 }
 

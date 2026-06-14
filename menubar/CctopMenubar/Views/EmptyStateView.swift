@@ -78,17 +78,19 @@ struct EmptyStateView: View {
         VStack(spacing: 0) {
             ForEach(Array(AgentKind.allCases.enumerated()), id: \.element) { index, agent in
                 if index > 0 {
-                    Divider().padding(.horizontal, 0)
+                    Rectangle()
+                        .fill(Color.cardBorder)
+                        .frame(height: 1)
                 }
                 agentRow(agent)
             }
         }
         .background(Color.cardBackground)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius)
                 .stroke(Color.cardBorder, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius))
     }
 
     private func agentRow(_ agent: AgentKind) -> some View {

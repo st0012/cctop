@@ -138,8 +138,17 @@ final class SnapshotTests: XCTestCase {
         let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
         let styled = view
             .frame(width: width)
-            .background(Color.panelBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .background {
+                ZStack {
+                    Color.panelBackground
+                    Color.panelMaterialOverlay
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous)
+                    .stroke(Color.panelControlBorder, lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous))
             .environment(\.colorScheme, colorScheme)
 
         let window = NSWindow(

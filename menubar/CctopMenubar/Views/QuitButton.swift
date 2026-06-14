@@ -10,8 +10,8 @@ struct QuitButton: View {
                 .foregroundStyle(isHovered ? Color.textPrimary : Color.textMuted)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(isHovered ? Color.textPrimary.opacity(0.08) : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .background(isHovered ? Color.panelSelectionBackground : .clear)
+                .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }

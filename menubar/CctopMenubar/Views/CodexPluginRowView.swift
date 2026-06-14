@@ -189,7 +189,7 @@ struct CodexHookTrustButton: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(Color.statusAttention)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius))
         }
         .buttonStyle(.plain)
         .popover(isPresented: $isPresented) {

@@ -39,15 +39,10 @@ struct RecentProjectCardView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(Color.textMuted)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered, cornerRadius: 0)
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 1)
-                .fill(Color.textMuted.opacity(0.3))
-                .frame(width: 2, height: 20)
-                .padding(.leading, 4)
-        }
+        .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered)
+        .padding(.horizontal, AppChrome.rowSelectionHorizontalInset)
         .onHover { isHovered = $0 }
         .animation(.easeOut(duration: 0.15), value: isHovered)
     }

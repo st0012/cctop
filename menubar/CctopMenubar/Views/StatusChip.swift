@@ -13,8 +13,12 @@ struct StatusChip: View {
             }
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(color.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .background(Color.panelControlBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
+                    .stroke(Color.panelControlBorder, lineWidth: 1)
+            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(count) \(categoryLabel)")
         }

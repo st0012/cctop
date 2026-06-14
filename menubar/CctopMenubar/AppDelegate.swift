@@ -62,7 +62,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         )
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
-        hostingView.layer?.cornerRadius = 10
+        hostingView.layer?.cornerRadius = AppChrome.panelCornerRadius
         hostingView.layer?.masksToBounds = true
         hostingView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -389,7 +389,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     private func setPanelFrame(_ frame: NSRect, animate: Bool) {
-        guard panel.frame != frame else { return }
+        guard !panel.frame.isNearlyEqual(to: frame) else { return }
         if animate {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = 0.2
@@ -399,6 +399,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         } else {
             panel.setFrame(frame, display: true)
         }
+    }
+}
+
+private extension NSRect {
+    func isNearlyEqual(to other: NSRect) -> Bool {
+        abs(origin.x - other.origin.x) < 0.5 &&
+            abs(origin.y - other.origin.y) < 0.5 &&
+            abs(size.width - other.size.width) < 0.5 &&
+            abs(size.height - other.size.height) < 0.5
     }
 }
 // MARK: - PanelCoordinator dispatch

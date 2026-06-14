@@ -23,7 +23,7 @@ struct AboutView: View {
             .padding(.top, 16)
             .padding(.bottom, 14)
 
-            Divider().padding(.horizontal, 14)
+            aboutDivider
 
             VStack(spacing: 4) {
                 HoverLinkButton(
@@ -38,7 +38,7 @@ struct AboutView: View {
             }
             .padding(.vertical, 10)
 
-            Divider().padding(.horizontal, 14)
+            aboutDivider
 
             HStack(spacing: 16) {
                 linkButton("GitHub", url: repoURL)
@@ -68,6 +68,13 @@ struct AboutView: View {
             showArrow: true
         )
     }
+
+    private var aboutDivider: some View {
+        Rectangle()
+            .fill(Color.panelControlBorder)
+            .frame(height: 1)
+            .padding(.horizontal, 14)
+    }
 }
 
 private struct HoverLinkButton: View {
@@ -93,7 +100,7 @@ private struct HoverLinkButton: View {
                         .font(.system(size: 8, weight: .semibold))
                 }
             }
-            .foregroundStyle(isHovered ? .primary : color)
+            .foregroundStyle(isHovered ? Color.textPrimary : color)
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
@@ -103,6 +110,6 @@ private struct HoverLinkButton: View {
 #Preview {
     AboutView()
         .frame(width: 320)
-        .background(Color.settingsBackground)
+        .background(Color.panelBackground)
         .padding()
 }

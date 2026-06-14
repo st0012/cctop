@@ -16,11 +16,10 @@ struct SessionCardView: View {
             metaRow
             thirdRowContent
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 10)
         .padding(.vertical, 9)
-        .cardSelectionStyle(
-            isSelected: isSelected, isHovered: isHovered, cornerRadius: 0
-        )
+        .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered)
+        .padding(.horizontal, AppChrome.rowSelectionHorizontalInset)
         // Dormant = desktop host app is not running; mute it so live work reads first.
         .opacity(session.lifecycle == .dormant ? 0.62 : 1.0)
         .contentShape(Rectangle())
@@ -190,11 +189,11 @@ struct SessionCardView: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 1.5)
             .background {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
                     .fill(Color.statusPermission.opacity(0.08))
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
                     .stroke(Color.statusPermission.opacity(0.28), lineWidth: 1)
             }
             .fixedSize(horizontal: true, vertical: false)
@@ -205,7 +204,7 @@ struct SessionCardView: View {
     @ViewBuilder
     private func navigateChip(_ idx: Int) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
+            RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
                 .fill(session.status.color)
                 .frame(width: 16, height: 16)
             Text("\(idx)")

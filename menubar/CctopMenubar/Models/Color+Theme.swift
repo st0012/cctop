@@ -1,6 +1,26 @@
 import AppKit
 import SwiftUI
 
+enum AppChrome {
+    static let cornerRadius: CGFloat = 8
+    static let panelCornerRadius = cornerRadius
+    static let controlCornerRadius = cornerRadius
+    static let selectionCornerRadius = cornerRadius
+    static let groupCornerRadius = cornerRadius
+    static let settingsContentPaddingHorizontal: CGFloat = 8
+    static let settingsContentPaddingTop: CGFloat = 10
+    static let settingsContentPaddingBottom: CGFloat = 28
+    static let overlayMinimumContentHeight: CGFloat = 290
+    static let settingsContentPadding = EdgeInsets(
+        top: settingsContentPaddingTop,
+        leading: settingsContentPaddingHorizontal,
+        bottom: settingsContentPaddingBottom,
+        trailing: settingsContentPaddingHorizontal
+    )
+    static let listVerticalPadding: CGFloat = 4
+    static let rowSelectionHorizontalInset: CGFloat = 6
+}
+
 extension Color {
     /// Accent color — the primary brand color, themed per color scheme.
     static var amber: Color {
@@ -51,6 +71,55 @@ extension Color {
         })
     }
 
+    /// Subtle material wash layered over the panel base.
+    static var panelMaterialOverlay: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.panelMaterialOverlay.resolve(appearance)
+        })
+    }
+
+    /// Toolbar, tabs, footer, and small chrome controls.
+    static var panelControlBackground: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.panelControlBackground.resolve(appearance)
+        })
+    }
+
+    /// Hairline border for panel chrome.
+    static var panelControlBorder: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.panelControlBorder.resolve(appearance)
+        })
+    }
+
+    /// Rounded row and tab selection background.
+    static var panelSelectionBackground: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.panelSelectionBackground.resolve(appearance)
+        })
+    }
+
+    /// Sunk background for secondary grouped views.
+    static var groupedContentBackground: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.groupedContentBackground.resolve(appearance)
+        })
+    }
+
+    /// Grouped-list row background.
+    static var groupedRowBackground: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.groupedRowBackground.resolve(appearance)
+        })
+    }
+
+    /// Grouped-list separator and border.
+    static var groupedRowBorder: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.groupedRowBorder.resolve(appearance)
+        })
+    }
+
     /// Card background.
     static var cardBackground: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -83,6 +152,13 @@ extension Color {
     static var statusGreen: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             ThemeManager.shared.current.statusGreen.resolve(appearance)
+        })
+    }
+
+    /// Idle status.
+    static var statusIdle: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.statusIdle.resolve(appearance)
         })
     }
 

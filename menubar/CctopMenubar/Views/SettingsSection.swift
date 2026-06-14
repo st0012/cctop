@@ -16,8 +16,13 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
                 }
             }
         }
-        .padding(2).background(Color.segmentBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .padding(2)
+        .background(Color.panelControlBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
+                .stroke(Color.panelControlBorder, lineWidth: 1)
+        }
     }
 }
 
@@ -34,7 +39,7 @@ private struct SegmentButton: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .foregroundStyle(foregroundColor)
-                .background(RoundedRectangle(cornerRadius: 3)
+                .background(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius)
                     .fill(backgroundColor))
                 .contentShape(Rectangle())
         }
@@ -49,8 +54,8 @@ private struct SegmentButton: View {
     }
 
     private var backgroundColor: Color {
-        if isSelected { return Color.textPrimary.opacity(0.1) }
-        if isHovered { return Color.textPrimary.opacity(0.05) }
+        if isSelected { return Color.panelSelectionBackground }
+        if isHovered { return Color.panelControlBackground }
         return .clear
     }
 }
@@ -68,8 +73,12 @@ struct ShortcutBadge: View {
                     .foregroundStyle(isHovered ? Color.segmentActiveText : Color.textSecondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.textPrimary.opacity(isHovered ? 0.12 : 0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .background(isHovered ? Color.panelSelectionBackground : Color.panelControlBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
+                            .stroke(Color.panelControlBorder, lineWidth: 1)
+                    }
             } else {
                 Text("Record Shortcut")
                     .font(.system(size: 10))
@@ -99,76 +108,83 @@ struct SettingsSection: View {
             updateSection
 
             sectionHeader("Tools")
-            MonitoredToolsView(
-                pluginManager: pluginManager,
-                installFailed: $installFailed
-            )
-            Divider().padding(.horizontal, 8)
+            settingsGroup {
+                MonitoredToolsView(
+                    pluginManager: pluginManager,
+                    installFailed: $installFailed
+                )
+            }
 
             sectionHeader("Appearance")
-            settingsRow("Color") {
-                let binding = Binding(get: { themeManager.current }, set: { themeManager.setTheme($0) })
-                AmberSegmentedPicker(options: AppTheme.allCases.map { ($0, $0.displayName) }, selection: binding)
-            }
-            settingsRow("Mode") {
-                AmberSegmentedPicker(options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) }, selection: $appearanceMode)
-            }
-            .onChange(of: appearanceMode) { _ in UserDefaults.standard.synchronize() }
-            Divider().padding(.horizontal, 8)
-            sectionHeader("Shortcuts")
-            settingsRow("Toggle Panel") {
-                ShortcutBadge(name: .togglePanel)
-            }
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Navigate")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.textPrimary)
-                    Text("Jump to sessions by number")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.textMuted)
+            settingsGroup {
+                settingsRow("Color") {
+                    let binding = Binding(get: { themeManager.current }, set: { themeManager.setTheme($0) })
+                    AmberSegmentedPicker(options: AppTheme.allCases.map { ($0, $0.displayName) }, selection: binding)
                 }
-                Spacer()
-                ShortcutBadge(name: .navigate)
+                groupedDivider
+                settingsRow("Mode") {
+                    AmberSegmentedPicker(options: AppearanceMode.allCases.map { ($0.rawValue, $0.label) }, selection: $appearanceMode)
+                }
+                .onChange(of: appearanceMode) { _ in UserDefaults.standard.synchronize() }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            Divider().padding(.horizontal, 8)
+
+            sectionHeader("Shortcuts")
+            settingsGroup {
+                settingsRow("Toggle Panel") {
+                    ShortcutBadge(name: .togglePanel)
+                }
+                groupedDivider
+                navigateShortcutRow
+            }
 
             sectionHeader("General")
-            settingsRow("Launch at Login") {
-                Toggle("", isOn: $launchAtLogin)
-                    .toggleStyle(.switch).controlSize(.mini)
-                    .labelsHidden()
-            }
-            .onChange(of: launchAtLogin) { newValue in
-                do {
-                    if newValue { try SMAppService.mainApp.register()
-                    } else { try SMAppService.mainApp.unregister() }
-                } catch { launchAtLogin = SMAppService.mainApp.status == .enabled }
-            }
-            settingsRow("Notifications") {
-                Toggle("", isOn: $notificationsEnabled)
-                    .toggleStyle(.switch).controlSize(.mini)
-                    .labelsHidden()
-            }
-            .onChange(of: notificationsEnabled) { newValue in
-                if newValue { SessionManager.requestNotificationPermission() }
+            settingsGroup {
+                settingsRow("Launch at Login") {
+                    Toggle("", isOn: $launchAtLogin)
+                        .toggleStyle(.switch).controlSize(.mini)
+                        .labelsHidden()
+                }
+                .onChange(of: launchAtLogin) { newValue in
+                    do {
+                        if newValue { try SMAppService.mainApp.register()
+                        } else { try SMAppService.mainApp.unregister() }
+                    } catch { launchAtLogin = SMAppService.mainApp.status == .enabled }
+                }
+                groupedDivider
+                settingsRow("Notifications") {
+                    Toggle("", isOn: $notificationsEnabled)
+                        .toggleStyle(.switch).controlSize(.mini)
+                        .labelsHidden()
+                }
+                .onChange(of: notificationsEnabled) { newValue in
+                    if newValue { SessionManager.requestNotificationPermission() }
+                }
             }
         }
-        .padding(.horizontal, 8)
+        .padding(AppChrome.settingsContentPadding)
+        .background(Color.groupedContentBackground)
     }
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(Color.textSecondary)
-            .textCase(.uppercase)
-            .tracking(0.8)
+            .foregroundStyle(Color.textMuted)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .padding(.top, 10)
             .padding(.bottom, 6)
+    }
+
+    private func settingsGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) {
+            content()
+        }
+        .background(Color.groupedRowBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
+                .stroke(Color.groupedRowBorder, lineWidth: 1)
+        }
     }
 
     private func settingsRow<Content: View>(_ label: String, @ViewBuilder trailing: () -> Content) -> some View {
@@ -179,40 +195,67 @@ struct SettingsSection: View {
             Spacer()
             trailing()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    private var groupedDivider: some View {
+        Rectangle()
+            .fill(Color.groupedRowBorder)
+            .frame(height: 1)
+            .padding(.leading, 10)
+    }
+
+    private var navigateShortcutRow: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Navigate")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.textPrimary)
+                Text("Jump to sessions by number")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+            }
+            Spacer()
+            ShortcutBadge(name: .navigate)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
     }
 
     @ViewBuilder
     private var updateSection: some View {
         if let version = updater.pendingUpdateVersion {
-            Button {
-                updater.checkForUpdates()
-            } label: {
-                HStack {
-                    Text("v\(version) available")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.textPrimary)
-                    Spacer()
-                    Text("Update")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.amber)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+            settingsGroup {
+                Button {
+                    updater.checkForUpdates()
+                } label: {
+                    HStack {
+                        Text("v\(version) available")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.textPrimary)
+                        Spacer()
+                        Text("Update")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.amber)
+                            .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 10)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            Divider().padding(.horizontal, 8)
         } else if let reason = updater.disabledReason {
-            disabledSection(reason: reason)
-            Divider().padding(.horizontal, 8)
+            settingsGroup {
+                disabledSection(reason: reason)
+            }
         } else if updater.canCheckForUpdates {
-            updateControlsSection
-            Divider().padding(.horizontal, 8)
+            settingsGroup {
+                updateControlsSection
+            }
         }
     }
 
@@ -221,7 +264,7 @@ struct SettingsSection: View {
     private var updateControlsSection: some View {
         HStack {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.statusGreen)
             Text("Up to date \u{2014} v\(currentVersion)")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.textPrimary)
@@ -235,7 +278,7 @@ struct SettingsSection: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 10)
         .padding(.vertical, 10)
     }
 
@@ -243,7 +286,7 @@ struct SettingsSection: View {
         Text(reason.reasonText)
             .font(.system(size: 10))
             .foregroundStyle(Color.textMuted)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 10)
             .padding(.vertical, 8)
     }
 
@@ -272,7 +315,8 @@ private struct MonitoredToolsView: View {
                 CodexPluginRowView(pluginManager: pluginManager, installFailed: $installFailed)
             }
         }
-        .padding(.horizontal, 14).padding(.bottom, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 2)
     }
 }
 
@@ -302,7 +346,7 @@ private struct PluginRowView: View {
             }.padding(.vertical, 7)
             if justInstalled {
                 HStack(spacing: 4) {
-                    Image(systemName: "checkmark").font(.system(size: 10)).foregroundStyle(.green)
+                    Image(systemName: "checkmark").font(.system(size: 10)).foregroundStyle(Color.statusGreen)
                     Text("Installed \u{2014} restart \(name) to start tracking")
                         .font(.system(size: 10)).foregroundStyle(Color.textMuted)
                 }.transition(.opacity)
@@ -377,7 +421,7 @@ struct ClaudeCodeInstallButton: View {
                 .foregroundStyle(Color.segmentActiveText)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Color.amber)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius))
         }
         .buttonStyle(.plain)
     }
@@ -393,7 +437,7 @@ struct ClaudeCodeInstallButton: View {
         }
         .padding(.horizontal, 8).padding(.vertical, 3)
         .overlay(
-            RoundedRectangle(cornerRadius: 4)
+            RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius)
                 .stroke(Color.statusGreen, lineWidth: 1)
         )
         .transition(.opacity)
@@ -413,7 +457,7 @@ struct AmberActionButton: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(Color.amber)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius))
         }
         .buttonStyle(.plain)
     }
@@ -424,9 +468,7 @@ struct StatusDotBadge: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(Color.statusGreen)
-                .frame(width: 5, height: 5)
+            Circle().fill(Color.statusGreen).frame(width: 5, height: 5)
             Text(text)
                 .font(.system(size: 10))
                 .foregroundStyle(Color.textMuted)
@@ -434,44 +476,22 @@ struct StatusDotBadge: View {
     }
 }
 
-struct ConnectedBadge: View {
-    var body: some View {
-        StatusDotBadge(text: "Connected")
-    }
-}
-// MARK: - Previews
-@MainActor private func previewCCRow(installed: Bool) -> PluginManager {
-    let pm = previewBasePM()
-    pm.ccInstalled = installed
-    return pm
-}
+struct ConnectedBadge: View { var body: some View { StatusDotBadge(text: "Connected") } }
 
-/// Inert manager for previews: no home-dir IO, every flag starts false.
+// MARK: - Previews
 @MainActor private func previewBasePM() -> PluginManager {
     PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
 }
-
-#Preview("CC row - Not installed") {
-    ClaudeCodePluginRowView(pluginManager: previewCCRow(installed: false))
-        .frame(width: 320).padding()
-}
-#Preview("CC row - Connected") {
-    ClaudeCodePluginRowView(pluginManager: previewCCRow(installed: true))
-        .frame(width: 320).padding()
-}
-
 @MainActor private class MockUpdater: UpdaterBase { override var canCheckForUpdates: Bool { true } }
 @MainActor private func previewPM() -> PluginManager {
-    let pm = previewBasePM(); pm.ccInstalled = true; pm.ocInstalled = true
-    pm.ocConfigExists = true; pm.piInstalled = true; pm.piConfigExists = true
-    pm.codexInstalled = true; pm.codexConfigExists = true
-    pm.codexHookStatus = .trusted
+    let pm = previewBasePM()
+    pm.ccInstalled = true; pm.ocInstalled = true; pm.ocConfigExists = true
+    pm.piInstalled = true; pm.piConfigExists = true
+    pm.codexInstalled = true; pm.codexConfigExists = true; pm.codexHookStatus = .trusted
     return pm
 }
 @MainActor private func previewPendingCodexTrustPM() -> PluginManager {
-    let pm = previewPM()
-    pm.codexHookStatus = .installedUntrusted
-    return pm
+    let pm = previewPM(); pm.codexHookStatus = .installedUntrusted; return pm
 }
 #Preview("Default") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewBasePM()).frame(width: 320).padding() }
 #Preview("All connected") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }
