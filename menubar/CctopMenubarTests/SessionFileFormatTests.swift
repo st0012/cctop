@@ -17,6 +17,20 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(process.terminationStatus, 0)
     }
 
+    private func writeCodexRolloutMetadata(path: String, threadID: String, originator: String) throws {
+        let object: [String: Any] = [
+            "type": "session_meta",
+            "payload": [
+                "id": threadID,
+                "originator": originator,
+                "source": "exec"
+            ]
+        ]
+        var data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        data.append(0x0a)
+        try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+    }
+
     private func writeCodexStateDatabase(
         path: String,
         archivedThreads: Set<String>,
@@ -1809,6 +1823,139 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(lookup.subagentThreadIDs(matching: threadIDs), ["subagent-thread"])
         XCTAssertEqual(lookup.execHelperThreadIDs(matching: threadIDs), [])
         XCTAssertEqual(lookup.projectNames(matching: threadIDs), ["project-thread": "cctop"])
+    }
+
+    func testCodexThreadLookupInvalidatesExecHelperCacheWhenRolloutFileChanges() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-rollout-cache-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        let rolloutPath = (root as NSString).appendingPathComponent("helper.jsonl")
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        try executeSQLite(
+            """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES ('helper-thread', '\(rolloutPath)', 0, '', NULL, NULL, 'exec', 0, '');
+            """,
+            path: stateDB
+        )
+
+        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), [])
+
+        try writeCodexRolloutMetadata(path: rolloutPath, threadID: "helper-thread", originator: "Codex Desktop")
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), ["helper-thread"])
+    }
+
+    func testCodexThreadLookupInvalidatesExecHelperCacheWhenRolloutFileIsRewritten() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-rollout-rewrite-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        let rolloutPath = (root as NSString).appendingPathComponent("helper.jsonl")
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        try executeSQLite(
+            """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES ('helper-thread', '\(rolloutPath)', 0, '', NULL, NULL, 'exec', 0, '');
+            """,
+            path: stateDB
+        )
+
+        try writeCodexRolloutMetadata(path: rolloutPath, threadID: "helper-thread", originator: "Other Desktop")
+        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), [])
+
+        try writeCodexRolloutMetadata(path: rolloutPath, threadID: "helper-thread", originator: "Codex Desktop")
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), ["helper-thread"])
+    }
+
+    func testCodexThreadLookupOnlyReadsRequestedExecHelperRollouts() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-request-scoped-cache-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        let requestedRollout = (root as NSString).appendingPathComponent("requested.jsonl")
+        let historicalRollout = (root as NSString).appendingPathComponent("historical.jsonl")
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        try executeSQLite(
+            """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES ('requested-helper', '\(requestedRollout)', 0, '', NULL, NULL, 'exec', 0, '');
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES ('historical-helper', '\(historicalRollout)', 0, '', NULL, NULL, 'exec', 0, '');
+            """,
+            path: stateDB
+        )
+
+        var inspectedRollouts: [String] = []
+        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
+            inspectedRollouts.append(path)
+            return "Codex Desktop"
+        }
+
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["requested-helper"]), ["requested-helper"])
+        XCTAssertEqual(inspectedRollouts, [requestedRollout])
+    }
+
+    func testCodexThreadLookupCachesIdenticalExecHelperRequestSets() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-exec-cache-hit-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        let rolloutPath = (root as NSString).appendingPathComponent("cached.jsonl")
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        try executeSQLite(
+            """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES ('cached-helper', '\(rolloutPath)', 0, '', NULL, NULL, 'exec', 0, '');
+            """,
+            path: stateDB
+        )
+
+        var inspectedRollouts: [String] = []
+        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
+            inspectedRollouts.append(path)
+            return "Codex Desktop"
+        }
+
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["cached-helper"]), ["cached-helper"])
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["cached-helper"]), ["cached-helper"])
+        XCTAssertEqual(inspectedRollouts, [rolloutPath])
+    }
+
+    func testCodexThreadLookupReloadsDifferentExecHelperRequestSets() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-exec-cache-miss-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        let firstRollout = (root as NSString).appendingPathComponent("first.jsonl")
+        let secondRollout = (root as NSString).appendingPathComponent("second.jsonl")
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        try executeSQLite(
+            """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES ('first-helper', '\(firstRollout)', 0, '', NULL, NULL, 'exec', 0, '');
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES ('second-helper', '\(secondRollout)', 0, '', NULL, NULL, 'exec', 0, '');
+            """,
+            path: stateDB
+        )
+
+        var inspectedRollouts: [String] = []
+        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
+            inspectedRollouts.append(path)
+            return "Codex Desktop"
+        }
+
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["first-helper"]), ["first-helper"])
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["second-helper"]), ["second-helper"])
+        XCTAssertEqual(inspectedRollouts, [firstRollout, secondRollout])
     }
 
     func testCodexThreadLookupInvalidatesCacheWhenSQLiteSidecarChanges() throws {
