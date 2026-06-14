@@ -109,12 +109,16 @@ final class CodexThreadArchiveLookup {
         let requestedThreadIDs = Set(threadIDs)
         let key = CodexThreadStateRequestKey(database: databaseFingerprint, threadIDs: requestedThreadIDs)
 
+        let cacheCandidates: [CodexThreadStateIndexCache]
         cacheLock.lock()
-        let cached = indexCaches[key]
+        cacheCandidates = indexCaches.compactMap { entry in
+            entry.key.database == databaseFingerprint && entry.key.threadIDs.isSuperset(of: requestedThreadIDs) ? entry.value : nil
+        }
         cacheLock.unlock()
 
-        if let cached,
-           Self.rolloutFileFingerprints(at: cached.rolloutPaths) == cached.rolloutFingerprints {
+        if let cached = cacheCandidates.first(where: { cached in
+            Self.rolloutFileFingerprints(at: cached.rolloutPaths) == cached.rolloutFingerprints
+        }) {
             return cached.snapshot
         }
 
@@ -141,18 +145,10 @@ final class CodexThreadArchiveLookup {
         matching threadIDs: Set<String>
     ) -> CodexThreadStateLoadResult? {
         guard !threadIDs.isEmpty else {
-            return CodexThreadStateLoadResult(
-                snapshot: .available(CodexThreadStateIndex()),
-                rolloutPaths: [],
-                rolloutFingerprints: []
-            )
+            return CodexThreadStateLoadResult(snapshot: .available(CodexThreadStateIndex()), rolloutPaths: [], rolloutFingerprints: [])
         }
         guard fingerprint != .missing else {
-            return CodexThreadStateLoadResult(
-                snapshot: .missing,
-                rolloutPaths: [],
-                rolloutFingerprints: []
-            )
+            return CodexThreadStateLoadResult(snapshot: .missing, rolloutPaths: [], rolloutFingerprints: [])
         }
 
         var database: OpaquePointer?

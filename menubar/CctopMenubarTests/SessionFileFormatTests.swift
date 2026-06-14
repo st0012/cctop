@@ -1958,6 +1958,38 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(inspectedRollouts, [rolloutPath])
     }
 
+    func testCodexThreadLookupReusesBatchCacheForSubsetArchiveRequests() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-subset-cache-hit-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            execHelperThreads: ["helper-one", "helper-two"]
+        )
+
+        let rolloutDir = (root as NSString).appendingPathComponent("rollouts")
+        let expectedRollouts = Set([
+            (rolloutDir as NSString).appendingPathComponent("helper-one.jsonl"),
+            (rolloutDir as NSString).appendingPathComponent("helper-two.jsonl")
+        ])
+        var inspectedRollouts: [String] = []
+        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
+            inspectedRollouts.append(path)
+            return "Codex Desktop"
+        }
+
+        XCTAssertEqual(lookup.archivedThreadIDs(matching: ["helper-one", "helper-two"]), [])
+        XCTAssertEqual(Set(inspectedRollouts), expectedRollouts)
+        XCTAssertEqual(inspectedRollouts.count, 2)
+
+        XCTAssertEqual(lookup.archivedThreadIDs(matching: ["helper-one"]), [])
+        XCTAssertEqual(Set(inspectedRollouts), expectedRollouts)
+        XCTAssertEqual(inspectedRollouts.count, 2)
+    }
+
     func testCodexThreadLookupReloadsDifferentExecHelperRequestSets() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-exec-cache-miss-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
