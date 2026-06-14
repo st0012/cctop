@@ -130,7 +130,7 @@ final class CodexThreadArchiveLookup {
         indexCaches[key] = CodexThreadStateIndexCache(
             snapshot: result.snapshot,
             rolloutPaths: result.rolloutPaths,
-            rolloutFingerprints: Self.rolloutFileFingerprints(at: result.rolloutPaths)
+            rolloutFingerprints: result.rolloutFingerprints
         )
         cacheLock.unlock()
         return result.snapshot
@@ -141,10 +141,18 @@ final class CodexThreadArchiveLookup {
         matching threadIDs: Set<String>
     ) -> CodexThreadStateLoadResult? {
         guard !threadIDs.isEmpty else {
-            return CodexThreadStateLoadResult(snapshot: .available(CodexThreadStateIndex()), rolloutPaths: [])
+            return CodexThreadStateLoadResult(
+                snapshot: .available(CodexThreadStateIndex()),
+                rolloutPaths: [],
+                rolloutFingerprints: []
+            )
         }
         guard fingerprint != .missing else {
-            return CodexThreadStateLoadResult(snapshot: .missing, rolloutPaths: [])
+            return CodexThreadStateLoadResult(
+                snapshot: .missing,
+                rolloutPaths: [],
+                rolloutFingerprints: []
+            )
         }
 
         var database: OpaquePointer?
@@ -170,15 +178,28 @@ final class CodexThreadArchiveLookup {
         defer { sqlite3_finalize(statement) }
 
         guard Self.bind(sortedThreadIDs, to: statement) else { return nil }
+        return stateSnapshotRows(from: statement)
+    }
 
+    private func stateSnapshotRows(from statement: OpaquePointer) -> CodexThreadStateLoadResult? {
         var index = CodexThreadStateIndex()
         var rolloutPaths = Set<String>()
+        var rolloutFingerprints: [String: CodexThreadStateRolloutFileFingerprint] = [:]
         while true {
             switch sqlite3_step(statement) {
             case SQLITE_ROW:
-                addCurrentRow(statement, to: &index, rolloutPaths: &rolloutPaths)
+                addCurrentRow(
+                    statement,
+                    to: &index,
+                    rolloutPaths: &rolloutPaths,
+                    rolloutFingerprints: &rolloutFingerprints
+                )
             case SQLITE_DONE:
-                return CodexThreadStateLoadResult(snapshot: .available(index), rolloutPaths: rolloutPaths)
+                return CodexThreadStateLoadResult(
+                    snapshot: .available(index),
+                    rolloutPaths: rolloutPaths,
+                    rolloutFingerprints: Self.sortedRolloutFingerprints(rolloutFingerprints)
+                )
             default:
                 return nil   // SQLITE_BUSY / SQLITE_ERROR / etc. — read did not complete
             }
@@ -246,9 +267,17 @@ final class CodexThreadArchiveLookup {
     }
 
     private static func rolloutFileFingerprints(at paths: Set<String>) -> [CodexThreadStateRolloutFileFingerprint] {
-        paths.sorted().map {
-            CodexThreadStateRolloutFileFingerprint(path: $0, file: optionalFileFingerprint(at: $0))
-        }
+        paths.sorted().map { rolloutFileFingerprint(at: $0) }
+    }
+
+    private static func rolloutFileFingerprint(at path: String) -> CodexThreadStateRolloutFileFingerprint {
+        CodexThreadStateRolloutFileFingerprint(path: path, file: optionalFileFingerprint(at: path))
+    }
+
+    private static func sortedRolloutFingerprints(
+        _ fingerprintsByPath: [String: CodexThreadStateRolloutFileFingerprint]
+    ) -> [CodexThreadStateRolloutFileFingerprint] {
+        fingerprintsByPath.keys.sorted().compactMap { fingerprintsByPath[$0] }
     }
 
     private static func databaseFingerprint(at path: String) -> CodexThreadStateDatabaseFingerprint? {
@@ -284,7 +313,8 @@ final class CodexThreadArchiveLookup {
     private func addCurrentRow(
         _ statement: OpaquePointer,
         to index: inout CodexThreadStateIndex,
-        rolloutPaths: inout Set<String>
+        rolloutPaths: inout Set<String>,
+        rolloutFingerprints: inout [String: CodexThreadStateRolloutFileFingerprint]
     ) {
         guard let idText = sqlite3_column_text(statement, 0) else { return }
         let threadID = String(cString: idText)
@@ -298,7 +328,13 @@ final class CodexThreadArchiveLookup {
             index.subagentThreadIDs.insert(threadID)
         }
 
-        addExecHelperRow(threadID, statement: statement, to: &index, rolloutPaths: &rolloutPaths)
+        addExecHelperRow(
+            threadID,
+            statement: statement,
+            to: &index,
+            rolloutPaths: &rolloutPaths,
+            rolloutFingerprints: &rolloutFingerprints
+        )
         Self.addProjectNameRow(threadID, statement: statement, to: &index)
     }
 
@@ -306,7 +342,8 @@ final class CodexThreadArchiveLookup {
         _ threadID: String,
         statement: OpaquePointer,
         to index: inout CodexThreadStateIndex,
-        rolloutPaths: inout Set<String>
+        rolloutPaths: inout Set<String>,
+        rolloutFingerprints: inout [String: CodexThreadStateRolloutFileFingerprint]
     ) {
         let source = Self.columnString(statement, 3)
         let hasUserEvent = sqlite3_column_int(statement, 4) != 0
@@ -317,6 +354,7 @@ final class CodexThreadArchiveLookup {
         }
 
         rolloutPaths.insert(rolloutPath)
+        rolloutFingerprints[rolloutPath] = Self.rolloutFileFingerprint(at: rolloutPath)
         if rolloutOriginator(rolloutPath) == "Codex Desktop" {
             index.execHelperThreadIDs.insert(threadID)
         }
@@ -420,6 +458,7 @@ private struct CodexThreadStateIndexCache {
 private struct CodexThreadStateLoadResult {
     let snapshot: CodexThreadStateSnapshot
     let rolloutPaths: Set<String>
+    let rolloutFingerprints: [CodexThreadStateRolloutFileFingerprint]
 }
 
 private enum CodexThreadStateSnapshot {
@@ -458,5 +497,4 @@ private struct CodexThreadStateFileFingerprint: Equatable, Hashable {
     let statusChangedNanoseconds: Int64
     let fileSize: Int64
 }
-
 private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)

@@ -1848,6 +1848,36 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), ["helper-thread"])
     }
 
+    func testCodexThreadLookupDoesNotCacheStaleExecHelperWhenRolloutAppearsDuringLoad() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-rollout-race-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        let rolloutPath = (root as NSString).appendingPathComponent("helper.jsonl")
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        try executeSQLite(
+            """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES ('helper-thread', '\(rolloutPath)', 0, '', NULL, NULL, 'exec', 0, '');
+            """,
+            path: stateDB
+        )
+
+        var originatorReads = 0
+        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
+            originatorReads += 1
+            if originatorReads == 1 {
+                try? self.writeCodexRolloutMetadata(path: path, threadID: "helper-thread", originator: "Codex Desktop")
+                return nil
+            }
+            return "Codex Desktop"
+        }
+
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), [])
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), ["helper-thread"])
+    }
+
     func testCodexThreadLookupInvalidatesExecHelperCacheWhenRolloutFileIsRewritten() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-rollout-rewrite-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
