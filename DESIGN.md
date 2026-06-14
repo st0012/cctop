@@ -277,7 +277,7 @@ glance at it from peripheral vision.
 ┌──────────────────────────────────────────────────────────┐
 │ Session name (14 px semibold)         Status · 5s ago    │  ← row 1
 │ folder · branch · src                                    │  ← row 2 (CLI)
-│ › Reading SessionCardView.swift ▌                        │  ← row 3 (working only)
+│ › Reading SessionCardView.swift                          │  ← row 3 (working only)
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -287,11 +287,11 @@ glance at it from peripheral vision.
 | **Row 1 — title**         | 14 px semibold · `textPrimary` (`textSecondary` when idle)     |
 | Navigate chip (row 1 lead)| 16×16 status-colored square, 3 px radius, white digit (1–9)   |
 | Subagent count            | 10 px · `agentBadge` (purple)                                  |
-| Status label              | 10.5 px semibold · status-tinted; "Waiting" / "Permission" rendered as a softly pulsing pill (`statusAttention` bg 0.10 ↔ 0.22, 1.5 s ease-in-out, autoreverse) |
-| Timestamp                 | 10 px · refreshes every 10 s via `TimelineView`. "Just now" (≤ 5 s) → `statusGreen`; > 7 d → `textMuted` at 0.55 |
+| Status label              | 10.5 px semibold · status-tinted; "Waiting" / "Permission" rendered as a static rounded pill (`statusAttention` bg 0.10, no pulse) |
+| Timestamp                 | 10 px · refreshed by the shared 10 s `PopupView` relative-time timer, never by row-local timers. "Just now" (≤ 5 s) → `statusGreen`; > 7 d → `textMuted` at 0.55 |
 | **Row 2 — meta (CLI)**    | `folder · branch · source` — folder shown only when `sessionName != projectName`. Branch 10 px monospaced, separators muted dots. |
 | **Row 2 — meta (Desktop)**| Source badge only. Folder + branch are dropped because Desktop sessions often run in auto-generated worktree dirs (`focused-dirac-1baeb9`) and the wider "Claude Desktop" chip causes wrapping when combined with them. |
-| **Row 3 — working**       | Monospace command stripe with `›` prompt (`statusGreen` @ 0.7) + `Session.contextLine`, ending in a `BlinkingCaret` (6×11 pt, 0.55 s hard blink, hidden under `accessibilityReduceMotion`) |
+| **Row 3 — working**       | Static monospace command stripe with `›` prompt (`statusGreen` @ 0.7) + `Session.contextLine`; no trailing indicator or per-row animation |
 | **Row 3 — waiting**       | Italic `statusAttention` note: `notificationMessage ?? contextLine ?? "Waiting for input"` |
 | Selected / hover          | `cardSelectionStyle` overlay (no shadow)                       |
 | Source badge visibility   | Shown only when `Set(sessions.map(\.agentBadge)).count > 1` (keyed on `agentBadge`, not `sourceLabel`, so CC + Claude Desktop counts as multiple sources) |
@@ -701,7 +701,7 @@ Both surfaces respect `prefers-reduced-motion: reduce`:
 
 | Surface | Behavior under reduced motion                                                  |
 |---------|---------------------------------------------------------------------------------|
-| App     | Pulse animation on attention statuses still runs (it's a status indicator, not decoration), but the segmented picker / overlay transitions snap rather than ease |
+| App     | Session rows are static; attention pills do not pulse and command stripes have no trailing indicator. Segmented picker / overlay transitions snap rather than ease |
 | Site    | All transitions and animations forced to `0.01ms`; smooth-scroll swaps to instant `window.scrollTo`; FAQ height tween is bypassed (native `<details>` toggle); reveal-on-scroll fade is disabled (everything pre-revealed) |
 
 ### Color scheme
