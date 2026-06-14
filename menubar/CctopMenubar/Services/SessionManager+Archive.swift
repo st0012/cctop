@@ -1,17 +1,4 @@
-import AppKit
 import Foundation
-
-struct DesktopAppConnectionLookup {
-    let isRunning: (String) -> Bool
-
-    init(_ isRunning: @escaping (String) -> Bool) {
-        self.isRunning = isRunning
-    }
-
-    static let live = DesktopAppConnectionLookup { bundleID in
-        NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == bundleID }
-    }
-}
 
 /// The external inputs SessionManager consults while deriving session state: the sessions
 /// directory, the Codex/Claude Desktop archive stores, desktop-app liveness, process liveness,
@@ -56,6 +43,76 @@ struct SessionVisibilitySnapshot {
 }
 
 extension SessionManager {
+    nonisolated static func desktopAppRunningByBundleID(
+        in sessions: [Session],
+        lookup: DesktopAppConnectionLookup
+    ) -> [String: Bool] {
+        let bundleIDs = Set(sessions.compactMap { session -> String? in
+            guard session.hostClass == .desktop else { return nil }
+            return session.terminal?.bundleId
+        })
+        return lookup.runningStates(bundleIDs)
+    }
+
+    nonisolated static func desktopAppRunning(
+        for session: Session,
+        runningByBundleID: [String: Bool]
+    ) -> Bool? {
+        guard session.hostClass == .desktop,
+              let bundleID = session.terminal?.bundleId else {
+            return nil
+        }
+        return runningByBundleID[bundleID]
+    }
+
+    nonisolated static func desktopAppRunning(
+        for session: Session,
+        lookup: DesktopAppConnectionLookup
+    ) -> Bool? {
+        guard session.hostClass == .desktop,
+              let bundleID = session.terminal?.bundleId else {
+            return nil
+        }
+        return lookup.isRunning(bundleID)
+    }
+
+    func preloadDesktopArchiveStateForFinishedSessions(
+        in jsonFiles: [URL],
+        now: Date
+    ) {
+        var finished: [Session] = []
+        for url in jsonFiles {
+            guard !Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent),
+                  let data = try? Data(contentsOf: url),
+                  let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data),
+                  !session.hidden,
+                  !session.shouldAutoHide,
+                  session.hostClass == .desktop else {
+                continue
+            }
+            let life = SessionLifecyclePolicy.lifecycle(
+                for: session,
+                hostClass: .desktop,
+                processAlive: dataSources.processAlive(session),
+                now: now,
+                windows: Self.lifecycleWindows,
+                desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
+            )
+            if life == .finished {
+                finished.append(session)
+            }
+        }
+
+        let codexFinishedIDs = Set(finished.filter(\.isCodexDesktopHost).map(\.sessionId))
+        let claudeFinishedIDs = Set(finished.filter(\.isClaudeDesktopHost).map(\.sessionId))
+        if !codexFinishedIDs.isEmpty {
+            _ = dataSources.codexThreads.archivedThreadIDs(matching: codexFinishedIDs)
+        }
+        if !claudeFinishedIDs.isEmpty {
+            _ = dataSources.claudeDesktopSessions.archivedSessionIDs(matching: claudeFinishedIDs)
+        }
+    }
+
     nonisolated static func visibilitySnapshot(
         in candidates: [DedupCandidate],
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
@@ -343,6 +400,10 @@ extension SessionManager {
             claudeMetadata: claudeMetadata,
             codexThreads: codexThreads
         )
+        let desktopAppRunningByBundleID = desktopAppRunningByBundleID(
+            in: sessionFiles.map(\.session),
+            lookup: desktopAppConnectionLookup
+        )
         var candidates: [DedupCandidate] = []
         for (url, var session) in sessionFiles {
             if let projectName = projectNames[session.sessionId] {
@@ -351,7 +412,7 @@ extension SessionManager {
             session.lifecycle = SessionLifecyclePolicy.lifecycle(
                 for: session, hostClass: session.hostClass, processAlive: processAlive(session),
                 now: now, windows: lifecycleWindows,
-                desktopAppRunning: desktopAppRunning(for: session, lookup: desktopAppConnectionLookup)
+                desktopAppRunning: desktopAppRunning(for: session, runningByBundleID: desktopAppRunningByBundleID)
             )
             let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
                 .contentModificationDate ?? .distantPast

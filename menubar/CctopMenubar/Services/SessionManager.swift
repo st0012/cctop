@@ -20,6 +20,8 @@ class SessionManager: ObservableObject {
     private var livenessTimer: Timer?
     private var gcTimer: Timer?
     private var lastDisplaySignature = SessionDisplayPolicy.Signature.empty
+    var lastLoadLogSignature: SessionLoadLogSignature?
+    var sessionFileCache: [String: SessionFileCacheEntry] = [:]
 
     /// Lifecycle windows: desktop app liveness decides connection when available; `active` is the
     /// fallback recency threshold and `retention` controls dormant desktop cleanup.
@@ -60,10 +62,12 @@ class SessionManager: ObservableObject {
     func loadSessions() {
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: sessionsDir,
-            includingPropertiesForKeys: [.contentModificationDateKey]
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey]
         ) else {
             sessionManagerLogger.warning("loadSessions: could not read directory")
             lastDisplaySignature = .empty
+            lastLoadLogSignature = nil
+            sessionFileCache.removeAll()
             sessions = []
             return
         }
@@ -246,6 +250,7 @@ class SessionManager: ObservableObject {
         guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
         let now = dataSources.now()
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
+        preloadDesktopArchiveStateForFinishedSessions(in: jsonFiles, now: now)
         var removedAny = false
         for url in jsonFiles {
             if Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) {
@@ -269,8 +274,9 @@ class SessionManager: ObservableObject {
                     desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
                 )
                 guard life == .finished else { return }
-                // Re-read external desktop archive state under the lock, right before deleting. A session
-                // archived after the directory scan must keep its .json so a later unarchive can restore it.
+                // Re-read external desktop archive state under the lock, right before deleting. A
+                // session archived after the directory scan must keep its .json so a later unarchive
+                // can restore it. Provider-level caches keep this fresh guard cheap.
                 guard !Self.isArchivedDesktopSession(
                     session,
                     codexThreads: dataSources.codexThreads,
@@ -471,16 +477,5 @@ extension SessionManager {
     /// numeric (PID) or `codex-<uuid>`, so only genuinely old files match.
     nonisolated static func isLegacyUUIDFilename(_ stem: String) -> Bool {
         HostApp.isUUID(stem)
-    }
-
-    nonisolated static func desktopAppRunning(
-        for session: Session,
-        lookup: DesktopAppConnectionLookup
-    ) -> Bool? {
-        guard session.hostClass == .desktop,
-              let bundleID = session.terminal?.bundleId else {
-            return nil
-        }
-        return lookup.isRunning(bundleID)
     }
 }

@@ -13,6 +13,7 @@ class HistoryManager: ObservableObject {
     let historyDir: URL
     static let maxFiles = 50
     static let maxAgeDays = 30
+    private var lastRebuildFingerprint: HistoryRebuildFingerprint?
 
     init(historyDir: URL = URL(fileURLWithPath: Config.historyDir())) {
         self.historyDir = historyDir
@@ -57,13 +58,24 @@ class HistoryManager: ObservableObject {
     // MARK: - Recent Projects
 
     /// Rebuild the cached recent projects list from history files.
+    @discardableResult
     func rebuildRecentProjects(
         excludingActive activePaths: Set<String> = []
-    ) {
+    ) -> Bool {
+        let fingerprint = historyFingerprint(excludingActive: activePaths)
+        if let fingerprint, fingerprint == lastRebuildFingerprint {
+            return false
+        }
+
         let sessions = loadDecodedHistoryFiles().map(\.session)
-        recentProjects = Self.buildRecentProjects(
+        let nextRecentProjects = Self.buildRecentProjects(
             from: sessions, excludingActive: activePaths
         )
+        lastRebuildFingerprint = fingerprint
+        if nextRecentProjects != recentProjects {
+            recentProjects = nextRecentProjects
+        }
+        return true
     }
 
     /// Pure function: group sessions by project, take most recent per project,
@@ -188,6 +200,30 @@ class HistoryManager: ObservableObject {
         }
     }
 
+    private func historyFingerprint(excludingActive activePaths: Set<String>) -> HistoryRebuildFingerprint? {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(
+            at: historyDir,
+            includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey]
+        ) else {
+            return nil
+        }
+        let jsonFiles = entries.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
+        var files: [HistoryFileFingerprint] = []
+        for url in jsonFiles {
+            guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]) else {
+                return nil
+            }
+            files.append(HistoryFileFingerprint(
+                path: url.path,
+                modificationDate: values.contentModificationDate ?? .distantPast,
+                fileSize: values.fileSize ?? -1
+            ))
+        }
+        files.sort { $0.path < $1.path }
+        return HistoryRebuildFingerprint(files: files, activePaths: activePaths)
+    }
+
     private func sanitizeFilenameComponent(_ name: String) -> String {
         let allowed = CharacterSet.alphanumerics
             .union(CharacterSet(charactersIn: "-_"))
@@ -207,4 +243,15 @@ private extension ISO8601DateFormatter {
         fmt.formatOptions = [.withInternetDateTime]
         return fmt
     }()
+}
+
+private struct HistoryRebuildFingerprint: Equatable {
+    let files: [HistoryFileFingerprint]
+    let activePaths: Set<String>
+}
+
+private struct HistoryFileFingerprint: Equatable {
+    let path: String
+    let modificationDate: Date
+    let fileSize: Int
 }

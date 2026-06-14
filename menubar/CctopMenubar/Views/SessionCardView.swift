@@ -6,10 +6,9 @@ struct SessionCardView: View {
     var navigateIndex: Int?
     var showSourceBadge = false
     var isSelected = false
+    var relativeTimeNow = Date()
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
-    @State private var attentionPulse = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -29,13 +28,6 @@ struct SessionCardView: View {
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(cardAccessibilityLabel)
-        .onAppear { startAttentionPulseIfNeeded() }
-        .onChange(of: session.status) { _ in startAttentionPulseIfNeeded() }
-        // Without this, toggling macOS Reduce Motion while a waiting/permission
-        // card is already on screen leaves attentionPulse stuck in its previous
-        // state — the env value updates, but the @State pulse flag doesn't get
-        // re-evaluated until the next status transition.
-        .onChange(of: reduceMotion) { _ in startAttentionPulseIfNeeded() }
     }
 
     // MARK: - Rows
@@ -63,14 +55,9 @@ struct SessionCardView: View {
 
             statusLabel
 
-            // TimelineView re-evaluates the closure every 10s so "just now / 5s /
-            // 2m" labels (and the fresh/stale color transitions in `timeColor`)
-            // stay live even when no session-file write triggers a re-render.
-            TimelineView(.periodic(from: .now, by: 10)) { _ in
-                Text("· \(session.relativeTime)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(timeColor)
-            }
+            Text("· \(session.lastActivity.relativeDescription(asOf: relativeTimeNow))")
+                .font(.system(size: 10))
+                .foregroundStyle(timeColor)
         }
     }
 
@@ -142,9 +129,6 @@ struct SessionCardView: View {
                     .foregroundStyle(Color.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                if session.status == .working {
-                    BlinkingCaret().padding(.leading, 3)
-                }
                 Spacer(minLength: 0)
             }
             .padding(.top, 3)
@@ -170,7 +154,7 @@ struct SessionCardView: View {
             .background {
                 if isAttentionStatus {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.statusAttention.opacity(attentionPulse ? 0.22 : 0.10))
+                        .fill(Color.statusAttention.opacity(0.10))
                 }
             }
     }
@@ -248,7 +232,7 @@ struct SessionCardView: View {
 
     private var timeColor: Color {
         // "just now" → accent (fresh); stale (>7d) → dimmer; otherwise muted.
-        let seconds = -session.lastActivity.timeIntervalSinceNow
+        let seconds = relativeTimeNow.timeIntervalSince(session.lastActivity)
         if seconds <= 5 { return Color.statusGreen }
         if seconds > 7 * 86_400 { return Color.textMuted.opacity(0.55) }
         return Color.textMuted
@@ -272,18 +256,6 @@ struct SessionCardView: View {
             parts.append(context)
         }
         return parts.joined(separator: ", ")
-    }
-
-    // MARK: - Animations
-
-    private func startAttentionPulseIfNeeded() {
-        guard isAttentionStatus, !reduceMotion else {
-            attentionPulse = false
-            return
-        }
-        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-            attentionPulse = true
-        }
     }
 }
 

@@ -18,7 +18,6 @@
 		D10000030000000000000001 /* HeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000040000000000000001 /* HeaderView.swift */; };
 		D10000050000000000000001 /* SessionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000060000000000000001 /* SessionCardView.swift */; };
 		SBV000010000000000000001 /* SourceBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SBV000020000000000000001 /* SourceBadgeView.swift */; };
-		BLC000010000000000000001 /* BlinkingCaret.swift in Sources */ = {isa = PBXBuildFile; fileRef = BLC000020000000000000001 /* BlinkingCaret.swift */; };
 		D10000070000000000000001 /* PopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000080000000000000001 /* PopupView.swift */; };
 		PVH000010000000000000001 /* PopupViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = PVH000020000000000000001 /* PopupViewHelpers.swift */; };
 		D10000090000000000000001 /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000A000000000000001 /* QuitButton.swift */; };
@@ -112,6 +111,7 @@
 		TMT000010000000000000001 /* ThemeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TMT000020000000000000001 /* ThemeManagerTests.swift */; };
 		SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SLP000020000000000000001 /* SessionLifecyclePolicy.swift */; };
 		SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SIP000020000000000000001 /* SessionIdentityPolicy.swift */; };
+		DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */; };
 		CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */; };
 		CDA000010000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */; };
 		SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */ = {isa = PBXBuildFile; fileRef = SMA000020000000000000001 /* SessionManager+Archive.swift */; };
@@ -137,6 +137,7 @@
 		C10000020000000000000001 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
 		SLP000020000000000000001 /* SessionLifecyclePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecyclePolicy.swift; sourceTree = "<group>"; };
 		SIP000020000000000000001 /* SessionIdentityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIdentityPolicy.swift; sourceTree = "<group>"; };
+		DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopAppConnectionLookup.swift; sourceTree = "<group>"; };
 		CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexThreadArchiveLookup.swift; sourceTree = "<group>"; };
 		CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDesktopSessionArchiveLookup.swift; sourceTree = "<group>"; };
 		SMA000020000000000000001 /* SessionManager+Archive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Archive.swift"; sourceTree = "<group>"; };
@@ -146,7 +147,6 @@
 		D10000040000000000000001 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
 		D10000060000000000000001 /* SessionCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCardView.swift; sourceTree = "<group>"; };
 		SBV000020000000000000001 /* SourceBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceBadgeView.swift; sourceTree = "<group>"; };
-		BLC000020000000000000001 /* BlinkingCaret.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlinkingCaret.swift; sourceTree = "<group>"; };
 		D10000080000000000000001 /* PopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupView.swift; sourceTree = "<group>"; };
 		PVH000020000000000000001 /* PopupViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupViewHelpers.swift; sourceTree = "<group>"; };
 		E10000020000000000000001 /* FocusTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminal.swift; sourceTree = "<group>"; };
@@ -273,6 +273,7 @@
 				C10000020000000000000001 /* SessionManager.swift */,
 				SLP000020000000000000001 /* SessionLifecyclePolicy.swift */,
 				SIP000020000000000000001 /* SessionIdentityPolicy.swift */,
+				DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */,
 				CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */,
 				CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */,
 				SMA000020000000000000001 /* SessionManager+Archive.swift */,
@@ -360,7 +361,6 @@
 				D10000040000000000000001 /* HeaderView.swift */,
 				D10000060000000000000001 /* SessionCardView.swift */,
 				SBV000020000000000000001 /* SourceBadgeView.swift */,
-				BLC000020000000000000001 /* BlinkingCaret.swift */,
 				D10000080000000000000001 /* PopupView.swift */,
 				PVH000020000000000000001 /* PopupViewHelpers.swift */,
 				D1000000A000000000000001 /* QuitButton.swift */,
@@ -553,6 +553,7 @@
 				C10000010000000000000001 /* SessionManager.swift in Sources */,
 				SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */,
 				SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */,
+				DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */,
 				CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */,
 				CDA000010000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift in Sources */,
 				SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */,
@@ -561,7 +562,6 @@
 				D10000030000000000000001 /* HeaderView.swift in Sources */,
 				D10000050000000000000001 /* SessionCardView.swift in Sources */,
 				SBV000010000000000000001 /* SourceBadgeView.swift in Sources */,
-				BLC000010000000000000001 /* BlinkingCaret.swift in Sources */,
 				D10000070000000000000001 /* PopupView.swift in Sources */,
 				PVH000010000000000000001 /* PopupViewHelpers.swift in Sources */,
 				D10000090000000000000001 /* QuitButton.swift in Sources */,

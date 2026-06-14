@@ -9,11 +9,20 @@ protocol ClaudeDesktopSessionStateProviding {
     func metadataSnapshot(matching sessionIDs: Set<String>) -> ClaudeDesktopSessionMetadataSnapshot?
 }
 
-struct ClaudeDesktopSessionArchiveLookup {
-    let sessionsDirectory: String
+final class ClaudeDesktopSessionArchiveLookup {
+    typealias MetadataDataReader = (URL) -> Data?
 
-    init(sessionsDirectory: String = Config.claudeCodeSessionsDir()) {
+    let sessionsDirectory: String
+    private let dataReader: MetadataDataReader
+    private var indexCache: ClaudeDesktopMetadataIndexCache?
+    private let cacheLock = NSLock()
+
+    init(
+        sessionsDirectory: String = Config.claudeCodeSessionsDir(),
+        dataReader: @escaping MetadataDataReader = { try? Data(contentsOf: $0) }
+    ) {
         self.sessionsDirectory = sessionsDirectory
+        self.dataReader = dataReader
     }
 
     /// Returns the subset of Claude Code `session_id`s whose Claude Desktop metadata is archived,
@@ -36,74 +45,114 @@ struct ClaudeDesktopSessionArchiveLookup {
         guard isDirectory.boolValue,
               let enumerator = FileManager.default.enumerator(
                   at: rootURL,
-                  includingPropertiesForKeys: [.contentModificationDateKey]
+                  includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey]
               ) else {
             return nil
         }
 
-        var latestBySessionID: [String: ClaudeArchiveMatch] = [:]
-        for case let url as URL in enumerator where isClaudeDesktopMetadataURL(url) {
-            switch metadataMatch(at: url, matching: sessionIDs) {
-            case .skip:
-                continue
-            case .uncertain:
-                return nil
-            case let .match(sessionID, match):
-                if let current = latestBySessionID[sessionID],
-                   !match.isNewer(than: current) {
-                    continue
-                }
-                latestBySessionID[sessionID] = match
-            }
+        let metadataURLs = metadataURLs(in: enumerator)
+        guard let fingerprint = metadataFingerprint(for: metadataURLs) else { return nil }
+        if let cached = cachedIndex(fingerprint: fingerprint) {
+            return cached.snapshot(matching: sessionIDs)
         }
 
-        return ClaudeDesktopSessionMetadataSnapshot(
-            matchedSessionIDs: Set(latestBySessionID.keys),
-            archivedSessionIDs: Set(latestBySessionID.compactMap { sessionID, match in
-                match.isArchived ? sessionID : nil
-            }),
-            projectNamesBySessionID: latestBySessionID.compactMapValues(\.projectName),
-            isAuthoritative: true
+        guard let index = metadataIndex(for: metadataURLs) else { return nil }
+        cacheIndex(index, fingerprint: fingerprint)
+        return index.snapshot(matching: sessionIDs)
+    }
+
+    private func metadataURLs(in enumerator: FileManager.DirectoryEnumerator) -> [URL] {
+        enumerator.compactMap { entry in
+            guard let url = entry as? URL, isClaudeDesktopMetadataURL(url) else { return nil }
+            return url
+        }
+    }
+
+    private func metadataFingerprint(for urls: [URL]) -> [ClaudeDesktopMetadataFileFingerprint]? {
+        var fingerprint: [ClaudeDesktopMetadataFileFingerprint] = []
+        for url in urls {
+            guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey]) else {
+                return nil
+            }
+            fingerprint.append(ClaudeDesktopMetadataFileFingerprint(
+                path: url.path,
+                modificationDate: values.contentModificationDate ?? .distantPast,
+                fileSize: values.fileSize ?? -1
+            ))
+        }
+        return fingerprint.sorted { $0.path < $1.path }
+    }
+
+    private func cachedIndex(
+        fingerprint: [ClaudeDesktopMetadataFileFingerprint]
+    ) -> ClaudeDesktopMetadataIndex? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        guard let indexCache,
+              indexCache.fingerprint == fingerprint else { return nil }
+        return indexCache.index
+    }
+
+    private func cacheIndex(
+        _ index: ClaudeDesktopMetadataIndex,
+        fingerprint: [ClaudeDesktopMetadataFileFingerprint]
+    ) {
+        cacheLock.lock()
+        indexCache = ClaudeDesktopMetadataIndexCache(
+            fingerprint: fingerprint,
+            index: index
         )
+        cacheLock.unlock()
     }
 
     private func isClaudeDesktopMetadataURL(_ url: URL) -> Bool {
         url.pathExtension == "json" && url.lastPathComponent.hasPrefix("local_")
     }
 
-    private func metadataMatch(at url: URL, matching sessionIDs: Set<String>) -> ClaudeMetadataFileMatch {
-        guard let data = try? Data(contentsOf: url),
-              let content = String(data: data, encoding: .utf8) else {
-            return .uncertain
-        }
-        let scannedSessionIDs = cliSessionIDs(in: content)
-        guard !scannedSessionIDs.values.isEmpty else {
-            if content.contains(#""cliSessionId""#),
-               sessionIDs.contains(where: { content.contains($0) }) {
-                return .uncertain
-            }
-            return .skip
-        }
-        guard scannedSessionIDs.values.contains(where: { sessionIDs.contains($0) }) else {
-            if scannedSessionIDs.sawUnparseableValue,
-               sessionIDs.contains(where: { content.contains($0) }) {
-                return .uncertain
-            }
-            return .skip
-        }
-        guard let metadata = try? JSONDecoder().decode(ClaudeDesktopSessionMetadata.self, from: data) else {
-            return .uncertain
-        }
-        guard let cliSessionId = metadata.cliSessionId,
-              sessionIDs.contains(cliSessionId) else { return .skip }
+    private func metadataIndex(for urls: [URL]) -> ClaudeDesktopMetadataIndex? {
+        var latestBySessionID: [String: ClaudeArchiveMatch] = [:]
+        var uncertainSessionIDs: Set<String> = []
+        var uncertainContents: [String] = []
 
-        let match = ClaudeArchiveMatch(
-            isArchived: metadata.isArchived == true,
-            projectName: Self.projectName(originCwd: metadata.originCwd, worktreeName: metadata.worktreeName),
-            recencyKey: metadata.lastActivityAt ?? metadata.createdAt ?? .missing,
-            path: url.path
+        for url in urls {
+            guard let data = dataReader(url),
+                  let content = String(data: data, encoding: .utf8) else {
+                return nil
+            }
+            let scannedSessionIDs = cliSessionIDs(in: content)
+            if scannedSessionIDs.values.isEmpty {
+                if content.contains(#""cliSessionId""#) {
+                    uncertainContents.append(content)
+                }
+                continue
+            }
+            if scannedSessionIDs.sawUnparseableValue {
+                uncertainContents.append(content)
+            }
+            guard let metadata = try? JSONDecoder().decode(ClaudeDesktopSessionMetadata.self, from: data) else {
+                uncertainSessionIDs.formUnion(scannedSessionIDs.values)
+                continue
+            }
+            guard let cliSessionId = metadata.cliSessionId else { continue }
+
+            let match = ClaudeArchiveMatch(
+                isArchived: metadata.isArchived == true,
+                projectName: Self.projectName(originCwd: metadata.originCwd, worktreeName: metadata.worktreeName),
+                recencyKey: metadata.lastActivityAt ?? metadata.createdAt ?? .missing,
+                path: url.path
+            )
+            if let current = latestBySessionID[cliSessionId],
+               !match.isNewer(than: current) {
+                continue
+            }
+            latestBySessionID[cliSessionId] = match
+        }
+
+        return ClaudeDesktopMetadataIndex(
+            latestBySessionID: latestBySessionID,
+            uncertainSessionIDs: uncertainSessionIDs,
+            uncertainContents: uncertainContents
         )
-        return .match(cliSessionId, match)
     }
 
     private func cliSessionIDs(in content: String) -> ClaudeCLISessionIDScan {
@@ -177,6 +226,42 @@ struct ClaudeDesktopSessionArchiveLookup {
 }
 
 extension ClaudeDesktopSessionArchiveLookup: ClaudeDesktopSessionStateProviding {}
+
+private struct ClaudeDesktopMetadataFileFingerprint: Equatable {
+    let path: String
+    let modificationDate: Date
+    let fileSize: Int
+}
+
+private struct ClaudeDesktopMetadataIndexCache {
+    let fingerprint: [ClaudeDesktopMetadataFileFingerprint]
+    let index: ClaudeDesktopMetadataIndex
+}
+
+private struct ClaudeDesktopMetadataIndex {
+    let latestBySessionID: [String: ClaudeArchiveMatch]
+    let uncertainSessionIDs: Set<String>
+    let uncertainContents: [String]
+
+    func snapshot(matching sessionIDs: Set<String>) -> ClaudeDesktopSessionMetadataSnapshot? {
+        guard uncertainSessionIDs.isDisjoint(with: sessionIDs),
+              !uncertainContents.contains(where: { content in
+                  sessionIDs.contains(where: { content.contains($0) })
+              }) else {
+            return nil
+        }
+
+        let latestMatches = latestBySessionID.filter { sessionIDs.contains($0.key) }
+        return ClaudeDesktopSessionMetadataSnapshot(
+            matchedSessionIDs: Set(latestMatches.keys),
+            archivedSessionIDs: Set(latestMatches.compactMap { sessionID, match in
+                match.isArchived ? sessionID : nil
+            }),
+            projectNamesBySessionID: latestMatches.compactMapValues(\.projectName),
+            isAuthoritative: true
+        )
+    }
+}
 
 struct ClaudeDesktopSessionMetadataSnapshot: Equatable {
     let matchedSessionIDs: Set<String>
@@ -297,12 +382,6 @@ private struct ClaudeArchiveMatch {
         }
         return path > other.path
     }
-}
-
-private enum ClaudeMetadataFileMatch {
-    case skip
-    case uncertain
-    case match(String, ClaudeArchiveMatch)
 }
 
 private struct ClaudeCLISessionIDScan {

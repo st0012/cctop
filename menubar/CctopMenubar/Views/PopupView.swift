@@ -8,6 +8,7 @@ enum PopupTab {
 
 private let overlayAnimationDuration: TimeInterval = 0.2
 private let popupContentHeight: CGFloat = 290
+private let relativeTimeRefresh = Timer.publish(every: 10, on: .main, in: .common).autoconnect()
 
 struct PopupView: View {
     let sessions: [Session]
@@ -27,6 +28,7 @@ struct PopupView: View {
     @State private var ocBannerInstalled = false
     @State private var lastFocusTime: Date = .distantPast
     @State private var piBannerInstalled = false
+    @State private var relativeTimeNow = Date()
     @AppStorage("ocBannerDismissed") private var ocBannerDismissed = false
     @AppStorage("piBannerDismissed") private var piBannerDismissed = false
 
@@ -84,6 +86,7 @@ struct PopupView: View {
             guard overlayController.active == nil else { return }
             handleNavAction(action)
         }
+        .onReceive(relativeTimeRefresh) { relativeTimeNow = $0 }
         .onChange(of: selectedTab) { _ in selectedIndex = nil }
         .onChange(of: sessions) { _ in ensureSelectedTabAvailable() }
         .onChange(of: recentProjects.map(\.id)) { _ in ensureSelectedTabAvailable() }
@@ -183,7 +186,7 @@ struct PopupView: View {
     }
 
     private func recentCard(_ project: RecentProject, isSelected: Bool = false) -> some View {
-        RecentProjectCardView(project: project, isSelected: isSelected)
+        RecentProjectCardView(project: project, isSelected: isSelected, relativeTimeNow: relativeTimeNow)
             .contentShape(Rectangle())
             .onTapGesture { openInEditor(project: project); NSApp.deactivate() }
             .contextMenu {
@@ -213,7 +216,8 @@ struct PopupView: View {
                             session: session,
                             navigateIndex: showNavigateNumbers && isNavigateActive ? index + 1 : nil,
                             showSourceBadge: hasMultipleSources,
-                            isSelected: selectedIndex == index
+                            isSelected: selectedIndex == index,
+                            relativeTimeNow: relativeTimeNow
                         )
                         .id(session.id)
                         .onTapGesture { focusSession(session) }

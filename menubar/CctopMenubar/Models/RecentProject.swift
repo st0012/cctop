@@ -1,6 +1,6 @@
 import Foundation
 
-struct RecentProject: Identifiable {
+struct RecentProject: Identifiable, Equatable {
     let projectPath: String
     let projectName: String
     let lastBranch: String

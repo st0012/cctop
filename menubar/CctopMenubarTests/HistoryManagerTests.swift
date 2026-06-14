@@ -304,4 +304,12 @@ final class HistoryManagerTests: XCTestCase {
         let date = Date().addingTimeInterval(60)
         XCTAssertEqual(date.relativeDescription, "just now")
     }
+
+    func testRelativeTimeUsesProvidedReferenceDate() {
+        let date = Date(timeIntervalSince1970: 1_000)
+        XCTAssertEqual(
+            date.relativeDescription(asOf: date.addingTimeInterval(120)),
+            "2m ago"
+        )
+    }
 }

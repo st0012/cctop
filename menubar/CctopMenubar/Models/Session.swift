@@ -4,13 +4,17 @@ import Foundation
 // MARK: - Shared date formatting
 
 extension Date {
-    var relativeDescription: String {
-        let seconds = Int(-timeIntervalSinceNow)
+    func relativeDescription(asOf now: Date = Date()) -> String {
+        let seconds = Int(now.timeIntervalSince(self))
         if seconds <= 0 { return "just now" }
         if seconds >= 86400 { return "\(seconds / 86400)d ago" }
         if seconds >= 3600 { return "\(seconds / 3600)h ago" }
         if seconds >= 60 { return "\(seconds / 60)m ago" }
         return "\(seconds)s ago"
+    }
+
+    var relativeDescription: String {
+        relativeDescription()
     }
 }
 

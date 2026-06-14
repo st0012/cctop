@@ -1,3 +1,5 @@
+import Combine
+import Darwin
 import XCTest
 @testable import CctopMenubar
 
@@ -218,6 +220,60 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertFalse(SessionManager.isLegacyUUIDFilename("31349"))
         // Codex per-conversation files → keep.
         XCTAssertFalse(SessionManager.isLegacyUUIDFilename("codex-019e4b0c-9473-7a33-a4b9-749fd2c83a9e"))
+    }
+
+    @MainActor
+    func testDecodedSessionsReusesCachedSessionForUnchangedFileFingerprint() throws {
+        let root = NSTemporaryDirectory() + "cctop-session-decode-cache-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let sessionURL = URL(fileURLWithPath: (sessionsDir as NSString).appendingPathComponent("cached.json"))
+        try Session(sessionId: "cached-session", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+            .writeToFile(path: sessionURL.path)
+        let originalMtime = Date(timeIntervalSince1970: 1_800_000_000)
+        try FileManager.default.setAttributes([.modificationDate: originalMtime], ofItemAtPath: sessionURL.path)
+
+        XCTAssertEqual(manager.decodedSessions(from: [sessionURL]).map(\.session.sessionId), ["cached-session"])
+
+        let values = try sessionURL.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let originalSize = try XCTUnwrap(values.fileSize)
+        try Data(repeating: UInt8(ascii: "{"), count: originalSize).write(to: sessionURL)
+        try FileManager.default.setAttributes([.modificationDate: originalMtime], ofItemAtPath: sessionURL.path)
+
+        XCTAssertEqual(manager.decodedSessions(from: [sessionURL]).map(\.session.sessionId), ["cached-session"])
+    }
+
+    @MainActor
+    func testDecodedSessionsInvalidatesCacheWhenFileFingerprintChanges() throws {
+        let root = NSTemporaryDirectory() + "cctop-session-decode-cache-change-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let sessionURL = URL(fileURLWithPath: (sessionsDir as NSString).appendingPathComponent("cached.json"))
+        try Session(sessionId: "cached-session", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+            .writeToFile(path: sessionURL.path)
+        let originalMtime = Date(timeIntervalSince1970: 1_800_000_000)
+        try FileManager.default.setAttributes([.modificationDate: originalMtime], ofItemAtPath: sessionURL.path)
+
+        XCTAssertEqual(manager.decodedSessions(from: [sessionURL]).map(\.session.sessionId), ["cached-session"])
+
+        try Session(sessionId: "changed-session", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+            .writeToFile(path: sessionURL.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: originalMtime.addingTimeInterval(10)],
+            ofItemAtPath: sessionURL.path
+        )
+
+        XCTAssertEqual(manager.decodedSessions(from: [sessionURL]).map(\.session.sessionId), ["changed-session"])
     }
 
     // MARK: - Shared-PID identity
@@ -1290,6 +1346,136 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
     }
 
+    @MainActor
+    func testGarbageCollectBatchesClaudeArchiveLookupForFinishedDesktopSessions() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-batched-gc-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let old = Date(timeIntervalSinceNow: -SessionManager.lifecycleWindows.retention - 86_400)
+        for sessionId in ["finished-claude-one", "finished-claude-two"] {
+            let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(sessionId).json")
+            var session = claudeDesktopSession(sessionId: sessionId, projectPath: "/tmp/p")
+            session.lastActivity = old
+            session.disconnectedAt = old
+            try session.writeToFile(path: sessionPath)
+        }
+
+        let claudeState = CountingClaudeDesktopState()
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.codexThreads = StubCodexThreadState()
+        sources.claudeDesktopSessions = claudeState
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
+        sources.processAlive = { _ in false }
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        claudeState.archivedRequests.removeAll()
+        manager.garbageCollectFinished()
+
+        XCTAssertEqual(claudeState.archivedRequests.count, 3)
+        XCTAssertEqual(
+            claudeState.archivedRequests.first,
+            Set(["finished-claude-one", "finished-claude-two"])
+        )
+        XCTAssertEqual(
+            Set(claudeState.archivedRequests.dropFirst()),
+            Set([
+                Set(["finished-claude-one"]),
+                Set(["finished-claude-two"])
+            ])
+        )
+    }
+
+    @MainActor
+    func testGarbageCollectRechecksClaudeArchiveStateUnderLockBeforeDeleting() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-gc-archive-race-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let old = Date(timeIntervalSinceNow: -SessionManager.lifecycleWindows.retention - 86_400)
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("finished-claude-race.json")
+        var session = claudeDesktopSession(sessionId: "finished-claude-race", projectPath: "/tmp/p")
+        session.lastActivity = old
+        session.disconnectedAt = old
+        try session.writeToFile(path: sessionPath)
+
+        let claudeState = SequencedClaudeDesktopState(archivedResponses: [[], ["finished-claude-race"]])
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.codexThreads = StubCodexThreadState()
+        sources.claudeDesktopSessions = claudeState
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
+        sources.processAlive = { _ in false }
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        claudeState.archivedRequests.removeAll()
+        manager.garbageCollectFinished()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+    }
+
+    func testSessionRowsAvoidPerRowTimelineAndInfiniteAnimations() throws {
+        let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let viewsDirectory = testsDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("CctopMenubar/Views")
+        let viewSources = try FileManager.default.contentsOfDirectory(
+            at: viewsDirectory,
+            includingPropertiesForKeys: nil
+        )
+        .filter { $0.pathExtension == "swift" }
+        let source = try viewSources
+            .map { try String(contentsOf: $0) }
+            .joined(separator: "\n")
+
+        XCTAssertFalse(source.contains("TimelineView("))
+        XCTAssertFalse(source.contains("repeatForever"))
+        XCTAssertFalse(source.contains("BlinkingCaret("))
+        XCTAssertFalse(viewSources.contains { $0.lastPathComponent == "BlinkingCaret.swift" })
+    }
+
+    @MainActor
+    func testHistoryManagerDoesNotPublishUnchangedRecentProjects() throws {
+        let root = NSTemporaryDirectory() + "cctop-history-publish-\(UUID().uuidString)"
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        var session = Session(
+            sessionId: "recent-session",
+            projectPath: "/tmp/recent",
+            branch: "main",
+            terminal: TerminalInfo()
+        )
+        session.endedAt = Date(timeIntervalSince1970: 1_000)
+        try session.writeToFile(path: (historyDir as NSString).appendingPathComponent("recent.json"))
+
+        let manager = HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        var publishCount = 0
+        let cancellable = manager.objectWillChange.sink { _ in publishCount += 1 }
+
+        let didRebuild = manager.rebuildRecentProjects()
+
+        XCTAssertFalse(didRebuild)
+        XCTAssertEqual(publishCount, 0)
+        _ = cancellable
+    }
+
     // A missing DB means "no Codex state ⇒ nothing archived" → empty set (deletable). A DB that
     // exists but cannot be parsed means "unknown" → nil, which the GC path must treat as keep.
     func testArchivedThreadIDsDistinguishesMissingFromUnreadable() throws {
@@ -1468,6 +1654,90 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(snapshot?.projectNamesBySessionID, [:])
     }
 
+    func testClaudeDesktopMetadataSnapshotCachesUnchangedFiles() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-cache-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "cached-claude-session",
+            isArchived: false,
+            originCwd: "/Users/dev/projects/cctop"
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        var readCount = 0
+        let lookup = ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir) { url in
+            readCount += 1
+            return try? Data(contentsOf: url)
+        }
+
+        let first = lookup.metadataSnapshot(matching: ["cached-claude-session"])
+        XCTAssertEqual(first?.projectNamesBySessionID["cached-claude-session"], "cctop")
+        let readsAfterFirstSnapshot = readCount
+
+        let second = lookup.metadataSnapshot(matching: ["cached-claude-session"])
+        XCTAssertEqual(second, first)
+        XCTAssertEqual(readCount, readsAfterFirstSnapshot)
+    }
+
+    func testClaudeDesktopMetadataSnapshotCacheIsReusableAcrossQuerySets() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-cross-query-cache-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "cached-claude-one",
+            isArchived: false,
+            originCwd: "/Users/dev/projects/one"
+        )
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "cached-claude-two",
+            isArchived: true,
+            originCwd: "/Users/dev/projects/two"
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        var readCount = 0
+        let lookup = ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir) { url in
+            readCount += 1
+            return try? Data(contentsOf: url)
+        }
+
+        let first = lookup.metadataSnapshot(matching: ["cached-claude-one"])
+        XCTAssertEqual(first?.projectNamesBySessionID["cached-claude-one"], "one")
+        let readsAfterFirstSnapshot = readCount
+
+        let second = lookup.metadataSnapshot(matching: ["cached-claude-two"])
+        XCTAssertEqual(second?.archivedSessionIDs, ["cached-claude-two"])
+        XCTAssertEqual(second?.projectNamesBySessionID["cached-claude-two"], "two")
+        XCTAssertEqual(readCount, readsAfterFirstSnapshot)
+    }
+
+    func testClaudeDesktopMetadataSnapshotDoesNotCacheTransientUnreadability() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-transient-cache-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: "transient-claude-session",
+            isArchived: true
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        var failNextRead = true
+        let lookup = ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir) { url in
+            if failNextRead {
+                failNextRead = false
+                return nil
+            }
+            return try? Data(contentsOf: url)
+        }
+
+        XCTAssertNil(lookup.metadataSnapshot(matching: ["transient-claude-session"]))
+
+        let second = lookup.metadataSnapshot(matching: ["transient-claude-session"])
+        XCTAssertEqual(second?.archivedSessionIDs, ["transient-claude-session"])
+    }
+
     func testCodexThreadLookupDerivesProjectNameFromGitOriginURL() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-project-name-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
@@ -1504,6 +1774,43 @@ final class SessionFileFormatTests: XCTestCase {
                 .projectNames(matching: ["codex-desktop-project"]),
             ["codex-desktop-project": "local-tool"]
         )
+    }
+
+    func testCodexThreadLookupInvalidatesCacheWhenSQLiteSidecarChanges() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-wal-cache-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+        try executeSQLite(
+            """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES ('sidecar-thread', '', 0, 'user', NULL, NULL, 'vscode', 1, '');
+            """,
+            path: stateDB
+        )
+
+        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        XCTAssertEqual(lookup.archivedThreadIDs(matching: ["sidecar-thread"]), [])
+
+        var originalStat = stat()
+        XCTAssertEqual(stateDB.withCString { lstat($0, &originalStat) }, 0)
+
+        try executeSQLite("UPDATE threads SET archived = 1 WHERE id = 'sidecar-thread';", path: stateDB)
+        var restoredTimes = [
+            originalStat.st_atimespec,
+            originalStat.st_mtimespec
+        ]
+        XCTAssertEqual(stateDB.withCString { utimensat(AT_FDCWD, $0, &restoredTimes, 0) }, 0)
+        var restoredStat = stat()
+        XCTAssertEqual(stateDB.withCString { lstat($0, &restoredStat) }, 0)
+        XCTAssertEqual(restoredStat.st_size, originalStat.st_size)
+        XCTAssertEqual(restoredStat.st_mtimespec.tv_sec, originalStat.st_mtimespec.tv_sec)
+        XCTAssertEqual(restoredStat.st_mtimespec.tv_nsec, originalStat.st_mtimespec.tv_nsec)
+        try Data("sidecar changed".utf8).write(to: URL(fileURLWithPath: stateDB + "-wal"))
+
+        XCTAssertEqual(lookup.archivedThreadIDs(matching: ["sidecar-thread"]), ["sidecar-thread"])
     }
 
     func testBuildCandidatesEnrichesDesktopProjectNameFromExternalMetadata() throws {
@@ -1676,6 +1983,36 @@ final class SessionFileFormatTests: XCTestCase {
         )
 
         XCTAssertEqual(candidates.map(\.session.lifecycle), [.active])
+    }
+
+    func testBuildCandidatesBatchesDesktopAppRunningLookupByBundleID() {
+        var firstCodex = codexDesktopSession(sessionId: "codex-one", projectPath: "/tmp/p")
+        firstCodex.pid = nil
+        var secondCodex = codexDesktopSession(sessionId: "codex-two", projectPath: "/tmp/p")
+        secondCodex.pid = nil
+        var claude = claudeDesktopSession(sessionId: "claude-one", projectPath: "/tmp/p")
+        claude.pid = nil
+        let cli = codexTerminalSession(sessionId: "codex-cli", projectPath: "/tmp/p")
+        var requestedBundleIDSets: [Set<String>] = []
+
+        _ = SessionManager.buildCandidates(
+            [
+                (URL(fileURLWithPath: "/tmp/codex-one.json"), firstCodex),
+                (URL(fileURLWithPath: "/tmp/codex-two.json"), secondCodex),
+                (URL(fileURLWithPath: "/tmp/claude-one.json"), claude),
+                (URL(fileURLWithPath: "/tmp/codex-cli.json"), cli)
+            ],
+            now: Self.lifeNow,
+            desktopAppConnectionLookup: DesktopAppConnectionLookup(runningStates: { bundleIDs in
+                requestedBundleIDSets.append(bundleIDs)
+                return Dictionary(uniqueKeysWithValues: bundleIDs.map { ($0, true) })
+            }),
+            claudeMetadata: nil,
+            codexThreads: StubCodexThreadState(),
+            processAlive: { _ in false }
+        )
+
+        XCTAssertEqual(requestedBundleIDSets, [[HostAppBundleID.codexDesktop, HostAppBundleID.claudeDesktop]])
     }
 
     @MainActor
@@ -2192,5 +2529,47 @@ private struct StubClaudeDesktopState: ClaudeDesktopSessionStateProviding {
 
     func metadataSnapshot(matching sessionIDs: Set<String>) -> ClaudeDesktopSessionMetadataSnapshot? {
         snapshot
+    }
+}
+
+private final class CountingClaudeDesktopState: ClaudeDesktopSessionStateProviding {
+    var archivedRequests: [Set<String>] = []
+
+    func archivedSessionIDs(matching sessionIDs: Set<String>) -> Set<String>? {
+        archivedRequests.append(sessionIDs)
+        return []
+    }
+
+    func metadataSnapshot(matching sessionIDs: Set<String>) -> ClaudeDesktopSessionMetadataSnapshot? {
+        ClaudeDesktopSessionMetadataSnapshot(
+            matchedSessionIDs: sessionIDs,
+            archivedSessionIDs: [],
+            projectNamesBySessionID: [:],
+            isAuthoritative: true
+        )
+    }
+}
+
+private final class SequencedClaudeDesktopState: ClaudeDesktopSessionStateProviding {
+    var archivedRequests: [Set<String>] = []
+    private var archivedResponses: [Set<String>]
+
+    init(archivedResponses: [Set<String>]) {
+        self.archivedResponses = archivedResponses
+    }
+
+    func archivedSessionIDs(matching sessionIDs: Set<String>) -> Set<String>? {
+        archivedRequests.append(sessionIDs)
+        let response = archivedResponses.isEmpty ? Set<String>() : archivedResponses.removeFirst()
+        return response.intersection(sessionIDs)
+    }
+
+    func metadataSnapshot(matching sessionIDs: Set<String>) -> ClaudeDesktopSessionMetadataSnapshot? {
+        ClaudeDesktopSessionMetadataSnapshot(
+            matchedSessionIDs: sessionIDs,
+            archivedSessionIDs: [],
+            projectNamesBySessionID: [:],
+            isAuthoritative: true
+        )
     }
 }

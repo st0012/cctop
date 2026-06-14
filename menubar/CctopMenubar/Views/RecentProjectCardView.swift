@@ -3,6 +3,7 @@ import SwiftUI
 struct RecentProjectCardView: View {
     let project: RecentProject
     var isSelected = false
+    var relativeTimeNow = Date()
     @State private var isHovered = false
 
     var body: some View {
@@ -34,11 +35,9 @@ struct RecentProjectCardView: View {
 
             Spacer()
 
-            TimelineView(.periodic(from: .now, by: 60)) { _ in
-                Text(project.relativeTime)
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.textMuted)
-            }
+            Text(project.lastSessionAt.relativeDescription(asOf: relativeTimeNow))
+                .font(.system(size: 10))
+                .foregroundStyle(Color.textMuted)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
