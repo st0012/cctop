@@ -6,7 +6,7 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
     let options: [(value: Value, label: String)]
     @Binding var selection: Value
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: AppChrome.settingsSegmentSpacing) {
             ForEach(options.indices, id: \.self) { index in
                 SegmentButton(
                     label: options[index].label,
@@ -16,7 +16,8 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
                 }
             }
         }
-        .padding(2)
+        .padding(AppChrome.settingsSegmentedControlPadding)
+        .frame(height: AppChrome.settingsSegmentedControlHeight)
         .background(Color.panelControlBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
         .overlay {
@@ -36,12 +37,15 @@ private struct SegmentButton: View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 10, weight: .medium))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .allowsTightening(true)
+                .padding(.horizontal, AppChrome.settingsSegmentHorizontalPadding)
+                .frame(height: AppChrome.settingsSegmentHeight)
                 .foregroundStyle(foregroundColor)
-                .background(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius)
+                .background(RoundedRectangle(cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius, style: .continuous)
                     .fill(backgroundColor))
-                .contentShape(Rectangle())
+                .contentShape(RoundedRectangle(cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
@@ -104,6 +108,14 @@ struct SettingsSection: View {
     @State private var installFailed = false
 
     var body: some View {
+        ScrollView(showsIndicators: true) {
+            settingsContent
+        }
+        .frame(maxHeight: AppChrome.settingsScrollViewportHeight)
+        .background(Color.groupedContentBackground)
+    }
+
+    private var settingsContent: some View {
         VStack(spacing: 0) {
             updateSection
 
@@ -162,7 +174,6 @@ struct SettingsSection: View {
             }
         }
         .padding(AppChrome.settingsContentPadding)
-        .background(Color.groupedContentBackground)
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -170,7 +181,7 @@ struct SettingsSection: View {
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(Color.textMuted)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, AppChrome.settingsSectionHeaderHorizontalPadding)
             .padding(.top, 10)
             .padding(.bottom, 6)
     }
@@ -188,14 +199,16 @@ struct SettingsSection: View {
     }
 
     private func settingsRow<Content: View>(_ label: String, @ViewBuilder trailing: () -> Content) -> some View {
-        HStack {
+        HStack(spacing: 8) {
             Text(label)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.textPrimary)
-            Spacer()
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+            Spacer(minLength: 8)
             trailing()
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
         .padding(.vertical, 8)
     }
 
@@ -203,15 +216,16 @@ struct SettingsSection: View {
         Rectangle()
             .fill(Color.groupedRowBorder)
             .frame(height: 1)
-            .padding(.leading, 10)
+            .padding(.leading, AppChrome.settingsDividerLeadingPadding)
     }
 
     private var navigateShortcutRow: some View {
-        HStack {
+        HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Navigate")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.textPrimary)
+                    .lineLimit(1)
                 Text("Jump to sessions by number")
                     .font(.system(size: 10))
                     .foregroundStyle(Color.textMuted)
@@ -219,7 +233,7 @@ struct SettingsSection: View {
             Spacer()
             ShortcutBadge(name: .navigate)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
         .padding(.vertical, 8)
     }
 
@@ -243,7 +257,7 @@ struct SettingsSection: View {
                             .background(Color.amber)
                             .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
                     }
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
                     .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
@@ -278,7 +292,7 @@ struct SettingsSection: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
         .padding(.vertical, 10)
     }
 
@@ -286,7 +300,7 @@ struct SettingsSection: View {
         Text(reason.reasonText)
             .font(.system(size: 10))
             .foregroundStyle(Color.textMuted)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
             .padding(.vertical, 8)
     }
 
@@ -315,7 +329,7 @@ private struct MonitoredToolsView: View {
                 CodexPluginRowView(pluginManager: pluginManager, installFailed: $installFailed)
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
         .padding(.vertical, 2)
     }
 }
@@ -477,24 +491,3 @@ struct StatusDotBadge: View {
 }
 
 struct ConnectedBadge: View { var body: some View { StatusDotBadge(text: "Connected") } }
-
-// MARK: - Previews
-@MainActor private func previewBasePM() -> PluginManager {
-    PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
-}
-@MainActor private class MockUpdater: UpdaterBase { override var canCheckForUpdates: Bool { true } }
-@MainActor private func previewPM() -> PluginManager {
-    let pm = previewBasePM()
-    pm.ccInstalled = true; pm.ocInstalled = true; pm.ocConfigExists = true
-    pm.piInstalled = true; pm.piConfigExists = true
-    pm.codexInstalled = true; pm.codexConfigExists = true; pm.codexHookStatus = .trusted
-    return pm
-}
-@MainActor private func previewPendingCodexTrustPM() -> PluginManager {
-    let pm = previewPM(); pm.codexHookStatus = .installedUntrusted; return pm
-}
-#Preview("Default") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewBasePM()).frame(width: 320).padding() }
-#Preview("All connected") { SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding() }
-#Preview("Codex trust needed") {
-    SettingsSection(updater: DisabledUpdater(), pluginManager: previewPendingCodexTrustPM()).frame(width: 320).padding()
-}

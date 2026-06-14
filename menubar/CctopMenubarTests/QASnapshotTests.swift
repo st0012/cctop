@@ -101,6 +101,38 @@ final class QASnapshotTests: XCTestCase {
         )
     }
 
+    // MARK: - Polish review matrix
+
+    func testPolishReviewMatrix() throws {
+        let schemes: [(ColorScheme, String)] = [(.light, "light"), (.dark, "dark")]
+        for theme in AppTheme.allCases {
+            ThemeManager.shared.setTheme(theme)
+            for (colorScheme, schemeName) in schemes {
+                try renderSnapshot(
+                    sessions: Session.qaShowcase,
+                    name: "20-active-\(theme.rawValue)-\(schemeName)",
+                    colorScheme: colorScheme
+                )
+                try renderRecentSnapshot(
+                    name: "21-recent-\(theme.rawValue)-\(schemeName)",
+                    colorScheme: colorScheme
+                )
+                try renderSettingsSnapshot(
+                    updater: DisabledUpdater(),
+                    name: "22-settings-top-\(theme.rawValue)-\(schemeName)",
+                    colorScheme: colorScheme
+                )
+                try renderSettingsSnapshot(
+                    updater: DisabledUpdater(),
+                    name: "23-settings-bottom-\(theme.rawValue)-\(schemeName)",
+                    colorScheme: colorScheme,
+                    scrollToBottom: true
+                )
+            }
+        }
+        ThemeManager.shared.setTheme(.claude)
+    }
+
     // MARK: - Live update simulation
 
     /// Simulates adding a 5th session to an existing 4-session view.
@@ -179,10 +211,46 @@ final class QASnapshotTests: XCTestCase {
         try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
     }
 
+    private func renderRecentSnapshot(
+        name: String,
+        colorScheme: ColorScheme = .light
+    ) throws {
+        let view = PopupView(
+            sessions: Session.qaShowcase,
+            recentProjects: RecentProject.mockRecents,
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(),
+            initialTab: .recent
+        )
+        .frame(width: 320)
+        .panelSnapshotChrome()
+        .environment(\.colorScheme, colorScheme)
+
+        let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 800),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = NSAppearance(named: appearance)
+
+        let hostingView = NSHostingView(rootView: view)
+        window.contentView = hostingView
+
+        let fittingSize = hostingView.fittingSize
+        window.setContentSize(fittingSize)
+        hostingView.frame = NSRect(origin: .zero, size: fittingSize)
+        hostingView.layoutSubtreeIfNeeded()
+
+        try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
+    }
+
     private func renderSettingsSnapshot(
         updater: UpdaterBase,
         name: String,
-        colorScheme: ColorScheme = .light
+        colorScheme: ColorScheme = .light,
+        scrollToBottom: Bool = false
     ) throws {
         let view = SettingsSection(updater: updater, pluginManager: inertPluginManager())
             .frame(width: 320)
@@ -206,8 +274,31 @@ final class QASnapshotTests: XCTestCase {
         window.setContentSize(fittingSize)
         hostingView.frame = NSRect(origin: .zero, size: fittingSize)
         hostingView.layoutSubtreeIfNeeded()
+        if scrollToBottom {
+            scrollFirstScrollViewToBottom(in: hostingView)
+            hostingView.layoutSubtreeIfNeeded()
+        }
 
         try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
+    }
+
+    private func scrollFirstScrollViewToBottom(in view: NSView) {
+        guard
+            let scrollView = firstSubview(ofType: NSScrollView.self, in: view),
+            let documentView = scrollView.documentView
+        else { return }
+
+        let maximumY = max(0, documentView.bounds.height - scrollView.contentView.bounds.height)
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: maximumY))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    private func firstSubview<T: NSView>(ofType type: T.Type, in view: NSView) -> T? {
+        if let match = view as? T { return match }
+        for subview in view.subviews {
+            if let match = firstSubview(ofType: type, in: subview) { return match }
+        }
+        return nil
     }
 
     private func captureToFile(hostingView: NSHostingView<some View>, path: String) throws {

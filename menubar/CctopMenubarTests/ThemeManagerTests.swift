@@ -113,9 +113,26 @@ final class ThemeManagerTests: XCTestCase {
         XCTAssertEqual(AppChrome.controlCornerRadius, AppChrome.cornerRadius)
         XCTAssertEqual(AppChrome.selectionCornerRadius, AppChrome.cornerRadius)
         XCTAssertEqual(AppChrome.groupCornerRadius, AppChrome.cornerRadius)
+        XCTAssertEqual(AppChrome.settingsSectionHeaderHorizontalPadding, AppChrome.settingsRowHorizontalPadding)
+        XCTAssertEqual(AppChrome.settingsDividerLeadingPadding, AppChrome.settingsRowHorizontalPadding)
+        XCTAssertEqual(
+            AppChrome.settingsSegmentedControlHeight,
+            AppChrome.settingsSegmentHeight + AppChrome.settingsSegmentedControlPadding * 2
+        )
+        XCTAssertEqual(
+            AppChrome.settingsSegmentSelectionCornerRadius,
+            AppChrome.controlCornerRadius - AppChrome.settingsSegmentedControlPadding
+        )
+        XCTAssertLessThanOrEqual(AppChrome.settingsSegmentHorizontalPadding, 6)
+        XCTAssertLessThanOrEqual(AppChrome.settingsSegmentSpacing, AppChrome.settingsSegmentedControlPadding)
         XCTAssertGreaterThanOrEqual(AppChrome.settingsContentPaddingBottom, AppChrome.cornerRadius * 3)
         XCTAssertGreaterThan(AppChrome.overlayMinimumContentHeight, 0)
         XCTAssertLessThan(AppChrome.overlayMinimumContentHeight, CGFloat.infinity)
+        XCTAssertEqual(AppChrome.settingsOverlayVerticalPadding, 0)
+        XCTAssertEqual(
+            AppChrome.settingsScrollViewportHeight + AppChrome.settingsOverlayVerticalPadding * 2,
+            AppChrome.overlayMinimumContentHeight
+        )
     }
 }
 

@@ -402,7 +402,8 @@ component vocabulary.
 | Group border        | `groupedRowBorder`, 1 px                               |
 | Group radius        | `AppChrome.groupCornerRadius`                          |
 | Settings row padding| 10 px horizontal · 8 px vertical                       |
-| Section labels      | 10 px semibold · `textMuted`; no uppercase transform, no tracking |
+| Section labels      | 10 px semibold · `textMuted`; same 10 px leading inset as row content |
+| Segmented controls  | 26 px outer height · 22 px selected segment · 6 px label padding · 1 px segment gap · concentric 6 px selected radius |
 
 ### Hero pill (`site/index.html` — `.hero-pill`)
 
@@ -475,7 +476,7 @@ site-only and reserved for sections, not components.
 | Footer padding            | 16 / 7                                         |
 | Scroll area max height    | 290 px (then scrolls)                          |
 | Active/Idle/Recent spacing| 0 (shared list renderer, `panelControlBorder` dividers padded 16 px horizontal) |
-| Settings overlay padding  | 8 px horizontal · 10 px top · 16 px bottom, grouped-list background |
+| Settings content padding  | 8 px horizontal · 10 px top · 28 px bottom inside the scroll view |
 
 The panel reflows in **height only**; width is fixed to keep card layout
 predictable. When sessions overflow 290 px, the inner area scrolls and the

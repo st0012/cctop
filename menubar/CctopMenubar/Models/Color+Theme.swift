@@ -10,7 +10,19 @@ enum AppChrome {
     static let settingsContentPaddingHorizontal: CGFloat = 8
     static let settingsContentPaddingTop: CGFloat = 10
     static let settingsContentPaddingBottom: CGFloat = 28
+    static let settingsRowHorizontalPadding: CGFloat = 10
+    static let settingsSectionHeaderHorizontalPadding = settingsRowHorizontalPadding
+    static let settingsDividerLeadingPadding = settingsRowHorizontalPadding
+    static let settingsSegmentSpacing: CGFloat = 1
+    static let settingsSegmentedControlPadding: CGFloat = 2
+    static let settingsSegmentHorizontalPadding: CGFloat = 6
+    static let settingsSegmentHeight: CGFloat = 22
+    static let settingsSegmentedControlHeight = settingsSegmentHeight + settingsSegmentedControlPadding * 2
+    static let settingsSegmentSelectionCornerRadius = controlCornerRadius - settingsSegmentedControlPadding
     static let overlayMinimumContentHeight: CGFloat = 290
+    static let overlayContentVerticalPadding: CGFloat = 8
+    static let settingsOverlayVerticalPadding: CGFloat = 0
+    static let settingsScrollViewportHeight = overlayMinimumContentHeight - settingsOverlayVerticalPadding * 2
     static let settingsContentPadding = EdgeInsets(
         top: settingsContentPaddingTop,
         leading: settingsContentPaddingHorizontal,

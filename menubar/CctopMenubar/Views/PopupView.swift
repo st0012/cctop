@@ -62,11 +62,13 @@ struct PopupView: View {
                 .opacity(overlayController.hideContent ? 0 : 1)
                 .animation(.none, value: overlayController.hideContent)
                 if let overlay = overlayController.active {
-                    overlayPanel {
-                        switch overlay {
-                        case .settings:
+                    switch overlay {
+                    case .settings:
+                        overlayPanel(verticalPadding: AppChrome.settingsOverlayVerticalPadding) {
                             SettingsSection(updater: updater, pluginManager: pluginManager)
-                        case .about:
+                        }
+                    case .about:
+                        overlayPanel {
                             AboutView()
                         }
                     }
@@ -276,9 +278,12 @@ struct PopupView: View {
 // MARK: - Overlay & Footer
 
 extension PopupView {
-    func overlayPanel<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    func overlayPanel<Content: View>(
+        verticalPadding: CGFloat = AppChrome.overlayContentVerticalPadding,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         content()
-            .padding(.vertical, 8)
+            .padding(.vertical, verticalPadding)
             .frame(maxWidth: .infinity, minHeight: AppChrome.overlayMinimumContentHeight, alignment: .top)
         .background {
             ZStack {
