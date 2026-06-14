@@ -1776,6 +1776,41 @@ final class SessionFileFormatTests: XCTestCase {
         )
     }
 
+    func testCodexThreadLookupToleratesMissingExecHelperColumns() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-legacy-columns-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try executeSQLite(
+            """
+            CREATE TABLE threads (
+                id TEXT PRIMARY KEY,
+                archived INTEGER NOT NULL DEFAULT 0,
+                thread_source TEXT,
+                git_origin_url TEXT,
+                cwd TEXT
+            );
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd)
+            VALUES ('archived-thread', 1, 'user', NULL, NULL);
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd)
+            VALUES ('subagent-thread', 0, 'subagent', NULL, NULL);
+            INSERT INTO threads (id, archived, thread_source, git_origin_url, cwd)
+            VALUES ('project-thread', 0, 'user', 'git@github.com:st0012/cctop.git', NULL);
+            """,
+            path: stateDB
+        )
+
+        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        let threadIDs: Set<String> = ["archived-thread", "subagent-thread", "project-thread"]
+
+        XCTAssertEqual(lookup.existingThreadIDs(matching: threadIDs), threadIDs)
+        XCTAssertEqual(lookup.archivedThreadIDs(matching: threadIDs), ["archived-thread"])
+        XCTAssertEqual(lookup.subagentThreadIDs(matching: threadIDs), ["subagent-thread"])
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: threadIDs), [])
+        XCTAssertEqual(lookup.projectNames(matching: threadIDs), ["project-thread": "cctop"])
+    }
+
     func testCodexThreadLookupInvalidatesCacheWhenSQLiteSidecarChanges() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-wal-cache-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)

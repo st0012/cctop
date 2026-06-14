@@ -130,10 +130,7 @@ final class CodexThreadArchiveLookup {
         defer { sqlite3_close(database) }
         sqlite3_busy_timeout(database, 50)
 
-        let sql = """
-        SELECT id, archived, thread_source, source, has_user_event, rollout_path, git_origin_url, cwd
-        FROM threads
-        """
+        guard let sql = Self.threadSnapshotSQL(in: database) else { return nil }
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
               let statement else {
@@ -152,6 +149,56 @@ final class CodexThreadArchiveLookup {
                 return nil   // SQLITE_BUSY / SQLITE_ERROR / etc. — read did not complete
             }
         }
+    }
+
+    private static func threadSnapshotSQL(in database: OpaquePointer) -> String? {
+        guard let columns = threadColumns(in: database),
+              columns.contains("id") else {
+            return nil
+        }
+
+        let selections = [
+            "id",
+            selectColumn("archived", from: columns, defaultingTo: "0"),
+            selectColumn("thread_source", from: columns, defaultingTo: "NULL"),
+            selectColumn("source", from: columns, defaultingTo: "NULL"),
+            selectColumn("has_user_event", from: columns, defaultingTo: "0"),
+            selectColumn("rollout_path", from: columns, defaultingTo: "NULL"),
+            selectColumn("git_origin_url", from: columns, defaultingTo: "NULL"),
+            selectColumn("cwd", from: columns, defaultingTo: "NULL")
+        ]
+        return "SELECT \(selections.joined(separator: ", ")) FROM threads"
+    }
+
+    private static func threadColumns(in database: OpaquePointer) -> Set<String>? {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(database, "PRAGMA table_info(threads)", -1, &statement, nil) == SQLITE_OK,
+              let statement else {
+            return nil
+        }
+        defer { sqlite3_finalize(statement) }
+
+        var columns = Set<String>()
+        while true {
+            switch sqlite3_step(statement) {
+            case SQLITE_ROW:
+                if let nameText = sqlite3_column_text(statement, 1) {
+                    columns.insert(String(cString: nameText))
+                }
+            case SQLITE_DONE:
+                return columns
+            default:
+                return nil
+            }
+        }
+    }
+
+    private static func selectColumn(
+        _ name: String,
+        from columns: Set<String>,
+        defaultingTo fallback: String
+    ) -> String {
+        columns.contains(name) ? name : "\(fallback) AS \(name)"
     }
 
     private static func databaseFingerprint(at path: String) -> CodexThreadStateDatabaseFingerprint? {
