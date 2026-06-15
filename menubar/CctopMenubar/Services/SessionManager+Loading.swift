@@ -76,13 +76,14 @@ extension SessionManager {
     /// Derives lifecycle-stamped candidates and the visibility classification for one load pass,
     /// reading desktop archive state and process liveness through the injected data sources.
     func deriveVisibility(from visibleDecoded: [(url: URL, session: Session)]) -> SessionVisibilitySnapshot {
+        let now = dataSources.now()
         let claudeMetadata = Self.claudeDesktopMetadataSnapshot(
             in: visibleDecoded.map(\.session),
             claudeDesktopSessions: dataSources.claudeDesktopSessions
         )
         let candidates = Self.buildCandidates(
             visibleDecoded,
-            now: dataSources.now(),
+            now: now,
             desktopAppConnectionLookup: dataSources.desktopAppConnection,
             claudeMetadata: claudeMetadata,
             codexThreads: dataSources.codexThreads,
@@ -91,7 +92,8 @@ extension SessionManager {
         return Self.visibilitySnapshot(
             in: candidates,
             claudeMetadata: claudeMetadata,
-            codexThreads: dataSources.codexThreads
+            codexThreads: dataSources.codexThreads,
+            now: now
         )
     }
 

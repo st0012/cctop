@@ -8,8 +8,8 @@ import Foundation
 ///   (a) remove any `codex_hooks` line — Codex prints a startup warning
 ///       whenever it loads one;
 ///   (b) override an explicit `hooks = false` so install actually fires.
-/// Anything else in the file is preserved verbatim. Avoids a TOML parser
-/// dependency in favor of line-based edits.
+/// Anything else in the file is preserved verbatim. General config reads use
+/// the TOML parser dependency; this type exists only for minimal patching.
 enum CodexConfigToml {
 
     /// Patch `input` so hooks will fire after cctop's install. The minimal

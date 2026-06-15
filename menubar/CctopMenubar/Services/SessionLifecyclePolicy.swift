@@ -32,7 +32,9 @@ enum SessionLifecyclePolicy {
     ) -> SessionConnectionState {
         if session.endedAt != nil { return .disconnected }
         if hostClass == .desktop, let desktopAppRunning {
-            return desktopAppRunning ? .connected : .disconnected
+            if desktopAppRunning { return .connected }
+            let hasLiveCodexHost = processAlive && (session.isCodex || session.isCodexDesktopHost)
+            return hasLiveCodexHost ? .connected : .disconnected
         }
         // The shared-PID recency carve-out is Codex Desktop's, identified by source ("codex") OR by
         // the trusted Codex Desktop bundle id — the latter covers pre-harness-migration files whose

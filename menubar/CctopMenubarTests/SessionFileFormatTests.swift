@@ -4,6 +4,30 @@ import XCTest
 @testable import CctopMenubar
 
 final class SessionFileFormatTests: XCTestCase {
+    private enum CodexRolloutPlacement {
+        case active
+        case archived
+    }
+
+    private struct CodexArchivePlacementFixture {
+        let root: String
+        let stateDB: String
+        let threadID: String
+        let activePath: String
+        let archivedPath: String
+
+        func rolloutPath(for placement: CodexRolloutPlacement) -> String {
+            switch placement {
+            case .active:
+                return activePath
+            case .archived:
+                return archivedPath
+            }
+        }
+    }
+
+    private let codexStateEnvironmentNames = ["CCTOP_CODEX_STATE_DB", "CODEX_HOME", "CODEX_SQLITE_HOME"]
+
     private func executeSQLite(_ sql: String, path: String) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
@@ -31,6 +55,94 @@ final class SessionFileFormatTests: XCTestCase {
         try data.write(to: URL(fileURLWithPath: path), options: .atomic)
     }
 
+    private func savedEnvironment(_ names: [String]) -> [String: String?] {
+        Dictionary(uniqueKeysWithValues: names.map { name in
+            (name, getenv(name).map { String(cString: $0) })
+        })
+    }
+
+    private func restoreEnvironment(_ saved: [String: String?]) {
+        for (name, value) in saved {
+            if let value {
+                setenv(name, value, 1)
+            } else {
+                unsetenv(name)
+            }
+        }
+    }
+
+    private func withPreservedCodexStateEnvironment(_ body: () throws -> Void) rethrows {
+        let env = savedEnvironment(codexStateEnvironmentNames)
+        defer { restoreEnvironment(env) }
+        try body()
+    }
+
+    private func sqlValue(_ value: String?) -> String {
+        guard let value else { return "NULL" }
+        return "'\(value.replacingOccurrences(of: "'", with: "''"))'"
+    }
+
+    private func makeCodexArchivePlacementFixture(
+        rootPrefix: String,
+        threadID: String = "019ec6c4-23ac-7a82-9f5b-812d0b743430"
+    ) throws -> CodexArchivePlacementFixture {
+        let root = NSTemporaryDirectory() + "\(rootPrefix)-\(UUID().uuidString)"
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        let activeDir = (root as NSString).appendingPathComponent("sessions/2026/06/14")
+        let archivedDir = (root as NSString).appendingPathComponent("archived_sessions")
+        try FileManager.default.createDirectory(atPath: activeDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: archivedDir, withIntermediateDirectories: true)
+
+        let filename = "rollout-2026-06-14T16-33-23-\(threadID).jsonl"
+        return CodexArchivePlacementFixture(
+            root: root,
+            stateDB: stateDB,
+            threadID: threadID,
+            activePath: (activeDir as NSString).appendingPathComponent(filename),
+            archivedPath: (archivedDir as NSString).appendingPathComponent(filename)
+        )
+    }
+
+    private func writeCodexThreadState(
+        _ fixture: CodexArchivePlacementFixture,
+        sqliteArchived: Bool,
+        rolloutPlacement: CodexRolloutPlacement
+    ) throws {
+        try writeCodexStateDatabase(
+            path: fixture.stateDB,
+            archivedThreads: sqliteArchived ? [fixture.threadID] : [],
+            userExecThreads: sqliteArchived ? [] : [fixture.threadID]
+        )
+        try executeSQLite(
+            """
+            UPDATE threads
+            SET rollout_path = \(sqlValue(fixture.rolloutPath(for: rolloutPlacement))),
+                archived = \(sqliteArchived ? 1 : 0)
+            WHERE id = \(sqlValue(fixture.threadID));
+            """,
+            path: fixture.stateDB
+        )
+    }
+
+    private func writeCodexRollout(
+        _ placement: CodexRolloutPlacement,
+        in fixture: CodexArchivePlacementFixture,
+        originator: String = "Codex Desktop"
+    ) throws {
+        try writeCodexRolloutMetadata(
+            path: fixture.rolloutPath(for: placement),
+            threadID: fixture.threadID,
+            originator: originator
+        )
+    }
+
+    private func archivedThreadIDs(
+        _ lookup: CodexThreadArchiveLookup,
+        in fixture: CodexArchivePlacementFixture
+    ) -> Set<String>? {
+        lookup.archivedThreadIDs(matching: [fixture.threadID])
+    }
+
     private func writeCodexStateDatabase(
         path: String,
         archivedThreads: Set<String>,
@@ -41,11 +153,6 @@ final class SessionFileFormatTests: XCTestCase {
         execThreadsWithFirstUserMessage: [String: String] = [:],
         userExecThreads: Set<String> = []
     ) throws {
-        func sqlValue(_ value: String?) -> String {
-            guard let value else { return "NULL" }
-            return "'\(value.replacingOccurrences(of: "'", with: "''"))'"
-        }
-
         let rolloutDir = ((path as NSString).deletingLastPathComponent as NSString).appendingPathComponent("rollouts")
         try FileManager.default.createDirectory(atPath: rolloutDir, withIntermediateDirectories: true)
         func rolloutPath(threadID: String, originator: String) throws -> String {
@@ -213,12 +320,20 @@ final class SessionFileFormatTests: XCTestCase {
     private func makeManager(
         sessionsDir: String,
         historyDir: String,
-        desktopAppConnection: DesktopAppConnectionLookup? = nil
+        desktopAppConnection: DesktopAppConnectionLookup? = nil,
+        processAlive: ((Session) -> Bool)? = nil,
+        now: (() -> Date)? = nil
     ) -> SessionManager {
         var sources = SessionDataSources.live()
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         if let desktopAppConnection {
             sources.desktopAppConnection = desktopAppConnection
+        }
+        if let processAlive {
+            sources.processAlive = processAlive
+        }
+        if let now {
+            sources.now = now
         }
         return SessionManager(
             historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
@@ -383,6 +498,88 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertFalse(nonCodexMemory.isCodexMemoryMaintenanceSession)
 
         XCTAssertEqual(normalProject.projectName, "cctop")
+    }
+
+    func testCodexStateDatabaseCandidatesUseExplicitOverrideBeforeRuntimeAndCodexHome() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-state-db-override-\(UUID().uuidString)"
+        let codexHome = (root as NSString).appendingPathComponent("codex")
+        let override = (root as NSString).appendingPathComponent("custom.sqlite")
+        let runtimeSQLiteHome = (root as NSString).appendingPathComponent("runtime-sqlite")
+        try FileManager.default.createDirectory(atPath: codexHome, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        withPreservedCodexStateEnvironment {
+            setenv("CCTOP_CODEX_STATE_DB", override, 1)
+            setenv("CODEX_HOME", codexHome, 1)
+            setenv("CODEX_SQLITE_HOME", (root as NSString).appendingPathComponent("sqlite"), 1)
+
+            XCTAssertEqual(Config.codexStateDatabaseCandidates(desktopSQLiteHome: runtimeSQLiteHome), [Config.standardizedPath(override)])
+        }
+    }
+
+    func testCodexStateDatabaseCandidatesPreferDesktopRuntimeSQLiteHome() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-runtime-state-db-\(UUID().uuidString)"
+        let codexHome = (root as NSString).appendingPathComponent("codex")
+        let runtimeSQLiteHome = (root as NSString).appendingPathComponent("runtime-sqlite")
+        let configSQLiteHome = (root as NSString).appendingPathComponent("from-config")
+        let runtimeDB = (runtimeSQLiteHome as NSString).appendingPathComponent("state_5.sqlite")
+        let configDB = (configSQLiteHome as NSString).appendingPathComponent("state_5.sqlite")
+        let nestedDB = (codexHome as NSString).appendingPathComponent("sqlite/state_5.sqlite")
+        let rootDB = (codexHome as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: codexHome, withIntermediateDirectories: true)
+        let configPath = (codexHome as NSString).appendingPathComponent("config.toml")
+        try """
+        model = "gpt-5"
+        sqlite_home = "\(configSQLiteHome)"
+        """.write(toFile: configPath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        withPreservedCodexStateEnvironment {
+            setenv("CODEX_HOME", codexHome, 1)
+            setenv("CODEX_SQLITE_HOME", (root as NSString).appendingPathComponent("from-env"), 1)
+            unsetenv("CCTOP_CODEX_STATE_DB")
+
+            XCTAssertEqual(
+                Config.codexStateDatabaseCandidates(desktopSQLiteHome: runtimeSQLiteHome),
+                [
+                    Config.standardizedPath(runtimeDB),
+                    Config.standardizedPath(configDB),
+                    Config.standardizedPath(nestedDB),
+                    Config.standardizedPath(rootDB)
+                ]
+            )
+        }
+    }
+
+    func testCodexStateDatabaseCandidatesDecodeTomlEscapedConfigSQLiteHome() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-config-state-db-\(UUID().uuidString)"
+        let codexHome = (root as NSString).appendingPathComponent("codex")
+        let configSQLiteHome = (root as NSString).appendingPathComponent("from-config")
+        let configDB = (configSQLiteHome as NSString).appendingPathComponent("state_5.sqlite")
+        let nestedDB = (codexHome as NSString).appendingPathComponent("sqlite/state_5.sqlite")
+        let rootDB = (codexHome as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: codexHome, withIntermediateDirectories: true)
+        let configPath = (codexHome as NSString).appendingPathComponent("config.toml")
+        let escapedConfigSQLiteHome = "\\u002F" + configSQLiteHome.dropFirst()
+        try """
+        sqlite_home = "\(escapedConfigSQLiteHome)"
+        """.write(toFile: configPath, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        withPreservedCodexStateEnvironment {
+            setenv("CODEX_HOME", codexHome, 1)
+            unsetenv("CODEX_SQLITE_HOME")
+            unsetenv("CCTOP_CODEX_STATE_DB")
+
+            XCTAssertEqual(
+                Config.codexStateDatabaseCandidates(),
+                [
+                    Config.standardizedPath(configDB),
+                    Config.standardizedPath(nestedDB),
+                    Config.standardizedPath(rootDB)
+                ]
+            )
+        }
     }
 
     func testCodexDesktopTitleGenerationClassificationIsNarrow() {
@@ -687,6 +884,7 @@ final class SessionFileFormatTests: XCTestCase {
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
         let historyDir = (root as NSString).appendingPathComponent("history")
         let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
         try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: ["visible-thread"])
@@ -699,21 +897,26 @@ final class SessionFileFormatTests: XCTestCase {
 
         let missingPath = (sessionsDir as NSString).appendingPathComponent("codex-missing-thread.json")
         let visiblePath = (sessionsDir as NSString).appendingPathComponent("codex-visible-thread.json")
-        try codexDesktopSession(
+        var missing = codexDesktopSession(
             sessionId: "missing-thread",
             projectPath: (root as NSString).appendingPathComponent("projects/probe")
-        ).writeToFile(path: missingPath)
-        try codexDesktopSession(
+        )
+        missing.lastActivity = now.addingTimeInterval(-SessionManager.codexMissingThreadGraceSeconds - 1)
+        try missing.writeToFile(path: missingPath)
+        var visible = codexDesktopSession(
             sessionId: "visible-thread",
             projectPath: (root as NSString).appendingPathComponent("projects/cctop")
-        ).writeToFile(path: visiblePath)
+        )
+        visible.lastActivity = now
+        try visible.writeToFile(path: visiblePath)
         FileManager.default.createFile(atPath: missingPath + ".lock", contents: nil)
         FileManager.default.createFile(atPath: visiblePath + ".lock", contents: nil)
 
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
-            desktopAppConnection: DesktopAppConnectionLookup { _ in true }
+            desktopAppConnection: DesktopAppConnectionLookup { _ in true },
+            now: { now }
         )
         manager.loadSessions()
 
@@ -723,6 +926,48 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertFalse(try Session.fromFile(path: missingPath).hidden)
         XCTAssertTrue(FileManager.default.fileExists(atPath: visiblePath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: visiblePath + ".lock"))
+        XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
+    }
+
+    @MainActor
+    func testSessionManagerKeepsFreshCodexDesktopSessionVisibleWhileThreadStateCatchesUp() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-fresh-missing-state-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: ["other-thread"])
+
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-fresh-thread.json")
+        var session = codexDesktopSession(
+            sessionId: "fresh-thread",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        )
+        session.lastActivity = now.addingTimeInterval(-SessionManager.codexMissingThreadGraceSeconds / 2)
+        try session.writeToFile(path: sessionPath)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in true },
+            now: { now }
+        )
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["fresh-thread"])
+        XCTAssertEqual(
+            SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.sessionId),
+            ["fresh-thread"]
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
     }
 
@@ -1505,6 +1750,79 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertNil(CodexThreadArchiveLookup(stateDatabasePath: corrupt).archivedThreadIDs(matching: ["x"]))
     }
 
+    func testCodexThreadLookupFallsBackToLaterCandidateWhenPreferredDatabaseDoesNotContainThread() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-lookup-fallback-\(UUID().uuidString)"
+        let preferredDB = (root as NSString).appendingPathComponent("runtime/state_5.sqlite")
+        let fallbackDB = (root as NSString).appendingPathComponent("root/state_5.sqlite")
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        try writeCodexStateDatabase(path: preferredDB, archivedThreads: ["other-thread"])
+        try writeCodexStateDatabase(path: fallbackDB, archivedThreads: ["target-thread"])
+
+        let lookup = CodexThreadArchiveLookup(stateDatabasePaths: { [preferredDB, fallbackDB] })
+
+        XCTAssertEqual(lookup.existingThreadIDs(matching: ["target-thread"]), ["target-thread"])
+        XCTAssertEqual(lookup.archivedThreadIDs(matching: ["target-thread"]), ["target-thread"])
+    }
+
+    func testCodexThreadLookupKeepsPreferredCandidateWhenFallbackDisagreesForSameThread() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-lookup-conflict-\(UUID().uuidString)"
+        let preferredDB = (root as NSString).appendingPathComponent("runtime/state_5.sqlite")
+        let fallbackDB = (root as NSString).appendingPathComponent("root/state_5.sqlite")
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        try writeCodexStateDatabase(path: preferredDB, archivedThreads: [], userExecThreads: ["shared-thread"])
+        try writeCodexStateDatabase(path: fallbackDB, archivedThreads: ["shared-thread"])
+
+        let lookup = CodexThreadArchiveLookup(stateDatabasePaths: { [preferredDB, fallbackDB] })
+
+        XCTAssertEqual(lookup.existingThreadIDs(matching: ["shared-thread"]), ["shared-thread"])
+        XCTAssertEqual(lookup.archivedThreadIDs(matching: ["shared-thread"]), [])
+    }
+
+    func testCodexThreadLookupStopsOnUnreadablePreferredCandidate() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-lookup-unreadable-preferred-\(UUID().uuidString)"
+        let preferredDB = (root as NSString).appendingPathComponent("runtime/state_5.sqlite")
+        let fallbackDB = (root as NSString).appendingPathComponent("root/state_5.sqlite")
+        try FileManager.default.createDirectory(
+            atPath: (preferredDB as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        try Data("this is not a sqlite database".utf8).write(to: URL(fileURLWithPath: preferredDB))
+        try writeCodexStateDatabase(path: fallbackDB, archivedThreads: ["target-thread"])
+
+        let lookup = CodexThreadArchiveLookup(stateDatabasePaths: { [preferredDB, fallbackDB] })
+
+        XCTAssertNil(lookup.existingThreadIDs(matching: ["target-thread"]))
+        XCTAssertNil(lookup.archivedThreadIDs(matching: ["target-thread"]))
+    }
+
+    func testArchivedThreadIDsTreatsArchivedRolloutPlacementAsAuthoritativeWhenSQLiteIsActive() throws {
+        let fixture = try makeCodexArchivePlacementFixture(rootPrefix: "cctop-codex-archive-placement")
+        defer { try? FileManager.default.removeItem(atPath: fixture.root) }
+        try writeCodexThreadState(fixture, sqliteArchived: false, rolloutPlacement: .active)
+        try writeCodexRollout(.archived, in: fixture)
+
+        XCTAssertEqual(
+            archivedThreadIDs(CodexThreadArchiveLookup(stateDatabasePath: fixture.stateDB), in: fixture),
+            [fixture.threadID]
+        )
+    }
+
+    func testArchivedThreadIDsTreatsActiveRolloutPlacementAsAuthoritativeWhenSQLiteIsArchived() throws {
+        let fixture = try makeCodexArchivePlacementFixture(rootPrefix: "cctop-codex-active-placement")
+        defer { try? FileManager.default.removeItem(atPath: fixture.root) }
+        try writeCodexThreadState(fixture, sqliteArchived: true, rolloutPlacement: .archived)
+        try writeCodexRollout(.active, in: fixture)
+
+        XCTAssertEqual(
+            archivedThreadIDs(CodexThreadArchiveLookup(stateDatabasePath: fixture.stateDB), in: fixture),
+            []
+        )
+    }
+
     func testArchivedClaudeSessionIDsDistinguishesMissingFromUnreadable() throws {
         let root = NSTemporaryDirectory() + "cctop-claude-lookup-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
@@ -1823,201 +2141,6 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(lookup.subagentThreadIDs(matching: threadIDs), ["subagent-thread"])
         XCTAssertEqual(lookup.execHelperThreadIDs(matching: threadIDs), [])
         XCTAssertEqual(lookup.projectNames(matching: threadIDs), ["project-thread": "cctop"])
-    }
-
-    func testCodexThreadLookupInvalidatesExecHelperCacheWhenRolloutFileChanges() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-rollout-cache-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: root) }
-
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        let rolloutPath = (root as NSString).appendingPathComponent("helper.jsonl")
-        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        try executeSQLite(
-            """
-            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES ('helper-thread', '\(rolloutPath)', 0, '', NULL, NULL, 'exec', 0, '');
-            """,
-            path: stateDB
-        )
-
-        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB)
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), [])
-
-        try writeCodexRolloutMetadata(path: rolloutPath, threadID: "helper-thread", originator: "Codex Desktop")
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), ["helper-thread"])
-    }
-
-    func testCodexThreadLookupDoesNotCacheStaleExecHelperWhenRolloutAppearsDuringLoad() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-rollout-race-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: root) }
-
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        let rolloutPath = (root as NSString).appendingPathComponent("helper.jsonl")
-        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        try executeSQLite(
-            """
-            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES ('helper-thread', '\(rolloutPath)', 0, '', NULL, NULL, 'exec', 0, '');
-            """,
-            path: stateDB
-        )
-
-        var originatorReads = 0
-        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
-            originatorReads += 1
-            if originatorReads == 1 {
-                try? self.writeCodexRolloutMetadata(path: path, threadID: "helper-thread", originator: "Codex Desktop")
-                return nil
-            }
-            return "Codex Desktop"
-        }
-
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), [])
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), ["helper-thread"])
-    }
-
-    func testCodexThreadLookupInvalidatesExecHelperCacheWhenRolloutFileIsRewritten() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-rollout-rewrite-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: root) }
-
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        let rolloutPath = (root as NSString).appendingPathComponent("helper.jsonl")
-        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        try executeSQLite(
-            """
-            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES ('helper-thread', '\(rolloutPath)', 0, '', NULL, NULL, 'exec', 0, '');
-            """,
-            path: stateDB
-        )
-
-        try writeCodexRolloutMetadata(path: rolloutPath, threadID: "helper-thread", originator: "Other Desktop")
-        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB)
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), [])
-
-        try writeCodexRolloutMetadata(path: rolloutPath, threadID: "helper-thread", originator: "Codex Desktop")
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["helper-thread"]), ["helper-thread"])
-    }
-
-    func testCodexThreadLookupOnlyReadsRequestedExecHelperRollouts() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-request-scoped-cache-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: root) }
-
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        let requestedRollout = (root as NSString).appendingPathComponent("requested.jsonl")
-        let historicalRollout = (root as NSString).appendingPathComponent("historical.jsonl")
-        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        try executeSQLite(
-            """
-            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES ('requested-helper', '\(requestedRollout)', 0, '', NULL, NULL, 'exec', 0, '');
-            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES ('historical-helper', '\(historicalRollout)', 0, '', NULL, NULL, 'exec', 0, '');
-            """,
-            path: stateDB
-        )
-
-        var inspectedRollouts: [String] = []
-        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
-            inspectedRollouts.append(path)
-            return "Codex Desktop"
-        }
-
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["requested-helper"]), ["requested-helper"])
-        XCTAssertEqual(inspectedRollouts, [requestedRollout])
-    }
-
-    func testCodexThreadLookupCachesIdenticalExecHelperRequestSets() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-exec-cache-hit-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: root) }
-
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        let rolloutPath = (root as NSString).appendingPathComponent("cached.jsonl")
-        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        try executeSQLite(
-            """
-            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES ('cached-helper', '\(rolloutPath)', 0, '', NULL, NULL, 'exec', 0, '');
-            """,
-            path: stateDB
-        )
-
-        var inspectedRollouts: [String] = []
-        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
-            inspectedRollouts.append(path)
-            return "Codex Desktop"
-        }
-
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["cached-helper"]), ["cached-helper"])
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["cached-helper"]), ["cached-helper"])
-        XCTAssertEqual(inspectedRollouts, [rolloutPath])
-    }
-
-    func testCodexThreadLookupReusesBatchCacheForSubsetArchiveRequests() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-subset-cache-hit-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: root) }
-
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        try writeCodexStateDatabase(
-            path: stateDB,
-            archivedThreads: [],
-            execHelperThreads: ["helper-one", "helper-two"]
-        )
-
-        let rolloutDir = (root as NSString).appendingPathComponent("rollouts")
-        let expectedRollouts = Set([
-            (rolloutDir as NSString).appendingPathComponent("helper-one.jsonl"),
-            (rolloutDir as NSString).appendingPathComponent("helper-two.jsonl")
-        ])
-        var inspectedRollouts: [String] = []
-        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
-            inspectedRollouts.append(path)
-            return "Codex Desktop"
-        }
-
-        XCTAssertEqual(lookup.archivedThreadIDs(matching: ["helper-one", "helper-two"]), [])
-        XCTAssertEqual(Set(inspectedRollouts), expectedRollouts)
-        XCTAssertEqual(inspectedRollouts.count, 2)
-
-        XCTAssertEqual(lookup.archivedThreadIDs(matching: ["helper-one"]), [])
-        XCTAssertEqual(Set(inspectedRollouts), expectedRollouts)
-        XCTAssertEqual(inspectedRollouts.count, 2)
-    }
-
-    func testCodexThreadLookupReloadsDifferentExecHelperRequestSets() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-exec-cache-miss-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: root) }
-
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        let firstRollout = (root as NSString).appendingPathComponent("first.jsonl")
-        let secondRollout = (root as NSString).appendingPathComponent("second.jsonl")
-        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        try executeSQLite(
-            """
-            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES ('first-helper', '\(firstRollout)', 0, '', NULL, NULL, 'exec', 0, '');
-            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES ('second-helper', '\(secondRollout)', 0, '', NULL, NULL, 'exec', 0, '');
-            """,
-            path: stateDB
-        )
-
-        var inspectedRollouts: [String] = []
-        let lookup = CodexThreadArchiveLookup(stateDatabasePath: stateDB) { path in
-            inspectedRollouts.append(path)
-            return "Codex Desktop"
-        }
-
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["first-helper"]), ["first-helper"])
-        XCTAssertEqual(lookup.execHelperThreadIDs(matching: ["second-helper"]), ["second-helper"])
-        XCTAssertEqual(inspectedRollouts, [firstRollout, secondRollout])
     }
 
     func testCodexThreadLookupInvalidatesCacheWhenSQLiteSidecarChanges() throws {
@@ -2556,6 +2679,12 @@ final class SessionFileFormatTests: XCTestCase {
         var session = lifeSession(source: "codex", agoSeconds: 600, disconnectedAgoSeconds: 60)
         session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         XCTAssertEqual(life(session, .desktop, alive: false, desktopAppRunning: true), .active)
+    }
+
+    func testLifecycleCodexDesktopHostPidSurvivesFalseAppRunningSignal() {
+        var session = lifeSession(source: "codex", agoSeconds: 600, disconnectedAgoSeconds: 60)
+        session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        XCTAssertEqual(life(session, .desktop, alive: true, desktopAppRunning: false), .active)
     }
 
     func testLifecycleDesktopAppStoppedMakesRecentCodexSessionDormant() {

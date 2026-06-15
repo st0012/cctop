@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		9C7FB5862F422A830090B18A /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 9C7FB52D2F3A0CEA0090B18A /* KeyboardShortcuts */; };
 		9C7FB58D2F422D1E0090B18A /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 9C7FB58C2F422D1E0090B18A /* Sparkle */; };
+		TOMLDEC0100000000000001 /* TOMLDecoder in Frameworks */ = {isa = PBXBuildFile; productRef = TOMLDEC0300000000000001 /* TOMLDecoder */; };
+		TOMLDEC0100000000000002 /* TOMLDecoder in Frameworks */ = {isa = PBXBuildFile; productRef = TOMLDEC0300000000000002 /* TOMLDecoder */; };
 		A10000010000000000000001 /* CctopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000001 /* CctopApp.swift */; };
 		AC0000010000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AC0000020000000000000001 /* Assets.xcassets */; };
 		B10000010000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
@@ -76,6 +78,7 @@
 		CSF000010000000000000001 /* CodexSetupFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CSF000020000000000000001 /* CodexSetupFlow.swift */; };
 		CPI000010000000000000001 /* CodexPluginInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPI000020000000000000001 /* CodexPluginInstaller.swift */; };
 		CCT000010000000000000001 /* CodexConfigToml.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCT000020000000000000001 /* CodexConfigToml.swift */; };
+		CCTHK001000000000000001 /* CodexConfigToml.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCT000020000000000000001 /* CodexConfigToml.swift */; };
 		Q10000010000000000000001 /* QASnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = Q10000020000000000000001 /* QASnapshotTests.swift */; };
 		SN0000010000000000000001 /* SessionNameLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000020000000000000001 /* SessionNameLookup.swift */; };
 		SN0000030000000000000001 /* SessionNameLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SN0000040000000000000001 /* SessionNameLookupTests.swift */; };
@@ -113,7 +116,10 @@
 		SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SIP000020000000000000001 /* SessionIdentityPolicy.swift */; };
 		DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */; };
 		CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */; };
+		CTP000010000000000000001 /* CodexThreadArchiveLookup+Placement.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTP000020000000000000001 /* CodexThreadArchiveLookup+Placement.swift */; };
+		CTS000010000000000000001 /* CodexThreadStateTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTS000020000000000000001 /* CodexThreadStateTypes.swift */; };
 		CDA000010000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */; };
+		CDRP00010000000000000001 /* CodexDesktopRuntimeProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDRP00020000000000000001 /* CodexDesktopRuntimeProbe.swift */; };
 		SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */ = {isa = PBXBuildFile; fileRef = SMA000020000000000000001 /* SessionManager+Archive.swift */; };
 		SML000010000000000000001 /* SessionManager+Loading.swift in Sources */ = {isa = PBXBuildFile; fileRef = SML000020000000000000001 /* SessionManager+Loading.swift */; };
 /* End PBXBuildFile section */
@@ -139,7 +145,10 @@
 		SIP000020000000000000001 /* SessionIdentityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIdentityPolicy.swift; sourceTree = "<group>"; };
 		DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopAppConnectionLookup.swift; sourceTree = "<group>"; };
 		CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexThreadArchiveLookup.swift; sourceTree = "<group>"; };
+		CTP000020000000000000001 /* CodexThreadArchiveLookup+Placement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodexThreadArchiveLookup+Placement.swift"; sourceTree = "<group>"; };
+		CTS000020000000000000001 /* CodexThreadStateTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexThreadStateTypes.swift; sourceTree = "<group>"; };
 		CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDesktopSessionArchiveLookup.swift; sourceTree = "<group>"; };
+		CDRP00020000000000000001 /* CodexDesktopRuntimeProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexDesktopRuntimeProbe.swift; sourceTree = "<group>"; };
 		SMA000020000000000000001 /* SessionManager+Archive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Archive.swift"; sourceTree = "<group>"; };
 		SML000020000000000000001 /* SessionManager+Loading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Loading.swift"; sourceTree = "<group>"; };
 		D1000000A000000000000001 /* QuitButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitButton.swift; sourceTree = "<group>"; };
@@ -240,6 +249,7 @@
 			files = (
 				9C7FB5862F422A830090B18A /* KeyboardShortcuts in Frameworks */,
 				9C7FB58D2F422D1E0090B18A /* Sparkle in Frameworks */,
+				TOMLDEC0100000000000001 /* TOMLDecoder in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -247,6 +257,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				TOMLDEC0100000000000002 /* TOMLDecoder in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -275,7 +286,10 @@
 				SIP000020000000000000001 /* SessionIdentityPolicy.swift */,
 				DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */,
 				CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */,
+				CTP000020000000000000001 /* CodexThreadArchiveLookup+Placement.swift */,
+				CTS000020000000000000001 /* CodexThreadStateTypes.swift */,
 				CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */,
+				CDRP00020000000000000001 /* CodexDesktopRuntimeProbe.swift */,
 				SMA000020000000000000001 /* SessionManager+Archive.swift */,
 				SML000020000000000000001 /* SessionManager+Loading.swift */,
 				HM0000020000000000000001 /* HistoryManager.swift */,
@@ -459,6 +473,7 @@
 			packageProductDependencies = (
 				9C7FB52D2F3A0CEA0090B18A /* KeyboardShortcuts */,
 				9C7FB58C2F422D1E0090B18A /* Sparkle */,
+				TOMLDEC0300000000000001 /* TOMLDecoder */,
 			);
 			productName = CctopMenubar;
 			productReference = A10000030000000000000001 /* CctopMenubar.app */;
@@ -476,6 +491,9 @@
 			dependencies = (
 			);
 			name = "cctop-hook";
+			packageProductDependencies = (
+				TOMLDEC0300000000000002 /* TOMLDecoder */,
+			);
 			productName = "cctop-hook";
 			productReference = P1000000D000000000000001 /* cctop-hook */;
 			productType = "com.apple.product-type.tool";
@@ -519,6 +537,7 @@
 			packageReferences = (
 				9C7FB52C2F3A0CEA0090B18A /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				9C7FB58B2F422D1E0090B18A /* XCRemoteSwiftPackageReference "Sparkle" */,
+				TOMLDEC0200000000000001 /* XCRemoteSwiftPackageReference "TOMLDecoder" */,
 			);
 			productRefGroup = A10000070000000000000001 /* Products */;
 			projectDirPath = "";
@@ -555,7 +574,10 @@
 				SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */,
 				DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */,
 				CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */,
+				CTP000010000000000000001 /* CodexThreadArchiveLookup+Placement.swift in Sources */,
+				CTS000010000000000000001 /* CodexThreadStateTypes.swift in Sources */,
 				CDA000010000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift in Sources */,
+				CDRP00010000000000000001 /* CodexDesktopRuntimeProbe.swift in Sources */,
 				SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */,
 				SML000010000000000000001 /* SessionManager+Loading.swift in Sources */,
 				D10000010000000000000001 /* StatusChip.swift in Sources */,
@@ -627,6 +649,7 @@
 				P1000000A000000000000001 /* SessionStatus.swift in Sources */,
 				P1000000B000000000000001 /* HookEvent.swift in Sources */,
 				P1000000C000000000000001 /* Config.swift in Sources */,
+				CCTHK001000000000000001 /* CodexConfigToml.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -910,6 +933,14 @@
 				minimumVersion = 2.9.1;
 			};
 		};
+		TOMLDEC0200000000000001 /* XCRemoteSwiftPackageReference "TOMLDecoder" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/dduan/TOMLDecoder";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.4.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -922,6 +953,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9C7FB58B2F422D1E0090B18A /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		TOMLDEC0300000000000001 /* TOMLDecoder */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = TOMLDEC0200000000000001 /* XCRemoteSwiftPackageReference "TOMLDecoder" */;
+			productName = TOMLDecoder;
+		};
+		TOMLDEC0300000000000002 /* TOMLDecoder */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = TOMLDEC0200000000000001 /* XCRemoteSwiftPackageReference "TOMLDecoder" */;
+			productName = TOMLDecoder;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

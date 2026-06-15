@@ -116,23 +116,26 @@ extension SessionManager {
     nonisolated static func visibilitySnapshot(
         in candidates: [DedupCandidate],
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
-        claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup()
+        claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup(),
+        now: Date = Date()
     ) -> SessionVisibilitySnapshot {
         let sessions = candidates.map(\.session)
         let claudeMetadata = claudeDesktopMetadataSnapshot(in: sessions, claudeDesktopSessions: claudeDesktopSessions)
-        return visibilitySnapshot(in: candidates, sessions: sessions, claudeMetadata: claudeMetadata, codexThreads: codexThreads)
+        return visibilitySnapshot(in: candidates, sessions: sessions, claudeMetadata: claudeMetadata, codexThreads: codexThreads, now: now)
     }
 
     nonisolated static func visibilitySnapshot(
         in candidates: [DedupCandidate],
         claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?,
-        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
+        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
+        now: Date = Date()
     ) -> SessionVisibilitySnapshot {
         visibilitySnapshot(
             in: candidates,
             sessions: candidates.map(\.session),
             claudeMetadata: claudeMetadata,
-            codexThreads: codexThreads
+            codexThreads: codexThreads,
+            now: now
         )
     }
 
@@ -140,10 +143,11 @@ extension SessionManager {
         in candidates: [DedupCandidate],
         sessions: [Session],
         claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?,
-        codexThreads: any CodexThreadStateProviding
+        codexThreads: any CodexThreadStateProviding,
+        now: Date
     ) -> SessionVisibilitySnapshot {
         let archivedCodexThreadIDs = archivedCodexDesktopThreadIDs(in: sessions, codexThreads: codexThreads)
-        let missingCodexDesktopThreadIDs = missingCodexDesktopThreadIDs(in: sessions, codexThreads: codexThreads)
+        let missingCodexDesktopThreadIDs = missingCodexDesktopThreadIDs(in: sessions, codexThreads: codexThreads, now: now)
         let codexSubagentThreadIDs = codexSubagentThreadIDs(in: sessions, codexThreads: codexThreads)
         let codexExecHelperThreadIDs = codexExecHelperThreadIDs(in: sessions, codexThreads: codexThreads)
         let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
@@ -194,15 +198,21 @@ extension SessionManager {
     /// readable and the row is gone, the app should not publish the stale hook session.
     nonisolated static func missingCodexDesktopThreadIDs(
         in sessions: [Session],
-        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
+        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
+        now: Date = Date()
     ) -> Set<String> {
-        let threadIDs = Set(
-            sessions
-                .filter { $0.source == Session.codexSource && $0.isCodexDesktopHost }
-                .map(\.sessionId)
-        )
+        let codexDesktopSessions = sessions.filter { $0.source == Session.codexSource && $0.isCodexDesktopHost }
+        let threadIDs = Set(codexDesktopSessions.map(\.sessionId))
         guard let existingThreadIDs = codexThreads.existingThreadIDs(matching: threadIDs) else { return [] }
-        return threadIDs.subtracting(existingThreadIDs)
+        let missingThreadIDs = threadIDs.subtracting(existingThreadIDs)
+        let freshMissingThreadIDs = Set(codexDesktopSessions.compactMap { session -> String? in
+            guard missingThreadIDs.contains(session.sessionId),
+                  now.timeIntervalSince(session.lastActivity) <= Self.codexMissingThreadGraceSeconds else {
+                return nil
+            }
+            return session.sessionId
+        })
+        return missingThreadIDs.subtracting(freshMissingThreadIDs)
     }
 
     nonisolated static func isMissingCodexDesktopSession(
@@ -348,9 +358,10 @@ extension SessionManager {
     }
 
     /// Fresh single-session archive check for the GC deletion decision. Unlike the batch snapshot
-    /// `loadSessions` uses, this re-reads Codex's SQLite state at call time, so a thread archived
-    /// after the GC directory scan is never deleted out from under a pending unarchive. When the
-    /// database exists but cannot be read, the lookup returns nil and we fail SAFE.
+    /// `loadSessions` uses, this re-reads Codex thread state at call time, including rollout
+    /// placement when available, so a thread archived after the GC directory scan is never deleted
+    /// out from under a pending unarchive. When the store exists but cannot be read, the lookup
+    /// returns nil and we fail SAFE.
     nonisolated static func isCodexDesktopThreadArchived(
         _ session: Session,
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()

@@ -1,4 +1,5 @@
 import Foundation
+import TOMLDecoder
 
 extension Bundle {
     var appVersion: String {
@@ -6,8 +7,17 @@ extension Bundle {
     }
 }
 
+private struct CodexConfigFile: Decodable {
+    let sqliteHome: String?
+
+    enum CodingKeys: String, CodingKey {
+        case sqliteHome = "sqlite_home"
+    }
+}
+
 enum Config {
     static let hookVersion = "0.17.3"
+    private static let codexStateDatabaseFilename = "state_5.sqlite"
 
     static func sessionsDir() -> String {
         if let override = ProcessInfo.processInfo.environment["CCTOP_SESSIONS_DIR"],
@@ -61,13 +71,27 @@ enum Config {
         return NSString(string: "~/.codex/session_index.jsonl").expandingTildeInPath
     }
 
-    /// Codex Desktop's local thread state database. Read-only — never created.
-    static func codexStateDatabasePath() -> String {
+    /// Codex's local thread state database candidates. Read-only — never created.
+    static func codexStateDatabaseCandidates(desktopSQLiteHome: String? = nil) -> [String] {
         if let override = ProcessInfo.processInfo.environment["CCTOP_CODEX_STATE_DB"],
            !override.isEmpty {
-            return override
+            return [standardizedPath(override)]
         }
-        return NSString(string: "~/.codex/state_5.sqlite").expandingTildeInPath
+
+        let codexHome = codexHome()
+        let configPath = (codexHome as NSString).appendingPathComponent("config.toml")
+        let homes = [
+            desktopSQLiteHome.flatMap(nonEmpty).map { standardizedAbsolutePath($0) },
+            codexSQLiteHomeFromConfig(path: configPath),
+            (codexHome as NSString).appendingPathComponent("sqlite"),
+            codexHome
+        ].compactMap { $0 }
+
+        var seen = Set<String>()
+        return homes.compactMap { home in
+            let path = standardizedPath((home as NSString).appendingPathComponent(codexStateDatabaseFilename))
+            return seen.insert(path).inserted ? path : nil
+        }
     }
 
     static func standardizedPath(_ path: String) -> String {
@@ -82,6 +106,35 @@ enum Config {
                 attributes: [.posixPermissions: 0o700]
             )
         }
+    }
+
+    private static func codexHome() -> String {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["CODEX_HOME"].flatMap(nonEmpty).map { standardizedAbsolutePath($0) }
+            ?? standardizedAbsolutePath("~/.codex")
+    }
+
+    static func nonEmpty(_ value: String) -> String? {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : value
+    }
+
+    /// Foundation gives us the pieces, but not one call that expands `~`,
+    /// resolves a config-relative path, and then standardizes the result.
+    private static func standardizedAbsolutePath(_ path: String, relativeTo basePath: String? = nil) -> String {
+        let expanded = NSString(string: path).expandingTildeInPath
+        if NSString(string: expanded).isAbsolutePath {
+            return NSString(string: expanded).standardizingPath
+        }
+        let basePath = basePath ?? FileManager.default.currentDirectoryPath
+        return NSString(string: (basePath as NSString).appendingPathComponent(expanded)).standardizingPath
+    }
+
+    private static func codexSQLiteHomeFromConfig(path: String) -> String? {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let sqliteHome = try? TOMLDecoder().decode(CodexConfigFile.self, from: data).sqliteHome else {
+            return nil
+        }
+        return standardizedAbsolutePath(sqliteHome, relativeTo: (path as NSString).deletingLastPathComponent)
     }
 }
 

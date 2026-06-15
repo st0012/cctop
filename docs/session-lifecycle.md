@@ -117,7 +117,9 @@ Once a validated desktop app is not running, cctop keeps its visible sessions as
 The archive metadata source is host-specific:
 
 - Claude Desktop archive state is read from Claude Desktop's `claude-code-sessions` metadata files, keyed by `cliSessionId`.
-- Codex Desktop archive state is read from Codex's local thread database, keyed by thread id.
+- Codex Desktop archive state starts from Codex's local thread state, keyed by thread id. When that row includes a rollout path, cctop checks the active and archived rollout-file locations; if exactly one exists, file placement is treated as the stronger archive signal. If placement is ambiguous or unavailable, cctop falls back to the thread-state archive flag.
+
+Codex thread state may live in more than one `state_5.sqlite` location. cctop first asks the running Codex Desktop app-server for its SQLite home, then falls back to Codex config and static `CODEX_HOME` paths. cctop does not trust its own `CODEX_SQLITE_HOME` environment variable for this decision, because normal Finder, Dock, and Sparkle launches do not inherit the shell environment that started cctop during development.
 
 Claude Desktop records are validated against readable Claude metadata keyed by `cliSessionId`. If the metadata store is readable but has no matching metadata and the cctop record has already ended or disconnected, cctop treats it as an orphan startup hook record and hides it without mutating or deleting the `.json`. This covers launch-time records that start and end before Claude Desktop writes durable session metadata. If the metadata store is missing, display fails open and the record follows the normal lifecycle. If matching metadata cannot be read, display fails open for that pass while GC keeps the `.json` rather than deleting uncertain state.
 
