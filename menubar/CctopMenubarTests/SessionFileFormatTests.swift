@@ -1799,6 +1799,23 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertNil(lookup.archivedThreadIDs(matching: ["target-thread"]))
     }
 
+    func testCodexThreadLookupReusesResolvedDatabaseCandidatesAcrossMetadataLookups() {
+        let missing = NSTemporaryDirectory() + "cctop-codex-missing-db-\(UUID().uuidString)/state_5.sqlite"
+        var resolveCount = 0
+        let lookup = CodexThreadArchiveLookup(stateDatabasePaths: {
+            resolveCount += 1
+            return [missing]
+        })
+        let threadIDs: Set<String> = ["target-thread"]
+
+        XCTAssertEqual(lookup.projectNames(matching: threadIDs), [:])
+        XCTAssertEqual(lookup.archivedThreadIDs(matching: threadIDs), [])
+        XCTAssertNil(lookup.existingThreadIDs(matching: threadIDs))
+        XCTAssertEqual(lookup.subagentThreadIDs(matching: threadIDs), [])
+        XCTAssertEqual(lookup.execHelperThreadIDs(matching: threadIDs), [])
+        XCTAssertEqual(resolveCount, 1)
+    }
+
     func testArchivedThreadIDsTreatsArchivedRolloutPlacementAsAuthoritativeWhenSQLiteIsActive() throws {
         let fixture = try makeCodexArchivePlacementFixture(rootPrefix: "cctop-codex-archive-placement")
         defer { try? FileManager.default.removeItem(atPath: fixture.root) }
@@ -1821,6 +1838,21 @@ final class SessionFileFormatTests: XCTestCase {
             archivedThreadIDs(CodexThreadArchiveLookup(stateDatabasePath: fixture.stateDB), in: fixture),
             []
         )
+    }
+
+    func testArchivePlacementStateCarriesFingerprintsUsedForDecision() throws {
+        let fixture = try makeCodexArchivePlacementFixture(rootPrefix: "cctop-codex-placement-fingerprint")
+        defer { try? FileManager.default.removeItem(atPath: fixture.root) }
+        try writeCodexRollout(.archived, in: fixture)
+
+        let state = CodexThreadArchiveLookup.archiveState(
+            sqliteArchived: false,
+            rolloutPath: fixture.activePath
+        )
+
+        XCTAssertEqual(state.isArchived, true)
+        XCTAssertNil(state.observedFingerprints[fixture.activePath]?.file)
+        XCTAssertNotNil(state.observedFingerprints[fixture.archivedPath]?.file)
     }
 
     func testArchivedClaudeSessionIDsDistinguishesMissingFromUnreadable() throws {

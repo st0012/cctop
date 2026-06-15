@@ -3,16 +3,16 @@ import Foundation
 extension CodexThreadArchiveLookup {
     static func archiveState(sqliteArchived: Bool, rolloutPath: String?) -> CodexThreadArchiveState {
         guard let rolloutPath else {
-            return CodexThreadArchiveState(isArchived: sqliteArchived, observedPaths: [])
+            return CodexThreadArchiveState(isArchived: sqliteArchived, observedFingerprints: [:])
         }
 
-        var observedPaths: Set<String> = [rolloutPath]
-        let rolloutExists = fileExists(at: rolloutPath)
+        var observedFingerprints = [rolloutPath: rolloutFileFingerprint(at: rolloutPath)]
         let siblingPath = siblingRolloutPath(for: rolloutPath)
+        let rolloutExists = observedFingerprints[rolloutPath]?.file != nil
         let siblingExists: Bool
         if let siblingPath {
-            observedPaths.insert(siblingPath)
-            siblingExists = fileExists(at: siblingPath)
+            observedFingerprints[siblingPath] = rolloutFileFingerprint(at: siblingPath)
+            siblingExists = observedFingerprints[siblingPath]?.file != nil
         } else {
             siblingExists = false
         }
@@ -20,20 +20,14 @@ extension CodexThreadArchiveLookup {
         if rolloutExists != siblingExists {
             let existingPath = rolloutExists ? rolloutPath : siblingPath
             if let existingPath, isArchivedRolloutPath(existingPath) {
-                return CodexThreadArchiveState(isArchived: true, observedPaths: observedPaths)
+                return CodexThreadArchiveState(isArchived: true, observedFingerprints: observedFingerprints)
             }
             if let existingPath, isActiveRolloutPath(existingPath) {
-                return CodexThreadArchiveState(isArchived: false, observedPaths: observedPaths)
+                return CodexThreadArchiveState(isArchived: false, observedFingerprints: observedFingerprints)
             }
         }
 
-        return CodexThreadArchiveState(isArchived: sqliteArchived, observedPaths: observedPaths)
-    }
-
-    private static func fileExists(at path: String) -> Bool {
-        var isDirectory: ObjCBool = false
-        return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
-            && !isDirectory.boolValue
+        return CodexThreadArchiveState(isArchived: sqliteArchived, observedFingerprints: observedFingerprints)
     }
 
     private static func siblingRolloutPath(for path: String) -> String? {
@@ -83,5 +77,5 @@ extension CodexThreadArchiveLookup {
 
 struct CodexThreadArchiveState {
     let isArchived: Bool
-    let observedPaths: Set<String>
+    let observedFingerprints: [String: CodexThreadStateRolloutFileFingerprint]
 }

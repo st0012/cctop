@@ -15,10 +15,9 @@ struct SessionDataSources {
     var notificationsEnabled: () -> Bool
     var now: () -> Date
 
-    /// A function rather than a stored constant so `Config.sessionsDir()` (and the lookup
-    /// paths behind the live stores) are resolved when the caller constructs its sources.
-    /// The store paths are then FROZEN for this value's lifetime — env-var overrides
-    /// (e.g. in tests) must be in place before `live()` is called, not after.
+    /// A function rather than a stored constant so `Config.sessionsDir()` is resolved
+    /// when the caller constructs its sources. The live metadata stores resolve their
+    /// own paths as needed, with short internal caches for repeated reads in one pass.
     static func live() -> SessionDataSources {
         SessionDataSources(
             sessionsDir: URL(fileURLWithPath: Config.sessionsDir()),
