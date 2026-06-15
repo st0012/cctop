@@ -342,6 +342,61 @@ final class SessionFileFormatTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testDebugBuildLogsWhenVisibleSessionsBecomeNoActiveSessions() throws {
+        let root = NSTemporaryDirectory() + "cctop-no-active-debug-log-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let logPath = (root as NSString).appendingPathComponent("logs/ui-state-debug.jsonl")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        let env = savedEnvironment(["CCTOP_DEBUG_UI_STATE_LOG"])
+        setenv("CCTOP_DEBUG_UI_STATE_LOG", logPath, 1)
+        defer {
+            restoreEnvironment(env)
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("claude-desktop.json")
+        try claudeDesktopSession(sessionId: "claude-desktop-visible", projectPath: "/tmp/cctop")
+            .writeToFile(path: sessionPath)
+
+        var desktopRunning = true
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in desktopRunning },
+            processAlive: { _ in desktopRunning }
+        )
+
+        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions).map(\.sessionId), ["claude-desktop-visible"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: logPath))
+
+        desktopRunning = false
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["claude-desktop-visible"])
+        XCTAssertTrue(SessionDisplayPolicy.activeSessions(from: manager.sessions).isEmpty)
+
+        let logText = try String(contentsOfFile: logPath, encoding: .utf8)
+        let lines = logText.split(separator: "\n")
+        XCTAssertEqual(lines.count, 1)
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(lines[0].utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(payload["event"] as? String, "no_active_sessions_displayed")
+        XCTAssertEqual(payload["previous_active_count"] as? Int, 1)
+        XCTAssertEqual(payload["new_active_count"] as? Int, 0)
+        XCTAssertEqual(payload["new_session_count"] as? Int, 1)
+        XCTAssertEqual(payload["previous_active_ids"] as? [String], ["claude-desktop-visible"])
+        let sessions = try XCTUnwrap(payload["sessions"] as? [[String: Any]])
+        let session = try XCTUnwrap(sessions.first)
+        XCTAssertEqual(session["session_id"] as? String, "claude-desktop-visible")
+        XCTAssertEqual(session["source"] as? String, "cc")
+        XCTAssertEqual(session["lifecycle"] as? String, "dormant")
+        XCTAssertEqual(session["terminal_bundle_id"] as? String, HostAppBundleID.claudeDesktop)
+    }
+
     func testLegacyUUIDFilenameClassification() {
         // Pre-PID files were keyed by a bare session UUID → should be removed.
         XCTAssertTrue(SessionManager.isLegacyUUIDFilename("019e4b0c-9473-7a33-a4b9-749fd2c83a9e"))

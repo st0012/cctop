@@ -22,6 +22,10 @@ class SessionManager: ObservableObject {
     private var lastDisplaySignature = SessionDisplayPolicy.Signature.empty
     var lastLoadLogSignature: SessionLoadLogSignature?
     var sessionFileCache: [String: SessionFileCacheEntry] = [:]
+#if DEBUG
+    var debugLastDisplayedActiveSessionIDs: [String]?
+#endif
+
     /// Lifecycle windows: desktop app liveness decides connection when available; `active` is the
     /// fallback recency threshold and `retention` controls dormant desktop cleanup.
     nonisolated static let lifecycleWindows = LifecycleWindows(active: 600, retention: 1_209_600)
@@ -59,6 +63,7 @@ class SessionManager: ObservableObject {
         self.init(historyManager: historyManager, dataSources: dataSources)
     }
 
+    // swiftlint:disable:next function_body_length
     func loadSessions() {
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: sessionsDir,
@@ -67,6 +72,9 @@ class SessionManager: ObservableObject {
             sessionManagerLogger.warning("loadSessions: could not read directory")
             lastDisplaySignature = .empty
             lastLoadLogSignature = nil
+#if DEBUG
+            debugLastDisplayedActiveSessionIDs = []
+#endif
             sessionFileCache.removeAll()
             sessions = []
             return
@@ -99,6 +107,10 @@ class SessionManager: ObservableObject {
             .filter { $0.session.lifecycle != .finished }
             .map { adjustDisplayStatus($0.session) }
         let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
+#if DEBUG
+        recordDebugNoActiveSessionsState(newSessions, displaySignature, summary, visibility, now)
+#endif
+
         sendTransitionNotifications(for: newSessions, oldStatuses: oldStatuses)
         // Only publish when data actually changed, or when the presentation bucket changed
         // because an active idle session crossed the stale-idle threshold.
