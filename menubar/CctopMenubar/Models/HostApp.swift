@@ -12,6 +12,7 @@ enum HostApp: CaseIterable {
     case terminal
     case ghostty
     case kitty
+    case cmux
     /// Claude Desktop runs sessions inside the app itself — no terminal, no editor.
     case claudeDesktop
     /// Codex Desktop runs sessions inside the app itself — no terminal, no editor.
@@ -22,6 +23,9 @@ enum HostApp: CaseIterable {
     /// because `__CFBundleIdentifier` unambiguously identifies VS Code forks.
     static func from(bundleIdentifier: String?) -> HostApp? {
         guard let id = bundleIdentifier, !id.isEmpty else { return nil }
+        if id == "com.cmuxterm.app" || id.hasPrefix("com.cmuxterm.app.") {
+            return .cmux
+        }
         return allByBundleID[id]
     }
 
@@ -39,6 +43,7 @@ enum HostApp: CaseIterable {
         if lower.contains("warp") { return .warp }
         if lower.contains("ghostty") { return .ghostty }
         if lower.contains("kitty") { return .kitty }
+        if lower.contains("cmux") { return .cmux }
         if lower.contains("terminal") { return .terminal }
         return .unknown
     }
@@ -54,6 +59,7 @@ enum HostApp: CaseIterable {
         case .terminal: return "com.apple.Terminal"
         case .ghostty: return "com.mitchellh.ghostty"
         case .kitty: return "net.kovidgoyal.kitty"
+        case .cmux: return "com.cmuxterm.app"
         case .claudeDesktop: return HostAppBundleID.claudeDesktop
         case .codexDesktop: return HostAppBundleID.codexDesktop
         case .unknown: return nil
@@ -73,6 +79,7 @@ enum HostApp: CaseIterable {
         case .terminal: return "terminal"
         case .ghostty: return "ghostty"
         case .kitty: return "kitty"
+        case .cmux: return "cmux"
         case .claudeDesktop, .codexDesktop, .unknown: return nil
         }
     }
@@ -81,7 +88,7 @@ enum HostApp: CaseIterable {
         switch self {
         case .vscode, .cursor, .windsurf, .zed:
             return "chevron.left.forwardslash.chevron.right"
-        case .iterm2, .warp, .terminal, .ghostty, .kitty, .unknown:
+        case .iterm2, .warp, .terminal, .ghostty, .kitty, .cmux, .unknown:
             return "terminal"
         case .claudeDesktop, .codexDesktop:
             return "sparkles"
@@ -92,7 +99,7 @@ enum HostApp: CaseIterable {
     var usesWorkspaceFile: Bool {
         switch self {
         case .vscode, .cursor, .windsurf, .zed: return true
-        case .iterm2, .warp, .terminal, .ghostty, .kitty,
+        case .iterm2, .warp, .terminal, .ghostty, .kitty, .cmux,
              .claudeDesktop, .codexDesktop, .unknown: return false
         }
     }
@@ -175,7 +182,7 @@ extension Session {
     /// Phase-1 host classification from file-local signals only.
     /// Precedence: a recognized bundle id (`__CFBundleIdentifier`, the same trusted signal
     /// `isHostedByDesktopApp` uses) classifies desktop vs terminal. Failing that, a terminal
-    /// multiplexer (tmux/zellij) is hard terminal evidence — desktop is already returned
+    /// multiplexer (cmux/tmux/zellij) is hard terminal evidence — desktop is already returned
     /// above, so a leaked `TMUX` env can't misclassify a desktop session here. Everything
     /// else (no/unknown bundle id, only env-copyable `tty` or program name) → ambiguous.
     var hostClass: SessionHostClass {

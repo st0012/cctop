@@ -90,9 +90,11 @@ struct TerminalInfo: Codable, Equatable {
     }
 }
 
-/// Identifies a terminal multiplexer (zellij, tmux) hosting the session.
+/// Identifies a terminal multiplexer (cmux, zellij, tmux) hosting the session.
 /// Each variant carries exactly the fields needed for its focus command.
 enum MultiplexerInfo: Codable, Equatable {
+    /// cmux focus-surface --workspace $workspaceId --surface $surfaceId
+    case cmux(socket: String, workspaceId: String, surfaceId: String?, paneId: String?, binaryPath: String?)
     /// zellij --session $sessionName action focus-pane-id $paneId
     case zellij(sessionName: String, paneId: String, binaryPath: String?)
     /// tmux -S $socket select-window -t $paneId && tmux -S $socket select-pane -t $paneId
@@ -101,6 +103,8 @@ enum MultiplexerInfo: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case name
         case sessionName = "session_name"
+        case workspaceId = "workspace_id"
+        case surfaceId = "surface_id"
         case paneId = "pane_id"
         case socket
         case binaryPath = "binary_path"
@@ -111,6 +115,14 @@ enum MultiplexerInfo: Codable, Equatable {
         let name = try container.decode(String.self, forKey: .name)
         let binaryPath = try container.decodeIfPresent(String.self, forKey: .binaryPath)
         switch name {
+        case "cmux":
+            self = .cmux(
+                socket: try container.decode(String.self, forKey: .socket),
+                workspaceId: try container.decode(String.self, forKey: .workspaceId),
+                surfaceId: try container.decodeIfPresent(String.self, forKey: .surfaceId),
+                paneId: try container.decodeIfPresent(String.self, forKey: .paneId),
+                binaryPath: binaryPath
+            )
         case "zellij":
             self = .zellij(
                 sessionName: try container.decode(String.self, forKey: .sessionName),
@@ -134,6 +146,13 @@ enum MultiplexerInfo: Codable, Equatable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
+        case .cmux(let socket, let workspaceId, let surfaceId, let paneId, let binaryPath):
+            try container.encode("cmux", forKey: .name)
+            try container.encode(socket, forKey: .socket)
+            try container.encode(workspaceId, forKey: .workspaceId)
+            try container.encodeIfPresent(surfaceId, forKey: .surfaceId)
+            try container.encodeIfPresent(paneId, forKey: .paneId)
+            try container.encodeIfPresent(binaryPath, forKey: .binaryPath)
         case .zellij(let sessionName, let paneId, let binaryPath):
             try container.encode("zellij", forKey: .name)
             try container.encode(sessionName, forKey: .sessionName)
@@ -145,6 +164,13 @@ enum MultiplexerInfo: Codable, Equatable {
             try container.encode(paneId, forKey: .paneId)
             try container.encodeIfPresent(binaryPath, forKey: .binaryPath)
         }
+    }
+}
+
+extension MultiplexerInfo {
+    var isCmux: Bool {
+        if case .cmux = self { return true }
+        return false
     }
 }
 

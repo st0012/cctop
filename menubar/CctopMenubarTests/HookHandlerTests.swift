@@ -112,6 +112,15 @@ final class HookHandlerTests: XCTestCase {
         return String(decoding: data, as: UTF8.self)
     }
 
+    private func makeExecutable(named name: String) throws -> String {
+        let directory = (logsDir as NSString).appendingPathComponent("bin-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        let path = (directory as NSString).appendingPathComponent(name)
+        try "#!/bin/sh\nexit 0\n".write(toFile: path, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
+        return path
+    }
+
     // MARK: - Shared host app bundle IDs
 
     func testDesktopBundleIDsAreSharedWithHostApp() {
@@ -138,6 +147,51 @@ final class HookHandlerTests: XCTestCase {
 
         XCTAssertEqual(session.createdByHookVersion, Config.hookVersion)
         XCTAssertEqual(session.lastWrittenByHookVersion, Config.hookVersion)
+    }
+
+    func testSessionStartCapturesCmuxMultiplexerContext() throws {
+        let cmuxPath = try makeExecutable(named: "cmux")
+        let env = [
+            "TERM_PROGRAM": "ghostty",
+            "__CFBundleIdentifier": "com.cmuxterm.app",
+            "CMUX_SOCKET_PATH": "/tmp/cmux.sock",
+            "CMUX_WORKSPACE_ID": "11111111-1111-1111-1111-111111111111",
+            "CMUX_SURFACE_ID": "22222222-2222-2222-2222-222222222222",
+            "CMUX_PANE_ID": "pane:3",
+            "PATH": (cmuxPath as NSString).deletingLastPathComponent
+        ]
+
+        try handleFixture("SessionStart", deps: makeDeps(env: env))
+        let session = try loadSession()
+
+        XCTAssertEqual(session.terminal?.program, "ghostty")
+        XCTAssertEqual(session.terminal?.bundleId, "com.cmuxterm.app")
+        XCTAssertEqual(
+            session.terminal?.multiplexer,
+            .cmux(
+                socket: "/tmp/cmux.sock",
+                workspaceId: "11111111-1111-1111-1111-111111111111",
+                surfaceId: "22222222-2222-2222-2222-222222222222",
+                paneId: "pane:3",
+                binaryPath: cmuxPath
+            )
+        )
+    }
+
+    func testSessionStartDoesNotTreatCmuxPanelIdAsSurfaceId() throws {
+        let cmuxPath = try makeExecutable(named: "cmux")
+        let env = [
+            "CMUX_SOCKET_PATH": "/tmp/cmux.sock",
+            "CMUX_WORKSPACE_ID": "workspace:1",
+            "CMUX_SURFACE_ID": "",
+            "CMUX_PANEL_ID": "surface:2",
+            "PATH": (cmuxPath as NSString).deletingLastPathComponent
+        ]
+
+        try handleFixture("SessionStart", deps: makeDeps(env: env))
+        let session = try loadSession()
+
+        XCTAssertNil(session.terminal?.multiplexer)
     }
 
     func testCurrentHookUpdateDoesNotBackfillLegacyCreatedByVersion() throws {

@@ -63,6 +63,7 @@ When you click a session card (or jump via Navigate mode), cctop focuses the hos
 |-----|-------------|
 | VS Code, Cursor, Windsurf, Zed | Opens the project (workspace file if present) |
 | iTerm2 | Targets the specific window, tab, and pane |
+| cmux | Targets the specific workspace surface, including already-running sessions when live cmux metadata is available |
 | Kitty | Targets the specific window via remote control |
 | Ghostty | Targets a terminal whose working directory matches the project (best-effort) |
 | Terminal | Targets the specific tab by tty |
@@ -76,6 +77,12 @@ When you click a session card (or jump via Navigate mode), cctop focuses the hos
 > Kitty requires `allow_remote_control socket-only` and `listen_on` in your `kitty.conf`.
 > Without remote control enabled, Kitty falls back to app activation (same as Warp).
 >
+> cmux exposes workspace and surface IDs inside each terminal. cctop stores
+> those IDs when hooks run, and can recover them from a live cmux process when
+> an already-running session file is missing multiplexer metadata. It opens a
+> `cmux://` navigation URL for exact surface focus, with a CLI `focus-surface`
+> fallback for cmux reference IDs.
+>
 > Ghostty requires version 1.3.0+ for AppleScript support. Because Ghostty does not
 > yet expose a per-surface env var inside the shell, cctop matches by working
 > directory — ambiguous when multiple Ghostty splits share the same cwd.
@@ -86,11 +93,12 @@ When you click a session card (or jump via Navigate mode), cctop focuses the hos
 
 ### Terminal Multiplexers
 
-When running inside a multiplexer, cctop additionally focuses the specific pane.
+When running inside a multiplexer, cctop additionally focuses the specific pane or surface.
 This composes with any terminal emulator above.
 
 | Multiplexer | How it focuses |
 |-------------|----------------|
+| cmux | `cmux://workspace/.../surface/...` or `cmux focus-surface` — targets the exact workspace surface from stored or live cmux metadata |
 | Zellij | `zellij --session <name> action focus-pane-id <paneId>` — targets the exact pane |
 | tmux | `tmux select-window` + `select-pane` — targets the exact window and pane |
 

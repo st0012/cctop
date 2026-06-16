@@ -542,6 +542,7 @@
         </div>
         <div class="chips">
           <span class="chip">iTerm2</span>
+          <span class="chip">cmux<sup>&sect;</sup></span>
           <span class="chip">Kitty<sup>*</sup></span>
           <span class="chip">Ghostty<sup>&dagger;</sup></span>
           <span class="chip">Terminal<sup>&Dagger;</sup></span>
@@ -574,6 +575,8 @@
       </div>
       <p class="tier-footnote" style="font-size:.85rem;color:var(--c-muted);margin-top:8px">
         *&thinsp;Kitty targets the exact window when <a href="https://sw.kovidgoyal.net/kitty/remote-control/" target="_blank" rel="noopener noreferrer"><code>remote control</code></a> is enabled in kitty.conf. Without it, falls back to app activation.
+        <br>
+        &sect;&thinsp;cmux targets the exact workspace surface using <a href="https://cmux.com/docs/api" target="_blank" rel="noopener noreferrer">workspace and surface IDs</a> from stored session data or the live cmux process, so already-running sessions can jump correctly without restart.
         <br>
         &dagger;&thinsp;Ghostty 1.3.0+ targets a terminal by working directory via AppleScript. Ambiguous if multiple Ghostty splits share the same cwd; falls back to app activation otherwise.
         <br>

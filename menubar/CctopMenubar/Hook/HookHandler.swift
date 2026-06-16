@@ -301,8 +301,32 @@ enum HookHandler {
         )
     }
 
-    /// Detect zellij or tmux from env vars. Checks zellij first, then tmux.
+    /// Detect cmux, zellij, or tmux from env vars. Checks outer GUI multiplexers first.
     private static func captureMultiplexerInfo(env: [String: String]) -> MultiplexerInfo? {
+        // cmux: CMUX_SOCKET_PATH + CMUX_WORKSPACE_ID + CMUX_SURFACE_ID.
+        // CMUX_PANE_ID is accepted for same-session deep links when available, but
+        // current cmux builds expose CMUX_SURFACE_ID as the documented focus target.
+        let cmuxSurfaceId = sanitizeTerminalSessionId(env["CMUX_SURFACE_ID"])
+        if let socket = env["CMUX_SOCKET_PATH"], !socket.isEmpty,
+           let workspaceId = sanitizeTerminalSessionId(env["CMUX_WORKSPACE_ID"]),
+           let surfaceId = cmuxSurfaceId {
+            let paneId = sanitizeTerminalSessionId(env["CMUX_PANE_ID"])
+            let path = resolveBinaryPath(env: env, name: "cmux")
+            return .cmux(
+                socket: socket, workspaceId: workspaceId,
+                surfaceId: surfaceId, paneId: paneId, binaryPath: path
+            )
+        }
+        // Older or experimental cmux contexts may expose a pane id without a surface id.
+        if let socket = env["CMUX_SOCKET_PATH"], !socket.isEmpty,
+           let workspaceId = sanitizeTerminalSessionId(env["CMUX_WORKSPACE_ID"]),
+           let paneId = sanitizeTerminalSessionId(env["CMUX_PANE_ID"]) {
+            let path = resolveBinaryPath(env: env, name: "cmux")
+            return .cmux(
+                socket: socket, workspaceId: workspaceId,
+                surfaceId: nil, paneId: paneId, binaryPath: path
+            )
+        }
         // zellij: ZELLIJ_SESSION_NAME + ZELLIJ_PANE_ID
         if let sessionName = sanitizeTerminalSessionId(env["ZELLIJ_SESSION_NAME"]),
            let paneId = sanitizeTerminalSessionId(env["ZELLIJ_PANE_ID"]) {
@@ -321,7 +345,8 @@ enum HookHandler {
     }
 
     /// Validate terminal session IDs to prevent injection via env vars.
-    /// Only allows alphanumeric, hyphens, colons, periods, at-signs, underscores, and percent (covers iTerm2, Kitty, and tmux formats).
+    /// Only allows alphanumeric, hyphens, colons, periods, at-signs, underscores, and percent
+    /// (covers iTerm2, Kitty, cmux, zellij, and tmux formats).
     private static func sanitizeTerminalSessionId(_ value: String?) -> String? {
         guard let value, !value.isEmpty,
               value.range(of: #"^[0-9a-zA-Z:.@_%-]+$"#, options: .regularExpression) != nil

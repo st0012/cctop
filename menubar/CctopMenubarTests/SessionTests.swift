@@ -749,6 +749,24 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(Session.mock(terminal: term).hostClass, .terminal)
     }
 
+    func testHostClassCmuxWithoutBundleIdIsTerminal() {
+        let term = TerminalInfo(
+            multiplexer: .cmux(
+                socket: "/tmp/cmux.sock",
+                workspaceId: "workspace:1",
+                surfaceId: "surface:2",
+                paneId: nil,
+                binaryPath: nil
+            )
+        )
+        XCTAssertEqual(Session.mock(terminal: term).hostClass, .terminal)
+    }
+
+    func testHostClassCmuxBundleIdIsTerminal() {
+        let term = TerminalInfo(bundleId: "com.cmuxterm.app")
+        XCTAssertEqual(Session.mock(terminal: term).hostClass, .terminal)
+    }
+
     // tty alone is NOT hard evidence — it can be env-copied (env["TTY"]) and inherited by GUI children.
     func testHostClassTtyOnlyIsAmbiguous() {
         let term = TerminalInfo(tty: "/dev/ttys003")
