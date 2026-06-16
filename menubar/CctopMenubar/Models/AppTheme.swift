@@ -193,7 +193,7 @@ private extension AppTheme {
             dark: hex(0xD9, 0x77, 0x57, alpha: 0.12), light: hex(0x9F, 0x76, 0x63, alpha: 0.105)
         ),
         .tokyoNight: ColorPair(
-            dark: hex(0xF7, 0x76, 0x8E, alpha: 0.12), light: hex(0x29, 0x59, 0xAA, alpha: 0.095)
+            dark: hex(0xA9, 0xB8, 0xEA, alpha: 0.15), light: hex(0x29, 0x59, 0xAA, alpha: 0.095)
         ),
         .gruvbox: ColorPair(
             dark: hex(0xFE, 0x80, 0x19, alpha: 0.115), light: hex(0xAF, 0x3A, 0x03, alpha: 0.09)
