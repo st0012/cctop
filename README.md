@@ -50,10 +50,10 @@ Works with your existing editor, terminal, and workflow.
 
 | Tool | Status | How it connects |
 |------|--------|-----------------|
-| [Claude Code / Claude Desktop](https://docs.anthropic.com/en/docs/claude-code) | Supported | Shell hooks → `cctop-hook` CLI |
-| [opencode](https://opencode.ai) | Supported | JS plugin → `cctop-hook` CLI |
-| [pi](https://github.com/badlogic/pi-mono) | Supported | TS extension → `cctop-hook` CLI |
-| [Codex CLI / Codex Desktop](https://github.com/openai/codex) | Supported | Shell hooks → `cctop-hook` CLI |
+| [Claude Code / Claude Desktop](https://docs.anthropic.com/en/docs/claude-code) | Supported | Claude plugin + event hooks |
+| [opencode](https://opencode.ai) | Supported | opencode plugin events |
+| [pi](https://github.com/badlogic/pi-mono) | Supported | pi extension events |
+| [Codex CLI / Codex Desktop](https://github.com/openai/codex) | Supported | Codex event hooks + trust step |
 
 ### Supported Editors & Terminals
 
@@ -108,7 +108,7 @@ This composes with any terminal emulator above.
 
 **Download:** [Apple Silicon](https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg) | [Intel](https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg)
 
-Once installed, cctop updates itself automatically via Sparkle. You'll be prompted when a new version is available.
+Signed release builds can check for updates via Sparkle. You'll be prompted when a new version is available.
 
 <details>
 <summary>Alternative: Homebrew</summary>
@@ -121,15 +121,19 @@ brew install --cask st0012/cctop/cctop
 
 ### Step 2: Connect your tools
 
-The app auto-detects installed coding tools. For **opencode** and **pi**, click *Install Plugin* in Settings > Monitored Tools. For **Codex CLI or Codex Desktop**, click *Install Hooks*, then start a new Codex CLI session in your terminal and choose *Trust all and continue* when Codex asks to review the new hooks — Codex only executes hooks you've trusted, and cctop shows the row as *Ready* once they are. Codex Desktop has no review prompt, so trust the hooks once via the CLI; Desktop shares the same trust state.
+Open Settings > Tools. cctop shows the setup action for each detected tool:
 
-For **Claude Code or Claude Desktop**, run this one-liner in your terminal (the app also exposes a *Copy Install Command* button under Settings > Monitored Tools):
+- **Claude Code / Claude Desktop:** click *Copy Install Command*, paste it in your terminal, and run it.
+- **opencode** and **pi:** click *Install Plugin*.
+- **Codex CLI / Codex Desktop:** click *Install Hooks*, then start a new Codex CLI session in your terminal and choose *Trust all and continue* when Codex asks to review the new hooks. Codex only executes hooks you've trusted, and cctop shows the row as *Ready* once they are. Codex Desktop shares the same trust state, so trust hooks once through the CLI.
+
+Claude install command:
 
 ```bash
 claude plugin marketplace add st0012/cctop && claude plugin install cctop
 ```
 
-Restart any running sessions to pick up the hooks.
+Restart any running sessions to pick up newly installed hooks or plugins.
 
 ## Themes
 
@@ -143,7 +147,9 @@ Switch themes in Settings > Appearance > Color.
 
 ## Privacy
 
-**No network access. No analytics. No telemetry. All data stays on your machine.**
+**No analytics, no telemetry, and no session upload. All session data stays on your machine.**
+
+Signed release builds use network access for Sparkle update checks and downloads.
 
 cctop stores only:
 
@@ -164,10 +170,10 @@ The session-file fields are documented in [`docs/session-files.md`](docs/session
 ## FAQ
 
 **Does cctop slow down my coding tool?**
-No. The plugin calls a lightweight native binary (`cctop-hook`) on each event, which writes a small JSON file and returns immediately. There is no measurable impact on performance.
+No. Each integration calls the lightweight native helper (`cctop-hook`) on session events, writes a small JSON file, and returns immediately.
 
 **Do I need to configure anything per project?**
-No. Once the plugin is installed, all sessions are automatically tracked. No per-project setup required.
+No. Once your tools are connected, new sessions are automatically tracked. No per-project setup required.
 
 **How does cctop name sessions?**
 By default, the project directory name (e.g. `/path/to/my-app` shows as "my-app"). In Claude Code, you can rename a session with `/rename` and cctop picks that up.
@@ -175,14 +181,14 @@ By default, the project directory name (e.g. `/path/to/my-app` shows as "my-app"
 **No sessions are showing up — what do I check?**
 First, make sure you restarted sessions after installing the plugin. Then check if session files exist: `ls ~/.cctop/sessions/`. If the directory is empty, the plugin isn't writing data — verify it's installed correctly (see Step 2). If files exist but the menubar shows nothing, check whether those JSON files have `"hidden": true`, then try restarting the cctop app.
 
-**Why doesn't cctop track sessions from the Codex desktop app?**
-Codex only runs hooks you've explicitly reviewed and trusted (see the [Codex hooks docs](https://developers.openai.com/codex/hooks)). cctop installs its hooks, but the Codex desktop app currently doesn't surface the trust prompt, so they stay inert. The workaround: start one new Codex CLI session in a terminal and choose *Trust all and continue* when Codex asks to review the new hooks — the desktop app shares that trust state and starts tracking too.
+**Why does Codex Desktop need an extra trust step?**
+Codex only runs hooks you've explicitly reviewed and trusted (see the [Codex hooks docs](https://developers.openai.com/codex/hooks)). cctop can install the hooks, but Codex Desktop does not currently surface the hook-review prompt. Start one Codex CLI session in a terminal and choose *Trust all and continue* when Codex asks to review the new hooks — Codex Desktop shares that trust state and starts tracking too.
 
 **What happens if a coding tool crashes?**
 cctop detects dead sessions automatically. It checks whether each session's process is still running and removes stale entries. No manual cleanup needed.
 
 **Why does the app need to be in /Applications/?**
-All plugins look for `cctop-hook` inside `/Applications/cctop.app` or `~/.cctop/bin/`. Installing elsewhere breaks the hook path.
+All plugins look for `cctop-hook` inside `/Applications/cctop.app`, `~/Applications/cctop.app`, or `~/.cctop/bin/`. Installing elsewhere breaks the hook path.
 
 **I'm on an Intel Mac and the in-app updater installed the wrong architecture.**
 cctop releases up to and including v0.15.2 shipped an appcast that confused Sparkle's update picker, so Intel Macs could receive the Apple Silicon build. The structural fix is in place going forward, but the Sparkle framework already bundled inside any installed copy of cctop ≤ 0.15.2 doesn't know about the new appcast hints. To get back on the upgrade path, manually download the Intel build once:

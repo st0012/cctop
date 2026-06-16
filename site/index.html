@@ -3,417 +3,261 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>cctop — monitor and jump between AI coding sessions</title>
+<title>cctop - monitor and jump between AI coding sessions</title>
 <meta name="description" content="A keyboard-first macOS menubar app to monitor and jump between AI coding sessions. Works with Claude Code, Claude Desktop, opencode, pi, Codex CLI, and Codex Desktop." />
-<meta property="og:title" content="cctop — monitor and jump between AI coding sessions" />
+<meta property="og:title" content="cctop - monitor and jump between AI coding sessions" />
 <meta property="og:description" content="A keyboard-first macOS menubar app. Works with Claude Code, Claude Desktop, opencode, pi, Codex CLI, and Codex Desktop." />
 <meta property="og:type" content="website" />
 <meta property="og:url" content="https://cctop.app/" />
 <meta property="og:image" content="https://cctop.app/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="cctop — keep an eye on every AI coding session" />
+<meta property="og:image:alt" content="cctop - keep an eye on your supported AI coding sessions" />
 <meta name="twitter:card" content="summary_large_image" />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
-  :root{
-    /* Tokyo Night — exact hex values from AppTheme.swift dark variant. */
-    --bg:        #1a1b26;  /* panelBackground.tokyoNight.dark */
-    --bg-2:      #16161e;  /* sunk, for badge fills + brew row */
-    --surface:   #24283b;  /* canonical Tokyo Night surface */
-    --surface-2: #2f3549;  /* surface, raised */
-    --line:       rgba(192, 202, 245, 0.10);  /* fg @ 10% */
-    --line-strong:rgba(192, 202, 245, 0.18);  /* fg @ 18% */
-    --fg:        #c0caf5;  /* textPrimary.tokyoNight.dark */
-    /* Web-only: secondary/dim text is brighter than the menubar app's tokens.
-       Long-form prose at 11–13px needs ≥4.5:1 (WCAG AA); the app's #787c99/#565d78
-       hit 4.1:1 / 2.6:1 on this bg. These are still Tokyo Night-family blues. */
-    --fg-mute:   #9aa5ce;  /* ~7:1 on --bg, ~6:1 on --surface */
-    --fg-dim:    #858eaf;  /* ~5.4:1 on --bg, ~4.6:1 on --surface */
-    --idle-seg:  #565d78;  /* hp-idle bar segment — kept dim by design */
-    --accent:    #ff9e64;  /* Tokyo Night orange — same as attentions.tokyoNight.dark */
-    --danger:    #f7768e;  /* Tokyo Night pink/red — permissions.tokyoNight.dark */
-    --status-ok: #9ece6a;  /* Tokyo Night green — greens.tokyoNight.dark */
-    --radius: 10px;
-
-    --fs-xs:   0.75rem;
-    --fs-sm:   0.875rem;
-    --fs-base: 1rem;
-    --fs-md:   1.125rem;
-    --fs-lg:   1.375rem;
-    --fs-xl:   1.75rem;
-    --fs-2xl:  2.25rem;
-    --fs-3xl:  clamp(2.5rem, 4vw, 3.25rem);
-    --fs-4xl:  clamp(3rem, 6vw, 4.5rem);
-
-    --mono:    'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-    --sans:    'IBM Plex Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    --serif:   'Instrument Serif', ui-serif, Georgia, serif;
-
-    --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
-  }
-  *{box-sizing:border-box;min-width:0}
-  html{scroll-padding-top:72px}
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:var(--fs-base);line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-feature-settings:"ss01","cv11"}
-  /* overflow-x:clip prevents horizontal overflow without making html/body a
-     scroll container — overflow-x:hidden would, and that breaks the sticky
-     header (sticky elements stick within their nearest scrolling ancestor). */
-  html,body{overflow-x:clip;max-width:100%}
-  img,svg,video{max-width:100%;height:auto}
-  pre,code{overflow-wrap:anywhere;word-break:break-word}
-  code{font-family:var(--mono)}
-  a{color:inherit;text-decoration:none}
-  @media (prefers-reduced-motion: reduce){
-    *,*::before,*::after{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;scroll-behavior:auto !important}
-  }
-  a:focus-visible, button:focus-visible, summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
-  ::selection{background:color-mix(in oklab, var(--accent) 35%, transparent);color:#fff}
-  .wrap{max-width:1200px;margin:0 auto;padding:0 32px}
-  @media (max-width: 720px){ .wrap{padding:0 20px} }
-  .mono{font-family:var(--mono)}
-
-  /* Top bar */
-  header.top{
-    position:sticky;top:0;z-index:50;
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-    background: color-mix(in oklab, var(--bg) 75%, transparent);
-    border-bottom:1px solid var(--line);
-  }
-  .top-inner{display:grid;grid-template-columns:auto 1fr auto;align-items:center;height:60px;gap:32px}
-  .top-inner > .top-cta{justify-self:end}
-  .brand{display:inline-flex;align-items:baseline;gap:2px;font-weight:600;letter-spacing:-0.01em;line-height:1}
-  .brand .word{font-family:var(--mono);font-weight:600;font-size:16px;color:var(--fg)}
-  .brand .caret{color:var(--accent);font-family:var(--mono);font-size:16px;font-weight:600;margin-left:2px;animation:caret 1.1s steps(2) infinite}
-  footer .brand .caret{animation:none}
-  @keyframes caret{50%{opacity:0}}
-  nav.top-nav{display:flex;gap:26px;font-size:14px;color:var(--fg-mute);justify-self:center}
-  nav.top-nav a{white-space:nowrap;position:relative;transition:color 180ms ease}
-  nav.top-nav a:hover{color:var(--fg)}
-  /* Active-section indicator: accent underline always at full width under the
-     link, fades in/out via opacity. JS toggles .is-active via a scroll-spy. */
-  nav.top-nav a::after{
-    content:"";position:absolute;left:0;right:0;bottom:-8px;
-    height:1.5px;border-radius:2px;background:var(--accent);
-    opacity:0;
-    transition:opacity 240ms ease;
-  }
-  nav.top-nav a.is-active{color:var(--fg)}
-  nav.top-nav a.is-active::after{opacity:1}
-  @media (prefers-reduced-motion: reduce){
-    nav.top-nav a::after{transition:none}
-  }
-  .top-cta{display:flex;align-items:center;gap:10px}
-  @media (max-width: 1040px){ .top-inner{grid-template-columns:auto auto !important} nav.top-nav{display:none !important} }
-  /* On narrow screens the GitHub pill becomes icon-only so the Download CTA
-     fits next to it; aria-label keeps it announced for screen readers. */
-  @media (max-width: 520px){
-    .top-cta .pill:first-child .pill-label{display:none}
-    .top-cta .pill:first-child{padding:0 10px;gap:0}
-  }
-  .pill{
-    display:inline-flex;align-items:center;gap:8px;
-    height:34px;padding:0 14px;border-radius:999px;
-    border:1px solid var(--line-strong);
-    background: var(--surface);
-    font-size:13px;font-weight:500;color:var(--fg);
-    transition: background .15s ease, border-color .15s ease, transform .1s ease;
-    cursor:pointer;
-  }
-  .pill:hover{background:var(--surface-2);border-color: color-mix(in oklab, var(--fg) 22%, transparent)}
-  .pill.primary{background: var(--accent); color:#1a1b26; border-color: transparent}
-  .pill.primary:hover{filter:brightness(1.05)}
-  .pill svg{width:14px;height:14px}
-  .pill.lg{height:42px;padding:0 18px;font-size:14px;font-weight:600}
-
-  /* Hero — keep top padding tight so the install CTAs land above the fold on
-     14"/16" MacBooks (≈800–900px viewport after browser chrome). */
-  section.hero{padding:20px 0 32px;position:relative}
-  @media (max-width: 720px){ section.hero{padding:24px 0 24px} }
-
-  /* Menubar-pill signature element. This IS the cctop menubar icon (per
-     docs/status-icon.png) blown up to hero scale — black pill, "cctop_"
-     wordmark in the brand orange, then the proportional status bar showing
-     the four real session states using AppTheme.swift status colors. */
-  .hero-pill{
-    display:inline-flex;align-items:center;gap:0;
-    padding: 5px 8px 5px 12px;
-    border-radius: 999px;
-    background: #000;
-    border: 1px solid color-mix(in oklab, white 10%, transparent);
-    box-shadow: 0 2px 0 inset color-mix(in oklab, white 4%, transparent), 0 18px 36px -22px var(--accent);
-    font-family: var(--mono);
-  }
-  .hero-pill .hp-word{
-    color: var(--accent); font-weight: 600; font-size: 12px;
-    letter-spacing: 0.02em; padding-right: 10px;
-  }
-  .hero-pill .hp-bar{
-    display: flex;
-    width: 168px; height: 14px;
-    border-radius: 999px; overflow: hidden;
-    border: 1px solid color-mix(in oklab, white 8%, transparent);
-  }
-  .hero-pill .hp-bar > span{ display:block;height:100% }
-  .hp-working    { background: var(--status-ok) }
-  .hp-attention  { background: var(--accent) }
-  .hp-permission { background: var(--danger) }
-  .hp-idle       { background: var(--idle-seg) }
-
-  h1.hero-title{
-    font-size: clamp(2.75rem, 8vw, 7rem);  /* ~44 → 112px */
-    line-height: 0.96;
-    letter-spacing: -0.045em;
-    margin: 18px 0 0;
-    font-weight: 700;
-    text-wrap: balance;
-    max-width: 16ch;
-    font-feature-settings: "ss01","ss02","cv11";
-  }
-  h1.hero-title em{
-    font-style: italic;
-    font-weight: 700;
-    /* Subtle weight + stress without slop-tell italic-serif underline. */
+  :root {
+    --bg: #1a1b26;
+    --bg-deep: #16161e;
+    --surface: #202231;
+    --surface-2: #24283b;
+    --surface-3: #2f3549;
+    --line: rgba(192, 202, 245, 0.12);
+    --line-strong: rgba(192, 202, 245, 0.20);
+    --text: #c0caf5;
+    --muted: #9aa5ce;
+    --dim: #707895;
+    --accent: #f7768e;
+    --attention: #ff9e64;
+    --ok: #9ece6a;
+    --blue: #7aa2f7;
+    --radius-shell: 20px;
+    --radius-panel: 14px;
+    --radius-control: 10px;
+    --radius-small: 8px;
+    --shadow: 0 28px 78px rgba(0, 0, 0, 0.34);
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   }
 
-  .hero-content{
-    margin-top: 36px;
+  * { box-sizing: border-box; min-width: 0; }
+  html { scroll-padding-top: 24px; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    overflow-x: clip;
+    background:
+      radial-gradient(circle at 12% -6%, rgba(247, 118, 142, 0.12), transparent 30rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0) 30rem),
+      var(--bg);
+  }
+  img, svg, video { max-width: 100%; height: auto; }
+  img { display: block; }
+  a { color: inherit; text-decoration: none; }
+  code { font-family: var(--mono); }
+  button { font: inherit; }
+  ::selection { background: color-mix(in oklab, var(--accent) 35%, transparent); color: #fff; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+  }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--attention); outline-offset: 3px; border-radius: var(--radius-small); }
+
+  .site-shell {
+    width: min(1240px, calc(100% - 44px));
+    margin: 22px auto;
+    border: 1px solid rgba(247, 118, 142, 0.14);
+    border-radius: var(--radius-shell);
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.012);
+    box-shadow: 0 28px 90px rgba(0, 0, 0, 0.22);
+  }
+  .wrap { width: min(1120px, calc(100% - 56px)); margin: 0 auto; }
+
+  .site-nav {
+    height: 64px;
     display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    gap: 56px;
-    align-items: end;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 26px;
+    border-bottom: 1px solid var(--line);
   }
-  @media (max-width: 980px){ .hero-content{grid-template-columns:1fr;gap:40px;align-items:start} h1.hero-title{max-width:none} }
+  .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font: 750 16px/1 var(--mono); letter-spacing: -0.02em; }
+  .brand-mark { width: 5px; height: 24px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 1px rgba(255, 255, 255, .08) inset; }
+  .nav-links { justify-self: center; display: flex; gap: 26px; color: var(--muted); font-size: 13px; }
+  .nav-links a { white-space: nowrap; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 
-  p.hero-sub{
-    font-size: var(--fs-md);
-    line-height: 1.55;
-    color: var(--fg-mute);
-    max-width: 50ch;
-    text-wrap: pretty;
-    margin: 0 0 22px;
+  .pill {
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 13px;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--line-strong);
+    background: color-mix(in oklab, var(--surface) 86%, white 4%);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, transform .1s ease;
   }
-  .cta-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  .hero-ctas{margin-bottom:14px}
+  .pill:hover { background: var(--surface-3); border-color: color-mix(in oklab, var(--text) 22%, transparent); }
+  .pill.primary { background: var(--accent); border-color: transparent; color: #14151d; }
+  .pill.large { min-height: 42px; padding: 10px 16px; font-size: 14px; }
+  .pill svg { width: 14px; height: 14px; }
 
-  /* Fine-print badge — moved below CTAs as a footnote, not a pre-headline tag. */
-  .badge{
-    display:inline-flex;align-items:center;gap:10px;padding:5px 12px;border-radius:6px;
-    border:1px solid var(--line-strong); background: var(--bg-2);
-    font-size:12px;color:var(--fg-mute);font-family:var(--mono);
-    letter-spacing:0.01em;
+  .hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(300px, 430px); gap: 56px; align-items: center; padding: 54px 0 70px; }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 10px 7px 12px;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--line-strong);
+    background: color-mix(in oklab, var(--surface) 82%, transparent);
+    color: var(--muted);
+    font: 650 12px/1 var(--mono);
   }
-  .badge .mono-prefix{
-    color: var(--accent); font-weight:600;
-    border-right:1px solid var(--line-strong);
-    padding-right:10px;
+  .status-bars { width: 154px; height: 10px; display: flex; overflow: hidden; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .06); background: var(--bg-deep); }
+  .status-bars span { display: block; height: 100%; }
+  .bar-ok { width: 42%; background: var(--ok); }
+  .bar-wait { width: 18%; background: var(--attention); }
+  .bar-perm { width: 14%; background: var(--accent); }
+  .bar-idle { width: 26%; background: var(--dim); }
+  .hero h1 { margin: 18px 0 0; max-width: 780px; color: var(--text); font-size: clamp(48px, 8vw, 102px); line-height: .94; letter-spacing: -0.065em; }
+  .hero p { margin: 22px 0 24px; max-width: 540px; color: var(--muted); font-size: 18px; line-height: 1.55; }
+  .cta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .release-note { margin-top: 14px; display: inline-flex; align-items: center; gap: 10px; color: var(--dim); font: 600 12px/1.35 var(--mono); }
+  .release-note strong { color: var(--attention); font-weight: 750; }
+
+  .shot-frame {
+    border-radius: var(--radius-shell);
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .018)), var(--surface);
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .shot-frame img { width: 100%; border-radius: var(--radius-panel); }
+  .shot-frame.slim { max-width: 386px; margin: 0 auto; }
+  .shot-caption { margin-top: 10px; color: var(--dim); text-align: center; font: 600 11px/1.35 var(--mono); }
+
+  .section { padding: 72px 0; border-top: 1px solid var(--line); }
+  .section-header { display: grid; grid-template-columns: minmax(0, .85fr) minmax(280px, .9fr); gap: 40px; align-items: end; margin-bottom: 28px; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: var(--attention); font: 800 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .13em; }
+  .eyebrow::before { content: ""; width: 18px; height: 1px; background: currentColor; }
+  .section h2 { margin: 10px 0 0; color: var(--text); font-size: clamp(32px, 4.2vw, 50px); line-height: 1.05; letter-spacing: -0.045em; }
+  .section-sub { margin: 0; color: var(--muted); font-size: 17px; line-height: 1.62; }
+
+  .panel-card {
+    border-radius: var(--radius-shell);
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .015)), color-mix(in oklab, var(--surface) 92%, transparent);
+    box-shadow: 0 18px 46px rgba(0, 0, 0, .16);
+  }
+  .tool-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .tool-card { display: block; min-height: 132px; border-radius: var(--radius-panel); border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 86%, white 2%); padding: 18px; color: inherit; transition: background .15s ease, border-color .15s ease, transform .12s ease; }
+  .tool-card:hover { background: var(--surface-2); border-color: var(--line-strong); transform: translateY(-1px); }
+  .tool-card strong { display: flex; justify-content: space-between; gap: 12px; color: var(--text); font-size: 15px; line-height: 1.25; letter-spacing: -0.01em; }
+  .tool-card span { display: block; margin-top: 10px; color: var(--dim); font: 600 12px/1.55 var(--mono); }
+  .arrow { color: var(--attention); font-family: var(--mono); }
+
+  .tier-list { margin-top: 18px; overflow: hidden; }
+  .tier-row { display: grid; grid-template-columns: minmax(190px, .42fr) minmax(0, 1fr); gap: 24px; padding: 16px 18px; align-items: start; border-top: 1px solid var(--line); }
+  .tier-row:first-child { border-top: 0; }
+  .tier-row strong { display: block; color: var(--text); font-size: 14px; letter-spacing: -0.01em; }
+  .tier-row small { display: block; margin-top: 4px; color: var(--dim); font-size: 12px; line-height: 1.45; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; min-height: 28px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg-deep); color: var(--muted); padding: 6px 10px; font: 650 12px/1 var(--mono); white-space: nowrap; }
+  .tier-footnote { margin: 12px 0 0; color: var(--dim); font-size: 12px; line-height: 1.55; }
+
+  .feature-stack { display: grid; gap: 44px; }
+  .feature-row { display: grid; grid-template-columns: minmax(0, .88fr) minmax(280px, .74fr); gap: 48px; align-items: center; }
+  .feature-row.reverse { grid-template-columns: minmax(280px, .74fr) minmax(0, .88fr); }
+  .feature-row.reverse .feature-copy { order: 2; }
+  .feature-copy h3 { margin: 0 0 12px; color: var(--text); font-size: 26px; line-height: 1.15; letter-spacing: -0.025em; }
+  .feature-copy p { margin: 0; max-width: 50ch; color: var(--muted); font-size: 16px; line-height: 1.66; }
+  .kbd-row { margin-top: 16px; display: flex; align-items: center; gap: 7px; color: var(--dim); font: 650 12px/1 var(--mono); flex-wrap: wrap; }
+  .kbd { min-width: 28px; min-height: 28px; display: inline-grid; place-items: center; border-radius: var(--radius-small); border: 1px solid var(--line-strong); background: var(--bg-deep); color: var(--text); padding: 0 8px; }
+
+  .theme-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .theme-card { border-radius: var(--radius-panel); border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 88%, white 2%); padding: 12px; }
+  .theme-card img { border-radius: var(--radius-control); }
+  .theme-card .name { margin-top: 11px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); font: 650 12px/1 var(--mono); }
+  .swatch { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, .1); }
+
+  .install-card { padding: 28px; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(280px, .82fr); gap: 34px; align-items: center; }
+  .install-steps { display: grid; gap: 14px; }
+  .install-step { border-radius: var(--radius-panel); border: 1px solid var(--line); background: color-mix(in oklab, var(--surface) 86%, transparent); padding: 18px; }
+  .install-step-head { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+  .step-number { width: 28px; height: 28px; display: inline-grid; place-items: center; flex: 0 0 auto; border-radius: var(--radius-small); background: var(--accent); color: #14151d; font: 800 12px/1 var(--mono); }
+  .install-step h3 { margin: 0; color: var(--text); font-size: 24px; letter-spacing: -0.02em; }
+  .install-step p { margin: 0 0 14px; color: var(--muted); font-size: 15px; line-height: 1.65; }
+  .setup-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .setup-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .setup-list li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--attention); margin-top: .6em; }
+  .brew-row { margin-top: 20px; display: flex; align-items: center; gap: 12px; border-radius: var(--radius-control); border: 1px solid var(--line); background: var(--bg-deep); padding: 12px; color: var(--text); font: 650 12px/1.35 var(--mono); overflow-x: auto; }
+  .brew-row code { white-space: nowrap; overflow-x: auto; min-width: 0; flex: 1; }
+  .copy { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-small); background: transparent; color: var(--muted); padding: 4px 9px; cursor: pointer; font: 650 11px/1 var(--mono); }
+  .copy:hover { color: var(--text); background: color-mix(in oklab, var(--text) 4%, transparent); }
+  .copy.ok { color: var(--attention); border-color: color-mix(in oklab, var(--attention) 35%, transparent); }
+  .copy svg { width: 12px; height: 12px; }
+  .copy .icon-ok, .copy .label-ok { display: none; }
+  .copy.ok .icon-idle, .copy.ok .label-idle { display: none; }
+  .copy.ok .icon-ok, .copy.ok .label-ok { display: inline-flex; }
+
+  .faq-list { overflow: hidden; }
+  .faq-item { padding: 18px 20px; border-top: 1px solid var(--line); }
+  .faq-item:first-child { border-top: 0; }
+  .faq-item h3 { margin: 0; color: var(--text); font-size: 17px; letter-spacing: -0.015em; }
+  .faq-item p, .faq-item ol { margin: 10px 0 0; max-width: 76ch; color: var(--muted); font-size: 14px; line-height: 1.62; }
+  .faq-item ol { padding-left: 22px; }
+  .faq-item li + li { margin-top: 4px; }
+  .faq-item code { color: var(--text); background: var(--bg-deep); border-radius: 6px; padding: 1px 5px; font-size: 12px; }
+
+  .site-footer { padding: 42px 0 56px; border-top: 1px solid var(--line); }
+  .footer-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: start; }
+  .footer-note { margin-top: 12px; max-width: 36ch; color: var(--dim); font-size: 13px; line-height: 1.55; }
+  .footer-links { display: flex; gap: 44px; flex-wrap: wrap; }
+  .footer-col h4 { margin: 0 0 9px; color: var(--dim); font: 750 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; }
+  .footer-col a { display: block; padding: 4px 0; color: var(--muted); font-size: 13px; }
+  .footer-col a:hover { color: var(--text); }
+
+  @media (max-width: 980px) {
+    .site-shell { width: min(100% - 28px, 1240px); }
+    .wrap { width: min(100% - 36px, 1120px); }
+    .site-nav { grid-template-columns: 1fr auto; }
+    .nav-links { display: none; }
+    .hero { grid-template-columns: 1fr; gap: 32px; }
+    .section-header { grid-template-columns: 1fr; gap: 14px; align-items: start; }
+    .tool-grid, .theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .feature-row, .feature-row.reverse { grid-template-columns: 1fr; gap: 24px; }
+    .feature-row.reverse .feature-copy { order: 0; }
+    .install-card { grid-template-columns: 1fr; }
+    .footer-grid { grid-template-columns: 1fr; }
   }
 
-  /* Hero screenshot frame */
-  .shot-frame{
-    position:relative;
-    border-radius: 14px;
-    padding: 16px;
-    background: var(--surface);
-    border:1px solid var(--line);
-  }
-  .shot-frame img{display:block;width:100%;height:auto;border-radius:8px}
-  .shot-frame.narrow{max-width: 380px; margin: 0 auto}
-  .shot-pair{max-width:380px;margin: 0 auto}
-  .shot-caption{
-    font-family:var(--mono);font-size:11px;color:var(--fg-dim);
-    margin-top:10px;letter-spacing:.02em;text-align:center
-  }
-
-  /* Sections */
-  section{padding: 80px 0;position:relative}
-  @media (max-width: 720px){ section{padding: 56px 0} }
-  .eyebrow{
-    display:inline-flex;align-items:center;gap:8px;
-    font-family:var(--mono);font-size:12px;color:var(--accent);
-    text-transform:uppercase;letter-spacing:0.12em
-  }
-  .eyebrow::before{content:"";width:18px;height:1px;background: var(--accent)}
-  h2{
-    font-size: var(--fs-2xl);
-    line-height:1.1;letter-spacing:-0.025em;
-    font-weight:600;margin: 10px 0 14px;text-wrap:balance;max-width: 22ch;
-  }
-  @media (min-width: 720px){ h2{font-size: var(--fs-3xl)} }
-  h2 em, .section-sub em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--fg);letter-spacing:-0.01em}
-  .section-sub{color:var(--fg-mute);max-width:62ch;font-size:var(--fs-md);line-height:1.6;text-wrap:pretty}
-
-  /* Feature rows — alternating screenshot + text */
-  .row{
-    display:grid;grid-template-columns: 1fr 1fr;gap:56px;align-items:center;
-  }
-  @media (max-width: 980px){ .row{grid-template-columns:1fr;gap:32px} .row.reverse > :first-child{order:0} }
-  .feat-block + .feat-block{margin-top:80px}
-  .feat h3{font-size: var(--fs-lg);margin:14px 0 10px;letter-spacing:-0.015em;font-weight:600;font-family:var(--sans)}
-  .feat p{color:var(--fg-mute);font-size:var(--fs-base);line-height:1.65;margin:0;max-width:50ch;text-wrap:pretty}
-  .feat .kbd-row{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;align-items:center;color:var(--fg-dim);font-size:13px;font-family:var(--mono)}
-  .kbd{
-    font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;
-    background: var(--surface-2); color:var(--fg); border:1px solid var(--line-strong);
-  }
-
-  /* Themes strip */
-  .themes{
-    display:grid;grid-template-columns: repeat(4, 1fr);gap:16px;margin-top:36px;
-  }
-  @media (max-width: 900px){ .themes{grid-template-columns: repeat(2, 1fr)} }
-  .theme-card{
-    background: var(--surface);border:1px solid var(--line);border-radius:var(--radius);
-    padding:12px;text-align:center;
-    transition: border-color .15s, transform .15s;
-  }
-  .theme-card:hover{border-color: var(--line-strong); transform: translateY(-1px)}
-  .theme-card img{display:block;width:100%;height:auto;border-radius:8px}
-  .theme-card .name{
-    margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--fg-mute);
-    display:flex;align-items:center;justify-content:center;gap:8px
-  }
-  .theme-card .sw{width:8px;height:8px;border-radius:50%}
-
-  /* Supported tools */
-  .tool-group{margin-top:32px}
-  .tool-group-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
-  .tool-group-title{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg)}
-  .tool-group-sub{font-size:13px;color:var(--fg-dim)}
-  .tools{
-    display:grid;grid-template-columns: repeat(4, 1fr);gap:14px;
-  }
-  @media (max-width: 900px){ .tools{grid-template-columns: repeat(2, 1fr)} }
-  .tool-card{
-    background: var(--surface);border:1px solid var(--line);border-radius:var(--radius);
-    padding:18px 18px 16px;
-    display:block;color:inherit;
-    transition: border-color .15s, background .15s, transform .1s;
-  }
-  .tool-card:hover{border-color: var(--line-strong); background: var(--surface-2)}
-  .tool-card .name{font-size:16px;font-weight:600;letter-spacing:-0.01em;display:flex;align-items:center;justify-content:space-between;gap:8px}
-  .tool-card .conn{margin-top:8px;font-family:var(--mono);font-size:11.5px;color:var(--fg-dim);line-height:1.55}
-  .tool-card .arr{color:var(--fg-dim);transition:color .15s, transform .15s}
-  .tool-card:hover .arr{color:var(--accent);transform:translate(2px,-2px)}
-
-  /* Editor/terminal tier rows — denser than tool cards (informational, not links). */
-  .tier-row{
-    display:grid;grid-template-columns: minmax(0, 280px) 1fr;
-    gap:24px;padding:14px 0;align-items:start;
-  }
-  .tier-row + .tier-row{border-top:1px solid var(--line)}
-  .tier-row:last-child{padding-bottom:0}
-  @media (max-width: 720px){ .tier-row{grid-template-columns:1fr;gap:8px} }
-  .tier-label{display:flex;flex-direction:column;gap:3px}
-  .tier-label strong{color:var(--fg);font-weight:600;font-size:14px;letter-spacing:-0.005em}
-  .tier-label .sg-note{color:var(--fg-dim);font-size:12.5px;line-height:1.45}
-  .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
-  .chip{
-    display:inline-flex;align-items:center;
-    padding:5px 11px;border-radius:999px;
-    background: var(--bg-2);border:1px solid var(--line);
-    color: var(--fg-mute);font-family:var(--mono);font-size:12px;
-    white-space:nowrap;
-  }
-
-  /* Install */
-  .install-card{
-    background: var(--surface);border:1px solid var(--line);border-radius: var(--radius);
-    padding: 28px;margin-top: 32px;
-    display:grid;grid-template-columns: 1.05fr 1fr;gap:36px;align-items:center;
-  }
-  @media (max-width: 900px){ .install-card{grid-template-columns:1fr;padding:24px} }
-  .install-card h3{margin:0 0 10px;font-size:24px;letter-spacing:-0.02em;font-weight:600}
-  .install-card p{margin:0 0 18px;color:var(--fg-mute);font-size:15px;line-height:1.6}
-  /* Frame the screenshot in --bg (one step darker than the card) so the cream
-     light-theme screenshot reads as an inset screen, not a floating image. */
-  .install-card .shot-frame{background:var(--bg);border-color:var(--line-strong)}
-  .install-card .small{font-family:var(--mono);font-size:12px;color:var(--fg-dim);margin-top:14px;display:block}
-  .alt-install{margin-top:22px}
-  .alt-install-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-  .alt-install-rule{flex:1;height:1px;background:var(--line)}
-  .alt-install-label{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-dim);white-space:nowrap}
-  .brew{
-    font-family:var(--mono);font-size:13px;
-    background: var(--bg-2); border:1px solid var(--line); border-radius:8px;
-    padding: 10px 12px; color: var(--fg);
-    display:flex;align-items:center;gap:12px;
-  }
-  /* Scope horizontal scroll to the code itself so the copy button can never
-     overlap the command. min-width:0 lets the flex item shrink below its
-     content's intrinsic size (overrides the default min-width:auto). */
-  .brew code{white-space:nowrap;overflow-x:auto;min-width:0;flex:1}
-  .copy{
-    font-family:var(--mono);font-size:11px;color:var(--fg-mute);
-    background: transparent;border:1px solid var(--line-strong);padding:3px 9px;border-radius:6px;cursor:pointer;
-    transition: color .15s, border-color .15s, background .15s;
-    display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
-  }
-  .copy:hover{color:var(--fg);border-color: color-mix(in oklab, var(--fg) 20%, transparent);background: color-mix(in oklab, var(--fg) 4%, transparent)}
-  .copy.ok{color: var(--accent); border-color: color-mix(in oklab, var(--accent) 35%, transparent)}
-  .copy svg{width:12px;height:12px}
-  /* Toggle the icon + label between idle and ok states without rewriting DOM. */
-  .copy .icon-ok, .copy .label-ok{display:none}
-  .copy.ok .icon-idle, .copy.ok .label-idle{display:none}
-  .copy.ok .icon-ok, .copy.ok .label-ok{display:inline-flex}
-  .copy.ok .label-ok{display:inline}
-
-  /* FAQ */
-  .faq{margin-top: 28px; border-top: 1px solid var(--line)}
-  .faq details{border-bottom:1px solid var(--line);padding:18px 4px}
-  .faq summary{
-    list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
-    font-size:17px;font-weight:500;letter-spacing:-0.01em
-  }
-  .faq summary::-webkit-details-marker{display:none}
-  /* Single "+" that rotates 45° to "×" on open — tween-able, unlike a content swap.
-     Duration sits between body open (340ms) and close (280ms) so the chevron
-     stays roughly synced in both directions without asymmetric transition CSS. */
-  .faq summary::after{
-    content:"+";font-family:var(--mono);color:var(--fg-mute);font-size:18px;margin-left:16px;
-    display:inline-block;line-height:1;
-    transition: transform 320ms var(--ease-out), color 200ms ease;
-  }
-  .faq details[open] summary::after{transform:rotate(45deg);color:var(--accent)}
-  /* display:flow-root forces a BFC so the inner <p>'s margin-top doesn't
-     collapse outside the wrapper. Without this, scrollHeight is 12px short
-     of the actually-rendered height and the tween clips the last half-line. */
-  .faq .details-body{display:flow-root}
-  @media (prefers-reduced-motion: reduce){
-    .faq summary::after{transition:none}
-  }
-  .faq p{color:var(--fg-mute);margin: 12px 0 0;font-size:15px;line-height:1.6;max-width: 70ch}
-  .faq ol{color:var(--fg-mute);margin: 12px 0 0 0;padding-left: 24px;font-size:15px;line-height:1.6;max-width: 70ch}
-  .faq ol li{margin: 4px 0}
-  .faq ol li code{background: var(--bg-2);padding:1px 6px;border-radius:4px;font-size:13px;color:var(--fg)}
-
-  /* Footer */
-  footer{padding: 50px 0 60px;border-top:1px solid var(--line);margin-top:80px;color:var(--fg-mute);font-size:13px}
-  .foot-grid{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:flex-start}
-  .foot-cols{display:flex;gap:48px;flex-wrap:wrap}
-  .foot-col h4{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-dim);margin:0 0 10px;font-family:var(--mono);font-weight:500}
-  .foot-col a{display:block;padding:4px 0;color:var(--fg-mute)}
-  .foot-col a:hover{color:var(--fg)}
-
-  /* Scroll reveal — fade + 12px Y, gated by .js so no-JS visitors see content
-     immediately. Stagger via inline --rd on individual elements. */
-  .js .reveal{
-    opacity:0; transform:translateY(12px);
-    transition:
-      opacity 650ms var(--ease-out) var(--rd, 0ms),
-      transform 650ms var(--ease-out) var(--rd, 0ms);
-  }
-  .js .reveal.is-visible{opacity:1;transform:none}
-  @media (prefers-reduced-motion: reduce){
-    .js .reveal{opacity:1;transform:none;transition:none}
+  @media (max-width: 640px) {
+    .site-shell { width: min(100% - 20px, 1240px); margin: 10px auto; border-radius: 16px; }
+    .wrap { width: min(100% - 24px, 1120px); }
+    .site-nav { height: auto; padding: 14px 0; align-items: start; }
+    .nav-actions { flex-wrap: wrap; }
+    .hero { padding: 34px 0 48px; }
+    .hero h1 { font-size: clamp(42px, 16vw, 68px); }
+    .hero p { font-size: 16px; }
+    .status-pill { align-items: flex-start; flex-direction: column; }
+    .section { padding: 52px 0; }
+    .tool-grid, .theme-grid { grid-template-columns: 1fr; }
+    .tier-row { grid-template-columns: 1fr; gap: 10px; padding: 15px; }
+    .install-card { padding: 18px; }
+    .footer-links { gap: 28px; }
   }
 </style>
 <script>document.documentElement.classList.add('js')</script>
 </head>
 <body>
-
 <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
   <symbol id="i-github" viewBox="0 0 16 16">
     <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
@@ -421,9 +265,6 @@
   <symbol id="i-download" viewBox="0 0 16 16">
     <path fill="none" stroke="currentColor" stroke-width="1.6" d="M8 2v8m0 0 3-3m-3 3-3-3"/>
     <path fill="none" stroke="currentColor" stroke-width="1.6" d="M3 12v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1"/>
-  </symbol>
-  <symbol id="i-ext" viewBox="0 0 16 16">
-    <path fill="none" stroke="currentColor" stroke-width="1.5" d="M6 3H3v10h10v-3M10 3h3v3M13 3l-6 6"/>
   </symbol>
   <symbol id="i-copy" viewBox="0 0 16 16">
     <rect fill="none" stroke="currentColor" stroke-width="1.4" x="4" y="4" width="9" height="10" rx="1.4"/>
@@ -434,560 +275,148 @@
   </symbol>
 </svg>
 
-<header class="top">
-  <div class="wrap top-inner">
-    <a href="#" aria-label="cctop home">
-      <span class="brand"><span class="word">cctop</span><span class="caret">_</span></span>
-    </a>
-    <nav class="top-nav">
+<div class="site-shell">
+  <header class="site-nav wrap">
+    <a class="brand" href="#" aria-label="cctop home"><span class="brand-mark" aria-hidden="true"></span><span>cctop</span></a>
+    <nav class="nav-links" aria-label="Page navigation">
       <a href="#tools">Tools</a>
       <a href="#features">Features</a>
       <a href="#themes">Themes</a>
       <a href="#install">Install</a>
       <a href="#faq">FAQ</a>
     </nav>
-    <div class="top-cta">
-      <a class="pill" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository">
-        <svg width="14" height="14" aria-hidden="true"><use href="#i-github"/></svg>
-        <span class="pill-label">GitHub</span>
-      </a>
-      <a class="pill primary" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
-        <svg width="14" height="14" aria-hidden="true"><use href="#i-download"/></svg>
-        Download
-      </a>
+    <div class="nav-actions">
+      <a class="pill" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#i-github"/></svg>GitHub</a>
+      <a class="pill primary" href="#install"><svg aria-hidden="true"><use href="#i-download"/></svg>Download</a>
     </div>
-  </div>
-</header>
+  </header>
 
-<section class="hero">
-  <div class="wrap">
-    <div class="hero-pill" aria-hidden="true">
-      <span class="hp-word">cctop_</span>
-      <span class="hp-bar">
-        <span class="hp-working"    style="width:42%"></span>
-        <span class="hp-attention"  style="width:18%"></span>
-        <span class="hp-permission" style="width:14%"></span>
-        <span class="hp-idle"       style="width:26%"></span>
-      </span>
-    </div>
-    <h1 class="hero-title">Keep an eye on <em>every</em> AI coding session.</h1>
-    <div class="hero-content">
+  <main>
+    <section class="hero wrap">
       <div>
-        <p class="hero-sub">See which session is waiting on you. Jump there with a keystroke.</p>
-        <div class="cta-row hero-ctas">
-          <a class="pill primary lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
-            <svg width="14" height="14" aria-hidden="true"><use href="#i-download"/></svg>
-            Download for Apple Silicon
-          </a>
-          <a class="pill lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg">Intel</a>
-          <a class="pill lg" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer">
-            <svg width="14" height="14" aria-hidden="true"><use href="#i-github"/></svg>
-            GitHub
-          </a>
+        <div class="status-pill" aria-label="Status breakdown">
+          <span>cctop status</span>
+          <span class="status-bars" aria-hidden="true"><span class="bar-ok"></span><span class="bar-wait"></span><span class="bar-perm"></span><span class="bar-idle"></span></span>
         </div>
-        <div>
-          <span class="badge"><span class="mono-prefix" data-version>v0.18.0</span> macOS 13+ · signed &amp; notarized</span>
+        <h1>Keep an eye on your AI coding sessions.</h1>
+        <p>See which session is waiting on you. Jump there with a keystroke.</p>
+        <div class="cta-row">
+          <a class="pill primary large" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg"><svg aria-hidden="true"><use href="#i-download"/></svg>Download for Apple Silicon</a>
+          <a class="pill large" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg">Intel</a>
+          <a class="pill large" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#i-github"/></svg>GitHub</a>
         </div>
+        <div class="release-note"><strong data-version>v0.18.0</strong><span>macOS 13+ / Developer ID signed and notarized</span></div>
       </div>
       <div>
-        <div class="shot-frame narrow">
-          <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="cctop menubar panel showing five active coding sessions" width="640" height="820" decoding="async" fetchpriority="high" />
+        <div class="shot-frame slim">
+          <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="cctop menubar panel showing active AI coding sessions" width="640" height="820" decoding="async" fetchpriority="high" />
         </div>
         <div class="shot-caption">Tokyo Night theme</div>
       </div>
-    </div>
-  </div>
-</section>
+    </section>
 
-<section id="tools">
-  <div class="wrap">
-    <span class="eyebrow reveal">Compatibility</span>
-    <h2 class="reveal" style="--rd:60ms">What tools does it work with?</h2>
-    <p class="section-sub reveal" style="--rd:120ms">cctop monitors your AI coding agents and jumps you back to the right editor or terminal window.</p>
-
-    <div class="tool-group">
-      <div class="tool-group-head">
-        <span class="tool-group-title">Coding agents</span>
-        <span class="tool-group-sub">Sessions tracked automatically once the plugin is installed.</span>
-      </div>
-      <div class="tools">
-        <a class="tool-card reveal" style="--rd:0ms" href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" rel="noopener noreferrer">
-          <div class="name">Claude Code / Desktop <span class="arr"><svg width="12" height="12" aria-hidden="true"><use href="#i-ext"/></svg></span></div>
-          <div class="conn">Claude Code and Claude Desktop hooks</div>
-        </a>
-        <a class="tool-card reveal" style="--rd:60ms" href="https://opencode.ai" target="_blank" rel="noopener noreferrer">
-          <div class="name">opencode <span class="arr"><svg width="12" height="12" aria-hidden="true"><use href="#i-ext"/></svg></span></div>
-          <div class="conn">Open-source agent by SST</div>
-        </a>
-        <a class="tool-card reveal" style="--rd:120ms" href="https://github.com/badlogic/pi-mono" target="_blank" rel="noopener noreferrer">
-          <div class="name">pi <span class="arr"><svg width="12" height="12" aria-hidden="true"><use href="#i-ext"/></svg></span></div>
-          <div class="conn">Open-source agent by Mario Zechner</div>
-        </a>
-        <a class="tool-card reveal" style="--rd:180ms" href="https://github.com/openai/codex" target="_blank" rel="noopener noreferrer">
-          <div class="name">Codex CLI / Desktop <span class="arr"><svg width="12" height="12" aria-hidden="true"><use href="#i-ext"/></svg></span></div>
-          <div class="conn">Codex CLI and Codex Desktop hooks</div>
-        </a>
-      </div>
-    </div>
-
-    <div class="tool-group">
-      <div class="tool-group-head">
-        <span class="tool-group-title">Editors &amp; terminals</span>
-        <span class="tool-group-sub">Click a session card to jump back to it.</span>
-      </div>
-      <div class="tier-row reveal">
-        <div class="tier-label">
-          <strong>Targets the exact session</strong>
-          <span class="sg-note">right window, tab, and pane — or the specific thread in a desktop app</span>
+    <section id="tools" class="section">
+      <div class="wrap">
+        <div class="section-header">
+          <div><div class="eyebrow">Compatibility</div><h2>What tools does it work with?</h2></div>
+          <p class="section-sub">Each tool reports session events locally; cctop turns them into one menubar view and jumps you back to the right editor or terminal window.</p>
         </div>
-        <div class="chips">
-          <span class="chip">iTerm2</span>
-          <span class="chip">cmux<sup>&sect;</sup></span>
-          <span class="chip">Kitty<sup>*</sup></span>
-          <span class="chip">Ghostty<sup>&dagger;</sup></span>
-          <span class="chip">Terminal<sup>&Dagger;</sup></span>
-          <span class="chip">Codex Desktop</span>
-          <span class="chip">Zellij</span>
-          <span class="chip">tmux</span>
+        <div class="tool-grid">
+          <a class="tool-card" href="https://docs.anthropic.com/en/docs/claude-code" target="_blank" rel="noopener noreferrer"><strong>Claude Code / Desktop <span class="arrow">&nearr;</span></strong><span>Claude plugin + event hooks</span></a>
+          <a class="tool-card" href="https://github.com/openai/codex" target="_blank" rel="noopener noreferrer"><strong>Codex CLI / Desktop <span class="arrow">&nearr;</span></strong><span>Codex event hooks + trust step</span></a>
+          <a class="tool-card" href="https://opencode.ai" target="_blank" rel="noopener noreferrer"><strong>opencode <span class="arrow">&nearr;</span></strong><span>opencode plugin events</span></a>
+          <a class="tool-card" href="https://github.com/badlogic/pi-mono" target="_blank" rel="noopener noreferrer"><strong>pi <span class="arrow">&nearr;</span></strong><span>pi extension events</span></a>
+        </div>
+        <div class="tier-list panel-card">
+          <div class="tier-row"><div><strong>Targets the exact session</strong><small>right window, tab, and pane - or the specific thread in a desktop app</small></div><div class="chips"><span class="chip">iTerm2</span><span class="chip">cmux<sup>&sect;</sup></span><span class="chip">Kitty<sup>*</sup></span><span class="chip">Ghostty<sup>&dagger;</sup></span><span class="chip">Terminal<sup>&Dagger;</sup></span><span class="chip">Codex Desktop</span><span class="chip">Zellij</span><span class="chip">tmux</span></div></div>
+          <div class="tier-row"><div><strong>Opens the project</strong><small>focuses the editor window, using the workspace file if present</small></div><div class="chips"><span class="chip">VS Code</span><span class="chip">Cursor</span><span class="chip">Windsurf</span><span class="chip">Zed</span></div></div>
+          <div class="tier-row"><div><strong>Activates the app</strong><small>raises the app; find the tab manually</small></div><div class="chips"><span class="chip">Claude Desktop</span><span class="chip">Warp</span></div></div>
+        </div>
+        <p class="tier-footnote">*&thinsp;Kitty targets the exact window when <a href="https://sw.kovidgoyal.net/kitty/remote-control/" target="_blank" rel="noopener noreferrer"><code>remote control</code></a> is enabled in kitty.conf. Without it, falls back to app activation.<br>&sect;&thinsp;cmux targets the exact workspace surface using <a href="https://cmux.com/docs/api" target="_blank" rel="noopener noreferrer">workspace and surface IDs</a> from stored session data or the live cmux process, so already-running sessions can jump correctly without restart.<br>&dagger;&thinsp;Ghostty 1.3.0+ targets a terminal by working directory via AppleScript. Ambiguous if multiple Ghostty splits share the same cwd; falls back to app activation otherwise.<br>&Dagger;&thinsp;Apple Terminal targets the tab by tty via AppleScript. Falls back to app activation inside a multiplexer (tmux, screen), where the captured tty is the multiplexer pane's pty rather than the Terminal tab's.</p>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <div class="wrap">
+        <div class="section-header"><div><div class="eyebrow">Features</div><h2>Designed for scanning, then jumping.</h2></div><p class="section-sub">The app stays compact in the menubar, but keeps enough context visible that you can decide where to go next.</p></div>
+        <div class="feature-stack">
+          <div class="feature-row"><div class="feature-copy"><h3>Navigate mode</h3><p>Hit a global hotkey to overlay numbered badges on every session card, then press the number to jump instantly.</p><div class="kbd-row"><span class="kbd">1</span><span>to</span><span class="kbd">9</span><span>jump to session</span></div></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-navigate.png" alt="cctop navigate mode with numbered badges" loading="lazy" width="640" height="820" decoding="async" /></div><div class="shot-caption">Press 1-9 to jump</div></div></div>
+          <div class="feature-row reverse"><div class="feature-copy"><h3>Draggable panel</h3><p>Drag the header to reposition the panel anywhere on screen. Position persists across launches, and double-click snaps it back to the menubar anchor.</p></div><div><div class="shot-frame"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/draggable-panel-demo.gif" alt="cctop panel being dragged on screen" loading="lazy" width="680" height="442" decoding="async" /></div><div class="shot-caption">Panel position persists</div></div></div>
+          <div class="feature-row"><div class="feature-copy"><h3>Smart status icon</h3><p>Lives in your macOS menubar in three states: healthy, needs attention, and a slim pill for laptops with a camera notch.</p></div><div><div class="shot-frame"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/status-icon.png" alt="cctop status icons in the macOS menubar" loading="lazy" width="1000" height="391" decoding="async" /></div><div class="shot-caption">All healthy / needs attention / notch pill</div></div></div>
+          <div class="feature-row reverse"><div class="feature-copy"><h3>Recent projects</h3><p>A second tab keeps session history so you can reopen past projects easily.</p></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-recent.png" alt="cctop recent projects tab" loading="lazy" width="640" height="754" decoding="async" /></div><div class="shot-caption">Recent sessions stay close by</div></div></div>
         </div>
       </div>
-      <div class="tier-row reveal" style="--rd:80ms">
-        <div class="tier-label">
-          <strong>Opens the project</strong>
-          <span class="sg-note">focuses the editor window, using the workspace file if present</span>
-        </div>
-        <div class="chips">
-          <span class="chip">VS Code</span>
-          <span class="chip">Cursor</span>
-          <span class="chip">Windsurf</span>
-          <span class="chip">Zed</span>
+    </section>
+
+    <section id="themes" class="section">
+      <div class="wrap">
+        <div class="section-header"><div><div class="eyebrow">Themes</div><h2>Four palettes, light and dark.</h2></div><p class="section-sub">Color schemes inspired by developer tools. Switch in Settings, then choose light, dark, or system mode.</p></div>
+        <div class="theme-grid">
+          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-claude-dark.png" alt="Claude dark theme screenshot" loading="lazy" width="640" height="820" decoding="async" /><div class="name"><span class="swatch" style="background:#d97757"></span> Claude</div></div>
+          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-tokyoNight-dark.png" alt="Tokyo Night dark theme screenshot" loading="lazy" width="640" height="820" decoding="async" /><div class="name"><span class="swatch" style="background:#7aa2f7"></span> Tokyo Night</div></div>
+          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-gruvbox-dark.png" alt="Gruvbox dark theme screenshot" loading="lazy" width="640" height="820" decoding="async" /><div class="name"><span class="swatch" style="background:#b8bb26"></span> Gruvbox</div></div>
+          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-nord-dark.png" alt="Nord dark theme screenshot" loading="lazy" width="640" height="820" decoding="async" /><div class="name"><span class="swatch" style="background:#88c0d0"></span> Nord</div></div>
         </div>
       </div>
-      <div class="tier-row reveal" style="--rd:160ms">
-        <div class="tier-label">
-          <strong>Activates the app</strong>
-          <span class="sg-note">raises the app; find the tab manually</span>
-        </div>
-        <div class="chips">
-          <span class="chip">Claude Desktop</span>
-          <span class="chip">Warp</span>
-        </div>
-      </div>
-      <p class="tier-footnote" style="font-size:.85rem;color:var(--c-muted);margin-top:8px">
-        *&thinsp;Kitty targets the exact window when <a href="https://sw.kovidgoyal.net/kitty/remote-control/" target="_blank" rel="noopener noreferrer"><code>remote control</code></a> is enabled in kitty.conf. Without it, falls back to app activation.
-        <br>
-        &sect;&thinsp;cmux targets the exact workspace surface using <a href="https://cmux.com/docs/api" target="_blank" rel="noopener noreferrer">workspace and surface IDs</a> from stored session data or the live cmux process, so already-running sessions can jump correctly without restart.
-        <br>
-        &dagger;&thinsp;Ghostty 1.3.0+ targets a terminal by working directory via AppleScript. Ambiguous if multiple Ghostty splits share the same cwd; falls back to app activation otherwise.
-        <br>
-        &Dagger;&thinsp;Apple Terminal targets the tab by tty via AppleScript. Falls back to app activation inside a multiplexer (tmux, screen), where the captured tty is the multiplexer pane's pty rather than the Terminal tab's.
-      </p>
-    </div>
+    </section>
 
-  </div>
-</section>
-
-<section id="features">
-  <div class="wrap">
-    <h2 class="reveal">Features</h2>
-
-    <div style="margin-top:56px">
-      <div class="feat-block reveal">
-        <div class="row">
-          <div class="feat">
-            <h3>Navigate mode</h3>
-            <p>Hit a global hotkey to overlay numbered badges (1–9) on every session card, then press the number to jump instantly.</p>
-            <div class="kbd-row">
-              <span class="kbd">1</span>–<span class="kbd">9</span>
-              <span>jump to session</span>
-            </div>
-          </div>
+    <section id="install" class="section">
+      <div class="wrap">
+        <div class="section-header"><div><div class="eyebrow">Install</div><h2>Install the app, then connect your tools.</h2></div><p class="section-sub">Download the latest release, open the DMG, and drag cctop.app into /Applications. Signed release builds can check for updates via Sparkle.</p></div>
+        <div class="install-card panel-card">
           <div>
-            <div class="shot-frame narrow">
-              <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-navigate.png" alt="Navigate mode" loading="lazy" width="640" height="820" decoding="async" />
-            </div>
-            <div class="shot-caption">Press 1–9 to jump</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="feat-block reveal">
-        <div class="row reverse">
-          <div class="feat">
-            <h3>Draggable panel</h3>
-            <p>Drag the header to reposition the panel anywhere on screen — position persists across launches. Double-click the header to snap back to the default menubar anchor.</p>
-          </div>
-          <div>
-            <div class="shot-frame narrow">
-              <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/draggable-panel-demo.gif" alt="Draggable panel" loading="lazy" width="680" height="442" decoding="async" />
+            <div class="install-steps">
+              <div class="install-step"><div class="install-step-head"><span class="step-number">1</span><h3>Install the app</h3></div><p>Signed with Apple Developer ID and notarized by Apple. Runs on macOS 13+ and can check for updates via Sparkle in signed release builds.</p><div class="cta-row"><a class="pill primary large" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">Download for Apple Silicon</a><a class="pill large" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg">Intel</a></div><div class="brew-row"><code>$ brew install --cask st0012/cctop/cctop</code><button type="button" class="copy" data-copy="brew install --cask st0012/cctop/cctop" aria-label="Copy command"><svg class="icon-idle" aria-hidden="true"><use href="#i-copy"/></svg><svg class="icon-ok" aria-hidden="true"><use href="#i-check"/></svg><span class="label-idle">copy</span><span class="label-ok">copied</span></button></div></div>
+              <div class="install-step"><div class="install-step-head"><span class="step-number">2</span><h3>Connect your coding tools</h3></div><p>Open Settings &gt; Tools. cctop shows the setup action for each detected tool: Copy Install Command, Install Plugin, Install Hooks, or Trust Hooks.</p><ul class="setup-list"><li>Use the action shown on each row to install or update that tool's plugin or hook.</li><li>For Codex CLI / Desktop, trust installed hooks once from a Codex CLI session.</li><li>New or restarted sessions appear automatically in the menubar panel after setup.</li></ul></div>
             </div>
           </div>
+          <div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-light.png" alt="cctop Claude light theme screenshot" loading="lazy" width="640" height="820" decoding="async" /></div><div class="shot-caption">Claude theme / light</div></div>
         </div>
       </div>
+    </section>
 
-      <div class="feat-block reveal">
-        <div class="row">
-          <div class="feat">
-            <h3>Smart status icon</h3>
-            <p>Lives in your macOS menubar in three states — healthy, needs attention, and a slim pill for laptops with a camera notch. See status without opening the panel.</p>
-          </div>
-          <div>
-            <div class="shot-frame">
-              <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/status-icon.png" alt="Smart status icon" loading="lazy" width="1000" height="391" decoding="async" />
-            </div>
-            <div class="shot-caption">All healthy · needs attention · notch pill</div>
-          </div>
+    <section id="faq" class="section">
+      <div class="wrap">
+        <div class="section-header"><div><div class="eyebrow">FAQ</div><h2>Common questions.</h2></div><p class="section-sub">Short answers for performance, privacy, setup, and platform details.</p></div>
+        <div class="faq-list panel-card">
+          <article class="faq-item"><h3>Does cctop slow down my coding tool?</h3><p>No. Each integration does minimal work on session events: it calls the bundled helper, writes a small JSON file, and returns immediately.</p></article>
+          <article class="faq-item"><h3>Does cctop send any data anywhere?</h3><p>No analytics, no telemetry, and no session upload. Signed release builds use network access for Sparkle update checks and downloads, but session data stays on your machine in <code>~/.cctop/sessions/</code> as plain JSON.</p></article>
+          <article class="faq-item"><h3>Do I need to configure anything per project?</h3><p>No. Once your tools are connected, new sessions are automatically tracked. There's no per-project setup.</p></article>
+          <article class="faq-item"><h3>Why does Codex Desktop need an extra trust step?</h3><p>Codex only runs hooks you've explicitly reviewed and trusted. cctop can install the hooks, but Codex Desktop does not currently surface the hook-review prompt. Start one Codex CLI session in a terminal and trust the hooks; Codex Desktop shares that trust state.</p></article>
+          <article class="faq-item"><h3>Why does the app need to live in /Applications?</h3><p>Plugins look for the cctop helper inside <code>/Applications/cctop.app</code> or <code>~/Applications/cctop.app</code>. Installing elsewhere breaks the integration.</p></article>
+          <article class="faq-item"><h3>I am on an Intel Mac and the updater installed the wrong architecture.</h3><ol><li>Quit cctop.</li><li>Download the Intel DMG from the latest release.</li><li>Replace the existing app in <code>/Applications/</code>.</li><li>Relaunch cctop. Future updates will pick the correct architecture.</li></ol></article>
+          <article class="faq-item"><h3>How do I uninstall?</h3><ol><li>Remove the app from <code>/Applications</code>.</li><li>Remove each plugin you installed.</li><li>Wipe session data and config with <code>rm -rf ~/.cctop</code>.</li></ol></article>
         </div>
       </div>
+    </section>
+  </main>
 
-      <div class="feat-block reveal">
-        <div class="row reverse">
-          <div class="feat">
-            <h3>Recent projects</h3>
-            <p>A second tab keeps session history so you can reopen past projects easily.</p>
-          </div>
-          <div>
-            <div class="shot-frame narrow">
-              <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-recent.png" alt="Recent projects" loading="lazy" width="640" height="754" decoding="async" />
-            </div>
-          </div>
-        </div>
-      </div>
+  <footer class="site-footer">
+    <div class="wrap footer-grid">
+      <div><div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>cctop</span></div><div class="footer-note">A keyboard-first macOS menubar app to monitor and jump between AI coding sessions. MIT licensed.</div></div>
+      <nav class="footer-links" aria-label="Footer links"><div class="footer-col"><h4>Project</h4><a href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer">GitHub</a><a href="https://github.com/st0012/cctop/releases" target="_blank" rel="noopener noreferrer">Releases</a><a href="https://github.com/st0012/cctop/issues" target="_blank" rel="noopener noreferrer">Issues</a></div><div class="footer-col"><h4>Docs</h4><a href="https://github.com/st0012/cctop#readme" target="_blank" rel="noopener noreferrer">README</a><a href="https://github.com/st0012/cctop/blob/master/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contributing</a><a href="https://github.com/st0012/cctop/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">License</a></div><div class="footer-col"><h4>Author</h4><a href="https://st0012.dev" target="_blank" rel="noopener noreferrer">@st0012</a></div></nav>
     </div>
-  </div>
-</section>
-
-<section id="themes">
-  <div class="wrap">
-    <h2 class="reveal">Themes</h2>
-    <p class="section-sub reveal" style="--rd:60ms">Four color schemes inspired by beloved developer tools — each with dark and light variants. Switch in Settings &gt; Appearance &gt; Color.</p>
-    <div class="themes">
-      <div class="theme-card reveal" style="--rd:0ms">
-        <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-claude-dark.png" alt="Claude theme" loading="lazy" width="640" height="820" decoding="async" />
-        <div class="name"><span class="sw" style="background:#d97757"></span> Claude</div>
-      </div>
-      <div class="theme-card reveal" style="--rd:60ms">
-        <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-tokyoNight-dark.png" alt="Tokyo Night theme" loading="lazy" width="640" height="820" decoding="async" />
-        <div class="name"><span class="sw" style="background:#7aa2f7"></span> Tokyo Night</div>
-      </div>
-      <div class="theme-card reveal" style="--rd:120ms">
-        <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-gruvbox-dark.png" alt="Gruvbox theme" loading="lazy" width="640" height="820" decoding="async" />
-        <div class="name"><span class="sw" style="background:#b8bb26"></span> Gruvbox</div>
-      </div>
-      <div class="theme-card reveal" style="--rd:180ms">
-        <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-nord-dark.png" alt="Nord theme" loading="lazy" width="640" height="820" decoding="async" />
-        <div class="name"><span class="sw" style="background:#88c0d0"></span> Nord</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="install">
-  <div class="wrap">
-    <h2 class="reveal">Installation</h2>
-    <p class="section-sub reveal" style="--rd:60ms">Download the latest release, open the .dmg, and drag cctop.app into /Applications. The app auto-updates via Sparkle.</p>
-
-    <div class="install-card reveal" style="--rd:120ms">
-      <div>
-        <h3>Step 1 — Install the app</h3>
-        <p>Signed and notarized by Apple. Runs on macOS 13+. <strong style="color:var(--fg)">Step 2:</strong> follow the app's instructions to connect your tools — it auto-detects what you have installed and offers plugin or hook install.</p>
-        <div class="cta-row">
-          <a class="pill primary lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-arm64.dmg">
-            <svg width="14" height="14" aria-hidden="true"><use href="#i-download"/></svg>
-            Download for Apple Silicon
-          </a>
-          <a class="pill lg" href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg">Intel</a>
-        </div>
-        <div class="alt-install">
-          <div class="alt-install-head">
-            <span class="alt-install-rule"></span>
-            <span class="alt-install-label">Prefer Homebrew?</span>
-            <span class="alt-install-rule"></span>
-          </div>
-          <div class="brew">
-            <code>$ brew install --cask st0012/cctop/cctop</code>
-            <button type="button" class="copy" data-copy="brew install --cask st0012/cctop/cctop" aria-label="Copy command">
-              <svg class="icon-idle" width="12" height="12" aria-hidden="true"><use href="#i-copy"/></svg>
-              <svg class="icon-ok" width="12" height="12" aria-hidden="true"><use href="#i-check"/></svg>
-              <span class="label-idle">copy</span>
-              <span class="label-ok">copied</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div class="shot-pair">
-          <div class="shot-frame narrow">
-            <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-light.png" alt="cctop in Claude light theme" loading="lazy" width="640" height="820" decoding="async" />
-          </div>
-          <div class="shot-caption">Claude theme · light</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="faq">
-  <div class="wrap">
-    <h2 class="reveal">Common questions.</h2>
-    <div class="faq">
-      <details class="reveal" open>
-        <summary>Does cctop slow down my coding tool?</summary>
-        <p>No. The plugin runs a tiny native binary on each event, which writes a small JSON file and returns immediately. There is no measurable impact on performance.</p>
-      </details>
-      <details class="reveal">
-        <summary>Does cctop send any data anywhere?</summary>
-        <p>No — no network access, no analytics, no telemetry. All session data stays on your machine in <code>~/.cctop/sessions/</code> as plain JSON you can inspect anytime.</p>
-      </details>
-      <details class="reveal">
-        <summary>Do I need to configure anything per project?</summary>
-        <p>No. Once the plugin is installed, every session is automatically tracked. There's no per-project setup.</p>
-      </details>
-      <details class="reveal">
-        <summary>How does cctop name sessions?</summary>
-        <p>By default, by the project directory name. In Claude Code, /rename gives the session a custom label and cctop picks it up.</p>
-      </details>
-      <details class="reveal">
-        <summary>Why doesn't cctop track sessions from the Codex desktop app?</summary>
-        <p>Codex only runs hooks you've explicitly reviewed and trusted (see the <a href="https://developers.openai.com/codex/hooks">Codex hooks docs</a>). cctop installs its hooks, but the Codex desktop app currently doesn't surface the trust prompt, so they stay inert. The workaround: start one new Codex CLI session in a terminal and choose &ldquo;Trust all and continue&rdquo; when Codex asks to review the new hooks &mdash; the desktop app shares that trust state and starts tracking too.</p>
-      </details>
-      <details class="reveal">
-        <summary>Why does the app need to live in /Applications/?</summary>
-        <p>Plugins look for the cctop helper inside /Applications/cctop.app or ~/.cctop/bin/. Installing elsewhere breaks the integration.</p>
-      </details>
-      <details class="reveal">
-        <summary>I'm on an Intel Mac and the in-app updater installed the wrong architecture.</summary>
-        <p>cctop releases up to and including v0.15.2 shipped an appcast that confused Sparkle's update picker, so Intel Macs could receive the Apple Silicon build. The structural fix is in place going forward, but the Sparkle framework already bundled inside any installed copy of cctop &le; 0.15.2 doesn't know about the new appcast hints. Manually download the Intel build once to get back on the upgrade path:</p>
-        <ol>
-          <li>Quit cctop.</li>
-          <li>Download the Intel DMG: <a href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg">cctop-macOS-x86_64.dmg</a>.</li>
-          <li>Drag the new <code>cctop.app</code> into <code>/Applications/</code>, replacing the existing one.</li>
-          <li>Relaunch cctop. Future updates will pick the correct architecture automatically.</li>
-        </ol>
-      </details>
-      <details class="reveal">
-        <summary>How do I uninstall?</summary>
-        <ol>
-          <li>Remove the app: <code>rm -rf /Applications/cctop.app</code></li>
-          <li>Remove each plugin you installed (see the README's Uninstall section, e.g. <code>claude plugin remove cctop</code>).</li>
-          <li>Wipe session data and config: <code>rm -rf ~/.cctop</code></li>
-        </ol>
-        <p>Installed via Homebrew? Use <code>brew uninstall --cask cctop</code> for step 1.</p>
-      </details>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap foot-grid">
-    <div>
-      <div style="margin-bottom:10px">
-        <span class="brand"><span class="word">cctop</span><span class="caret">_</span></span>
-      </div>
-      <div style="max-width:34ch;color:var(--fg-dim);line-height:1.55">
-        A keyboard-first macOS menubar app to monitor and jump between AI coding sessions. MIT licensed.
-      </div>
-    </div>
-    <nav class="foot-cols" aria-label="Footer">
-      <div class="foot-col">
-        <h4>Project</h4>
-        <a href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer">GitHub</a>
-        <a href="https://github.com/st0012/cctop/releases" target="_blank" rel="noopener noreferrer">Releases</a>
-        <a href="https://github.com/st0012/cctop/issues" target="_blank" rel="noopener noreferrer">Issues</a>
-      </div>
-      <div class="foot-col">
-        <h4>Docs</h4>
-        <a href="https://github.com/st0012/cctop#readme" target="_blank" rel="noopener noreferrer">README</a>
-        <a href="https://github.com/st0012/cctop/blob/master/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contributing</a>
-        <a href="https://github.com/st0012/cctop/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">License</a>
-      </div>
-      <div class="foot-col">
-        <h4>Author</h4>
-        <a href="https://st0012.dev" target="_blank" rel="noopener noreferrer">@st0012</a>
-      </div>
-    </nav>
-  </div>
-</footer>
+  </footer>
+</div>
 
 <script>
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  // RAF smooth-scroll for in-page anchors at a tunable duration (the browser's
-  // built-in CSS smooth-scroll runs ~400ms with no API to slow it down).
-  (() => {
-    const SCROLL_DURATION = 900;
-    const ease = (t) => 1 - Math.pow(1 - t, 4); // ease-out-quart
-    let raf = null;
-    const cancel = () => { if (raf !== null) { cancelAnimationFrame(raf); raf = null; } };
-    function scrollTo(targetY) {
-      cancel();
-      if (reducedMotion) { window.scrollTo(0, targetY); return; }
-      const startY = window.scrollY;
-      const distance = targetY - startY;
-      if (!distance) return;
-      const t0 = performance.now();
-      const step = (now) => {
-        const t = Math.min(1, (now - t0) / SCROLL_DURATION);
-        window.scrollTo(0, startY + distance * ease(t));
-        raf = t < 1 ? requestAnimationFrame(step) : null;
-      };
-      raf = requestAnimationFrame(step);
-    }
-    // Abort the animation if the user starts scrolling manually.
-    window.addEventListener('wheel', cancel, { passive: true });
-    window.addEventListener('touchstart', cancel, { passive: true });
-
-    document.querySelectorAll('a[href^="#"]').forEach(a => {
-      a.addEventListener('click', (e) => {
-        const href = a.getAttribute('href');
-        if (!href) return;
-        let targetY = 0;
-        if (href !== '#') {
-          const target = document.querySelector(href);
-          if (!target) return;
-          const offset = parseInt(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
-          targetY = target.getBoundingClientRect().top + window.scrollY - offset;
-        }
-        e.preventDefault();
-        history.pushState(null, '', href);
-        scrollTo(targetY);
-      });
-    });
-  })();
-
-  // Top-nav active section: scroll-spy that picks the deepest section whose
-  // top has crossed the cursor (100px from viewport top, sits below the 60px
-  // sticky header + 72px scroll-padding-top). Always returns a deterministic
-  // answer once any section has been scrolled past — no band gaps.
-  (() => {
-    const links = document.querySelectorAll('nav.top-nav a[href^="#"]');
-    const targets = [];
-    links.forEach(a => {
-      const id = a.getAttribute('href');
-      if (id.length > 1) {
-        const section = document.querySelector(id);
-        if (section) targets.push({ link: a, section });
-      }
-    });
-    if (!targets.length) return;
-    const CURSOR = 100;
-    let scheduled = false;
-    function update() {
-      scheduled = false;
-      let active = null;
-      for (const { section } of targets) {
-        if (section.getBoundingClientRect().top - CURSOR <= 0) active = section;
-      }
-      targets.forEach(({ link, section }) => {
-        link.classList.toggle('is-active', section === active);
-      });
-    }
-    function onScroll() {
-      if (scheduled) return;
-      scheduled = true;
-      requestAnimationFrame(update);
-    }
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll, { passive: true });
-    update();
-  })();
-
-  // FAQ smooth expand/collapse via Web Animations API.
-  (() => {
-    const easing = 'cubic-bezier(0.25,1,0.5,1)';
-    document.querySelectorAll('.faq details').forEach(d => {
-      const summary = d.querySelector('summary');
-      if (!summary) return;
-      let wrapper = d.querySelector(':scope > .details-body');
-      if (!wrapper) {
-        wrapper = document.createElement('div');
-        wrapper.className = 'details-body';
-        while (summary.nextSibling) wrapper.appendChild(summary.nextSibling);
-        d.appendChild(wrapper);
-      }
-      if (reducedMotion) return;
-
-      let anim = null;
-      let direction = null;
-      const settle = () => {
-        wrapper.style.overflow = '';
-        wrapper.style.willChange = '';
-        direction = null;
-      };
-      summary.addEventListener('click', (e) => {
-        e.preventDefault();
-        // Re-clicking mid-close should re-open, not chain another close.
-        const wantOpen = !d.open || direction === 'closing';
-        // Read current rendered height BEFORE cancelling — once cancelled the
-        // element snaps to its CSS resting size and the next tween jumps.
-        const currentH = anim ? wrapper.getBoundingClientRect().height : (d.open ? wrapper.scrollHeight : 0);
-        if (anim) anim.cancel();
-        wrapper.style.overflow = 'hidden';
-        wrapper.style.willChange = 'height';
-        if (wantOpen) {
-          if (!d.open) d.open = true;
-          direction = 'opening';
-          const target = wrapper.scrollHeight;
-          anim = wrapper.animate(
-            [{ height: currentH + 'px', opacity: currentH / target },
-             { height: target + 'px', opacity: 1 }],
-            { duration: 340, easing }
-          );
-          anim.onfinish = settle;
-        } else {
-          direction = 'closing';
-          anim = wrapper.animate(
-            [{ height: currentH + 'px', opacity: 1 },
-             { height: '0px', opacity: 0 }],
-            { duration: 280, easing }
-          );
-          anim.onfinish = () => { d.open = false; settle(); };
-        }
-      });
-    });
-  })();
-
-  (() => {
-    const els = document.querySelectorAll('.reveal');
-    if (reducedMotion || !('IntersectionObserver' in window)) {
-      els.forEach(el => el.classList.add('is-visible'));
-    } else {
-      const io = new IntersectionObserver((entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            e.target.classList.add('is-visible');
-            io.unobserve(e.target);
-          }
-        }
-      }, { rootMargin: '0px 0px 8% 0px', threshold: 0 });
-      els.forEach(el => io.observe(el));
-    }
-  })();
-
-  document.querySelectorAll('.copy[data-copy]').forEach(btn => {
+  document.querySelectorAll('.copy[data-copy]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(btn.dataset.copy);
-      } catch {
-        return;
-      }
+      try { await navigator.clipboard.writeText(btn.dataset.copy); } catch { return; }
       btn.classList.add('ok');
       setTimeout(() => btn.classList.remove('ok'), 1400);
     });
   });
 
-  // Pull the live release tag from the GitHub API; the static value above
-  // stays if the request fails (rate limited, offline, blocked).
   fetch('https://api.github.com/repos/st0012/cctop/releases/latest', {
     headers: { 'Accept': 'application/vnd.github+json' }
   })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
+    .then((r) => r.ok ? r.json() : null)
+    .then((d) => {
       if (!d || !d.tag_name) return;
-      document.querySelectorAll('[data-version]').forEach(el => { el.textContent = d.tag_name; });
+      document.querySelectorAll('[data-version]').forEach((el) => { el.textContent = d.tag_name; });
     })
     .catch(() => {});
 </script>
-
 </body>
 </html>
