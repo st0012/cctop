@@ -62,6 +62,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         )
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
         hostingView.layer?.cornerRadius = AppChrome.panelCornerRadius
         hostingView.layer?.masksToBounds = true
         hostingView.translatesAutoresizingMaskIntoConstraints = false

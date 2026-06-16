@@ -43,8 +43,20 @@ private struct SegmentButton: View {
                 .padding(.horizontal, AppChrome.settingsSegmentHorizontalPadding)
                 .frame(height: AppChrome.settingsSegmentHeight)
                 .foregroundStyle(foregroundColor)
-                .background(RoundedRectangle(cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius, style: .continuous)
-                    .fill(backgroundColor))
+                .background {
+                    SelectionSurfaceChrome(
+                        isSelected: isSelected,
+                        isHovered: isHovered,
+                        cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius,
+                        hoverColor: Color.panelControlBackground
+                    )
+                }
+                .overlay {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius, style: .continuous)
+                            .stroke(Color.panelAccentBorder, lineWidth: 1)
+                    }
+                }
                 .contentShape(RoundedRectangle(cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -55,12 +67,6 @@ private struct SegmentButton: View {
         if isSelected { return Color.segmentActiveText }
         if isHovered { return Color.segmentActiveText.opacity(0.7) }
         return Color.segmentText
-    }
-
-    private var backgroundColor: Color {
-        if isSelected { return Color.panelSelectionBackground }
-        if isHovered { return Color.panelControlBackground }
-        return .clear
     }
 }
 
@@ -251,7 +257,7 @@ struct SettingsSection: View {
                         Spacer()
                         Text("Update")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.accentButtonText)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Color.amber)
@@ -432,7 +438,7 @@ struct ClaudeCodeInstallButton: View {
         } label: {
             Text("Copy Install Command")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.segmentActiveText)
+                .foregroundStyle(Color.accentButtonText)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Color.amber)
                 .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius))
@@ -467,7 +473,7 @@ struct AmberActionButton: View {
         Button(action: action) {
             Text(label)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.segmentActiveText)
+                .foregroundStyle(Color.accentButtonText)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
                 .background(Color.amber)

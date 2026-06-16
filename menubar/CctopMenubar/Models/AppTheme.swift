@@ -39,6 +39,7 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
 
     var segmentText: ColorPair { textMuted }
     var segmentActiveText: ColorPair { textPrimary }
+    var accentButtonText: ColorPair { Self.accentButtonTexts[self]! }
     var statusPermission: ColorPair { Self.permissions[self]! }
     var statusAttention: ColorPair { Self.attentions[self]! }
     var statusWorking: ColorPair { statusGreen }
@@ -52,6 +53,8 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
     var panelMaterialOverlay: ColorPair { Self.sharedPanelMaterialOverlay }
     var panelControlBackground: ColorPair { Self.sharedPanelControlBackground }
     var panelControlBorder: ColorPair { Self.sharedPanelControlBorder }
+    var panelAccentBorder: ColorPair { Self.accentBorders[self]! }
+    var selectionHighlightOverlay: ColorPair { Self.sharedSelectionHighlightOverlay }
     var panelSelectionBackground: ColorPair { Self.selectionBackgrounds[self]! }
     var groupedContentBackground: ColorPair { Self.sharedGroupedContentBackground }
     var groupedRowBackground: ColorPair { Self.sharedGroupedRowBackground }
@@ -79,6 +82,9 @@ private extension AppTheme {
     static let sharedPanelControlBorder = ColorPair(
         dark: NSColor(white: 1, alpha: 0.09), light: NSColor(white: 0, alpha: 0.085)
     )
+    static let sharedSelectionHighlightOverlay = ColorPair(
+        dark: NSColor(white: 1, alpha: 0.044), light: NSColor(white: 1, alpha: 0.16)
+    )
     static let sharedGroupedContentBackground = ColorPair(
         dark: NSColor(white: 0, alpha: 0.08), light: NSColor(white: 1, alpha: 0.30)
     )
@@ -99,6 +105,13 @@ private extension AppTheme {
         .tokyoNight: ColorPair(dark: hex(0xF7, 0x76, 0x8E), light: hex(0x29, 0x59, 0xAA)),
         .gruvbox: ColorPair(dark: hex(0xFE, 0x80, 0x19), light: hex(0xAF, 0x3A, 0x03)),
         .nord: ColorPair(dark: hex(0xBF, 0x61, 0x6A), light: hex(0xBF, 0x61, 0x6A)),
+    ]
+
+    static let accentButtonTexts: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0x14, 0x14, 0x13), light: hex(0x14, 0x14, 0x13)),
+        .tokyoNight: ColorPair(dark: hex(0x1A, 0x1B, 0x26), light: hex(0xFF, 0xFF, 0xFF)),
+        .gruvbox: ColorPair(dark: hex(0x28, 0x28, 0x28), light: hex(0xFB, 0xF1, 0xC7)),
+        .nord: ColorPair(dark: hex(0x11, 0x11, 0x11), light: hex(0x11, 0x11, 0x11)),
     ]
 
     // Permission = error/red — urgent, needs approval
@@ -172,6 +185,21 @@ private extension AppTheme {
         ),
         .nord: ColorPair(
             dark: hex(0xD8, 0xDE, 0xE9, alpha: 0.085), light: hex(0x5E, 0x81, 0xAC, alpha: 0.085)
+        ),
+    ]
+
+    static let accentBorders: [AppTheme: ColorPair] = [
+        .claude: ColorPair(
+            dark: hex(0xD9, 0x77, 0x57, alpha: 0.12), light: hex(0xD9, 0x77, 0x57, alpha: 0.095)
+        ),
+        .tokyoNight: ColorPair(
+            dark: hex(0xF7, 0x76, 0x8E, alpha: 0.12), light: hex(0x29, 0x59, 0xAA, alpha: 0.095)
+        ),
+        .gruvbox: ColorPair(
+            dark: hex(0xFE, 0x80, 0x19, alpha: 0.115), light: hex(0xAF, 0x3A, 0x03, alpha: 0.09)
+        ),
+        .nord: ColorPair(
+            dark: hex(0xBF, 0x61, 0x6A, alpha: 0.115), light: hex(0x5E, 0x81, 0xAC, alpha: 0.095)
         ),
     ]
 

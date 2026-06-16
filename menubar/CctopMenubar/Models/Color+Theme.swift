@@ -3,9 +3,10 @@ import SwiftUI
 
 enum AppChrome {
     static let cornerRadius: CGFloat = 8
-    static let panelCornerRadius = cornerRadius
+    static let rowSelectionHorizontalInset: CGFloat = 6
+    static let panelCornerRadius: CGFloat = 16
     static let controlCornerRadius = cornerRadius
-    static let selectionCornerRadius = cornerRadius
+    static let selectionCornerRadius = panelCornerRadius - rowSelectionHorizontalInset
     static let groupCornerRadius = cornerRadius
     static let settingsContentPaddingHorizontal: CGFloat = 8
     static let settingsContentPaddingTop: CGFloat = 10
@@ -30,7 +31,6 @@ enum AppChrome {
         trailing: settingsContentPaddingHorizontal
     )
     static let listVerticalPadding: CGFloat = 4
-    static let rowSelectionHorizontalInset: CGFloat = 6
 }
 
 extension Color {
@@ -59,6 +59,13 @@ extension Color {
     static var segmentActiveText: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             ThemeManager.shared.current.segmentActiveText.resolve(appearance)
+        })
+    }
+
+    /// Text shown on accent-filled action buttons.
+    static var accentButtonText: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.accentButtonText.resolve(appearance)
         })
     }
 
@@ -101,6 +108,20 @@ extension Color {
     static var panelControlBorder: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             ThemeManager.shared.current.panelControlBorder.resolve(appearance)
+        })
+    }
+
+    /// Accent-tinted hairline used for Option A selected surfaces and panel rim.
+    static var panelAccentBorder: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.panelAccentBorder.resolve(appearance)
+        })
+    }
+
+    /// Faint top light layered over selected controls.
+    static var selectionHighlightOverlay: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.selectionHighlightOverlay.resolve(appearance)
         })
     }
 

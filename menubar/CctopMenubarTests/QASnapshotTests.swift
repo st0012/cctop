@@ -133,6 +133,35 @@ final class QASnapshotTests: XCTestCase {
         ThemeManager.shared.setTheme(.claude)
     }
 
+    func testMaterialBackdropReviewSnapshots() throws {
+        ThemeManager.shared.setTheme(.tokyoNight)
+        let schemes: [(ColorScheme, String)] = [(.light, "light"), (.dark, "dark")]
+        for (colorScheme, schemeName) in schemes {
+            try renderMaterialBackdropSnapshot(
+                PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater(), pluginManager: inertPluginManager()),
+                name: "24-material-active-tokyoNight-\(schemeName)",
+                colorScheme: colorScheme
+            )
+            try renderMaterialBackdropSnapshot(
+                PopupView(
+                    sessions: Session.qaShowcase,
+                    recentProjects: RecentProject.mockRecents,
+                    updater: DisabledUpdater(),
+                    pluginManager: inertPluginManager(),
+                    initialTab: .recent
+                ),
+                name: "25-material-recent-tokyoNight-\(schemeName)",
+                colorScheme: colorScheme
+            )
+            try renderMaterialBackdropSnapshot(
+                SettingsSection(updater: DisabledUpdater(), pluginManager: inertPluginManager()),
+                name: "26-material-settings-tokyoNight-\(schemeName)",
+                colorScheme: colorScheme
+            )
+        }
+        ThemeManager.shared.setTheme(.claude)
+    }
+
     // MARK: - Live update simulation
 
     /// Simulates adding a 5th session to an existing 4-session view.
@@ -282,6 +311,40 @@ final class QASnapshotTests: XCTestCase {
         try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
     }
 
+    private func renderMaterialBackdropSnapshot<Content: View>(
+        _ content: Content,
+        name: String,
+        colorScheme: ColorScheme
+    ) throws {
+        let view = ZStack {
+            MaterialBackdropScene(colorScheme: colorScheme)
+            content
+                .frame(width: 320)
+                .panelSnapshotChrome()
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.34 : 0.16), radius: 22, x: 0, y: 16)
+        }
+        .frame(width: 640, height: 720)
+        .environment(\.colorScheme, colorScheme)
+
+        let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 640, height: 720),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = NSAppearance(named: appearance)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+
+        let hostingView = NSHostingView(rootView: view)
+        window.contentView = hostingView
+        hostingView.frame = NSRect(x: 0, y: 0, width: 640, height: 720)
+        hostingView.layoutSubtreeIfNeeded()
+
+        try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
+    }
+
     private func scrollFirstScrollViewToBottom(in view: NSView) {
         guard
             let scrollView = firstSubview(ofType: NSScrollView.self, in: view),
@@ -321,16 +384,143 @@ final class QASnapshotTests: XCTestCase {
 private extension View {
     func panelSnapshotChrome() -> some View {
         background {
-            ZStack {
-                Color.panelBackground
-                Color.panelMaterialOverlay
-            }
+            PanelSurfaceBackground()
         }
         .overlay {
-            RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous)
-                .stroke(Color.panelControlBorder, lineWidth: 1)
+            PanelAccentHairline(cornerRadius: AppChrome.panelCornerRadius)
         }
         .clipShape(RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous))
+    }
+}
+
+private struct MaterialBackdropScene: View {
+    let colorScheme: ColorScheme
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            backgroundGradient
+            editorWindow
+                .frame(width: 520, height: 470)
+                .offset(x: 34, y: 42)
+            floatingInspector
+                .frame(width: 220, height: 180)
+                .offset(x: 378, y: 440)
+        }
+    }
+
+    private var backgroundGradient: some View {
+        LinearGradient(
+            colors: colorScheme == .dark
+                ? [Color(red: 0.06, green: 0.07, blue: 0.10), Color(red: 0.13, green: 0.12, blue: 0.18)]
+                : [Color(red: 0.84, green: 0.86, blue: 0.91), Color(red: 0.94, green: 0.92, blue: 0.86)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var editorWindow: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 7) {
+                Circle().fill(Color(red: 0.93, green: 0.28, blue: 0.33)).frame(width: 9, height: 9)
+                Circle().fill(Color(red: 0.96, green: 0.68, blue: 0.25)).frame(width: 9, height: 9)
+                Circle().fill(Color(red: 0.42, green: 0.78, blue: 0.36)).frame(width: 9, height: 9)
+                Text("~/projects/cctop")
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(backdropText.opacity(0.72))
+                    .padding(.leading, 12)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 38)
+            .background(backdropSurface.opacity(0.76))
+
+            VStack(alignment: .leading, spacing: 9) {
+                ForEach(codeLines.indices, id: \.self) { index in
+                    codeLine(codeLines[index], accent: lineAccent(index))
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(backdropSurface.opacity(0.54))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(backdropText.opacity(0.12), lineWidth: 1)
+        }
+    }
+
+    private var floatingInspector: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Session Signals")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(backdropText.opacity(0.78))
+            ForEach(["Permission", "Working", "Idle"], id: \.self) { label in
+                HStack {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(inspectorAccent(label))
+                        .frame(width: 36, height: 7)
+                    Text(label)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(backdropText.opacity(0.60))
+                    Spacer()
+                }
+            }
+            Spacer()
+        }
+        .padding(16)
+        .background(backdropSurface.opacity(colorScheme == .dark ? 0.46 : 0.58))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(backdropText.opacity(0.10), lineWidth: 1)
+        }
+    }
+
+    private func codeLine(_ line: String, accent: Color) -> some View {
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(accent.opacity(0.68))
+                .frame(width: 24, height: 7)
+            Text(line)
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(backdropText.opacity(0.64))
+                .lineLimit(1)
+            Spacer()
+        }
+    }
+
+    private var backdropText: Color {
+        colorScheme == .dark ? Color(red: 0.78, green: 0.82, blue: 0.96) : Color(red: 0.20, green: 0.23, blue: 0.31)
+    }
+
+    private var backdropSurface: Color {
+        colorScheme == .dark ? Color(red: 0.13, green: 0.14, blue: 0.21) : Color.white
+    }
+
+    private var codeLines: [String] {
+        [
+            "struct PanelSurfaceBackground: View {",
+            "  PanelMaterialView(blendingMode: .behindWindow)",
+            "  Color.panelBackground.opacity(0.86)",
+            "  PanelAccentHairline(cornerRadius: 16)",
+            "}",
+            "SelectionSurfaceChrome(isSelected: true)",
+            "renderMaterialBackdropSnapshot(...)",
+        ]
+    }
+
+    private func lineAccent(_ index: Int) -> Color {
+        [Color(red: 0.97, green: 0.46, blue: 0.56), Color(red: 0.60, green: 0.80, blue: 0.42),
+         Color(red: 0.48, green: 0.64, blue: 0.97), Color(red: 1.00, green: 0.62, blue: 0.39)][index % 4]
+    }
+
+    private func inspectorAccent(_ label: String) -> Color {
+        switch label {
+        case "Permission": return Color(red: 0.97, green: 0.46, blue: 0.56)
+        case "Working": return Color(red: 0.60, green: 0.80, blue: 0.42)
+        default: return Color(red: 0.42, green: 0.45, blue: 0.56)
+        }
     }
 }
 

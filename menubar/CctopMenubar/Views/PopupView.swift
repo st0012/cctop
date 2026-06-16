@@ -285,19 +285,16 @@ extension PopupView {
         content()
             .padding(.vertical, verticalPadding)
             .frame(maxWidth: .infinity, minHeight: AppChrome.overlayMinimumContentHeight, alignment: .top)
-        .background {
-            ZStack {
-                Color.panelBackground
-                Color.panelMaterialOverlay
+            .background {
+                PanelSurfaceBackground(usesMaterial: false)
             }
-        }
-        .transition(.asymmetric(
-            insertion: .move(edge: .top),
-            removal: .modifier(
-                active: RollUpEffect(progress: 0),
-                identity: RollUpEffect(progress: 1)
-            )
-        ))
+            .transition(.asymmetric(
+                insertion: .move(edge: .top),
+                removal: .modifier(
+                    active: RollUpEffect(progress: 0),
+                    identity: RollUpEffect(progress: 1)
+                )
+            ))
     }
 
     var footerBar: some View {

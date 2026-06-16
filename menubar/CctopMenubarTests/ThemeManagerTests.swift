@@ -95,6 +95,8 @@ final class ThemeManagerTests: XCTestCase {
                     theme.panelMaterialOverlay,
                     theme.panelControlBackground,
                     theme.panelControlBorder,
+                    theme.panelAccentBorder,
+                    theme.selectionHighlightOverlay,
                     theme.panelSelectionBackground,
                     theme.groupedContentBackground,
                     theme.groupedRowBackground,
@@ -108,10 +110,28 @@ final class ThemeManagerTests: XCTestCase {
         }
     }
 
+    func testAccentButtonTextStaysReadableInEveryThemeAndAppearance() {
+        let appearances: [NSAppearance] = [
+            NSAppearance(named: .darkAqua)!,
+            NSAppearance(named: .aqua)!,
+        ]
+
+        for theme in AppTheme.allCases {
+            for appearance in appearances {
+                XCTAssertGreaterThanOrEqual(
+                    theme.accentButtonText.resolve(appearance).contrastRatio(against: theme.accent.resolve(appearance)),
+                    4.5,
+                    "\(theme.displayName) accent button text should stay readable in \(appearance.name.rawValue)"
+                )
+            }
+        }
+    }
+
     func testAppChromeKeepsRoundedElementsOnOneRadiusAndSettingsAwayFromFooter() {
-        XCTAssertEqual(AppChrome.panelCornerRadius, AppChrome.cornerRadius)
+        XCTAssertEqual(AppChrome.panelCornerRadius, 16)
+        XCTAssertEqual(AppChrome.selectionCornerRadius, AppChrome.panelCornerRadius - AppChrome.rowSelectionHorizontalInset)
+        XCTAssertEqual(AppChrome.selectionCornerRadius, 10)
         XCTAssertEqual(AppChrome.controlCornerRadius, AppChrome.cornerRadius)
-        XCTAssertEqual(AppChrome.selectionCornerRadius, AppChrome.cornerRadius)
         XCTAssertEqual(AppChrome.groupCornerRadius, AppChrome.cornerRadius)
         XCTAssertEqual(AppChrome.settingsSectionHeaderHorizontalPadding, AppChrome.settingsRowHorizontalPadding)
         XCTAssertEqual(AppChrome.settingsDividerLeadingPadding, AppChrome.settingsRowHorizontalPadding)
