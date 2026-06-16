@@ -139,14 +139,10 @@ final class SnapshotTests: XCTestCase {
         let styled = view
             .frame(width: width)
             .background {
-                ZStack {
-                    Color.panelBackground
-                    Color.panelMaterialOverlay
-                }
+                PanelSurfaceBackground(usesMaterial: false)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous)
-                    .stroke(Color.panelControlBorder, lineWidth: 1)
+                PanelAccentHairline(cornerRadius: AppChrome.panelCornerRadius)
             }
             .clipShape(RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous))
             .environment(\.colorScheme, colorScheme)

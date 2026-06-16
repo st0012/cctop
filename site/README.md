@@ -40,5 +40,6 @@ Before pushing changes that affect anything in the "Manual" rows above, update
 `site/index.html` in the same commit. CI deploys whatever lands on master, so
 the README and the site should always match what shipped.
 
-For visuals: replace the screenshot under `docs/` and the site will reflect the
-new image without any site edit.
+For visuals: regenerate the snapshot-backed PNGs with `CctopMenubarTests/SnapshotTests`,
+replace the matching files under `docs/`, and the site will reflect the new images
+without a markup edit unless the image dimensions changed.

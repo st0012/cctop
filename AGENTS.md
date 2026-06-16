@@ -588,19 +588,35 @@ If notarization fails, the script automatically fetches the notarization log via
 - Unsigned binaries in non-standard paths (like `Autoupdate`)
 - Missing hardened runtime flag
 
-## Menubar Screenshot
+## Menubar Screenshots
 
-The menubar screenshots (`docs/menubar-light.png` and `docs/menubar-dark.png`) are generated from a snapshot test that renders `PopupView` with mock data:
+Most static panel screenshots under `docs/` are generated from `CctopMenubarTests/SnapshotTests.swift`. The test suite renders `PopupView`, navigate mode, recent projects, empty state, onboarding settings, and every theme with deterministic mock data:
 
 ```bash
-# Regenerate the menubar screenshots (light + dark)
+# Regenerate all snapshot-backed PNGs under /tmp
 xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
-  -only-testing:CctopMenubarTests/SnapshotTests/testGenerateMenubarScreenshot \
+  -only-testing:CctopMenubarTests/SnapshotTests \
   -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
-cp /tmp/menubar-light.png /tmp/menubar-dark.png docs/
+
+# Copy the public documentation screenshots into docs/
+cp /tmp/menubar-light.png docs/menubar-light.png
+cp /tmp/menubar-dark.png docs/menubar-dark.png
+cp /tmp/menubar-navigate.png docs/menubar-navigate.png
+cp /tmp/menubar-recent.png docs/menubar-recent.png
+cp /tmp/empty-state-light.png docs/empty-state-light.png
+cp /tmp/empty-state-dark.png docs/empty-state-dark.png
+cp /tmp/theme-claude-dark.png docs/theme-claude-dark.png
+cp /tmp/theme-claude-light.png docs/theme-claude-light.png
+cp /tmp/theme-tokyoNight-dark.png docs/theme-tokyoNight-dark.png
+cp /tmp/theme-tokyoNight-light.png docs/theme-tokyoNight-light.png
+cp /tmp/theme-gruvbox-dark.png docs/theme-gruvbox-dark.png
+cp /tmp/theme-gruvbox-light.png docs/theme-gruvbox-light.png
+cp /tmp/theme-nord-dark.png docs/theme-nord-dark.png
+cp /tmp/theme-nord-light.png docs/theme-nord-light.png
+cp /tmp/theme-tokyoNight-dark.png docs/menubar-tokyonight-dark.png
 ```
 
-The showcase sessions are defined in `Session+Mock.swift` (`qaShowcase`). Edit that array to change what appears in the screenshots.
+The showcase sessions are defined in `Session+Mock.swift` (`qaShowcase`). Edit that array to change what appears in the screenshots. GIF demos and `docs/status-icon.png` have separate capture sources and should only be replaced when those flows change.
 
 ## Design Context
 
