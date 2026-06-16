@@ -74,7 +74,7 @@ private extension AppTheme {
         dark: NSColor(white: 1, alpha: 0.06), light: NSColor(white: 0, alpha: 0.04)
     )
     static let sharedPanelMaterialOverlay = ColorPair(
-        dark: NSColor(white: 1, alpha: 0.04), light: NSColor(white: 1, alpha: 0.24)
+        dark: NSColor(white: 1, alpha: 0.04), light: NSColor(white: 1, alpha: 0.18)
     )
     static let sharedPanelControlBackground = ColorPair(
         dark: NSColor(white: 1, alpha: 0.035), light: NSColor(white: 0, alpha: 0.026)
@@ -86,10 +86,10 @@ private extension AppTheme {
         dark: NSColor(white: 1, alpha: 0.044), light: NSColor(white: 1, alpha: 0.16)
     )
     static let sharedGroupedContentBackground = ColorPair(
-        dark: NSColor(white: 0, alpha: 0.08), light: NSColor(white: 1, alpha: 0.30)
+        dark: NSColor(white: 0, alpha: 0.08), light: NSColor(white: 0, alpha: 0.026)
     )
     static let sharedGroupedRowBackground = ColorPair(
-        dark: NSColor(white: 1, alpha: 0.035), light: NSColor(white: 1, alpha: 0.62)
+        dark: NSColor(white: 1, alpha: 0.035), light: NSColor(white: 1, alpha: 0.34)
     )
     static let sharedGroupedRowBorder = ColorPair(
         dark: NSColor(white: 1, alpha: 0.085), light: NSColor(white: 0, alpha: 0.085)
@@ -175,7 +175,7 @@ private extension AppTheme {
 
     static let selectionBackgrounds: [AppTheme: ColorPair] = [
         .claude: ColorPair(
-            dark: hex(0xD9, 0x77, 0x57, alpha: 0.095), light: hex(0xD9, 0x77, 0x57, alpha: 0.075)
+            dark: hex(0xD9, 0x77, 0x57, alpha: 0.095), light: hex(0xB7, 0x82, 0x67, alpha: 0.058)
         ),
         .tokyoNight: ColorPair(
             dark: hex(0xC0, 0xCA, 0xF5, alpha: 0.085), light: hex(0x29, 0x59, 0xAA, alpha: 0.085)
@@ -190,7 +190,7 @@ private extension AppTheme {
 
     static let accentBorders: [AppTheme: ColorPair] = [
         .claude: ColorPair(
-            dark: hex(0xD9, 0x77, 0x57, alpha: 0.12), light: hex(0xD9, 0x77, 0x57, alpha: 0.095)
+            dark: hex(0xD9, 0x77, 0x57, alpha: 0.12), light: hex(0x9F, 0x76, 0x63, alpha: 0.105)
         ),
         .tokyoNight: ColorPair(
             dark: hex(0xF7, 0x76, 0x8E, alpha: 0.12), light: hex(0x29, 0x59, 0xAA, alpha: 0.095)

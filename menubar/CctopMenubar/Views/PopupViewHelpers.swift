@@ -127,11 +127,11 @@ struct PanelTintBackground: View {
     }
 
     private var panelBackgroundOpacity: Double {
-        colorScheme == .dark ? 0.72 : 0.58
+        colorScheme == .dark ? 0.72 : 0.72
     }
 
     private var panelOverlayOpacity: Double {
-        colorScheme == .dark ? 0.72 : 0.55
+        colorScheme == .dark ? 0.72 : 0.36
     }
 }
 

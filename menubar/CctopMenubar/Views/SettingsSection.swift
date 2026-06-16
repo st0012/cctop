@@ -196,6 +196,7 @@ struct SettingsSection: View {
         VStack(spacing: 0) {
             content()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.groupedRowBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous))
         .overlay {

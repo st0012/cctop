@@ -210,11 +210,11 @@ the Tokyo Night blue family.
 | `cardBackground`    | white @ 4% alpha   | black @ 2% alpha   |
 | `cardBorder`        | white @ 4% alpha   | black @ 4% alpha   |
 | `segmentBackground` | white @ 6% alpha   | black @ 4% alpha   |
-| `panelMaterialOverlay` | white @ 4% alpha | white @ 24% alpha  |
+| `panelMaterialOverlay` | white @ 4% alpha | white @ 18% alpha  |
 | `panelControlBackground` | white @ 3.5% alpha | black @ 2.6% alpha |
 | `panelControlBorder` | white @ 9% alpha  | black @ 8.5% alpha |
-| `groupedContentBackground` | black @ 8% alpha | white @ 30% alpha |
-| `groupedRowBackground` | white @ 3.5% alpha | white @ 62% alpha |
+| `groupedContentBackground` | black @ 8% alpha | black @ 2.6% alpha |
+| `groupedRowBackground` | white @ 3.5% alpha | white @ 34% alpha |
 | `groupedRowBorder` | white @ 8.5% alpha | black @ 8.5% alpha |
 
 ## 3. Typography Rules
