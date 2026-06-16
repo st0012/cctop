@@ -348,12 +348,12 @@ class SessionManager: ObservableObject {
 
     /// Returns the direct child PIDs of the given process.
     private func listChildPids(pid: UInt32) -> [pid_t] {
-        let size = proc_listchildpids(pid_t(pid), nil, 0)
-        guard size > 0 else { return [] }
-        let count = Int(size) / MemoryLayout<pid_t>.size
+        let reportedCount = proc_listchildpids(pid_t(pid), nil, 0)
+        let count = ProcessChildPIDProbe.capacity(fromReportedCount: reportedCount)
+        guard count > 0 else { return [] }
         var pids = [pid_t](repeating: 0, count: count)
-        let actual = proc_listchildpids(pid_t(pid), &pids, size)
-        let actualCount = Int(actual) / MemoryLayout<pid_t>.size
+        let actual = proc_listchildpids(pid_t(pid), &pids, ProcessChildPIDProbe.bufferSize(forCapacity: count))
+        let actualCount = ProcessChildPIDProbe.returnedCount(actual, capacity: count)
         return Array(pids.prefix(actualCount))
     }
 

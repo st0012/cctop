@@ -266,12 +266,13 @@ final class CodexThreadArchiveLookup {
             return
         }
 
-        if let rolloutFingerprint = archiveState.observedFingerprints[rolloutPath] {
+        let originatorPath = archiveState.existingRolloutPath ?? rolloutPath
+        if let rolloutFingerprint = archiveState.observedFingerprints[originatorPath] {
             trackRolloutFingerprint(rolloutFingerprint, rolloutTracker: &rolloutTracker)
         } else {
-            trackRolloutPath(rolloutPath, rolloutTracker: &rolloutTracker)
+            trackRolloutPath(originatorPath, rolloutTracker: &rolloutTracker)
         }
-        if rolloutOriginator(rolloutPath) == "Codex Desktop" {
+        if rolloutOriginator(originatorPath) == "Codex Desktop" {
             index.execHelperThreadIDs.insert(threadID)
         }
     }

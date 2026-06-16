@@ -20,10 +20,18 @@ extension CodexThreadArchiveLookup {
         if rolloutExists != siblingExists {
             let existingPath = rolloutExists ? rolloutPath : siblingPath
             if let existingPath, isArchivedRolloutPath(existingPath) {
-                return CodexThreadArchiveState(isArchived: true, observedFingerprints: observedFingerprints)
+                return CodexThreadArchiveState(
+                    isArchived: true,
+                    observedFingerprints: observedFingerprints,
+                    existingRolloutPath: existingPath
+                )
             }
             if let existingPath, isActiveRolloutPath(existingPath) {
-                return CodexThreadArchiveState(isArchived: false, observedFingerprints: observedFingerprints)
+                return CodexThreadArchiveState(
+                    isArchived: false,
+                    observedFingerprints: observedFingerprints,
+                    existingRolloutPath: existingPath
+                )
             }
         }
 
@@ -78,4 +86,15 @@ extension CodexThreadArchiveLookup {
 struct CodexThreadArchiveState {
     let isArchived: Bool
     let observedFingerprints: [String: CodexThreadStateRolloutFileFingerprint]
+    let existingRolloutPath: String?
+
+    init(
+        isArchived: Bool,
+        observedFingerprints: [String: CodexThreadStateRolloutFileFingerprint],
+        existingRolloutPath: String? = nil
+    ) {
+        self.isArchived = isArchived
+        self.observedFingerprints = observedFingerprints
+        self.existingRolloutPath = existingRolloutPath
+    }
 }

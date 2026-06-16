@@ -2,6 +2,20 @@ import AppKit
 import Darwin
 import Foundation
 
+enum ProcessChildPIDProbe {
+    static func capacity(fromReportedCount reportedCount: Int32) -> Int {
+        max(0, Int(reportedCount))
+    }
+
+    static func bufferSize(forCapacity capacity: Int) -> Int32 {
+        Int32(clamping: capacity * MemoryLayout<pid_t>.size)
+    }
+
+    static func returnedCount(_ reportedCount: Int32, capacity: Int) -> Int {
+        min(Self.capacity(fromReportedCount: reportedCount), capacity)
+    }
+}
+
 struct CodexDesktopRuntimeProbe {
     struct RunningApp: Equatable {
         let pid: pid_t
@@ -75,12 +89,12 @@ extension CodexDesktopRuntimeProbe {
     }
 
     static func liveChildProcesses(parentPID: pid_t) -> [ProcessSnapshot] {
-        let size = proc_listchildpids(parentPID, nil, 0)
-        guard size > 0 else { return [] }
-        let count = Int(size) / MemoryLayout<pid_t>.size
+        let reportedCount = proc_listchildpids(parentPID, nil, 0)
+        let count = ProcessChildPIDProbe.capacity(fromReportedCount: reportedCount)
+        guard count > 0 else { return [] }
         var pids = [pid_t](repeating: 0, count: count)
-        let actual = proc_listchildpids(parentPID, &pids, size)
-        let actualCount = Int(actual) / MemoryLayout<pid_t>.size
+        let actual = proc_listchildpids(parentPID, &pids, ProcessChildPIDProbe.bufferSize(forCapacity: count))
+        let actualCount = ProcessChildPIDProbe.returnedCount(actual, capacity: count)
         return pids.prefix(actualCount).compactMap { pid in
             guard pid > 0,
                   let details = processDetails(pid: pid) else {

@@ -1840,6 +1840,34 @@ final class SessionFileFormatTests: XCTestCase {
         )
     }
 
+    func testExecHelperThreadIDsUsesPlacedActiveSiblingWhenSQLiteRolloutPathIsArchived() throws {
+        let fixture = try makeCodexArchivePlacementFixture(rootPrefix: "cctop-codex-exec-helper-placement")
+        defer { try? FileManager.default.removeItem(atPath: fixture.root) }
+        try writeCodexThreadState(fixture, sqliteArchived: true, rolloutPlacement: .archived)
+        try executeSQLite(
+            """
+            UPDATE threads
+            SET source = 'exec',
+                has_user_event = 0,
+                first_user_message = 'Review the release diff'
+            WHERE id = \(sqlValue(fixture.threadID));
+            """,
+            path: fixture.stateDB
+        )
+        try writeCodexRollout(.active, in: fixture)
+
+        XCTAssertEqual(
+            CodexThreadArchiveLookup(stateDatabasePath: fixture.stateDB).execHelperThreadIDs(matching: [fixture.threadID]),
+            [fixture.threadID]
+        )
+    }
+
+    func testChildProcessProbeTreatsProcListChildPidsResultAsPIDCount() {
+        XCTAssertEqual(ProcessChildPIDProbe.capacity(fromReportedCount: 1), 1)
+        XCTAssertEqual(ProcessChildPIDProbe.bufferSize(forCapacity: 1), Int32(MemoryLayout<pid_t>.size))
+        XCTAssertEqual(ProcessChildPIDProbe.returnedCount(1, capacity: 1), 1)
+    }
+
     func testArchivePlacementStateCarriesFingerprintsUsedForDecision() throws {
         let fixture = try makeCodexArchivePlacementFixture(rootPrefix: "cctop-codex-placement-fingerprint")
         defer { try? FileManager.default.removeItem(atPath: fixture.root) }
