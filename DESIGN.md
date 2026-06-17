@@ -85,7 +85,7 @@ variants. The Swift app exposes them via the semantic token API in
 | Panel material     | `panelMaterialOverlay`                                     | Subtle material wash over the panel base         |
 | Panel chrome bg    | `panelControlBackground`                                   | Header, tabs, footer, small controls             |
 | Panel chrome border| `panelControlBorder`                                       | Hairline separators in panel chrome              |
-| Panel selection    | `panelSelectionBackground`                                 | Rounded row/tab/gear hover selection             |
+| Panel selection    | `panelSelectionBackground` + `panelAccentBorder`           | Flat rounded row/tab/control selection           |
 | Grouped content    | `groupedContentBackground`                                 | Sunk background for secondary grouped views      |
 | Grouped row        | `groupedRowBackground`                                     | Settings grouped row surface                     |
 | Grouped row border | `groupedRowBorder`                                         | Group outline and inner separators               |
@@ -104,16 +104,18 @@ working session.
 
 | Role               | Dark      | Light     |
 |--------------------|-----------|-----------|
-| accent             | `#D97757` | `#D97757` |
+| accent             | `#C15F3C` | `#C15F3C` |
 | statusPermission   | `#DD5353` | `#DD5353` |
-| statusAttention    | `#D97757` | `#D97757` |
+| statusAttention    | `#C15F3C` | `#C15F3C` |
 | statusGreen        | `#7EAA6E` | `#4A8238` |
-| textPrimary        | `#E8E6DC` | `#141413` |
-| textSecondary      | `#C4C2B9` | `#30302E` |
-| textMuted          | `#87867F` | `#76746D` |
-| textDimmed         | `#87867F` | `#76746D` |
-| panelBackground    | `#262624` | `#E8E6DC` |
-| statusIdle         | `#87867F` | `#87867F` |
+| textPrimary        | `#F4F3EE` | `#141413` |
+| textSecondary      | `#B1ADA1` | `#30302E` |
+| textMuted          | `#938F84` | `#68645D` |
+| textDimmed         | `#938F84` | `#68645D` |
+| panelBackground    | `#262624` | `#F4F3EE` |
+| statusIdle         | `#B1ADA1` | `#68645D` |
+| panelSelection     | `#333230` | `#ECEAE3` |
+| panelAccentBorder  | `#4B4843` | `#D0CCC1` |
 | agentBadge         | `#A256C8` | `#7A3580` |
 | opencodeBadge      | `#5C8AB8` | `#2D5A82` |
 | piBadge            | `#6EAEA8` | `#346B66` |
@@ -307,7 +309,7 @@ glance at it from peripheral vision.
 | **Row 2 — meta (Desktop)**| `desktopProjectName · source`. Folder + branch are dropped because Desktop sessions often run in auto-generated worktree dirs (`focused-dirac-1baeb9`); project name is 11.5 px medium `textSecondary`, source is quiet metadata. |
 | **Row 3 — working**       | Monospace command stripe with `›` prompt (`statusGreen` @ 0.7) + `Session.contextLine`; no blinking caret. |
 | **Row 3 — waiting**       | 10.5 px `textSecondary` note: `notificationMessage ?? contextLine ?? "Waiting for input"`. Permission notes remain 11 px italic `statusAttention`. |
-| Selected / hover          | `cardSelectionStyle` uses `panelSelectionBackground`, `AppChrome.selectionCornerRadius`, and a 6 px horizontal inset. No shadow, no left accent bar. |
+| Selected / hover          | `cardSelectionStyle` uses the shared flat selection surface, `AppChrome.selectionCornerRadius`, and a 6 px horizontal inset. No left accent bar. |
 | Source badge visibility   | Shown only when `Set(sessions.map(\.agentBadge)).count > 1` (keyed on `agentBadge`, not `sourceLabel`, so CC + Claude Desktop counts as multiple sources) |
 
 #### Source badge (`SourceBadgeView.swift`) — six variants
@@ -367,7 +369,7 @@ Always black, regardless of theme — it's OS chrome that meets the camera notch
 | Label            | 10 px medium                                         |
 | Inner padding    | 8 px horizontal · 3 px vertical                      |
 | Outer fill       | `panelControlBackground` with `panelControlBorder` hairline |
-| Active fill      | `panelSelectionBackground`                           |
+| Active fill      | Shared flat selection surface                        |
 | Hover fill       | `panelControlBackground`                             |
 | Active text      | `segmentActiveText` (= `textPrimary`)                |
 | Inactive text    | `segmentText` (= `textMuted`)                        |
@@ -385,9 +387,10 @@ Always black, regardless of theme — it's OS chrome that meets the camera notch
 
 ### Tab button (Active / Idle / Recent)
 
-Selected tab uses `panelSelectionBackground`; hover uses
-`panelControlBackground`. Counts render in a small neutral chrome badge so the
-tab label stays calm and readable. 6 px horizontal padding between tabs.
+Selected tab uses the shared flat selection surface; hover uses
+`panelControlBackground`. Counts render as plain text inside the selected
+capsule so the tab label stays calm and readable. 6 px horizontal padding
+between tabs.
 
 ### Settings grouped list
 
@@ -764,7 +767,7 @@ cctop-consistent UI.
 
 | Theme        | Dark accent | Dark bg   | Dark fg   | Light accent | Light bg  | Light fg  |
 |--------------|-------------|-----------|-----------|--------------|-----------|-----------|
-| Claude       | `#D97757`   | `#262624` | `#E8E6DC` | `#D97757`    | `#E8E6DC` | `#141413` |
+| Claude       | `#C15F3C`   | `#262624` | `#F4F3EE` | `#C15F3C`    | `#F4F3EE` | `#141413` |
 | Tokyo Night  | `#F7768E`   | `#1A1B26` | `#C0CAF5` | `#2959AA`    | `#E6E7ED` | `#343B59` |
 | Gruvbox      | `#FE8019`   | `#282828` | `#EBDBB2` | `#AF3A03`    | `#FBF1C7` | `#3C3836` |
 | Nord         | `#BF616A`   | `#2E3440` | `#ECEFF4` | `#BF616A`    | `#ECEFF4` | `#2E3440` |
