@@ -111,17 +111,10 @@ extension Color {
         })
     }
 
-    /// Accent-tinted hairline used for Option A selected surfaces and panel rim.
+    /// Hairline used for selected surfaces and the panel rim.
     static var panelAccentBorder: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             ThemeManager.shared.current.panelAccentBorder.resolve(appearance)
-        })
-    }
-
-    /// Faint top light layered over selected controls.
-    static var selectionHighlightOverlay: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            ThemeManager.shared.current.selectionHighlightOverlay.resolve(appearance)
         })
     }
 

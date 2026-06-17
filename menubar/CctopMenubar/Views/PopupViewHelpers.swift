@@ -58,19 +58,10 @@ struct SelectionSurfaceChrome: View {
         ZStack {
             if isSelected {
                 shape.fill(Color.panelSelectionBackground)
-                shape.fill(selectionHighlight)
             } else if isHovered {
                 shape.fill(hoverColor)
             }
         }
-    }
-
-    private var selectionHighlight: LinearGradient {
-        LinearGradient(
-            colors: [Color.selectionHighlightOverlay, Color.clear],
-            startPoint: .top,
-            endPoint: .bottom
-        )
     }
 }
 
@@ -181,10 +172,6 @@ struct TabButtonView: View {
                 Text("\(count)")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color.panelControlBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 4)

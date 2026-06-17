@@ -96,7 +96,6 @@ final class ThemeManagerTests: XCTestCase {
                     theme.panelControlBackground,
                     theme.panelControlBorder,
                     theme.panelAccentBorder,
-                    theme.selectionHighlightOverlay,
                     theme.panelSelectionBackground,
                     theme.groupedContentBackground,
                     theme.groupedRowBackground,
