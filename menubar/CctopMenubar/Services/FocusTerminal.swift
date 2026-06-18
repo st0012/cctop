@@ -10,8 +10,8 @@ enum FocusStrategy: Equatable {
     case iTerm2(guid: String)
     /// Focus a Kitty window via remote control socket, with bundle ID fallback.
     case kitty(socket: String, windowId: String, binaryPath: String)
-    /// Focus a Ghostty terminal by matching its working directory, with a bundle ID fallback.
-    case ghostty(workingDirectory: String)
+    /// Focus a Ghostty terminal by marking its TTY cwd, with a working-directory fallback.
+    case ghostty(GhosttyFocusTarget)
     /// Focus an Apple Terminal tab by its tty (e.g. /dev/ttys003), with a bundle ID fallback.
     case appleTerminal(tty: String)
     /// Activate a running app by its localized name.
@@ -22,6 +22,12 @@ enum FocusStrategy: Equatable {
     case openURL(URL)
     /// Open a path in Finder.
     case openInFinder(String)
+}
+
+struct GhosttyFocusTarget: Equatable {
+    let tty: String?
+    let matchDirectory: String
+    let restoreDirectory: String?
 }
 
 /// Resolve which strategy to use for jumping to a session.
@@ -83,7 +89,7 @@ func resolveFocusStrategy(session: Session, multiplexerOverride: MultiplexerInfo
     }
 
     if hostApp == .ghostty {
-        return .ghostty(workingDirectory: session.projectPath)
+        return .ghostty(ghosttyFocusTarget(for: session))
     }
 
     // Apple Terminal → AppleScript to focus the specific tab by tty.
@@ -111,9 +117,6 @@ func focusTerminal(session: Session) {
     let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
     let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride)
     let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride)
-    if case .ghostty(let cwd) = strategy, let tty = session.terminal?.tty {
-        primeGhosttyCWD(tty: tty, workingDirectory: cwd)
-    }
     executeFocusStrategy(strategy)
     if let mux = muxStrategy {
         DispatchQueue.global(qos: .userInitiated).async {
@@ -145,8 +148,8 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
             executeKittyFocusWindow(binaryPath: binaryPath, socket: socket, windowId: windowId)
         }
 
-    case .ghostty(let workingDirectory):
-        runScriptOrActivate(.ghostty) { executeGhosttyFocusScript(workingDirectory: workingDirectory) }
+    case .ghostty(let target):
+        executeGhosttyFocus(target: target)
 
     case .appleTerminal(let tty):
         runScriptOrActivate(.terminal) { executeAppleTerminalScript(tty: tty) }
@@ -184,6 +187,13 @@ private func runAppleScript(_ source: String) -> Bool {
     var error: NSDictionary?
     NSAppleScript(source: source)?.executeAndReturnError(&error)
     return error == nil
+}
+
+private func runAppleScriptReturningBool(_ source: String) -> Bool {
+    var error: NSDictionary?
+    let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
+    guard error == nil else { return false }
+    return result?.booleanValue ?? false
 }
 
 private func executeITerm2Script(guid: String) -> Bool {
@@ -239,15 +249,13 @@ private func executeAppleTerminalScript(tty: String) -> Bool {
 // MARK: - Ghostty AppleScript
 // Ghostty 1.3.0+ exposes an AppleScript API (windows → tabs → terminals).
 // Each `terminal` (= one split/pane) has `id`, `name`, `working directory`.
-// No env var carries the terminal id into the shell yet, so we match on cwd —
-// best-effort: ambiguous when multiple Ghostty splits share the same cwd
-// (picks first), and breaks if the user `cd`s elsewhere after session start.
+// No env var carries the terminal id into the shell yet, so we write a temporary
+// OSC 7 cwd marker to the target TTY, match that marker over AppleScript, then
+// restore the real cwd. This avoids the same-repo ambiguity of raw cwd matching.
 //
-// Before running the AppleScript we write an OSC 7 cwd report directly to the
-// session's TTY (captured at hook time, e.g. /dev/ttys011). Ghostty parses OSC 7
-// off the PTY master and updates `working directory of term`. This makes the
-// match deterministic even when the shell never emits OSC 7 itself (e.g. when
-// Ghostty's shell integration isn't loaded by a wrapper-launched shell).
+// If the TTY is unavailable or closed, we fall back to raw cwd matching. That is
+// still best-effort: ambiguous when multiple Ghostty splits share the same cwd
+// (picks first), and breaks if the user `cd`s elsewhere after session start.
 //
 // We walk windows → tabs → terminals (instead of `every terminal whose …`) so
 // we keep a reference to the parent window, then call `activate window` on it
@@ -277,25 +285,98 @@ func buildOSC7CWD(host: String, workingDirectory: String) -> String {
     return "\u{1B}]7;file://\(host)\(encoded)\u{07}"
 }
 
-private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
+func ghosttyFocusTarget(for session: Session, temporaryDirectory: String = NSTemporaryDirectory()) -> GhosttyFocusTarget {
+    guard let tty = session.terminal?.tty,
+          tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil else {
+        return GhosttyFocusTarget(tty: nil, matchDirectory: session.projectPath, restoreDirectory: nil)
+    }
+    let sessionComponent = sanitizedGhosttyFocusComponent(session.sessionId)
+    let ttyComponent = sanitizedGhosttyFocusComponent(URL(fileURLWithPath: tty).lastPathComponent)
+    let markerName = "cctop-ghostty-focus-\(sessionComponent)-\(ttyComponent)"
+    let marker = URL(fileURLWithPath: temporaryDirectory, isDirectory: true)
+        .appendingPathComponent(markerName, isDirectory: true)
+        .path
+    return GhosttyFocusTarget(tty: tty, matchDirectory: marker, restoreDirectory: session.projectPath)
+}
+
+private func sanitizedGhosttyFocusComponent(_ value: String) -> String {
+    let sanitized = Session.sanitizeSessionId(raw: value)
+    return sanitized.isEmpty ? "session" : sanitized
+}
+
+private func executeGhosttyFocus(target: GhosttyFocusTarget) {
+    guard let tty = target.tty,
+          let restoreDirectory = target.restoreDirectory else {
+        runScriptOrActivate(.ghostty) {
+            executeGhosttyFocusScript(workingDirectory: target.matchDirectory)
+        }
+        return
+    }
+
+    let markerCreated: Bool
+    do {
+        try FileManager.default.createDirectory(
+            atPath: target.matchDirectory,
+            withIntermediateDirectories: true
+        )
+        markerCreated = true
+    } catch {
+        markerCreated = false
+    }
+
+    let canUseMarker = markerCreated && primeGhosttyCWD(tty: tty, workingDirectory: target.matchDirectory)
+    defer {
+        if canUseMarker {
+            _ = primeGhosttyCWD(tty: tty, workingDirectory: restoreDirectory)
+        }
+        if markerCreated {
+            try? FileManager.default.removeItem(atPath: target.matchDirectory)
+        }
+    }
+
+    runScriptOrActivate(.ghostty) {
+        for directory in ghosttyFocusCandidateDirectories(target: target, markerPrimed: canUseMarker)
+        where executeGhosttyFocusScript(workingDirectory: directory) {
+            return true
+        }
+        return false
+    }
+}
+
+func ghosttyFocusCandidateDirectories(target: GhosttyFocusTarget, markerPrimed: Bool) -> [String] {
+    guard let restoreDirectory = target.restoreDirectory else {
+        return [target.matchDirectory]
+    }
+    return markerPrimed ? [target.matchDirectory, restoreDirectory] : [restoreDirectory]
+}
+
+func buildGhosttyFocusScript(workingDirectory: String) -> String {
     let escaped = escapeAppleScriptString(workingDirectory)
-    return runAppleScript("""
+    return """
     tell application "Ghostty"
         activate
-        repeat with w in windows
-            repeat with t in tabs of w
-                repeat with term in terminals of t
-                    if working directory of term is "\(escaped)" then
-                        activate window w
-                        select tab t
-                        focus term
-                        return
-                    end if
+        repeat 5 times
+            repeat with w in windows
+                repeat with t in tabs of w
+                    repeat with term in terminals of t
+                        if working directory of term is "\(escaped)" then
+                            activate window w
+                            select tab t
+                            focus term
+                            return true
+                        end if
+                    end repeat
                 end repeat
             end repeat
+            delay 0.05
         end repeat
+        return false
     end tell
-    """)
+    """
+}
+
+private func executeGhosttyFocusScript(workingDirectory: String) -> Bool {
+    runAppleScriptReturningBool(buildGhosttyFocusScript(workingDirectory: workingDirectory))
 }
 
 /// Host for the OSC 7 reports written by `primeGhosttyCWD`. Ghostty treats a cwd
@@ -309,18 +390,23 @@ let ghosttyOSC7PrimingHost = "localhost"
 /// Bytes written to the slave (`/dev/ttysNNN`) appear on the PTY master where Ghostty
 /// parses them; the shell does not see them. Best-effort — silently no-ops if the TTY
 /// has closed (session just ended).
-private func primeGhosttyCWD(tty: String, workingDirectory: String) {
+private func primeGhosttyCWD(tty: String, workingDirectory: String) -> Bool {
     // Allow only PTY slaves (`/dev/ttys<digits>`) — that's the only shape
     // cctop-hook captures from `ps -o tty=`. This rejects /dev/cu.*, /dev/console,
     // and arbitrary file paths a tampered session JSON might supply.
-    guard tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil else { return }
+    guard tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil else { return false }
     guard let attrs = try? FileManager.default.attributesOfItem(atPath: tty),
-          (attrs[.type] as? FileAttributeType) == .typeCharacterSpecial else { return }
+          (attrs[.type] as? FileAttributeType) == .typeCharacterSpecial else { return false }
     let osc = buildOSC7CWD(host: ghosttyOSC7PrimingHost, workingDirectory: workingDirectory)
-    guard let data = osc.data(using: .utf8) else { return }
-    guard let handle = FileHandle(forWritingAtPath: tty) else { return }
+    guard let data = osc.data(using: .utf8) else { return false }
+    guard let handle = FileHandle(forWritingAtPath: tty) else { return false }
     defer { try? handle.close() }
-    try? handle.write(contentsOf: data)
+    do {
+        try handle.write(contentsOf: data)
+        return true
+    } catch {
+        return false
+    }
 }
 
 // MARK: - Kitty Remote Control

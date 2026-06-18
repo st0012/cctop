@@ -65,7 +65,7 @@ When you click a session card (or jump via Navigate mode), cctop focuses the hos
 | iTerm2 | Targets the specific window, tab, and pane |
 | cmux | Targets the specific workspace surface, including already-running sessions when live cmux metadata is available |
 | Kitty | Targets the specific window via remote control |
-| Ghostty | Targets a terminal whose working directory matches the project (best-effort) |
+| Ghostty | Targets the specific terminal via AppleScript and TTY priming |
 | Terminal | Targets the specific tab by tty |
 | Codex Desktop | Targets the specific thread |
 | Claude Desktop, Warp | Activates the app (no per-tab targeting) |
@@ -83,9 +83,10 @@ When you click a session card (or jump via Navigate mode), cctop focuses the hos
 > `cmux://` navigation URL for exact surface focus, with a CLI `focus-surface`
 > fallback for cmux reference IDs.
 >
-> Ghostty requires version 1.3.0+ for AppleScript support. Because Ghostty does not
-> yet expose a per-surface env var inside the shell, cctop matches by working
-> directory — ambiguous when multiple Ghostty splits share the same cwd.
+> Ghostty requires version 1.3.0+ for AppleScript support. When a session TTY is
+> available, cctop writes a temporary OSC 7 cwd marker to that TTY, focuses the
+> matching terminal via AppleScript, then restores the real cwd. If the TTY is
+> missing or closed, cctop falls back to working-directory matching.
 >
 > Apple Terminal targeting works when the shell runs directly in a tab. Inside a
 > multiplexer (tmux, screen) the captured tty is the multiplexer pane's pty, not

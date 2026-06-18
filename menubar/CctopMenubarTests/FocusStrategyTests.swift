@@ -164,10 +164,14 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .activateByName("warp"))
     }
 
-    func testGhosttyUsesAppleScriptWithWorkingDirectory() {
+    func testGhosttyWithoutTTYUsesWorkingDirectoryFallback() {
         let session = makeSession(program: "Ghostty")
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .ghostty(workingDirectory: projectPath))
+        XCTAssertEqual(strategy, .ghostty(GhosttyFocusTarget(
+            tty: nil,
+            matchDirectory: projectPath,
+            restoreDirectory: nil
+        )))
     }
 
     func testGhosttyDetectedByBundleIdWhenProgramDiffers() {
@@ -175,7 +179,78 @@ final class FocusStrategyTests: XCTestCase {
         // say "ghostty", but __CFBundleIdentifier still does.
         let session = makeSession(program: "tmux", bundleId: "com.mitchellh.ghostty")
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .ghostty(workingDirectory: projectPath))
+        XCTAssertEqual(strategy, .ghostty(GhosttyFocusTarget(
+            tty: nil,
+            matchDirectory: projectPath,
+            restoreDirectory: nil
+        )))
+    }
+
+    func testGhosttyWithTTYUsesUniqueFocusMarker() {
+        let session = makeSession(
+            program: "Ghostty",
+            tty: "/dev/ttys017",
+            sessionUuid: "48c55601-9de1-4fbb-a24d-5d72bf3434fc"
+        )
+
+        let target = ghosttyFocusTarget(for: session, temporaryDirectory: "/tmp/")
+
+        XCTAssertEqual(
+            target,
+            GhosttyFocusTarget(
+                tty: "/dev/ttys017",
+                matchDirectory: "/tmp/cctop-ghostty-focus-48c55601-9de1-4fbb-a24d-5d72bf3434fc-ttys017",
+                restoreDirectory: projectPath
+            )
+        )
+
+        let defaultTarget = ghosttyFocusTarget(for: session)
+        XCTAssertEqual(resolveFocusStrategy(session: session), .ghostty(defaultTarget))
+    }
+
+    func testGhosttyWithTTYFallsBackToProjectDirectoryWhenMarkerDoesNotMatch() {
+        let target = GhosttyFocusTarget(
+            tty: "/dev/ttys017",
+            matchDirectory: "/tmp/cctop-ghostty-focus-session-ttys017",
+            restoreDirectory: projectPath
+        )
+
+        XCTAssertEqual(
+            ghosttyFocusCandidateDirectories(target: target, markerPrimed: true),
+            ["/tmp/cctop-ghostty-focus-session-ttys017", projectPath]
+        )
+        XCTAssertEqual(
+            ghosttyFocusCandidateDirectories(target: target, markerPrimed: false),
+            [projectPath]
+        )
+    }
+
+    func testGhosttyWithInvalidTTYFallsBackToProjectDirectory() {
+        let session = makeSession(
+            program: "Ghostty",
+            tty: #"/tmp/ttys017"oops"#,
+            sessionUuid: "48c55601-9de1-4fbb-a24d-5d72bf3434fc"
+        )
+
+        let target = ghosttyFocusTarget(for: session, temporaryDirectory: "/tmp/")
+
+        XCTAssertEqual(
+            target,
+            GhosttyFocusTarget(
+                tty: nil,
+                matchDirectory: projectPath,
+                restoreDirectory: nil
+            )
+        )
+        XCTAssertEqual(resolveFocusStrategy(session: session), .ghostty(target))
+    }
+
+    func testGhosttyFocusScriptReturnsFalseWhenNoTerminalMatches() {
+        let script = buildGhosttyFocusScript(workingDirectory: "/Users/test/projects/myapp")
+
+        XCTAssertTrue(script.contains("return true"))
+        XCTAssertTrue(script.contains("return false"))
+        XCTAssertTrue(script.contains("delay 0.05"))
     }
 
     // MARK: - AppleScript path escaping
