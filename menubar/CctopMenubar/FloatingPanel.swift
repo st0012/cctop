@@ -9,7 +9,7 @@ class FloatingPanel: NSPanel {
     weak var panelDelegate: FloatingPanelDelegate?
     /// Height of the header drag zone (matches HeaderView padding + content).
     private let headerDragHeight: CGFloat = 44
-    static let defaultCollectionBehavior: NSWindow.CollectionBehavior = [.moveToActiveSpace]
+    static let defaultCollectionBehavior: NSWindow.CollectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
 
     enum HeaderClickAction: Equatable {
         case resetPosition

@@ -617,6 +617,7 @@ final class PanelLifecycleTests: XCTestCase {
 
     func testFloatingPanelMovesToActiveSpaceWhenOrderedFront() {
         XCTAssertTrue(FloatingPanel.defaultCollectionBehavior.contains(.moveToActiveSpace))
+        XCTAssertTrue(FloatingPanel.defaultCollectionBehavior.contains(.fullScreenAuxiliary))
         XCTAssertFalse(FloatingPanel.defaultCollectionBehavior.contains(.canJoinAllSpaces))
     }
 
