@@ -316,15 +316,6 @@ extension SessionManager {
         }
     }
 
-    /// Batch snapshot for the display path. This mirrors the Codex behavior: archive metadata read
-    /// uncertainty fails OPEN because this path never deletes files.
-    nonisolated static func archivedClaudeDesktopSessionIDs(
-        in sessions: [Session],
-        claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup()
-    ) -> Set<String> {
-        claudeDesktopMetadataSnapshot(in: sessions, claudeDesktopSessions: claudeDesktopSessions)?.archivedSessionIDs ?? []
-    }
-
     nonisolated static func claudeDesktopMetadataSnapshot(
         in sessions: [Session],
         claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup()
@@ -464,16 +455,6 @@ extension SessionManager {
             codexThreads: codexThreads,
             processAlive: processAlive
         )
-    }
-
-    nonisolated static func desktopProjectNamesBySessionID(
-        in sessions: [Session],
-        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
-        claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup()
-    ) -> [String: String] {
-        let claudeSessionIDs = Set(sessions.filter(\.isClaudeDesktopHost).map(\.sessionId))
-        let claudeMetadata = claudeDesktopSessions.metadataSnapshot(matching: claudeSessionIDs)
-        return desktopProjectNamesBySessionID(in: sessions, claudeMetadata: claudeMetadata, codexThreads: codexThreads)
     }
 
     nonisolated static func desktopProjectNamesBySessionID(

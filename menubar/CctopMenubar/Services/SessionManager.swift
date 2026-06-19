@@ -50,15 +50,6 @@ class SessionManager: ObservableObject {
         }
     }
 
-    convenience init(
-        historyManager: HistoryManager,
-        desktopAppConnectionLookup: DesktopAppConnectionLookup
-    ) {
-        var dataSources = SessionDataSources.live()
-        dataSources.desktopAppConnection = desktopAppConnectionLookup
-        self.init(historyManager: historyManager, dataSources: dataSources)
-    }
-
     func loadSessions() {
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: sessionsDir,

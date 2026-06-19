@@ -8,11 +8,6 @@ private func previewBasePM() -> PluginManager {
 }
 
 @MainActor
-private class MockUpdater: UpdaterBase {
-    override var canCheckForUpdates: Bool { true }
-}
-
-@MainActor
 private func previewPM() -> PluginManager {
     let pm = previewBasePM()
     pm.ccInstalled = true
