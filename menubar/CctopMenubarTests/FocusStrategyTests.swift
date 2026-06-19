@@ -326,11 +326,12 @@ final class FocusStrategyTests: XCTestCase {
         // Codex's URL handler routes codex://threads/<uuid> to the conversation
         // and rejects anything that's not a canonical UUID — we mirror that check.
         let uuid = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        let bundleID = HostApp.codexDesktop.bundleID!
         let session = makeSession(
-            program: "", bundleId: HostApp.codexDesktop.bundleID!, sessionUuid: uuid
+            program: "", bundleId: bundleID, sessionUuid: uuid
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .openURL(URL(string: "codex://threads/\(uuid)")!))
+        XCTAssertEqual(strategy, .openURL(URL(string: "codex://threads/\(uuid)")!, restoreBundleID: bundleID))
     }
 
     func testCodexDesktopFallsBackToActivateWhenSessionIdNotUUID() {

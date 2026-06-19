@@ -29,6 +29,11 @@ final class MultiplexerFocusTests: XCTestCase {
             expectedURL
         )
         XCTAssertEqual(resolveFocusStrategy(session: session), .openURL(expectedURL))
+        if case .openURL(_, let restoreBundleID) = resolveFocusStrategy(session: session) {
+            XCTAssertNil(restoreBundleID)
+        } else {
+            XCTFail("Expected cmux navigation URL strategy")
+        }
         XCTAssertNil(resolveMultiplexerFocus(session: session))
     }
 

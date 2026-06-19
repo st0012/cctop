@@ -18,8 +18,8 @@ enum FocusStrategy: Equatable {
     case activateByName(String)
     /// Activate a running app by its bundle identifier.
     case activateByBundleID(String)
-    /// Open an app-specific deep link URL (e.g. claude://resume?session=...).
-    case openURL(URL)
+    /// Open an app-specific deep link URL (e.g. codex://threads/...), optionally restoring the target app first.
+    case openURL(URL, restoreBundleID: String? = nil)
     /// Open a path in Finder.
     case openInFinder(String)
 }
@@ -60,7 +60,7 @@ func resolveFocusStrategy(session: Session, multiplexerOverride: MultiplexerInfo
     // Falls through to bundle-ID activation below if the session ID isn't a
     // valid UUID, so the user still gets the app focused.
     if let url = hostApp.sessionDeepLink(sessionId: session.sessionId) {
-        return .openURL(url)
+        return .openURL(url, restoreBundleID: hostApp.bundleID)
     }
 
     // Editors with a known bundle ID → open the project with that app.
@@ -160,8 +160,12 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
     case .activateByBundleID(let bundleID):
         activateAppByBundleID(bundleID)
 
-    case .openURL(let url):
-        NSWorkspace.shared.open(url)
+    case .openURL(let url, let restoreBundleID):
+        if let restoreBundleID {
+            restoreAppAndOpenURL(bundleID: restoreBundleID, url: url)
+        } else {
+            NSWorkspace.shared.open(url)
+        }
 
     case .openInFinder(let path):
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
@@ -477,8 +481,7 @@ private func activateAppByBundleID(_ bundleID: String) -> Bool {
     }) else {
         return false
     }
-    app.activate()
-    return true
+    return restoreAndActivate(app)
 }
 
 @discardableResult
@@ -488,6 +491,5 @@ private func activateAppByName(_ program: String) -> Bool {
     }) else {
         return false
     }
-    app.activate()
-    return true
+    return restoreAndActivate(app)
 }
