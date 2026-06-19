@@ -20,10 +20,14 @@ struct PanelState: Equatable {
 // MARK: - Events & Actions
 
 enum PanelEvent {
-    case menubarIconClicked(appIsActive: Bool, onDifferentScreen: Bool = false)
+    case menubarIconClicked(
+        appIsActive: Bool,
+        onDifferentScreen: Bool = false,
+        panelVisibleInActiveSpace: Bool = true
+    )
     case escape
     case appLostFocus
-    case navigateShortcut
+    case navigateShortcut(panelVisibleInActiveSpace: Bool = true)
     case navigateConfirmed
     case navigateTimedOut
     case navKey(PanelNavAction)
@@ -87,13 +91,32 @@ struct PanelCoordinator {
 
         // MARK: normal
 
-        case (.normal, .menubarIconClicked(_, onDifferentScreen: true)):
+        case (.normal, .menubarIconClicked(
+            appIsActive: _,
+            onDifferentScreen: _,
+            panelVisibleInActiveSpace: false
+        )):
+            return Result(
+                state: PanelState(mode: .normal),
+                actions: [.captureApps, .showPanel, .activateApp, .startNavKeyMonitor,
+                          .postNavAction(.reset)]
+            )
+
+        case (.normal, .menubarIconClicked(
+            appIsActive: _,
+            onDifferentScreen: true,
+            panelVisibleInActiveSpace: true
+        )):
             return Result(
                 state: PanelState(mode: .normal),
                 actions: [.positionPanel, .activateApp]
             )
 
-        case (.normal, .menubarIconClicked(let appIsActive, onDifferentScreen: false)):
+        case (.normal, .menubarIconClicked(
+            appIsActive: let appIsActive,
+            onDifferentScreen: false,
+            panelVisibleInActiveSpace: true
+        )):
             var actions: [PanelAction] = [.dismissPanel]
             if appIsActive { actions.append(.restorePreviousApp) }
             return Result(
@@ -107,7 +130,15 @@ struct PanelCoordinator {
         case (.normal, .appLostFocus):
             return Result(state: state, actions: [])
 
-        case (.normal, .navigateShortcut):
+        case (.normal, .navigateShortcut(panelVisibleInActiveSpace: false)):
+            let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: true))
+            return Result(
+                state: PanelState(mode: mode),
+                actions: [.showPanel, .activateApp, .startNavKeyMonitor,
+                          .startNavigateMode(panelWasClosed: true)]
+            )
+
+        case (.normal, .navigateShortcut(panelVisibleInActiveSpace: true)):
             let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: false))
             return Result(
                 state: PanelState(mode: mode),
@@ -122,7 +153,11 @@ struct PanelCoordinator {
 
         // MARK: navigate
 
-        case (.navigate, .menubarIconClicked(_, onDifferentScreen: true)):
+        case (.navigate, .menubarIconClicked(
+            appIsActive: _,
+            onDifferentScreen: true,
+            panelVisibleInActiveSpace: _
+        )):
             if case .navigate(let origin) = state.mode, !origin.panelWasClosed {
                 return Result(
                     state: PanelState(mode: .normal),

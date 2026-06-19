@@ -21,7 +21,7 @@ final class PanelCoordinatorTests: XCTestCase {
     }
 
     func testHidden_navigateShortcut() {
-        let r = handle(.navigateShortcut, mode: .hidden)
+        let r = handle(.navigateShortcut(), mode: .hidden)
         if case .navigate(let origin) = r.state.mode {
             XCTAssertTrue(origin.panelWasClosed)
         } else {
@@ -68,6 +68,23 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertTrue(r.actions.contains(.dismissPanel))
     }
 
+    func testNormal_menubarClickWhenPanelIsNotVisibleOnActiveSpace_showsInsteadOfDismissing() {
+        let r = handle(
+            .menubarIconClicked(
+                appIsActive: false,
+                onDifferentScreen: false,
+                panelVisibleInActiveSpace: false
+            ),
+            mode: .normal
+        )
+
+        XCTAssertEqual(r.state.mode, .normal)
+        XCTAssertTrue(r.actions.contains(.showPanel))
+        XCTAssertTrue(r.actions.contains(.activateApp))
+        XCTAssertTrue(r.actions.contains(.captureApps))
+        XCTAssertFalse(r.actions.contains(.dismissPanel))
+    }
+
     func testNormal_escape_postsEscapeAction() {
         let r = handle(.escape, mode: .normal)
         XCTAssertEqual(r.state.mode, .normal)
@@ -81,13 +98,28 @@ final class PanelCoordinatorTests: XCTestCase {
     }
 
     func testNormal_navigateShortcut() {
-        let r = handle(.navigateShortcut, mode: .normal)
+        let r = handle(.navigateShortcut(), mode: .normal)
         if case .navigate(let origin) = r.state.mode {
             XCTAssertFalse(origin.panelWasClosed)
         } else {
             XCTFail("Expected navigate mode")
         }
         XCTAssertTrue(r.actions.contains(.startNavigateMode(panelWasClosed: false)))
+    }
+
+    func testNormal_navigateShortcutWhenPanelIsNotVisibleOnActiveSpace_treatsPanelAsClosed() {
+        let r = handle(.navigateShortcut(panelVisibleInActiveSpace: false), mode: .normal)
+
+        if case .navigate(let origin) = r.state.mode {
+            XCTAssertTrue(origin.panelWasClosed)
+        } else {
+            XCTFail("Expected navigate mode")
+        }
+
+        XCTAssertTrue(r.actions.contains(.showPanel))
+        XCTAssertTrue(r.actions.contains(.activateApp))
+        XCTAssertTrue(r.actions.contains(.startNavKeyMonitor))
+        XCTAssertTrue(r.actions.contains(.startNavigateMode(panelWasClosed: true)))
     }
 
     func testNormal_navKey_forwards() {

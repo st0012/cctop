@@ -86,8 +86,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @MainActor private func registerShortcuts() {
         KeyboardShortcuts.onKeyUp(for: .togglePanel) { [weak self] in self?.togglePanel() }
         KeyboardShortcuts.onKeyUp(for: .navigate) { [weak self] in
-            self?.focusLocation = NSEvent.mouseLocation
-            self?.handleEvent(.navigateShortcut)
+            guard let self else { return }
+            self.focusLocation = NSEvent.mouseLocation
+            self.handleEvent(.navigateShortcut(panelVisibleInActiveSpace: self.panelVisibleInActiveSpace))
         }
         navigateController.didConfirmSubject
             .receive(on: RunLoop.main)
@@ -188,7 +189,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             return clickKey != currentKey
         }()
 
-        handleEvent(.menubarIconClicked(appIsActive: NSApp.isActive, onDifferentScreen: onDifferentScreen))
+        handleEvent(.menubarIconClicked(
+            appIsActive: NSApp.isActive,
+            onDifferentScreen: onDifferentScreen,
+            panelVisibleInActiveSpace: panelVisibleInActiveSpace
+        ))
+    }
+
+    @MainActor private var panelVisibleInActiveSpace: Bool {
+        panel.isVisible && panel.isOnActiveSpace
     }
 
     /// Whether the status item is hidden behind the notch.
