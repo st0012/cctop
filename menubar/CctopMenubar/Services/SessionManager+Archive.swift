@@ -160,7 +160,9 @@ extension SessionManager {
                 && !isCodexSubagentSession($0.session, subagentThreadIDs: codexSubagentThreadIDs)
                 && !isCodexExecHelperSession($0.session, execHelperThreadIDs: codexExecHelperThreadIDs)
                 && !isArchivedClaudeDesktopSession($0.session, archivedSessionIDs: archivedClaudeSessionIDs)
+                // Claude Desktop `SessionEnd` is worker/session termination, not archive; matched metadata stays resumable.
                 && !isOrphanedEndedClaudeDesktopSession($0.session, metadataSnapshot: claudeMetadata)
+                && !isClaudeDesktopStartupPlaceholder($0.session, metadataSnapshot: claudeMetadata)
         }
         return SessionVisibilitySnapshot(
             archivedCodexThreadIDs: archivedCodexThreadIDs,
@@ -346,6 +348,25 @@ extension SessionManager {
             return false
         }
         return metadataSnapshot?.matchedSessionIDs.contains(session.sessionId) == false
+    }
+
+    nonisolated static func isClaudeDesktopStartupPlaceholder(_ session: Session, metadataSnapshot: ClaudeDesktopSessionMetadataSnapshot?) -> Bool {
+        guard session.isClaudeDesktopHost,
+              session.endedAt == nil, session.disconnectedAt == nil,
+              metadataSnapshot?.isAuthoritative == true, metadataSnapshot?.matchedSessionIDs.contains(session.sessionId) == false,
+              session.status == .idle,
+              isBlank(session.sessionName),
+              isBlank(session.lastPrompt),
+              isBlank(session.lastTool),
+              isBlank(session.lastToolDetail),
+              isBlank(session.notificationMessage),
+              session.activeSubagents?.isEmpty ?? true else {
+            return false
+        }
+        return true
+    }
+    private nonisolated static func isBlank(_ value: String?) -> Bool {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
     }
 
     /// Fresh single-session archive check for the GC deletion decision. Unlike the batch snapshot

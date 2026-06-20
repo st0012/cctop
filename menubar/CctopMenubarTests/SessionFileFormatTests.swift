@@ -1090,7 +1090,8 @@ final class SessionFileFormatTests: XCTestCase {
         sessionId: String, pid: UInt32, bundleId: String?, lifecycleRank: Int,
         source: String? = nil,
         lastActivity: Date = Date(timeIntervalSince1970: 1000),
-        endedAt: Date? = nil, disconnectedAt: Date? = nil, mtime: Date = .distantPast, path: String = "/x.json"
+        endedAt: Date? = nil, disconnectedAt: Date? = nil, mtime: Date = .distantPast, path: String = "/x.json",
+        update: (inout Session) -> Void = { _ in }
     ) -> DedupCandidate {
         var s = Session(sessionId: sessionId, projectPath: "/tmp/p", branch: "main",
                         terminal: TerminalInfo(bundleId: bundleId))
@@ -1099,6 +1100,7 @@ final class SessionFileFormatTests: XCTestCase {
         s.lastActivity = lastActivity
         s.endedAt = endedAt
         s.disconnectedAt = disconnectedAt
+        update(&s)
         return DedupCandidate(session: s, lifecycleRank: lifecycleRank, mtime: mtime, path: path)
     }
 
@@ -2815,7 +2817,12 @@ final class SessionFileFormatTests: XCTestCase {
         let visibleCodex = candidate(sessionId: "visible-thread", pid: 6, bundleId: HostAppBundleID.codexDesktop,
                                      lifecycleRank: 0, source: Session.codexSource, path: "/visible.json")
         let visibleClaude = candidate(sessionId: "visible-claude", pid: 7, bundleId: HostAppBundleID.claudeDesktop,
-                                      lifecycleRank: 0, source: "cc", path: "/claude-visible.json")
+                                      lifecycleRank: 0, source: "cc", path: "/claude-visible.json") { session in
+            session.sessionName = "Visible Claude session"
+        }
+        let matchedEndedClaude = candidate(sessionId: "matched-ended-claude", pid: 8, bundleId: HostAppBundleID.claudeDesktop,
+                                           lifecycleRank: 0, source: "cc",
+                                           endedAt: Date(timeIntervalSince1970: 2000), path: "/claude-ended.json")
 
         let codexThreads = StubCodexThreadState(
             archived: ["archived-thread"],
@@ -2823,26 +2830,68 @@ final class SessionFileFormatTests: XCTestCase {
             execHelpers: ["exec-helper-thread"]
         )
         let claudeMetadata = ClaudeDesktopSessionMetadataSnapshot(
-            matchedSessionIDs: ["archived-claude", "visible-claude"],
+            matchedSessionIDs: ["archived-claude", "matched-ended-claude", "visible-claude"],
             archivedSessionIDs: ["archived-claude"],
             isAuthoritative: true
         )
 
         let visibility = SessionManager.visibilitySnapshot(
-            in: [archived, subagent, execHelper, archivedClaude, orphanClaude, visibleCodex, visibleClaude],
+            in: [archived, subagent, execHelper, archivedClaude, orphanClaude, visibleCodex, visibleClaude, matchedEndedClaude],
             claudeMetadata: claudeMetadata,
             codexThreads: codexThreads
         )
 
         XCTAssertEqual(
             visibility.liveCandidates.map(\.session.sessionId).sorted(),
-            ["visible-claude", "visible-thread"]
+            ["matched-ended-claude", "visible-claude", "visible-thread"]
         )
         XCTAssertEqual(visibility.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
         XCTAssertEqual(visibility.archivedCodexThreadIDs, ["archived-thread"])
         XCTAssertEqual(visibility.codexSubagentThreadIDs, ["subagent-thread"])
         XCTAssertEqual(visibility.codexExecHelperThreadIDs, ["exec-helper-thread"])
         XCTAssertEqual(visibility.archivedClaudeSessionIDs, ["archived-claude"])
+    }
+
+    func testVisibilitySnapshotFiltersActiveNamelessIdleClaudeDesktopStartupSession() {
+        let startupOnly = candidate(sessionId: "startup-only", pid: 1, bundleId: HostAppBundleID.claudeDesktop,
+                                    lifecycleRank: 0, source: "cc", path: "/startup-only.json")
+        let namedIdle = candidate(sessionId: "named-idle", pid: 2, bundleId: HostAppBundleID.claudeDesktop,
+                                  lifecycleRank: 0, source: "cc", path: "/named-idle.json") { session in
+            session.sessionName = "Real desktop session"
+        }
+        let promptedIdle = candidate(sessionId: "prompted-idle", pid: 3, bundleId: HostAppBundleID.claudeDesktop,
+                                     lifecycleRank: 0, source: "cc", path: "/prompted-idle.json") { session in
+            session.lastPrompt = "Keep me visible"
+        }
+        let toolIdle = candidate(sessionId: "tool-idle", pid: 4, bundleId: HostAppBundleID.claudeDesktop,
+                                 lifecycleRank: 0, source: "cc", path: "/tool-idle.json") { session in
+            session.lastTool = "Read"
+        }
+        let toolDetailIdle = candidate(sessionId: "tool-detail-idle", pid: 5, bundleId: HostAppBundleID.claudeDesktop,
+                                       lifecycleRank: 0, source: "cc", path: "/tool-detail-idle.json") { session in
+            session.lastToolDetail = "README.md"
+        }
+        let notificationIdle = candidate(sessionId: "notification-idle", pid: 6, bundleId: HostAppBundleID.claudeDesktop,
+                                         lifecycleRank: 0, source: "cc", path: "/notification-idle.json") { session in
+            session.notificationMessage = "Permission requested"
+        }
+        let subagentIdle = candidate(sessionId: "subagent-idle", pid: 7, bundleId: HostAppBundleID.claudeDesktop,
+                                     lifecycleRank: 0, source: "cc", path: "/subagent-idle.json") { session in
+            session.activeSubagents = [
+                SubagentInfo(agentId: "agent-1", agentType: "reviewer", startedAt: Date(timeIntervalSince1970: 100))
+            ]
+        }
+
+        let visibility = SessionManager.visibilitySnapshot(
+            in: [startupOnly, namedIdle, promptedIdle, toolIdle, toolDetailIdle, notificationIdle, subagentIdle],
+            codexThreads: StubCodexThreadState(),
+            claudeDesktopSessions: StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot())
+        )
+
+        XCTAssertEqual(
+            visibility.liveCandidates.map(\.session.sessionId).sorted(),
+            ["named-idle", "notification-idle", "prompted-idle", "subagent-idle", "tool-detail-idle", "tool-idle"]
+        )
     }
 
     // The display path never deletes files, so unreadable external stores must fail OPEN: the
@@ -2853,16 +2902,18 @@ final class SessionFileFormatTests: XCTestCase {
         let claudeSession = candidate(sessionId: "maybe-orphaned", pid: 2, bundleId: HostAppBundleID.claudeDesktop,
                                       lifecycleRank: 0, source: "cc",
                                       endedAt: Date(timeIntervalSince1970: 2000), path: "/claude-maybe.json")
+        let claudeStartupOnly = candidate(sessionId: "maybe-startup-only", pid: 3, bundleId: HostAppBundleID.claudeDesktop,
+                                          lifecycleRank: 0, source: "cc", path: "/claude-startup-maybe.json")
 
         let visibility = SessionManager.visibilitySnapshot(
-            in: [codexThread, claudeSession],
+            in: [codexThread, claudeSession, claudeStartupOnly],
             codexThreads: StubCodexThreadState(archived: nil, subagents: nil, execHelpers: nil),
             claudeDesktopSessions: StubClaudeDesktopState(snapshot: nil)
         )
 
         XCTAssertEqual(
             visibility.liveCandidates.map(\.session.sessionId).sorted(),
-            ["maybe-archived", "maybe-orphaned"]
+            ["maybe-archived", "maybe-orphaned", "maybe-startup-only"]
         )
         XCTAssertEqual(visibility.codexSubagentCandidates.map(\.session.sessionId), [])
     }
