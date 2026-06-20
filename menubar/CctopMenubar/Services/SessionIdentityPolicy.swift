@@ -22,9 +22,13 @@ enum SessionIdentityPolicy {
         return "active:\(displayID(for: session))"
     }
 
+    static func notificationRequestIdentifier(for session: Session) -> String {
+        "session-\(stableKey(for: session))"
+    }
+
     static func notificationUserInfo(for session: Session) -> [AnyHashable: Any] {
         [
-            notificationSessionIDKey: displayID(for: session),
+            notificationSessionIDKey: notificationSessionID(for: session),
             notificationSessionPIDKey: session.pid.map(String.init) ?? "",
         ]
     }
@@ -34,6 +38,9 @@ enum SessionIdentityPolicy {
         in sessions: [Session]
     ) -> Session? {
         if let sessionID = nonEmptyString(userInfo[notificationSessionIDKey]) {
+            if let match = sessions.first(where: { notificationSessionID(for: $0) == sessionID }) {
+                return match
+            }
             return sessions.first { displayID(for: $0) == sessionID }
         }
 
@@ -41,6 +48,13 @@ enum SessionIdentityPolicy {
         return sessions.first {
             displayID(for: $0) == pid || $0.pid.map(String.init) == pid
         }
+    }
+
+    private static func notificationSessionID(for session: Session) -> String {
+        if session.isCodex || session.hostClass == .desktop {
+            return session.sessionId
+        }
+        return displayID(for: session)
     }
 
     private static func nonEmptyString(_ value: Any?) -> String? {

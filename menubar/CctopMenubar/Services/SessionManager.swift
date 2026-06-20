@@ -1,7 +1,7 @@
 import AppKit
 import Darwin.libproc
 import Foundation
-import UserNotifications
+@preconcurrency import UserNotifications
 import os.log
 
 let sessionManagerLogger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
@@ -63,9 +63,7 @@ class SessionManager: ObservableObject {
             return
         }
 
-        // Notification transition guards use the same identity policy as dedup: Codex and
-        // desktop conversations are stable by session_id; other sessions keep PID identity.
-        let oldStatuses = currentStatusesByStableKey()
+        let oldSessions = sessions
 
         let jsonFiles = sessionJSONFiles(in: files)
         let allDecoded = decodedSessions(from: jsonFiles)
@@ -90,7 +88,7 @@ class SessionManager: ObservableObject {
             .filter { $0.session.lifecycle != .finished }
             .map { adjustDisplayStatus($0.session) }
         let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
-        sendTransitionNotifications(for: newSessions, oldStatuses: oldStatuses)
+        syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)
         // Only publish when data actually changed, or when the presentation bucket changed
         // because an active idle session crossed the stale-idle threshold.
         if newSessions != sessions || displaySignature != lastDisplaySignature {
@@ -111,17 +109,6 @@ class SessionManager: ObservableObject {
         // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
         archiveAndRemoveFinishedNonDesktop(liveCandidates, winners: winners)
         historyManager.rebuildRecentProjects(excludingActive: Set(sessions.map(\.projectPath)))
-    }
-
-    private func sendTransitionNotifications(for newSessions: [Session], oldStatuses: [String: SessionStatus]) {
-        // Notifications: only a LIVE (active) session that NEWLY needs attention. Dormant never notifies.
-        guard dataSources.notificationsEnabled() else { return }
-        for session in newSessions where session.lifecycle == .active {
-            guard session.status.needsAttention,
-                  let oldStatus = oldStatuses[SessionIdentityPolicy.stableKey(for: session)],
-                  !oldStatus.needsAttention else { continue }
-            sendNotification(for: session)
-        }
     }
 
     private func hideAutoHiddenSessions(_ sessions: [(URL, Session)]) {
@@ -378,53 +365,6 @@ class SessionManager: ObservableObject {
                 }
             default:
                 break
-            }
-        }
-    }
-
-    private func sendNotification(for session: Session) {
-        let center = UNUserNotificationCenter.current()
-        center.getNotificationSettings { settings in
-            switch settings.authorizationStatus {
-            case .notDetermined:
-                center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-                    if let error {
-                        sessionManagerLogger.error("Notification permission error: \(error, privacy: .public)")
-                    }
-                    if granted {
-                        self.postNotification(for: session)
-                    }
-                }
-            case .authorized, .provisional, .ephemeral:
-                self.postNotification(for: session)
-            default:
-                break
-            }
-        }
-    }
-
-    private func postNotification(for session: Session) {
-        let content = UNMutableNotificationContent()
-        content.title = session.displayName
-        switch session.status {
-        case .waitingPermission:
-            content.body = session.notificationMessage ?? "Permission needed"
-        case .waitingInput:
-            content.body = session.lastPrompt.map { "Waiting: \(String($0.prefix(80)))" } ?? "Waiting for input"
-        default:
-            content.body = "Needs attention"
-        }
-        content.sound = .default
-        content.userInfo = SessionIdentityPolicy.notificationUserInfo(for: session)
-
-        let request = UNNotificationRequest(
-            identifier: "session-\(session.id)",
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error {
-                sessionManagerLogger.error("Failed to send notification: \(error, privacy: .public)")
             }
         }
     }

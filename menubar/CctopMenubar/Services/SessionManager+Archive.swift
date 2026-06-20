@@ -13,6 +13,7 @@ struct SessionDataSources {
     var desktopAppConnection: DesktopAppConnectionLookup
     var processAlive: (Session) -> Bool
     var notificationsEnabled: () -> Bool
+    var notificationClient: SessionNotificationClient = .live
     var now: () -> Date
 
     /// A function rather than a stored constant so `Config.sessionsDir()` is resolved

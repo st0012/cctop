@@ -296,6 +296,28 @@ final class HookHandlerTests: XCTestCase {
         try handleFixture("Notification-idle", hookName: "Notification")
         let session = try loadSession()
         XCTAssertEqual(session.status, .waitingInput)
+        XCTAssertNil(session.notificationMessage)
+        XCTAssertEqual(session.contextLine, "\"Fix the login bug\"")
+    }
+
+    func testNotificationElicitationDialogPreservesMessage() throws {
+        try handleFixture("SessionStart")
+        try handleFixture("UserPromptSubmit")
+        try handleHook("""
+        {
+          "session_id": "test-session-001",
+          "cwd": "/tmp/test-project",
+          "hook_event_name": "Notification",
+          "notification_type": "elicitation_dialog",
+          "message": "Which option should I choose?"
+        }
+        """, hookName: "Notification")
+
+        let session = try loadSession()
+        XCTAssertEqual(session.status, .waitingInput)
+        XCTAssertEqual(session.notificationMessage, "Which option should I choose?")
+        XCTAssertEqual(session.contextLine, "Which option should I choose?")
+        XCTAssertEqual(session.notificationContent.body, "Which option should I choose?")
     }
 
     func testOpencodeQuestionPermissionRequestSetsWaitingPermission() throws {
@@ -319,6 +341,24 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.status, .waitingPermission)
         // notificationPermission is a no-op — must not clobber the earlier PermissionRequest message
         XCTAssertEqual(session.notificationMessage, "Allow Bash: rm -rf /tmp/old")
+    }
+
+    func testUnknownNotificationWithoutMessagePreservesPermissionMessage() throws {
+        try handleFixture("SessionStart")
+        try handleFixture("PermissionRequest")
+        try handleHook("""
+        {
+          "session_id": "test-session-001",
+          "cwd": "/tmp/test-project",
+          "hook_event_name": "Notification",
+          "notification_type": "future_type"
+        }
+        """, hookName: "Notification")
+
+        let session = try loadSession()
+        XCTAssertEqual(session.status, .waitingPermission)
+        XCTAssertEqual(session.notificationMessage, "Allow Bash: rm -rf /tmp/old")
+        XCTAssertEqual(session.notificationContent.body, "Allow Bash: rm -rf /tmp/old")
     }
 
     // MARK: - SubagentStart adds to active_subagents

@@ -502,7 +502,6 @@ struct Session: Codable, Identifiable, Equatable {
 }
 
 extension Session {
-
     /// The best available inactive timestamp for ordering retained files.
     var effectiveEndDate: Date {
         disconnectedAt ?? endedAt ?? lastActivity
@@ -518,8 +517,10 @@ extension Session {
         case .compacting: return "Compacting context..."
         case .waitingPermission:
             return notificationMessage ?? "Permission needed"
-        case .waitingInput, .needsAttention:
+        case .waitingInput:
             return notificationMessage ?? promptSnippet
+        case .needsAttention:
+            return notificationMessage ?? promptSnippet ?? "Needs attention"
         case .working:
             if let tool = lastTool {
                 return formatToolDisplay(tool: tool, detail: lastToolDetail)

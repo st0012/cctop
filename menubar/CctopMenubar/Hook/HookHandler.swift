@@ -77,10 +77,15 @@ enum HookHandler {
     }
 
     private static func clearToolState(_ session: inout Session) {
-        session.lastTool = nil
-        session.lastToolDetail = nil
+        clearRunningToolState(&session)
         session.notificationMessage = nil
     }
+
+    private static func clearRunningToolState(_ session: inout Session) {
+        session.lastTool = nil
+        session.lastToolDetail = nil
+    }
+
     private static func applySubagentEvent(event: HookEvent, session: inout Session, input: HookInput) {
         switch event {
         case .subagentStart:
@@ -188,8 +193,7 @@ enum HookHandler {
             // delayed Notification transitions to .working, the card can show what tool is running.
 
         case .notificationIdle, .notificationOther:
-            session.lastTool = nil; session.lastToolDetail = nil
-            if let msg = input.message { session.notificationMessage = msg }
+            applyNotificationEvent(event: event, session: &session, input: input)
         case .stop:
             clearToolState(&session)
         case .postToolUseFailure:
@@ -203,6 +207,15 @@ enum HookHandler {
         // notificationPermission: PermissionRequest already handles side effects; Notification fires ~6s later.
         case .notificationPermission, .postCompact, .preCompact, .postToolUse, .sessionEnd, .unknown:
             break
+        }
+    }
+
+    private static func applyNotificationEvent(event: HookEvent, session: inout Session, input: HookInput) {
+        clearRunningToolState(&session)
+        if event == .notificationIdle && input.notificationType == "idle_prompt" {
+            session.notificationMessage = nil
+        } else if let message = input.message {
+            session.notificationMessage = message
         }
     }
 

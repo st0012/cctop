@@ -14,6 +14,7 @@
 		A10000010000000000000001 /* CctopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000001 /* CctopApp.swift */; };
 		AC0000010000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AC0000020000000000000001 /* Assets.xcassets */; };
 		B10000010000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
+		SNC000010000000000000001 /* Session+NotificationContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = SNC000020000000000000001 /* Session+NotificationContent.swift */; };
 		B10000030000000000000001 /* SessionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000040000000000000001 /* SessionStatus.swift */; };
 		C10000010000000000000001 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000020000000000000001 /* SessionManager.swift */; };
 		D10000010000000000000001 /* StatusChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000020000000000000001 /* StatusChip.swift */; };
@@ -126,6 +127,7 @@
 		CDRP00010000000000000001 /* CodexDesktopRuntimeProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDRP00020000000000000001 /* CodexDesktopRuntimeProbe.swift */; };
 		SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */ = {isa = PBXBuildFile; fileRef = SMA000020000000000000001 /* SessionManager+Archive.swift */; };
 		SML000010000000000000001 /* SessionManager+Loading.swift in Sources */ = {isa = PBXBuildFile; fileRef = SML000020000000000000001 /* SessionManager+Loading.swift */; };
+		SMN000010000000000000001 /* SessionManager+Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = SMN000020000000000000001 /* SessionManager+Notifications.swift */; };
 		NPC000010000000000000001 /* NotificationPermissionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = NPC000020000000000000001 /* NotificationPermissionController.swift */; };
 		SCTRL0010000000000000001 /* SettingsControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCTRL0020000000000000001 /* SettingsControls.swift */; };
 		NROW00010000000000000001 /* NotificationSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = NROW00020000000000000001 /* NotificationSettingsRow.swift */; };
@@ -146,6 +148,7 @@
 		A10000030000000000000001 /* CctopMenubar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CctopMenubar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC0000020000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000020000000000000001 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
+		SNC000020000000000000001 /* Session+NotificationContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Session+NotificationContent.swift"; sourceTree = "<group>"; };
 		B10000040000000000000001 /* SessionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatus.swift; sourceTree = "<group>"; };
 		C10000020000000000000001 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
 		SLP000020000000000000001 /* SessionLifecyclePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecyclePolicy.swift; sourceTree = "<group>"; };
@@ -158,6 +161,7 @@
 		CDRP00020000000000000001 /* CodexDesktopRuntimeProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexDesktopRuntimeProbe.swift; sourceTree = "<group>"; };
 		SMA000020000000000000001 /* SessionManager+Archive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Archive.swift"; sourceTree = "<group>"; };
 		SML000020000000000000001 /* SessionManager+Loading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Loading.swift"; sourceTree = "<group>"; };
+		SMN000020000000000000001 /* SessionManager+Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Notifications.swift"; sourceTree = "<group>"; };
 		NPC000020000000000000001 /* NotificationPermissionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermissionController.swift; sourceTree = "<group>"; };
 		D1000000A000000000000001 /* QuitButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitButton.swift; sourceTree = "<group>"; };
 		D10000020000000000000001 /* StatusChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusChip.swift; sourceTree = "<group>"; };
@@ -306,6 +310,7 @@
 				CDRP00020000000000000001 /* CodexDesktopRuntimeProbe.swift */,
 				SMA000020000000000000001 /* SessionManager+Archive.swift */,
 				SML000020000000000000001 /* SessionManager+Loading.swift */,
+				SMN000020000000000000001 /* SessionManager+Notifications.swift */,
 				NPC000020000000000000001 /* NotificationPermissionController.swift */,
 				HM0000020000000000000001 /* HistoryManager.swift */,
 				E10000020000000000000001 /* FocusTerminal.swift */,
@@ -366,6 +371,7 @@
 			isa = PBXGroup;
 			children = (
 				B10000020000000000000001 /* Session.swift */,
+				SNC000020000000000000001 /* Session+NotificationContent.swift */,
 				B10000040000000000000001 /* SessionStatus.swift */,
 				N10000040000000000000001 /* HookEvent.swift */,
 				N10000060000000000000001 /* Config.swift */,
@@ -589,6 +595,7 @@
 			files = (
 				A10000010000000000000001 /* CctopApp.swift in Sources */,
 				B10000010000000000000001 /* Session.swift in Sources */,
+				SNC000010000000000000001 /* Session+NotificationContent.swift in Sources */,
 				B10000030000000000000001 /* SessionStatus.swift in Sources */,
 				C10000010000000000000001 /* SessionManager.swift in Sources */,
 				SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */,
@@ -601,6 +608,7 @@
 				CDRP00010000000000000001 /* CodexDesktopRuntimeProbe.swift in Sources */,
 				SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */,
 				SML000010000000000000001 /* SessionManager+Loading.swift in Sources */,
+				SMN000010000000000000001 /* SessionManager+Notifications.swift in Sources */,
 				NPC000010000000000000001 /* NotificationPermissionController.swift in Sources */,
 				D10000010000000000000001 /* StatusChip.swift in Sources */,
 				D10000030000000000000001 /* HeaderView.swift in Sources */,

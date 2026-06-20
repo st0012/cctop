@@ -1,4 +1,5 @@
 import XCTest
+import UserNotifications
 @testable import CctopMenubar
 
 final class SessionTests: XCTestCase {
@@ -102,9 +103,128 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.contextLine, "\"Original user prompt\"")
     }
 
+    func testContextLineNeedsAttentionFallsBackToNeedsAttention() {
+        let session = Session.mock(status: .needsAttention)
+        XCTAssertEqual(session.contextLine, "Needs attention")
+    }
+
     func testContextLineCompacting() {
         let session = Session.mock(status: .compacting)
         XCTAssertEqual(session.contextLine, "Compacting context...")
+    }
+
+    func testNotificationContentPrefixesDistinctSessionTitleWithProject() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Handle notification permission flow",
+            status: .waitingInput,
+            lastPrompt: "New comment. Keep the loop until there's a thumb up on pr description",
+            source: "codex"
+        )
+
+        XCTAssertEqual(session.notificationContent.title, "[cctop] Handle notification permission flow")
+        XCTAssertEqual(session.notificationContent.subtitle, "Codex is waiting for input")
+        XCTAssertEqual(
+            session.notificationContent.body,
+            "New comment. Keep the loop until there's a thumb up on pr description"
+        )
+    }
+
+    func testNotificationContentDoesNotDuplicateProjectTitle() {
+        let session = Session.mock(
+            project: "cctop",
+            status: .waitingInput,
+            lastPrompt: "How can I watch it",
+            source: "cc"
+        )
+
+        XCTAssertEqual(session.notificationContent.title, "cctop")
+        XCTAssertEqual(session.notificationContent.subtitle, "Claude is waiting for input")
+        XCTAssertEqual(session.notificationContent.body, "How can I watch it")
+    }
+
+    func testNotificationContentUsesDesktopProjectPrefix() {
+        let session = Session.mock(
+            project: "generated-worktree",
+            sessionName: "Handle notification permission flow",
+            status: .waitingPermission,
+            notificationMessage: "Allow Bash: make all",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop),
+            source: "codex",
+            desktopProjectName: "cctop"
+        )
+
+        XCTAssertEqual(session.notificationContent.title, "[cctop] Handle notification permission flow")
+        XCTAssertEqual(session.notificationContent.subtitle, "Codex Desktop needs permission")
+        XCTAssertEqual(session.notificationContent.body, "Allow Bash: make all")
+    }
+
+    func testNotificationContentPrefixesTitleStartingWithProjectName() {
+        let session = Session.mock(
+            project: "optimistic-mestorf-1d360b",
+            sessionName: "CCTOP promotional video",
+            status: .waitingInput,
+            lastPrompt: "How can I watch it",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: "cc",
+            desktopProjectName: "cctop"
+        )
+
+        XCTAssertEqual(session.notificationContent.title, "[cctop] cctop promotional video")
+        XCTAssertEqual(session.notificationContent.subtitle, "Claude Desktop is waiting for input")
+    }
+
+    func testNotificationContentCleansAndTruncatesBody() {
+        let session = Session.mock(
+            project: "rdoc",
+            sessionName: "Identify RDoc plugin incompatibility",
+            status: .waitingInput,
+            lastPrompt: "First line\n\nSecond line with extra spacing that keeps going beyond the banner width",
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            session.notificationContent.body,
+            "First line Second line with extra spacing that keeps going beyond the..."
+        )
+    }
+
+    func testNotificationBodyPreservesUserTextCasing() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Brand wording",
+            status: .waitingInput,
+            lastPrompt: "Should the body keep CCTOP uppercase?",
+            source: "codex"
+        )
+
+        XCTAssertEqual(session.notificationContent.title, "[cctop] Brand wording")
+        XCTAssertEqual(session.notificationContent.body, "Should the body keep CCTOP uppercase?")
+    }
+
+    func testNotificationBodyPrefersNotificationMessageForWaitingInput() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Elicitation dialog",
+            status: .waitingInput,
+            lastPrompt: "Actual user prompt",
+            notificationMessage: "Which option should I choose?",
+            source: "codex"
+        )
+
+        XCTAssertEqual(session.notificationContent.body, "Which option should I choose?")
+    }
+
+    func testNotificationBodyFallsBackToLastPromptForWaitingInput() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Generic idle prompt",
+            status: .waitingInput,
+            lastPrompt: "Actual user prompt",
+            source: "codex"
+        )
+
+        XCTAssertEqual(session.notificationContent.body, "Actual user prompt")
     }
 
     func testDecodesSessionName() throws {
@@ -260,6 +380,196 @@ final class SessionTests: XCTestCase {
         )
 
         XCTAssertEqual(matched?.sessionId, "codex-thread-1")
+    }
+
+    func testNotificationRequestIdentityUsesStableDesktopSessionIdentity() {
+        let session = Session.mock(
+            id: "claude-desktop-thread-1",
+            pid: 12345,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: "cc"
+        )
+
+        XCTAssertEqual(
+            SessionIdentityPolicy.notificationRequestIdentifier(for: session),
+            "session-desktop:claude-desktop-thread-1"
+        )
+        XCTAssertEqual(
+            SessionIdentityPolicy.stableKey(for: session),
+            "desktop:claude-desktop-thread-1"
+        )
+    }
+
+    func testNotificationRequestDoesNotUseVisibleThreadGrouping() {
+        let session = Session.mock(
+            id: "claude-desktop-thread-1",
+            pid: 12345,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: "cc"
+        )
+
+        let request = SessionManager.notificationRequest(for: session)
+
+        XCTAssertEqual(request.identifier, "session-desktop:claude-desktop-thread-1")
+        XCTAssertEqual(request.content.threadIdentifier, "")
+    }
+
+    @MainActor
+    func testPostNotificationReplacesOutstandingNotificationForSession() throws {
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let recorder = Recorder()
+        var sources = SessionDataSources.live()
+        let sessionsDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        sources.sessionsDir = sessionsDir
+        sources.notificationClient = SessionNotificationClient(
+            add: { request, completion in
+                recorder.events.append("add:\(request.identifier)")
+                completion(nil)
+            },
+            removePending: { identifiers in
+                recorder.events.append("removePending:\(identifiers.joined(separator: ","))")
+            },
+            removeDelivered: { identifiers in
+                recorder.events.append("removeDelivered:\(identifiers.joined(separator: ","))")
+            }
+        )
+        let session = Session.mock(
+            id: "claude-desktop-thread-1",
+            pid: 12345,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: "cc"
+        )
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        manager.postNotification(for: session)
+
+        XCTAssertEqual(
+            recorder.events,
+            [
+                "removePending:session-desktop:claude-desktop-thread-1",
+                "removeDelivered:session-desktop:claude-desktop-thread-1",
+                "add:session-desktop:claude-desktop-thread-1",
+            ]
+        )
+    }
+
+    func testNotificationLookupPrefersDesktopSessionIDOverPID() {
+        let first = Session.mock(
+            id: "claude-desktop-thread-1",
+            pid: 12345,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: "cc"
+        )
+        let second = Session.mock(
+            id: "claude-desktop-thread-2",
+            pid: 12345,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: "cc"
+        )
+        let userInfo = SessionIdentityPolicy.notificationUserInfo(for: second)
+
+        let matched = SessionIdentityPolicy.session(
+            matchingNotificationUserInfo: userInfo,
+            in: [first, second]
+        )
+
+        XCTAssertEqual(matched?.sessionId, "claude-desktop-thread-2")
+    }
+
+    func testNotificationActionsRemoveResolvedAttentionSession() {
+        let oldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: "Waiting",
+            source: "codex"
+        )
+        let resolvedSession = Session.mock(
+            id: "codex-thread-1",
+            status: .working,
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            SessionManager.notificationActions(
+                newSessions: [resolvedSession],
+                oldSessions: [oldSession],
+                notificationsEnabled: true
+            ),
+            [.remove(identifier: "session-codex:codex-thread-1")]
+        )
+    }
+
+    func testNotificationActionsRemoveMissingAttentionSession() {
+        let oldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: "Waiting",
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            SessionManager.notificationActions(
+                newSessions: [],
+                oldSessions: [oldSession],
+                notificationsEnabled: true
+            ),
+            [.remove(identifier: "session-codex:codex-thread-1")]
+        )
+    }
+
+    func testNotificationActionsPostNewAttentionSessionWhenEnabled() {
+        let oldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .working,
+            source: "codex"
+        )
+        let waitingSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: "Waiting",
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            SessionManager.notificationActions(
+                newSessions: [waitingSession],
+                oldSessions: [oldSession],
+                notificationsEnabled: true
+            ),
+            [.post(session: waitingSession)]
+        )
+    }
+
+    func testNotificationActionsDoNotPostWhenNotificationsDisabled() {
+        let oldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .working,
+            source: "codex"
+        )
+        let waitingSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: "Waiting",
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            SessionManager.notificationActions(
+                newSessions: [waitingSession],
+                oldSessions: [oldSession],
+                notificationsEnabled: false
+            ),
+            []
+        )
     }
 
     func testDecodesPidStartTime() throws {
