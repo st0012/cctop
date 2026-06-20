@@ -1,0 +1,19 @@
+/* ============================================================
+   THEME — the ONE place to change the look.
+   Edit these tokens, re-run build, and every video re-renders
+   with the new colours/fonts. Nothing else needs to change.
+   Tokens mirror the app's DESIGN.md (Tokyo Night, the site's palette).
+   ============================================================ */
+:root{
+  /* surfaces */
+  --bg:#1A1B26; --bg2:#15161f;
+  /* status / accent (must match the app's status colours) */
+  --accent:#F7768E; --red:#F7768E; --orange:#FF9E64; --green:#9ECE6A;
+  /* integration accents */
+  --blue:#7AA2F7; --teal:#5DBFB1; --gold:#E0AF68; --purple:#BB9AF7;
+  /* text ladder */
+  --t1:#C0CAF5; --t2:#8E94AD; --t3:#6b7393;
+  /* type */
+  --disp:-apple-system,"SF Pro Display","Helvetica Neue",sans-serif;
+  --mono:"SF Mono",ui-monospace,"Menlo",monospace;
+}
