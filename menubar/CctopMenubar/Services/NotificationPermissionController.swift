@@ -7,6 +7,7 @@ enum NotificationPreferenceState: Equatable {
     case off
     case enabling
     case enabled
+    case pendingSystemPermission
     case needsSystemPermission
     case failed
 }
@@ -92,6 +93,7 @@ final class NotificationPermissionController: ObservableObject {
             if store.notificationsEnabled
                 || store.needsSystemNotificationPermission
                 || state == .needsSystemPermission
+                || state == .pendingSystemPermission
                 || state == .enabling {
                 store.setNeedsSystemNotificationPermission(false)
                 store.setNotificationsEnabled(true)
@@ -118,7 +120,7 @@ final class NotificationPermissionController: ObservableObject {
             if store.needsSystemNotificationPermission {
                 store.setNeedsSystemNotificationPermission(false)
             }
-            state = .off
+            state = store.notificationsEnabled ? .pendingSystemPermission : .off
         case .unknown:
             if store.notificationsEnabled {
                 store.setNotificationsEnabled(false)

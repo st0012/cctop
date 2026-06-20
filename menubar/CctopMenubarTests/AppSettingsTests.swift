@@ -147,10 +147,27 @@ final class NotificationPermissionControllerTests: XCTestCase {
 
         controller.refresh()
 
-        XCTAssertEqual(controller.state, .off)
+        XCTAssertEqual(controller.state, .pendingSystemPermission)
         XCTAssertTrue(store.notificationsEnabled)
         XCTAssertEqual(store.savedValues, [])
         XCTAssertEqual(store.savedPermissionValues, [])
+    }
+
+    func testDisableClearsPendingSystemPermissionPreference() {
+        let store = NotificationPreferenceStoreSpy(initialValue: true)
+        let client = NotificationPermissionClientSpy(statuses: [.notDetermined])
+        let controller = NotificationPermissionController(
+            store: store,
+            client: client,
+            initialState: .pendingSystemPermission
+        )
+
+        controller.disable()
+
+        XCTAssertEqual(controller.state, .off)
+        XCTAssertFalse(store.notificationsEnabled)
+        XCTAssertEqual(store.savedValues, [false])
+        XCTAssertEqual(store.savedPermissionValues, [false])
     }
 
     func testLaunchRefreshPreservesSystemPermissionStateForLaterSettingsController() {

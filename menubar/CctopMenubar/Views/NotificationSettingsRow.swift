@@ -31,7 +31,10 @@ struct NotificationSettingsRow: View {
 
     private var toggleBinding: Binding<Bool> {
         Binding(
-            get: { notificationPermission.state == .enabled },
+            get: {
+                notificationPermission.state == .enabled
+                    || notificationPermission.state == .pendingSystemPermission
+            },
             set: { isEnabled in
                 if isEnabled {
                     notificationPermission.enable()
@@ -48,6 +51,8 @@ struct NotificationSettingsRow: View {
             return nil
         case .enabling:
             return "Checking macOS permission"
+        case .pendingSystemPermission:
+            return "Will ask on first notification"
         case .needsSystemPermission:
             return "Enable in System Settings"
         case .failed:
@@ -76,7 +81,7 @@ struct NotificationSettingsRow: View {
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(Color.statusAttention)
             .buttonStyle(.plain)
-        case .off, .enabling, .enabled:
+        case .off, .enabling, .enabled, .pendingSystemPermission:
             EmptyView()
         }
     }
