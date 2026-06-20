@@ -140,6 +140,19 @@ final class NotificationPermissionControllerTests: XCTestCase {
         XCTAssertEqual(store.savedValues, [false])
     }
 
+    func testRefreshWithNotDeterminedPermissionKeepsPreferenceEnabledForFirstPrompt() {
+        let store = NotificationPreferenceStoreSpy(initialValue: true)
+        let client = NotificationPermissionClientSpy(statuses: [.notDetermined])
+        let controller = NotificationPermissionController(store: store, client: client)
+
+        controller.refresh()
+
+        XCTAssertEqual(controller.state, .off)
+        XCTAssertTrue(store.notificationsEnabled)
+        XCTAssertEqual(store.savedValues, [])
+        XCTAssertEqual(store.savedPermissionValues, [])
+    }
+
     func testLaunchRefreshPreservesSystemPermissionStateForLaterSettingsController() {
         let store = NotificationPreferenceStoreSpy(initialValue: true)
         let launchClient = NotificationPermissionClientSpy(statuses: [.denied])

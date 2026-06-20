@@ -115,10 +115,9 @@ final class NotificationPermissionController: ObservableObject {
                 state = .off
             }
         case .notDetermined:
-            if store.notificationsEnabled {
-                store.setNotificationsEnabled(false)
+            if store.needsSystemNotificationPermission {
+                store.setNeedsSystemNotificationPermission(false)
             }
-            store.setNeedsSystemNotificationPermission(false)
             state = .off
         case .unknown:
             if store.notificationsEnabled {
