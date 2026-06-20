@@ -31,7 +31,9 @@ enum NotificationPermissionStatus {
 
 protocol NotificationPreferenceStoring: AnyObject {
     var notificationsEnabled: Bool { get }
+    var needsSystemNotificationPermission: Bool { get }
     func setNotificationsEnabled(_ isEnabled: Bool)
+    func setNeedsSystemNotificationPermission(_ needsPermission: Bool)
 }
 
 protocol NotificationPermissionClient: AnyObject {
@@ -53,7 +55,13 @@ final class NotificationPermissionController: ObservableObject {
     ) {
         self.store = store
         self.client = client
-        state = initialState ?? (store.notificationsEnabled ? .enabling : .off)
+        if let initialState {
+            state = initialState
+        } else if store.needsSystemNotificationPermission {
+            state = .needsSystemPermission
+        } else {
+            state = store.notificationsEnabled ? .enabling : .off
+        }
     }
 
     func refresh() {
@@ -71,6 +79,7 @@ final class NotificationPermissionController: ObservableObject {
 
     func disable() {
         store.setNotificationsEnabled(false)
+        store.setNeedsSystemNotificationPermission(false)
         state = .off
     }
 
@@ -80,7 +89,11 @@ final class NotificationPermissionController: ObservableObject {
 
     private func applyRefreshStatus(_ status: NotificationPermissionStatus) {
         if status.allowsNotifications {
-            if store.notificationsEnabled || state == .needsSystemPermission || state == .enabling {
+            if store.notificationsEnabled
+                || store.needsSystemNotificationPermission
+                || state == .needsSystemPermission
+                || state == .enabling {
+                store.setNeedsSystemNotificationPermission(false)
                 store.setNotificationsEnabled(true)
                 state = .enabled
             } else {
@@ -93,8 +106,10 @@ final class NotificationPermissionController: ObservableObject {
         case .denied:
             if store.notificationsEnabled {
                 store.setNotificationsEnabled(false)
+                store.setNeedsSystemNotificationPermission(true)
                 state = .needsSystemPermission
-            } else if state == .needsSystemPermission {
+            } else if store.needsSystemNotificationPermission || state == .needsSystemPermission {
+                store.setNeedsSystemNotificationPermission(true)
                 state = .needsSystemPermission
             } else {
                 state = .off
@@ -103,11 +118,13 @@ final class NotificationPermissionController: ObservableObject {
             if store.notificationsEnabled {
                 store.setNotificationsEnabled(false)
             }
+            store.setNeedsSystemNotificationPermission(false)
             state = .off
         case .unknown:
             if store.notificationsEnabled {
                 store.setNotificationsEnabled(false)
             }
+            store.setNeedsSystemNotificationPermission(false)
             state = .failed
         case .authorized, .provisional, .ephemeral:
             break
@@ -116,6 +133,7 @@ final class NotificationPermissionController: ObservableObject {
 
     private func applyEnableStatus(_ status: NotificationPermissionStatus) {
         if status.allowsNotifications {
+            store.setNeedsSystemNotificationPermission(false)
             store.setNotificationsEnabled(true)
             state = .enabled
             return
@@ -126,10 +144,12 @@ final class NotificationPermissionController: ObservableObject {
             requestSystemPermission()
         case .denied:
             store.setNotificationsEnabled(false)
+            store.setNeedsSystemNotificationPermission(true)
             state = .needsSystemPermission
             client.openNotificationSettings()
         case .unknown:
             store.setNotificationsEnabled(false)
+            store.setNeedsSystemNotificationPermission(false)
             state = .failed
         case .authorized, .provisional, .ephemeral:
             break
@@ -141,28 +161,44 @@ final class NotificationPermissionController: ObservableObject {
             guard let self else { return }
             switch result {
             case .success(true):
+                store.setNeedsSystemNotificationPermission(false)
                 store.setNotificationsEnabled(true)
                 state = .enabled
             case .success(false):
                 store.setNotificationsEnabled(false)
+                store.setNeedsSystemNotificationPermission(true)
                 state = .needsSystemPermission
                 client.openNotificationSettings()
             case .failure(let error):
                 sessionManagerLogger.error("Notification permission error: \(error, privacy: .public)")
                 store.setNotificationsEnabled(false)
+                store.setNeedsSystemNotificationPermission(false)
                 state = .failed
             }
         }
     }
 }
 
+private enum NotificationPreferenceKeys {
+    static let notificationsEnabled = "notificationsEnabled"
+    static let needsSystemNotificationPermission = "notificationsNeedSystemPermission"
+}
+
 private final class UserDefaultsNotificationPreferenceStore: NotificationPreferenceStoring {
     var notificationsEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "notificationsEnabled")
+        UserDefaults.standard.bool(forKey: NotificationPreferenceKeys.notificationsEnabled)
+    }
+
+    var needsSystemNotificationPermission: Bool {
+        UserDefaults.standard.bool(forKey: NotificationPreferenceKeys.needsSystemNotificationPermission)
     }
 
     func setNotificationsEnabled(_ isEnabled: Bool) {
-        UserDefaults.standard.set(isEnabled, forKey: "notificationsEnabled")
+        UserDefaults.standard.set(isEnabled, forKey: NotificationPreferenceKeys.notificationsEnabled)
+    }
+
+    func setNeedsSystemNotificationPermission(_ needsPermission: Bool) {
+        UserDefaults.standard.set(needsPermission, forKey: NotificationPreferenceKeys.needsSystemNotificationPermission)
     }
 }
 

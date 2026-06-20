@@ -140,6 +140,27 @@ final class NotificationPermissionControllerTests: XCTestCase {
         XCTAssertEqual(store.savedValues, [false])
     }
 
+    func testLaunchRefreshPreservesSystemPermissionStateForLaterSettingsController() {
+        let store = NotificationPreferenceStoreSpy(initialValue: true)
+        let launchClient = NotificationPermissionClientSpy(statuses: [.denied])
+        let launchController = NotificationPermissionController(store: store, client: launchClient)
+
+        launchController.refresh()
+
+        XCTAssertEqual(launchController.state, .needsSystemPermission)
+        XCTAssertEqual(store.savedValues, [false])
+        XCTAssertEqual(store.savedPermissionValues, [true])
+
+        let settingsClient = NotificationPermissionClientSpy(statuses: [.denied])
+        let settingsController = NotificationPermissionController(store: store, client: settingsClient)
+
+        XCTAssertEqual(settingsController.state, .needsSystemPermission)
+
+        settingsController.refresh()
+
+        XCTAssertEqual(settingsController.state, .needsSystemPermission)
+    }
+
     func testDisableClearsPreferenceAndState() {
         let store = NotificationPreferenceStoreSpy(initialValue: true)
         let client = NotificationPermissionClientSpy(statuses: [.authorized])
@@ -154,19 +175,31 @@ final class NotificationPermissionControllerTests: XCTestCase {
 
 private final class NotificationPreferenceStoreSpy: NotificationPreferenceStoring {
     private var enabled: Bool
+    private var needsPermission: Bool
     private(set) var savedValues: [Bool] = []
+    private(set) var savedPermissionValues: [Bool] = []
 
-    init(initialValue: Bool) {
+    init(initialValue: Bool, needsPermission: Bool = false) {
         enabled = initialValue
+        self.needsPermission = needsPermission
     }
 
     var notificationsEnabled: Bool {
         enabled
     }
 
+    var needsSystemNotificationPermission: Bool {
+        needsPermission
+    }
+
     func setNotificationsEnabled(_ isEnabled: Bool) {
         enabled = isEnabled
         savedValues.append(isEnabled)
+    }
+
+    func setNeedsSystemNotificationPermission(_ needsPermission: Bool) {
+        self.needsPermission = needsPermission
+        savedPermissionValues.append(needsPermission)
     }
 }
 
