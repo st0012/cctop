@@ -126,6 +126,9 @@
 		CDRP00010000000000000001 /* CodexDesktopRuntimeProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDRP00020000000000000001 /* CodexDesktopRuntimeProbe.swift */; };
 		SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */ = {isa = PBXBuildFile; fileRef = SMA000020000000000000001 /* SessionManager+Archive.swift */; };
 		SML000010000000000000001 /* SessionManager+Loading.swift in Sources */ = {isa = PBXBuildFile; fileRef = SML000020000000000000001 /* SessionManager+Loading.swift */; };
+		NPC000010000000000000001 /* NotificationPermissionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = NPC000020000000000000001 /* NotificationPermissionController.swift */; };
+		SCTRL0010000000000000001 /* SettingsControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = SCTRL0020000000000000001 /* SettingsControls.swift */; };
+		NROW00010000000000000001 /* NotificationSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = NROW00020000000000000001 /* NotificationSettingsRow.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -155,6 +158,7 @@
 		CDRP00020000000000000001 /* CodexDesktopRuntimeProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexDesktopRuntimeProbe.swift; sourceTree = "<group>"; };
 		SMA000020000000000000001 /* SessionManager+Archive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Archive.swift"; sourceTree = "<group>"; };
 		SML000020000000000000001 /* SessionManager+Loading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Loading.swift"; sourceTree = "<group>"; };
+		NPC000020000000000000001 /* NotificationPermissionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermissionController.swift; sourceTree = "<group>"; };
 		D1000000A000000000000001 /* QuitButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitButton.swift; sourceTree = "<group>"; };
 		D10000020000000000000001 /* StatusChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusChip.swift; sourceTree = "<group>"; };
 		D10000040000000000000001 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
@@ -237,6 +241,8 @@
 		STC000020000000000000001 /* StatusColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusColors.swift; sourceTree = "<group>"; };
 		SDP000020000000000000001 /* SessionDisplayPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDisplayPolicy.swift; sourceTree = "<group>"; };
 		SCN000020000000000000001 /* StatusCounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCounts.swift; sourceTree = "<group>"; };
+		SCTRL0020000000000000001 /* SettingsControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsControls.swift; sourceTree = "<group>"; };
+		NROW00020000000000000001 /* NotificationSettingsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsRow.swift; sourceTree = "<group>"; };
 		MRT000020000000000000001 /* MenubarIconRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarIconRendererTests.swift; sourceTree = "<group>"; };
 		SCT000020000000000000001 /* StatusCountsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCountsTests.swift; sourceTree = "<group>"; };
 		HVT000020000000000000001 /* StatusCountsSessionInitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCountsSessionInitTests.swift; sourceTree = "<group>"; };
@@ -300,6 +306,7 @@
 				CDRP00020000000000000001 /* CodexDesktopRuntimeProbe.swift */,
 				SMA000020000000000000001 /* SessionManager+Archive.swift */,
 				SML000020000000000000001 /* SessionManager+Loading.swift */,
+				NPC000020000000000000001 /* NotificationPermissionController.swift */,
 				HM0000020000000000000001 /* HistoryManager.swift */,
 				E10000020000000000000001 /* FocusTerminal.swift */,
 				EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */,
@@ -390,6 +397,8 @@
 				PVH000020000000000000001 /* PopupViewHelpers.swift */,
 				D1000000A000000000000001 /* QuitButton.swift */,
 				J10000020000000000000001 /* SettingsSection.swift */,
+				SCTRL0020000000000000001 /* SettingsControls.swift */,
+				NROW00020000000000000001 /* NotificationSettingsRow.swift */,
 				JSPREV020000000000000001 /* SettingsSection+Preview.swift */,
 				CDXROW020000000000000001 /* CodexPluginRowView.swift */,
 				L10000020000000000000001 /* EmptyStateView.swift */,
@@ -592,6 +601,7 @@
 				CDRP00010000000000000001 /* CodexDesktopRuntimeProbe.swift in Sources */,
 				SMA000010000000000000001 /* SessionManager+Archive.swift in Sources */,
 				SML000010000000000000001 /* SessionManager+Loading.swift in Sources */,
+				NPC000010000000000000001 /* NotificationPermissionController.swift in Sources */,
 				D10000010000000000000001 /* StatusChip.swift in Sources */,
 				D10000030000000000000001 /* HeaderView.swift in Sources */,
 				D10000050000000000000001 /* SessionCardView.swift in Sources */,
@@ -647,6 +657,8 @@
 				STC000010000000000000001 /* StatusColors.swift in Sources */,
 				SDP000010000000000000001 /* SessionDisplayPolicy.swift in Sources */,
 				SCN000010000000000000001 /* StatusCounts.swift in Sources */,
+				SCTRL0010000000000000001 /* SettingsControls.swift in Sources */,
+				NROW00010000000000000001 /* NotificationSettingsRow.swift in Sources */,
 				PPO000010000000000000001 /* PanelPositioning.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

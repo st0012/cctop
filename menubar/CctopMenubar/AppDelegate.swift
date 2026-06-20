@@ -27,6 +27,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var hasNotch = false
     private var focusLocation: NSPoint?
     private var cancellables: Set<AnyCancellable> = []
+    private let notificationPermissionReconciler = NotificationPermissionController()
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
     private let panelGeometry = PanelGeometryModel(store: UserDefaultsPanelPositionStore())
@@ -39,6 +40,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
+        notificationPermissionReconciler.refresh()
         migrateLegacyPanelPosition()
         installHookBinaryIfNeeded()
         UNUserNotificationCenter.current().delegate = self
