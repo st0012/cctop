@@ -132,7 +132,7 @@ final class CodexIntegrationManagerTests: XCTestCase {
         // key Codex writes into [hooks.state].
         XCTAssertEqual(
             CodexIntegrationManager.trustStateEventKeys,
-            ["session_start", "user_prompt_submit", "pre_tool_use", "post_tool_use", "stop"]
+            ["session_start", "user_prompt_submit", "pre_tool_use", "post_tool_use", "permission_request", "stop"]
         )
     }
 

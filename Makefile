@@ -40,6 +40,7 @@ run: build
 	open $(DERIVED)/Build/Products/Debug/CctopMenubar.app
 
 restart: build
+	$(MAKE) install
 	-pkill -x CctopMenubar
 	sleep 0.5
 	open $(DERIVED)/Build/Products/Debug/CctopMenubar.app

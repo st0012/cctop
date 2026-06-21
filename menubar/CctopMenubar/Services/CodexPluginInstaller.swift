@@ -4,7 +4,7 @@ import os.log
 private let logger = Logger(subsystem: "com.st0012.CctopMenubar", category: "CodexPluginInstaller")
 
 /// Installs, updates, and removes cctop's Codex hook entries.
-/// Installs a shim to `~/.codex/cctop-shim.sh`, merges 5 hook entries into
+/// Installs a shim to `~/.codex/cctop-shim.sh`, merges cctop hook entries into
 /// `~/.codex/hooks.json` (preserving user hooks), and patches
 /// `~/.codex/config.toml` only when needed — Codex defaults `[features].hooks`
 /// to true so cctop doesn't write the flag on a clean config. It removes any
@@ -20,7 +20,8 @@ enum CodexPluginInstaller {
     /// checks it against the hook-input schema — keep the literal
     /// `[String] = [...]` shape the validator scrapes.
     static let registeredEvents: [String] = [
-        "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"
+        "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse",
+        "PermissionRequest", "Stop"
     ]
 
     /// Substring used to identify cctop-owned hook entries inside hooks.json.
@@ -48,20 +49,21 @@ enum CodexPluginInstaller {
         FileManager.default.fileExists(atPath: codexDir.path)
     }
 
-    /// True when cctop's shim and all expected hook entries are present in
-    /// `~/.codex`. This does not mean Codex has loaded, trusted, or executed
-    /// those hooks — see `CodexIntegrationManager.hasTrustedCctopHookState`.
+    /// True when cctop's shim and at least one cctop-owned hook entry are present in
+    /// `~/.codex`. This deliberately treats older partial installs as installed;
+    /// `needsUpdate(bundledShim:hooksTemplate:)` reports missing newly bundled events.
+    /// This does not mean Codex has loaded, trusted, or executed those hooks — see
+    /// `CodexIntegrationManager.hasTrustedCctopHookState`.
     static func hasInstalledHookFiles() -> Bool {
         guard FileManager.default.fileExists(atPath: shimPath.path) else { return false }
         guard let root = try? readJsonDict(at: hooksJsonPath),
               let hooks = root["hooks"] as? [String: Any] else {
             return false
         }
-        for event in registeredEvents {
-            guard let entries = hooks[event] as? [[String: Any]],
-                  entries.contains(where: hasCctopCommand) else { return false }
+        return hooks.values.contains { value in
+            guard let entries = value as? [[String: Any]] else { return false }
+            return entries.contains(where: hasCctopCommand)
         }
-        return true
     }
 
     /// Wired up to fire on Codex events? Requires cctop's files plus hooks
@@ -69,7 +71,7 @@ enum CodexPluginInstaller {
     /// as enabled because Codex defaults `[features].hooks` to true. Only an
     /// explicit `hooks = false` (or `codex_hooks = false` with no overriding
     /// `hooks` value) flips this to false.
-    /// Staleness is reported separately via `needsUpdate(bundledShim:)`.
+    /// Staleness is reported separately via `needsUpdate(bundledShim:hooksTemplate:)`.
     static func isInstalled() -> Bool {
         guard hasInstalledHookFiles() else { return false }
         // Only an explicit opt-out counts as not installed. Missing file or
@@ -101,6 +103,26 @@ enum CodexPluginInstaller {
     static func needsUpdate(bundledShim: Data) -> Bool {
         guard let installed = try? Data(contentsOf: shimPath) else { return false }
         return installed != bundledShim
+    }
+
+    /// True if the installed Codex shim or cctop-owned hook entries lag behind the
+    /// bundled resources. Missing files are not considered stale here; callers first
+    /// decide whether cctop is installed at all.
+    static func needsUpdate(bundledShim: Data, hooksTemplate: Data) -> Bool {
+        if needsUpdate(bundledShim: bundledShim) { return true }
+        guard let root = try? readJsonDict(at: hooksJsonPath),
+              let installedHooks = root["hooks"] as? [String: Any],
+              let template = (try? JSONSerialization.jsonObject(with: hooksTemplate)) as? [String: Any],
+              let templateHooks = template["hooks"] as? [String: Any] else {
+            return false
+        }
+        for event in templateHooks.keys {
+            guard let entries = installedHooks[event] as? [[String: Any]],
+                  entries.contains(where: { hasCctopCommand($0, for: event) }) else {
+                return true
+            }
+        }
+        return false
     }
 
     // MARK: - Install / Remove
@@ -228,6 +250,16 @@ enum CodexPluginInstaller {
         guard let commands = entry["hooks"] as? [[String: Any]] else { return false }
         return commands.contains {
             ($0["command"] as? String)?.contains(ownershipMarker) ?? false
+        }
+    }
+
+    /// Returns true only when a matcher entry invokes cctop's shim for this event.
+    private static func hasCctopCommand(_ entry: [String: Any], for event: String) -> Bool {
+        guard let commands = entry["hooks"] as? [[String: Any]] else { return false }
+        return commands.contains {
+            guard let command = $0["command"] as? String,
+                  command.contains(ownershipMarker) else { return false }
+            return command.split(whereSeparator: \.isWhitespace).last == Substring(event)
         }
     }
 

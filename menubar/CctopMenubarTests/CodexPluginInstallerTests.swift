@@ -47,6 +47,52 @@ final class CodexPluginInstallerTests: XCTestCase {
         }
     }
 
+    func testCodexTemplateRegistersPermissionRequest() throws {
+        let template = try loadCodexHooksTemplate()
+        let parsed = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: template) as? [String: Any]
+        )
+        let hooks = try XCTUnwrap(parsed["hooks"] as? [String: Any])
+
+        let entries = try XCTUnwrap(hooks["PermissionRequest"] as? [[String: Any]])
+        XCTAssertTrue(entries.contains { containsCommandSubstring($0, "{SHIM} PermissionRequest") })
+    }
+
+    func testOlderFiveEventInstallStillReportsInstalledButNeedsUpdate() throws {
+        let dir = makeTempCodexDir()
+        let template = try loadCodexHooksTemplate()
+        let shim = try loadCodexShim()
+        try withHomeDir(dir.parent) {
+            try FileManager.default.createDirectory(at: CodexPluginInstaller.codexDir, withIntermediateDirectories: true)
+            try shim.write(to: CodexPluginInstaller.shimPath, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: CodexPluginInstaller.shimPath.path)
+            try writeHooksFile(olderFiveEventCodexHooks(), at: dir)
+
+            XCTAssertTrue(CodexPluginInstaller.hasInstalledHookFiles())
+            XCTAssertTrue(CodexPluginInstaller.needsUpdate(bundledShim: shim, hooksTemplate: template))
+        }
+    }
+
+    func testMismatchedEventCommandReportsNeedsUpdate() throws {
+        let dir = makeTempCodexDir()
+        let template = try loadCodexHooksTemplate()
+        let shim = try loadCodexShim()
+        var installed = olderFiveEventCodexHooks()
+        var hooks = try XCTUnwrap(installed["hooks"] as? [String: Any])
+        hooks["PermissionRequest"] = cctopHookEntries("Stop")
+        installed["hooks"] = hooks
+
+        try withHomeDir(dir.parent) {
+            try FileManager.default.createDirectory(at: CodexPluginInstaller.codexDir, withIntermediateDirectories: true)
+            try shim.write(to: CodexPluginInstaller.shimPath, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: CodexPluginInstaller.shimPath.path)
+            try writeHooksFile(installed, at: dir)
+
+            XCTAssertTrue(CodexPluginInstaller.hasInstalledHookFiles())
+            XCTAssertTrue(CodexPluginInstaller.needsUpdate(bundledShim: shim, hooksTemplate: template))
+        }
+    }
+
     func testMergeHooksFilePreservesUserHooks() throws {
         let dir = makeTempCodexDir()
         let template = try loadCodexHooksTemplate()
@@ -308,6 +354,32 @@ final class CodexPluginInstallerTests: XCTestCase {
     private func writeHooksFile(_ json: [String: Any], at dir: TempCodexDir) throws {
         let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
         try data.write(to: dir.codex.appendingPathComponent("hooks.json"), options: .atomic)
+    }
+
+    private func olderFiveEventCodexHooks() -> [String: Any] {
+        [
+            "hooks": [
+                "SessionStart": cctopHookEntries("SessionStart", matcher: "startup|resume|clear"),
+                "UserPromptSubmit": cctopHookEntries("UserPromptSubmit"),
+                "PreToolUse": cctopHookEntries("PreToolUse"),
+                "PostToolUse": cctopHookEntries("PostToolUse"),
+                "Stop": cctopHookEntries("Stop"),
+            ]
+        ]
+    }
+
+    private func cctopHookEntries(_ event: String, matcher: String? = nil) -> [[String: Any]] {
+        var entry: [String: Any] = [
+            "hooks": [
+                [
+                    "type": "command",
+                    "command": "'/Users/tester/.codex/cctop-shim.sh' \(event)",
+                    "timeout": 10,
+                ]
+            ]
+        ]
+        if let matcher { entry["matcher"] = matcher }
+        return [entry]
     }
 
     private func readHooksFile() throws -> [String: Any] {

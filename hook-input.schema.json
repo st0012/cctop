@@ -81,6 +81,7 @@
         "UserPromptSubmit",
         "PreToolUse",
         "PostToolUse",
+        "PermissionRequest",
         "Stop"
       ],
       "opencode": [

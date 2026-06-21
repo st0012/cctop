@@ -79,7 +79,7 @@ class PluginManager: ObservableObject {
             configExists: codexDirExists,
             hookFilesInstalled: codexHookFilesInstalled,
             featureEnabled: codexConfigText.map(CodexPluginInstaller.isFeatureFlagEnabled) ?? true,
-            needsUpdate: codexHookFilesInstalled && (Self.codexShimStale() || codexLegacyKey),
+            needsUpdate: codexHookFilesInstalled && (Self.codexInstallStale() || codexLegacyKey),
             configText: codexConfigText,
             legacyConfigKey: codexLegacyKey,
             hooksJsonPath: CodexPluginInstaller.hooksJsonPath.path
@@ -115,16 +115,16 @@ class PluginManager: ObservableObject {
         return bundledData != installedData
     }
 
-    /// True when the bundled shim differs from the installed one. The other
-    /// "Update Available" trigger — a deprecated `codex_hooks` key — is
-    /// supplied by the caller, which already computed it for the snapshot.
-    /// The update action handles both: it rewrites the shim and migrates the
-    /// TOML key in one click.
-    private static func codexShimStale() -> Bool {
-        guard let data = loadBundledResource(name: "codex-shim", ext: "sh") else {
+    /// True when the bundled Codex shim or hook template differs from the installed
+    /// cctop-owned install. The other "Update Available" trigger — a deprecated
+    /// `codex_hooks` key — is supplied by the caller, which already computed it for
+    /// the snapshot. The update action handles both in one click.
+    private static func codexInstallStale() -> Bool {
+        guard let shim = loadBundledResource(name: "codex-shim", ext: "sh"),
+              let hooks = loadBundledResource(name: "codex-hooks", ext: "json") else {
             return false
         }
-        return CodexPluginInstaller.needsUpdate(bundledShim: data)
+        return CodexPluginInstaller.needsUpdate(bundledShim: shim, hooksTemplate: hooks)
     }
 
     /// Read a bundled Resources file. Logs and returns nil if missing or unreadable.
