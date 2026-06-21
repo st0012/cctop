@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>jump ring editor</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0e0f15;font-family:-apple-system,"SF Pro Display",sans-serif;color:#C0CAF5;overflow:hidden;user-select:none}
+  #wrap{position:relative;margin:20px auto}
+  #stage{position:absolute;top:0;left:0;width:1920px;height:1080px;transform-origin:top left;background:
+     radial-gradient(1200px 900px at 24% 16%, #1d2034 0%, rgba(29,32,52,0) 60%),
+     radial-gradient(1100px 820px at 82% 92%, #1e1b26 0%, rgba(30,27,38,0) 60%),
+     linear-gradient(160deg,#15161f 0%, #1A1B26 46%, #191a28 100%)}
+  /* identical to storyboard .panel so the badge sits exactly where the render puts it */
+  .panel{position:absolute;overflow:hidden;border-radius:20px;border:1px solid rgba(192,202,245,.11);
+    box-shadow:0 54px 120px -34px rgba(0,0,0,.82), 0 0 90px -34px rgba(247,118,142,.26);background:#1c1d27}
+  .panel img{display:block;width:100%}
+  #ring{position:absolute;border-radius:50%;outline:3px solid rgba(247,118,142,.95);
+    box-shadow:0 0 26px 4px rgba(247,118,142,.55);cursor:move;z-index:20}
+  #ring .h{position:absolute;right:-9px;bottom:-9px;width:18px;height:18px;background:#fff;border:2px solid #F7768E;border-radius:50%;cursor:nwse-resize}
+  /* crosshair through the ring center to judge centering precisely */
+  #ring::before,#ring::after{content:"";position:absolute;background:rgba(255,255,255,.5)}
+  #ring::before{left:50%;top:-10px;bottom:-10px;width:1px;margin-left:-.5px}
+  #ring::after{top:50%;left:-10px;right:-10px;height:1px;margin-top:-.5px}
+  #hud{position:fixed;top:14px;left:14px;z-index:99;background:rgba(0,0,0,.82);padding:16px 20px;border-radius:12px;
+    font-family:"SF Mono",monospace;font-size:16px;line-height:1.8;border:1px solid #2a2d40}
+  #hud .row b{color:#9ECE6A;font-weight:700}
+  #hud h3{font-family:-apple-system,sans-serif;font-size:14px;color:#8E94AD;margin-bottom:8px;letter-spacing:.5px;font-weight:600}
+  #hud button{margin-top:12px;font:inherit;font-size:15px;padding:8px 16px;border-radius:8px;border:1px solid #3a3f57;background:#F7768E;color:#1A1B26;cursor:pointer;font-weight:700}
+  #hud .hint{margin-top:10px;font-family:-apple-system,sans-serif;font-size:12px;color:#6b7393;line-height:1.6;max-width:260px}
+</style></head><body>
+<div id="hud">
+  <h3>JUMP highlight ring — drag to taste</h3>
+  <div class="row">badgeRing CSS (paste this to me):</div>
+  <div class="row">left:<b id="oL"></b>px  top:<b id="oT"></b>px</div>
+  <div class="row">width:<b id="oW"></b>px  height:<b id="oH"></b>px</div>
+  <div class="row" style="color:#8E94AD">center → (<b id="oCx" style="color:#8E94AD"></b>, <b id="oCy" style="color:#8E94AD"></b>)</div>
+  <button id="copy">Copy CSS</button>
+  <div class="hint">Drag the ring to move · drag the white dot to resize · Arrow keys nudge 1px (Shift = 5px) · <kbd>+</kbd>/<kbd>-</kbd> resize. The thin crosshair marks the ring's exact center.</div>
+</div>
+<div id="wrap"><div id="stage">
+  <div class="panel" style="left:905px;top:176px;width:680px;height:781px"><img src="assets/menubar-navigate.png"></div>
+  <div id="ring" style="left:930px;top:513px;width:54px;height:54px"><div class="h"></div></div>
+</div></div>
+<script>
+  const stage=document.getElementById('stage'), wrap=document.getElementById('wrap'), ring=document.getElementById('ring');
+  const PANEL={x:0,y:0};   // storyboard badgeRing now uses canvas coords (out of the panel), so output them directly
+  const $=id=>document.getElementById(id);
+  let s=1;
+  function fit(){ s=Math.min((innerWidth-40)/1920,(innerHeight-120)/1080); stage.style.transform=`scale(${s})`;
+    wrap.style.width=(1920*s)+'px'; wrap.style.height=(1080*s)+'px'; }
+  addEventListener('resize',fit); fit();
+  const P=(el,p)=>parseFloat(el.style[p])||0;
+  function hud(){ const L=P(ring,'left')-PANEL.x,T=P(ring,'top')-PANEL.y,W=P(ring,'width'),H=P(ring,'height');
+    $('oL').textContent=Math.round(L); $('oT').textContent=Math.round(T); $('oW').textContent=W; $('oH').textContent=H;
+    $('oCx').textContent=(L+W/2).toFixed(1); $('oCy').textContent=(T+H/2).toFixed(1); }
+  hud();
+  let mode=null,sx,sy,st;
+  ring.addEventListener('mousedown',e=>{ if(e.target.classList.contains('h'))return; mode='move'; sx=e.clientX; sy=e.clientY; st={l:P(ring,'left'),t:P(ring,'top')}; e.preventDefault(); });
+  ring.querySelector('.h').addEventListener('mousedown',e=>{ mode='resize'; sx=e.clientX; sy=e.clientY; const W=P(ring,'width'); st={w:W,cx:P(ring,'left')+W/2,cy:P(ring,'top')+W/2}; e.stopPropagation(); e.preventDefault(); });
+  addEventListener('mousemove',e=>{ if(!mode)return; const dx=(e.clientX-sx)/s,dy=(e.clientY-sy)/s;
+    if(mode==='move'){ ring.style.left=(st.l+dx)+'px'; ring.style.top=(st.t+dy)+'px'; }
+    else { const w=Math.max(10,Math.min(160,st.w+dx)); ring.style.width=w+'px'; ring.style.height=w+'px'; ring.style.left=(st.cx-w/2)+'px'; ring.style.top=(st.cy-w/2)+'px'; } hud(); });
+  addEventListener('mouseup',()=>mode=null);
+  addEventListener('keydown',e=>{ const k=e.key,step=e.shiftKey?5:1; const L=P(ring,'left'),T=P(ring,'top'),W=P(ring,'width'); let used=true;
+    if(k==='ArrowLeft')ring.style.left=(L-step)+'px'; else if(k==='ArrowRight')ring.style.left=(L+step)+'px';
+    else if(k==='ArrowUp')ring.style.top=(T-step)+'px'; else if(k==='ArrowDown')ring.style.top=(T+step)+'px';
+    else if(k==='+'||k==='='){ const cx=L+W/2,cy=T+W/2,w=W+2; ring.style.width=w+'px';ring.style.height=w+'px';ring.style.left=(cx-w/2)+'px';ring.style.top=(cy-w/2)+'px'; }
+    else if(k==='-'||k==='_'){ const cx=L+W/2,cy=T+W/2,w=Math.max(10,W-2); ring.style.width=w+'px';ring.style.height=w+'px';ring.style.left=(cx-w/2)+'px';ring.style.top=(cy-w/2)+'px'; }
+    else used=false; if(used){ e.preventDefault(); hud(); } });
+  $('copy').addEventListener('click',()=>{ const L=Math.round(P(ring,'left')-PANEL.x),T=Math.round(P(ring,'top')-PANEL.y),W=P(ring,'width'),H=P(ring,'height');
+    const css=`left:${L}px;top:${T}px;width:${W}px;height:${H}px`; navigator.clipboard.writeText(css).catch(()=>{});
+    $('copy').textContent='Copied ✓  '+css; setTimeout(()=>$('copy').textContent='Copy CSS',3000); });
+</script>
+</body></html>

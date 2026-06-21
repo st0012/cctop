@@ -141,6 +141,22 @@ words, an action with no payoff, a reveal at the wrong altitude, a saggy feature
   tools) → "Works with the stack you've got." The default keyboard shortcut is `⌃⌘N`, not `⌃⌘F`
   (some committed `docs/` screenshots are stale on this).
 
+**Overlays / annotations on screenshots (the "still not centered" trap — cost ~6 rounds once)**
+- **Measure, don't eyeball; verify before saying "fixed."** Isolate the target's colour and take its
+  centroid, then assert the overlay's centre matches within ~1px:
+  `magick frame.png -crop WxH+X+Y +repage t.png && magick t.png -fuzz 8% -fill white -opaque 'srgb(R,G,B)' -fuzz 0 -fill black +opaque white -trim -format '%wx%h+%X+%Y' info:`
+  (bbox centre = target centre). A crop that "looks centred" is not verification.
+- **Put the overlay in the same coordinate space you measured in — canvas/frame-absolute.** Do NOT
+  nest it inside a container that has a border/padding/transform/scale: `.panel`'s 1px border shifted
+  the child's origin ~1px — invisible to the math, glaring against a tight gap.
+- **Leave a generous, even gap (~7–10px).** A ring hugging its target makes a 1px error obvious; a
+  roomy halo reads as deliberately centred and is immune to sub-pixel wobble.
+- **Cache-bust deliverables.** Reusing the same output filename makes corrected renders look unchanged
+  (browser cache). Ship each review iteration under a fresh filename.
+- **Contested placement → hand over direct control.** When the user keeps rejecting a placement, a
+  tiny drag-to-position editor that outputs exact canvas-coord CSS (see `videos/jump-editor.html`)
+  resolves it in one step instead of N nudges.
+
 ---
 
 ## Assets & repo strategy

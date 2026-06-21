@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>cctop — compact horizontal storyboard</title>
+<link rel="stylesheet" href="../theme.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--t1);
+    font-family:var(--disp);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
+  #stage{position:absolute;inset:0;width:1920px;height:1080px;background:
+     radial-gradient(1200px 900px at 24% 16%, #1d2034 0%, rgba(29,32,52,0) 60%),
+     radial-gradient(1100px 820px at 82% 92%, #1e1b26 0%, rgba(30,27,38,0) 60%),
+     linear-gradient(160deg,#15161f 0%, #1A1B26 46%, #191a28 100%);}
+
+  .head{color:#E8ECFB}
+  .accent{color:var(--accent)}
+
+  /* ---------- frames ---------- */
+  .sframe{position:absolute;inset:0;opacity:0}
+  .sframe.on{opacity:1}
+
+  /* ---------- persistent macOS menubar band (enlarged) ---------- */
+  #band{position:absolute;top:0;left:0;right:0;height:60px;display:flex;align-items:center;
+    padding:0 0 0 36px;background:rgba(18,19,28,.88);border-bottom:1px solid rgba(192,202,245,.09);
+    font-family:var(--mono);color:var(--t3);z-index:50;opacity:0}
+  #band .apple{color:var(--t2);opacity:.75;display:flex;align-items:center}
+  #band .cluster{margin-left:auto;display:flex;align-items:center;gap:22px;padding-right:36px}
+  #band .glyph{opacity:.6;color:var(--t2);display:flex;align-items:center}
+  #band .clock{font-size:20px;color:var(--t2);letter-spacing:.5px}
+  /* cctop pill — enlarged: 2x2 accent grid (top row brighter) + ONE segmented status bar */
+  #pill{display:inline-flex;align-items:center;gap:10px;padding:8px 13px;border-radius:12px;background:rgba(0,0,0,.34)}
+  #pill .grid{display:grid;grid-template-columns:repeat(2,14px);grid-template-rows:repeat(2,14px);gap:3px}
+  #pill .grid i{display:block;width:14px;height:14px;border-radius:4px;background:var(--accent)}
+  #pill .grid i:nth-child(1),#pill .grid i:nth-child(2){opacity:.92}
+  #pill .grid i:nth-child(3){opacity:.5}#pill .grid i:nth-child(4){opacity:.44}
+  #pill .sbar{display:flex;width:84px;height:14px;border-radius:6px;overflow:hidden}
+  #pill.hero{box-shadow:0 0 0 3px rgba(247,118,142,.40),0 0 38px 10px rgba(247,118,142,.42);background:rgba(247,118,142,.13);transform:scale(1.1)}
+  #pill .sbar b{display:block;height:100%}
+  #pill .sbar .red{background:var(--red)}#pill .sbar .orange{background:var(--orange)}#pill .sbar .green{background:var(--green)}
+
+  /* ---------- bezeled popover panel (cropped to cards; footer removed) ---------- */
+  .panel{position:absolute;overflow:hidden;border-radius:20px;border:1px solid rgba(192,202,245,.11);
+    box-shadow:0 54px 120px -34px rgba(0,0,0,.82), 0 0 90px -34px rgba(247,118,142,.26);background:#1c1d27}
+  .panel img{display:block;width:100%}
+  /* spotlight ring (lives INSIDE .panel so its vignette is clipped to the panel) */
+  .ring{position:absolute;border-radius:13px;outline:3px solid rgba(247,118,142,.95);
+    box-shadow:0 0 0 9999px rgba(10,11,18,.60), 0 0 32px 5px rgba(247,118,142,.45)}
+  .badgeRing{position:absolute;border-radius:50%;outline:3px solid rgba(247,118,142,.95);
+    box-shadow:0 0 26px 4px rgba(247,118,142,.55)}
+
+  /* ---------- type blocks ---------- */
+  .rail{position:absolute;left:341px;width:500px;text-align:right}
+  .h-rail{font-size:58px;font-weight:800;letter-spacing:-1.2px;line-height:1.08}
+  .ctr{position:absolute;left:0;right:0;text-align:center}
+
+  /* hook dots */
+  #hookDots{position:absolute;left:0;right:0;top:524px;display:flex;gap:18px;justify-content:center}
+  #hookDots .d{width:28px;height:28px;border-radius:50%}
+
+  /* wordmark lockup */
+  .mark{position:absolute;display:flex;align-items:center;gap:18px}
+  .mark .bar{width:11px;height:96px;border-radius:6px;background:var(--accent)}
+  .mark .nm{font-size:118px;font-weight:700;letter-spacing:-4px;color:#E8ECFB}
+
+  /* keycaps */
+  .keys{position:absolute;display:flex;gap:12px;align-items:center}
+  .cap{font-family:var(--mono);font-weight:700;color:#dfe3f5;min-width:70px;height:74px;
+    display:inline-flex;align-items:center;justify-content:center;line-height:1;
+    background:linear-gradient(180deg,#383d56,#2b2f45);border:1.5px solid #4e5474;
+    border-radius:15px;font-size:36px;box-shadow:0 7px 18px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.07)}
+  .cap.combo{font-family:var(--disp);font-weight:600;min-width:0;padding:0 26px;font-size:38px;letter-spacing:4px}
+  .cap.pressed{background:linear-gradient(180deg,#F7768E,#e0617a);color:#1A1B26;border:1.5px solid #ef6981;
+    transform:translateY(3px);box-shadow:0 0 24px 3px rgba(247,118,142,.55),inset 0 1px 0 rgba(255,255,255,.18)}
+  .cap.mod{font-size:31px;color:var(--t1)}
+  .keysThen{font-family:var(--mono);font-size:26px;color:var(--t3);margin:0 8px}
+
+  /* PAYOFF session card (DOM — an editor/terminal surface, so traffic-lights are accurate here) */
+  #payCard{position:absolute;left:812px;top:305px;width:820px;height:470px;border-radius:18px;overflow:hidden;
+    background:#16171f;border:1px solid rgba(192,202,245,.11);
+    box-shadow:0 54px 120px -34px rgba(0,0,0,.85), 0 0 90px -34px rgba(158,206,106,.30)}
+  #payCard .tbar{height:54px;display:flex;align-items:center;gap:10px;padding:0 22px;background:#1b1d27;border-bottom:1px solid rgba(192,202,245,.07)}
+  #payCard .tl{width:13px;height:13px;border-radius:50%}
+  #payCard .tab{margin-left:12px;font-family:var(--mono);font-size:20px;color:var(--t2)}#payCard .tab b{color:var(--t1);font-weight:600}
+  #payCard .stat{margin-left:auto;font-family:var(--mono);font-size:19px;font-weight:600;color:var(--green);display:flex;align-items:center;gap:9px}
+  #payCard .stat .sd{width:13px;height:13px;border-radius:50%;background:var(--green)}
+  #payCard .body{padding:30px 34px}
+  #payCard .who{font-family:var(--mono);font-size:16px;color:var(--t3);margin-bottom:8px;letter-spacing:.4px}
+  #payCard .msg{margin-bottom:22px}
+  #payCard .agent .bub{display:inline-block;background:rgba(247,118,142,.14);border:1px solid rgba(247,118,142,.40);
+    color:#fbdce2;border-radius:15px;padding:14px 22px;font-size:27px;line-height:1.35}
+  #payCard .you{text-align:right}
+  #payCard .you .bub{display:inline-block;background:rgba(192,202,245,.06);border:1px solid rgba(192,202,245,.13);
+    color:var(--t1);border-radius:15px;padding:14px 22px;font-size:27px;font-weight:500}
+  #payCard .run{font-family:var(--mono);font-size:24px;color:var(--green);display:flex;align-items:center;gap:12px;margin-top:4px}
+  #payCard .run .ok{font-weight:700}
+
+  /* STACK chips */
+  #chips{position:absolute;display:grid;grid-template-columns:repeat(2,248px);gap:18px}
+  .chip{display:flex;align-items:center;gap:14px;padding:0 24px;height:64px;border-radius:16px;
+    background:rgba(192,202,245,.05);border:1px solid rgba(192,202,245,.11);
+    font-family:var(--mono);font-size:27px;font-weight:600;color:var(--t1);white-space:nowrap}
+  .chip .cdot{width:16px;height:16px;border-radius:50%}
+  #editors{position:absolute;font-family:var(--mono);font-size:25px;color:var(--t3);letter-spacing:.3px}
+
+  /* THEMES fan */
+  .thpanel{position:absolute;overflow:hidden;border-radius:16px;border:1px solid rgba(255,255,255,.06);
+    box-shadow:0 34px 70px -28px rgba(0,0,0,.8);transform-origin:bottom center}
+  .thpanel img{display:block;width:100%}
+
+  /* CTA */
+  #cta #icon{width:168px;height:168px;border-radius:38px;box-shadow:0 40px 90px -25px rgba(0,0,0,.8),0 0 70px -18px rgba(247,118,142,.4)}
+  #cta .nm{font-size:108px;font-weight:700;letter-spacing:-4px;color:#E8ECFB}
+  #cta .tg{font-size:38px;color:var(--t2);font-weight:500}
+  #cta .meta{font-family:var(--mono);font-size:25px;color:var(--t3);letter-spacing:1px}
+  #cta .url{font-size:56px;font-weight:700;color:var(--accent);letter-spacing:-.5px}
+
+  /* tether (reveal) */
+  #tether{position:absolute;opacity:0;z-index:40}
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- persistent menubar band (opacity set per-frame) -->
+  <div id="band">
+    <span class="apple"><svg width="19" height="23" viewBox="0 0 384 512" fill="currentColor"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg></span>
+    <div class="cluster">
+      <div id="pill">
+        <span class="grid"><i></i><i></i><i></i><i></i></span>
+        <span class="sbar"><b class="red" style="flex:1"></b><b class="orange" style="flex:1"></b><b class="green" style="flex:3"></b></span>
+      </div>
+      <span class="glyph"><svg width="26" height="19" viewBox="0 0 24 18" fill="currentColor"><path d="M12 14.5a1.9 1.9 0 110 3.8 1.9 1.9 0 010-3.8zM5.2 10.6a9.6 9.6 0 0113.6 0l-2 2a6.8 6.8 0 00-9.6 0l-2-2zM1.4 6.8a15 15 0 0121.2 0l-2 2a12.2 12.2 0 00-17.2 0l-2-2z"/></svg></span>
+      <span class="glyph"><svg width="34" height="16" viewBox="0 0 28 14" fill="none"><rect x="1" y="2" width="22" height="10" rx="3" stroke="currentColor" stroke-width="1.4"/><rect x="3.4" y="4.2" width="13" height="5.6" rx="1.4" fill="currentColor"/><rect x="24.4" y="5" width="2.2" height="4" rx="1" fill="currentColor"/></svg></span>
+      <span class="clock">9:41</span>
+    </div>
+  </div>
+
+  <!-- tether (reveal only) -->
+  <svg id="tether" width="200" height="160" style="left:1500px;top:48px"><path d="M152 8 L152 70 Q152 86 134 96 L70 128" stroke="rgba(247,118,142,.45)" stroke-width="2" fill="none" stroke-dasharray="3 6"/></svg>
+
+  <!-- ============ FRAME 0 — HOOK ============ -->
+  <div class="sframe" data-i="0">
+    <div class="ctr head" style="top:418px;font-size:74px;font-weight:800;letter-spacing:-2px">You've got <span class="accent">5 agents</span> working.</div>
+    <div id="hookDots">
+      <span class="d" style="background:var(--red)"></span><span class="d" style="background:var(--orange)"></span>
+      <span class="d" style="background:var(--green)"></span><span class="d" style="background:var(--green)"></span><span class="d" style="background:var(--green)"></span>
+    </div>
+    <div class="ctr" style="top:614px;font-size:64px;font-weight:800;letter-spacing:-1.5px;color:#E8ECFB">Which one <span class="accent">needs you?</span></div>
+  </div>
+
+  <!-- ============ FRAME 1 — REVEAL ============ -->
+  <div class="sframe" data-i="1">
+    <div class="mark" style="left:0;width:841px;justify-content:flex-end;top:470px"><span class="bar"></span><span class="nm">cctop</span></div>
+    <div style="position:absolute;left:241px;width:600px;text-align:right;top:614px;font-size:32px;font-weight:500;color:var(--t2)">Keep an eye on every coding agent.</div>
+    <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px"><img src="assets/menubar-dark.png"></div>
+  </div>
+
+  <!-- ============ FRAME 2 — SCAN ============ -->
+  <div class="sframe" data-i="2">
+    <div class="rail h-rail head" style="top:486px">See every session<br>at a glance.</div>
+    <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px">
+      <img src="assets/menubar-dark.png">
+      <div class="ring" style="left:17px;top:329px;width:646px;height:157px"></div>
+    </div>
+  </div>
+
+  <!-- ============ FRAME 3 — JUMP ============ -->
+  <div class="sframe" data-i="3">
+    <div class="rail h-rail head" style="top:420px">Then jump<br>straight to it.</div>
+    <div class="keys" style="left:301px;width:540px;justify-content:flex-end;top:632px">
+      <span class="cap combo">⌃⌘N</span>
+      <span class="keysThen">then</span>
+      <span class="cap pressed">2</span>
+    </div>
+    <div class="panel" data-img="nav" style="left:905px;top:176px;width:680px;height:781px">
+      <img src="assets/menubar-navigate.png">
+    </div>
+    <!-- ring lives in the frame (canvas coords), NOT inside .panel, so its 1px border can't offset it -->
+    <div class="badgeRing" style="left:930px;top:513px;width:54px;height:54px;z-index:31"></div>
+    <svg id="jumpLink" width="280" height="210" style="position:absolute;left:740px;top:498px;z-index:30"><path d="M80 150 Q150 96 198 61" stroke="rgba(247,118,142,.55)" stroke-width="2.5" fill="none" stroke-dasharray="2 8" stroke-linecap="round"/></svg>
+  </div>
+
+  <!-- ============ FRAME 4 — PAYOFF ============ -->
+  <div class="sframe" data-i="4">
+    <div style="position:absolute;left:288px;width:460px;text-align:right;top:430px;font-size:54px;font-weight:800;letter-spacing:-1px;line-height:1.1;color:#E8ECFB">One keystroke,<br>and you're <span class="accent">unblocking it.</span></div>
+    <div id="payCard">
+      <div class="tbar"><span class="tl" style="background:#ff5f57"></span><span class="tl" style="background:#febc2e"></span><span class="tl" style="background:#28c840"></span>
+        <span class="tab">billing-api · staging · <b>Codex</b></span>
+        <span class="stat"><span class="sd"></span>Working</span></div>
+      <div class="body">
+        <div class="msg agent"><div class="who">agent</div><span class="bub">Should we retry on 5xx, or surface the error to the user?</span></div>
+        <div class="msg you"><div class="who">you</div><span class="bub">Retry with backoff, then surface.</span></div>
+        <div class="msg run"><span class="ok">✓ deploy is green</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ FRAME 5 — STACK ============ -->
+  <div class="sframe" data-i="5">
+    <div style="position:absolute;left:341px;width:500px;text-align:right;top:332px;font-size:54px;font-weight:800;letter-spacing:-1px;line-height:1.08;color:#E8ECFB">Works with the<br>stack you've got.</div>
+    <div id="chips" style="left:327px;top:498px">
+      <div class="chip"><span class="cdot" style="background:var(--accent)"></span>Claude Code</div>
+      <div class="chip"><span class="cdot" style="background:var(--gold)"></span>Codex</div>
+      <div class="chip"><span class="cdot" style="background:var(--blue)"></span>opencode</div>
+      <div class="chip"><span class="cdot" style="background:var(--teal)"></span>pi</div>
+    </div>
+    <div id="editors" style="left:201px;width:640px;text-align:right;top:680px;font-size:24px;color:#7d83a0;line-height:1.5">VS Code · Cursor · Zed<br>iTerm2 · Ghostty · Warp · Kitty · cmux</div>
+    <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px"><img src="assets/menubar-dark.png"></div>
+  </div>
+
+  <!-- ============ FRAME 6 — THEMES ============ -->
+  <div class="sframe" data-i="6">
+    <div class="ctr head" style="top:250px;font-size:62px;font-weight:800;letter-spacing:-1.4px">…and it suits your setup.</div>
+    <div class="thpanel" style="left:300px;top:392px;width:480px;height:552px;transform:rotate(-6deg);z-index:1;background:#1c1d27"><img src="assets/theme-tokyoNight-dark.png"></div>
+    <div class="thpanel" style="left:582px;top:368px;width:480px;height:552px;transform:rotate(-2deg);z-index:3;background:#282828"><img src="assets/theme-gruvbox-dark.png"></div>
+    <div class="thpanel" style="left:858px;top:368px;width:480px;height:552px;transform:rotate(2deg);z-index:4;background:#e5e9f0"><img src="assets/theme-nord-light.png"></div>
+    <div class="thpanel" style="left:1140px;top:392px;width:480px;height:552px;transform:rotate(6deg);z-index:2;background:#f3f1ea"><img src="assets/theme-claude-light.png"></div>
+  </div>
+
+  <!-- ============ FRAME 7 — CTA ============ -->
+  <div class="sframe" data-i="7">
+    <div id="cta">
+      <div class="ctr" style="top:262px"><img id="icon" src="assets/appicon.png"></div>
+      <div class="ctr nm" style="top:454px">cctop</div>
+      <div class="ctr tg" style="top:606px">Find the agent that needs you, and jump straight in.</div>
+      <div class="ctr meta" style="top:678px">Free &amp; open source · macOS menubar app</div>
+      <div class="ctr url" style="top:742px">cctop.app</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="../lib.js"></script>
+<script>
+/* Storyboard: 8 static key frames. seek(t) shows frame round(t).
+   Per-frame menubar band opacity (some beats suppress it). */
+const BAND = [0, 1.0, 0.92, 0.92, 0.70, 0.92, 0, 0];   // index = frame
+const TETHER = 1;                                       // tether visible only on REVEAL
+
+function seek(t){
+  const f = Math.max(0, Math.min(7, Math.round(t)));
+  $$('.sframe').forEach(el=>el.classList.toggle('on', +el.dataset.i===f));
+  $('#band').style.opacity = BAND[f];
+  $('#tether').style.opacity = f===TETHER ? 1 : 0;
+  $('#pill').classList.toggle('hero', f===TETHER);   // pill is the hero on the REVEAL beat
+}
+window.__seek = seek;
+
+Promise.all([document.fonts.ready,
+  ...$$('#stage img').map(im=>im.complete && im.naturalWidth ? 1 : new Promise(r=>{im.onload=im.onerror=r;}))])
+  .then(()=>{ seek(0); requestAnimationFrame(()=>{ window.__ready=true; }); });
+</script>
+</body>
+</html>
