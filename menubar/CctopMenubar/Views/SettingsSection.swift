@@ -151,7 +151,11 @@ struct SettingsSection: View {
 
     @ViewBuilder
     private var updateSection: some View {
-        if let version = updater.pendingUpdateVersion {
+        if let version = updater.downloadingUpdateVersion {
+            settingsGroup {
+                updateDownloadingSection(version: version)
+            }
+        } else if let version = updater.pendingUpdateVersion {
             settingsGroup {
                 Button {
                     updater.checkForUpdates()
@@ -186,6 +190,22 @@ struct SettingsSection: View {
     }
 
     private var currentVersion: String { Bundle.main.appVersion }
+
+    private func updateDownloadingSection(version: String) -> some View {
+        HStack {
+            Text("Downloading v\(version)\u{2026}")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+            Spacer(minLength: 8)
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Downloading update")
+        }
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+        .padding(.vertical, 10)
+    }
 
     private var updateControlsSection: some View {
         HStack {

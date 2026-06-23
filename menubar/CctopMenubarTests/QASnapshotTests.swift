@@ -90,6 +90,18 @@ final class QASnapshotTests: XCTestCase {
         try renderSettingsSnapshot(updater: updater, name: "13-settings-update-available-dark", colorScheme: .dark)
     }
 
+    func testSettingsUpdateDownloading() throws {
+        let updater = DisabledUpdater()
+        updater.downloadingUpdateVersion = "0.7.0"
+        try renderSettingsSnapshot(updater: updater, name: "13b-settings-update-downloading")
+    }
+
+    func testSettingsUpdateDownloadingDark() throws {
+        let updater = DisabledUpdater()
+        updater.downloadingUpdateVersion = "0.7.0"
+        try renderSettingsSnapshot(updater: updater, name: "13c-settings-update-downloading-dark", colorScheme: .dark)
+    }
+
     func testSettingsUpToDate() throws {
         try renderSettingsSnapshot(updater: MockQAUpdater(), name: "14-settings-up-to-date")
     }

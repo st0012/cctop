@@ -9,6 +9,7 @@ import Security
 @MainActor
 class UpdaterBase: NSObject, ObservableObject {
     @Published var pendingUpdateVersion: String?
+    @Published var downloadingUpdateVersion: String?
 
     var canCheckForUpdates: Bool { false }
     var disabledReason: DisabledReason? { nil }
@@ -72,6 +73,7 @@ final class SparkleUpdater: UpdaterBase, @preconcurrency SPUUpdaterDelegate {
     nonisolated func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
         Task { @MainActor in
             self.pendingUpdateVersion = item.displayVersionString
+            self.downloadingUpdateVersion = nil
         }
     }
 
@@ -85,6 +87,25 @@ final class SparkleUpdater: UpdaterBase, @preconcurrency SPUUpdaterDelegate {
             if choice != .dismiss {
                 self.pendingUpdateVersion = nil
             }
+        }
+    }
+
+    nonisolated func updater(_ updater: SPUUpdater, willDownloadUpdate item: SUAppcastItem, with request: NSMutableURLRequest) {
+        Task { @MainActor in
+            self.downloadingUpdateVersion = item.displayVersionString
+        }
+    }
+
+    nonisolated func updater(_ updater: SPUUpdater, didDownloadUpdate item: SUAppcastItem) {
+        Task { @MainActor in
+            self.downloadingUpdateVersion = nil
+        }
+    }
+
+    nonisolated func updater(_ updater: SPUUpdater, failedToDownloadUpdate item: SUAppcastItem, error: Error) {
+        Task { @MainActor in
+            self.downloadingUpdateVersion = nil
+            self.pendingUpdateVersion = item.displayVersionString
         }
     }
 }
