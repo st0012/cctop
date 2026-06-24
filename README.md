@@ -37,25 +37,47 @@ project with a keystroke.
 Each integration reports session events locally; cctop turns them into one menubar
 view and a reliable jump target.
 
-- [Claude Code / Claude Desktop](https://docs.anthropic.com/en/docs/claude-code):
-  Claude plugin + event hooks.
-- [Codex CLI / Codex Desktop](https://github.com/openai/codex): Codex event
-  hooks + trust step.
-- [opencode](https://opencode.ai): opencode plugin events.
-- [pi](https://github.com/badlogic/pi-mono): pi extension events.
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <a href="https://code.claude.com/docs">
+        <img src="assets/icons/claude-code.svg" alt="Claude Code" height="36"><br>
+        <strong>Claude Code / Desktop</strong>
+      </a>
+      <br><sub>Claude plugin + event hooks</sub>
+    </td>
+    <td align="center" width="25%">
+      <a href="https://developers.openai.com/codex">
+        <img src="assets/icons/openai.svg" alt="OpenAI" height="36"><br>
+        <strong>Codex CLI / Desktop</strong>
+      </a>
+      <br><sub>Codex event hooks + trust step</sub>
+    </td>
+    <td align="center" width="25%">
+      <a href="https://opencode.ai">
+        <img src="assets/icons/opencode.svg" alt="opencode" height="28"><br>
+        <strong>opencode</strong>
+      </a>
+      <br><sub>opencode plugin events</sub>
+    </td>
+    <td align="center" width="25%">
+      <a href="https://pi.dev/">
+        <img src="assets/icons/pi.svg" alt="pi" height="36"><br>
+        <strong>pi</strong>
+      </a>
+      <br><sub>pi extension events</sub>
+    </td>
+  </tr>
+</table>
 
 ## Jump Support
 
 When you click a session card, or use Navigate mode, cctop tries to take you to
 the most specific place it can.
 
-- **Targets the exact session:** iTerm2, cmux, Kitty*, Ghostty*, Terminal*,
-  Codex Desktop, Zellij, tmux. cctop jumps to the right window, tab, pane,
-  surface, or desktop thread.
-- **Opens the project:** VS Code, Cursor, Windsurf, Zed. cctop focuses the
-  editor window, using the workspace file if present.
-- **Activates the app:** Claude Desktop, Warp. cctop raises the host app so you
-  can find the tab manually.
+- **Targets the exact session:** [iTerm2](https://iterm2.com/), [cmux](https://cmux.com/), [Kitty](https://sw.kovidgoyal.net/kitty/), [Ghostty](https://ghostty.org/), [Terminal](https://support.apple.com/guide/terminal/welcome/mac), [Codex Desktop](https://developers.openai.com/codex/app), [Zellij](https://zellij.dev/), [tmux](https://tmux.us/). cctop jumps to the right window, tab, pane, surface, or desktop thread.
+- **Opens the project:** [VS Code](https://code.visualstudio.com/), [Cursor](https://cursor.com/), [Windsurf](https://windsurf.com/download), [Zed](https://zed.dev/). cctop focuses the editor window, using the workspace file if present.
+- **Activates the app:** [Claude Desktop](https://claude.com/download), [Warp](https://www.warp.dev/terminal). cctop raises the host app so you can find the tab manually.
 
 <details>
 <summary>Focus details and requirements</summary>
