@@ -1,35 +1,39 @@
-# cctop Promo Video Framework
+# cctop Video Framework
 
-A small, reproducible system for making cctop's promotional videos — and the hard-won
-findings behind it. Pairs with the **`promo-storyboard` skill** (the narrative half) and the
-`reference-promo-video-pipeline` memory.
+A small, reproducible system for making cctop's videos — and the hard-won findings behind it.
+Pairs with the **storyboard skill** (the narrative half) and the video-pipeline memory.
 
 The split it's built around: **story → engine → theme → video**. You change one layer without
-touching the others. Recolour the app? Edit `theme.css`. New 15s "for teams" cut? Add a file in
-`videos/`. The pipeline and the easing runtime never move.
+touching the others. Recolour the app? Edit `theme.css`. New 15s "for teams" cut? Add a project
+under `projects/`. The pipeline and the easing runtime never move.
 
 ---
 
 ## Layout
 
 ```
-promo/
-├── FRAMEWORK.md          ← this file
+video/
+├── framework.md          ← this file
 ├── theme.css             ← design tokens (colours, fonts). EDIT HERE to restyle every video.
-├── lib.js                ← shared timeline runtime (easings, rev(), set()). Rarely touched.
+├── lib.js                ← shared timeline runtime (easings, rev(), set(), whenReady()). Rarely touched.
 ├── engine/
 │   ├── render.mjs        ← drives headless Chrome over CDP, one screenshot per frame (zero deps)
-│   └── encode.sh         ← ffmpeg: frames → 1080p H.264 (+720p), BT.709, no fade-in
-├── videos/
-│   ├── launch.html       ← the launch promo (~28s). A "video" = one self-contained HTML file.
-│   └── assets/           ← staged screenshots (gitignored; copied from <repo>/docs at build time)
-├── build.sh              ← one command: ./build.sh <video>
-├── .gitignore            ← out/, videos/assets/, *.mp4, frames/
-└── out/<video>/          ← rendered frames + mp4 (gitignored, regenerable)
+│   ├── encode.sh         ← ffmpeg: frames → 1080p H.264 (+720p), BT.709, no fade-in
+│   └── check.sh          ← mechanical asserts on the mp4 (frame0≠black, BT.709 tags, 720p present)
+├── projects/             ← one folder per video — EVERYTHING for that video lives here
+│   └── launch/
+│       ├── body.html         ← the cut (~28s). A "video" = one self-contained HTML file.
+│       ├── storyboard.html   ← static key-frame design reference
+│       ├── jump-editor.html  ← project tool (NOT rendered — build only targets body.html)
+│       ├── making-of.html    ← visual making-of
+│       └── .video-build/     ← [gitignored] staged screenshots, frames, mp4, 720p, poster, qa
+├── build.sh              ← one command: ./build.sh <project>
+├── DELIVERABLES.md       ← project → published Release asset → source commit
+└── .gitignore            ← .video-build/, *.mp4
 ```
 
-A **video** is a single HTML file that:
-- links `../theme.css` (colours) and `../lib.js` (helpers),
+A **video** is a single `projects/<name>/body.html` that:
+- links `../../theme.css` (colours) and `../../lib.js` (helpers, incl. `whenReady`),
 - lays out its DOM, and
 - exposes `window.__seek(t)` — a pure function of time `t` (seconds) that sets every element's
   position/opacity from `t` with **no CSS transitions**. That determinism is the whole trick:
@@ -41,18 +45,19 @@ A **video** is a single HTML file that:
 ## Build
 
 ```bash
-cd promo
-./build.sh launch                 # → out/launch/launch.mp4 (+ launch-720p.mp4)
+cd video
+./build.sh launch                 # → projects/launch/.video-build/launch.mp4 (+ -720p), then runs check.sh
 DUR=15 ./build.sh teaser          # a shorter cut; SCALE=1 for a fast preview render
 ```
 
-`build.sh` stages the screenshots each video references from `<repo>/docs/*.png` into
-`videos/assets/`, serves `promo/` over a local http server, renders every frame headlessly at 2×
-(supersampled), and encodes. Requires: `node` (v22+ for the stable global `WebSocket`; developed on v26), Google Chrome,
-`ffmpeg`, `python3`. ~5–6 min for a 28s 30fps render; frames are deleted by `encode.sh` afterward.
+`build.sh` stages the screenshots each project references from `<repo>/docs/*.png` into
+`projects/<name>/.video-build/assets/`, serves `video/` over a local http server, renders every frame
+headlessly at 2× (supersampled), encodes, then runs `engine/check.sh` on the result. Requires: `node`
+(v22+ for the stable global `WebSocket`; developed on v26), Google Chrome, `ffmpeg`, `python3`, ImageMagick.
+~5–6 min for a 28s 30fps render; frames are deleted by `encode.sh` afterward.
 
 **Iterate fast:** while authoring, render a few keyframes instead of the whole thing —
-`node engine/render.mjs --url=http://127.0.0.1:8123/videos/launch.html --out=/tmp/k --times=3.6,9,14 --scale=1`.
+`node engine/render.mjs --url=http://127.0.0.1:8123/projects/launch/body.html --out=/tmp/k --times=3.6,9,14 --scale=1`.
 
 ---
 
@@ -71,13 +76,13 @@ multiple palettes, copy `theme.css` to `themes/<name>.css` and point a video's `
 
 ## Recipe 2 — a new video for a different angle
 
-1. **Story first.** Run the `promo-storyboard` skill (DESIGN mode) to get a positioning line, a
-   spine (Before-After-Bridge is the default for tight promos), a beat sheet, and a shot list.
-   Don't free-associate scenes — the skill exists because that's where promos live or die.
-2. `cp videos/launch.html videos/<angle>.html`. Keep the `<link>`/`<script>` includes and the
-   `seek()`/render-readiness scaffolding; replace the **scene content and timeline**.
+1. **Story first.** Run the storyboard skill (DESIGN mode) to get a positioning line, a
+   spine (Before-After-Bridge is the default for tight cuts), a beat sheet, and a shot list.
+   Don't free-associate scenes — the skill exists because that's where these videos live or die.
+2. `cp -r projects/launch projects/<angle>`, then in `body.html` keep the `<link>`/`<script>` includes
+   and the `whenReady(seek)` boot, and replace the **scene content and timeline**.
 3. Edit the `TL` object (scene start/end times) and the per-scene `draw*()` functions / DOM.
-   Reuse `rev()`, `mix()`, easings from `lib.js`. Source any new screenshots into `videos/assets/`.
+   Reuse `rev()`, `mix()`, easings (and `whenReady`) from `lib.js`. Put any new screenshots in `<repo>/docs/` and the project's asset list.
 4. `DUR=<seconds> ./build.sh <angle>`, then QA it (Recipe 3).
 
 A video's structure (see `launch.html`): a `TL` map of named scenes → `[start,end]`, a `seek(t)`
@@ -91,9 +96,9 @@ a new angle rearranges/replaces beats.
 
 Stills hide motion problems, so QA off the **encoded** mp4, not the source:
 
-1. `ffmpeg -i out/<v>/<v>.mp4 -vf fps=5 /tmp/sweep/frame_%05d.png` (every 0.2s; `frame_N = (N-1)*0.2s`).
+1. `ffmpeg -i projects/<p>/.video-build/<p>.mp4 -vf fps=5 /tmp/sweep/frame_%05d.png` (every 0.2s; `frame_N = (N-1)*0.2s`).
 2. Fan out parallel reviewers over **overlapping** time-windows (so each transition sits inside one
-   window), + a cold-viewer comprehension pass, + an audit using the `promo-storyboard` skill; a
+   window), + a cold-viewer comprehension pass, + an audit using the storyboard skill; a
    synthesizer merges into a deduped fix list. (This repo's sessions used the `Workflow` tool for it.)
 3. Apply fixes to the video HTML, re-render, repeat. A transient API overload can kill a whole
    workflow run — fall back to a hand pass over the same frames.
@@ -154,14 +159,14 @@ words, an action with no payoff, a reveal at the wrong altitude, a saggy feature
 - **Cache-bust deliverables.** Reusing the same output filename makes corrected renders look unchanged
   (browser cache). Ship each review iteration under a fresh filename.
 - **Contested placement → hand over direct control.** When the user keeps rejecting a placement, a
-  tiny drag-to-position editor that outputs exact canvas-coord CSS (see `videos/jump-editor.html`)
+  tiny drag-to-position editor that outputs exact canvas-coord CSS (see `projects/launch/jump-editor.html`)
   resolves it in one step instead of N nudges.
 
 ---
 
 ## Assets & repo strategy
 
-Measured this repo: **source** (`theme.css`, `lib.js`, `engine/*`, `videos/*.html`, this doc) is
+Measured this repo: **source** (`theme.css`, `lib.js`, `engine/*`, `projects/*/*.html`, this doc) is
 **~30 KB** — version it in the **main repo**; it belongs with the product and changes with the UI.
 The **screenshots** the videos use are already in `<repo>/docs/*.png`, so `build.sh` copies them at
 build time rather than duplicating. The **heavy, regenerable** parts — `frames/` (~1 GB/run at 2×) and the
@@ -175,7 +180,7 @@ mp4s. The deliverable mp4 (~3.5 MB) can be committed as a release artifact if us
 ---
 
 ## See also
-- **`promo-storyboard` skill** (`~/.claude/skills/promo-storyboard`) — the narrative process:
-  positioning → spine → beats → script → storyboard → review, plus the failure-mode checklist.
-- **`reference-promo-video-pipeline` memory** — the pipeline at a glance.
-- `how-it-was-made.html` (in the old `.promo-build/`) — a visual making-of of the launch cut.
+- **the storyboard skill** — the narrative process: positioning → spine → beats → script →
+  storyboard → review, plus the failure-mode checklist.
+- **the video-pipeline memory** — the pipeline at a glance.
+- the v1 making-of is parked in the gitignored `.video-archive/` (it documents the superseded pipeline).

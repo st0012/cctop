@@ -18,3 +18,11 @@ function set(el,{o,x=0,y=0,s=1,blur=0,extra=''}){
   el.style.opacity=o; el.style.transform=`translate(${x}px,${y}px) scale(${s}) ${extra}`;
   el.style.filter=blur>0?`blur(${blur}px)`:'none';
 }
+/* The boot handshake every cut shares: expose seek to the renderer, wait for fonts + all
+   #stage images, paint frame 0, then flag __ready. Keeps cuts from cloning this verbatim. */
+function whenReady(seek){
+  window.__seek=seek;
+  Promise.all([document.fonts.ready,
+    ...$$('#stage img').map(im=>im.complete && im.naturalWidth ? 1 : new Promise(r=>{im.onload=im.onerror=r;}))])
+    .then(()=>{ seek(0); requestAnimationFrame(()=>{ window.__ready=true; }); });
+}

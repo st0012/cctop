@@ -9,8 +9,8 @@ const args = Object.fromEntries(process.argv.slice(2).map(a => {
   return [k, v ?? true];
 }));
 
-const URL_ARG  = args.url    || 'http://127.0.0.1:8123/promo.html';
-const OUT       = args.out    || '.promo-build/frames';
+const URL_ARG  = args.url    || 'http://127.0.0.1:8123/projects/launch/body.html';
+const OUT       = args.out    || 'projects/launch/.video-build/frames';
 const FPS        = +(args.fps || 30);
 const DURATION   = +(args.duration || 25);
 const WIDTH      = +(args.width || 1920);
@@ -23,7 +23,7 @@ const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
-const profile = `/tmp/cctop-promo-chrome-${PORT}`;
+const profile = `/tmp/cctop-video-chrome-${PORT}`;
 rmSync(profile, { recursive: true, force: true });
 
 const chrome = spawn(CHROME, [

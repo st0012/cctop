@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>cctop — launch promo</title>
-<link rel="stylesheet" href="../theme.css">
+<title>cctop — launch video</title>
+<link rel="stylesheet" href="../../theme.css">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--t1);
@@ -148,8 +148,8 @@
 
   <!-- PERSISTENT PANEL -->
   <div id="panel">
-    <img id="imgDark" src="assets/menubar-dark.png">
-    <img id="imgNav" src="assets/menubar-navigate.png">
+    <img id="imgDark" src=".video-build/assets/menubar-dark.png">
+    <img id="imgNav" src=".video-build/assets/menubar-navigate.png">
     <div class="ring" id="spot" style="left:17px;top:329px;width:646px;height:157px"></div>
   </div>
   <div id="badgeRing" style="left:930px;top:513px;width:54px;height:54px"></div>
@@ -188,15 +188,15 @@
   <!-- THEMES -->
   <div class="ctr head" id="themesHead" style="top:250px;font-size:62px;font-weight:800;letter-spacing:-1.4px">…and it suits your setup.</div>
   <div id="thfan">
-    <div class="thpanel" style="left:300px;top:392px;width:480px;height:552px;z-index:1;background:#1c1d27"><img src="assets/theme-tokyoNight-dark.png"></div>
-    <div class="thpanel" style="left:582px;top:368px;width:480px;height:552px;z-index:3;background:#282828"><img src="assets/theme-gruvbox-dark.png"></div>
-    <div class="thpanel" style="left:858px;top:368px;width:480px;height:552px;z-index:4;background:#e5e9f0"><img src="assets/theme-nord-light.png"></div>
-    <div class="thpanel" style="left:1140px;top:392px;width:480px;height:552px;z-index:2;background:#f3f1ea"><img src="assets/theme-claude-light.png"></div>
+    <div class="thpanel" style="left:300px;top:392px;width:480px;height:552px;z-index:1;background:#1c1d27"><img src=".video-build/assets/theme-tokyoNight-dark.png"></div>
+    <div class="thpanel" style="left:582px;top:368px;width:480px;height:552px;z-index:3;background:#282828"><img src=".video-build/assets/theme-gruvbox-dark.png"></div>
+    <div class="thpanel" style="left:858px;top:368px;width:480px;height:552px;z-index:4;background:#e5e9f0"><img src=".video-build/assets/theme-nord-light.png"></div>
+    <div class="thpanel" style="left:1140px;top:392px;width:480px;height:552px;z-index:2;background:#f3f1ea"><img src=".video-build/assets/theme-claude-light.png"></div>
   </div>
 
   <!-- CTA -->
   <div id="cta">
-    <div class="ctr" style="top:262px"><img id="icon" src="assets/appicon.png"></div>
+    <div class="ctr" style="top:262px"><img id="icon" src=".video-build/assets/appicon.png"></div>
     <div class="ctr nm" id="ctaNm" style="top:454px">cctop</div>
     <div class="ctr tg" id="ctaTg" style="top:606px">Find the agent that needs you, and jump straight in.</div>
     <div class="ctr meta" id="ctaMeta" style="top:678px">Free &amp; open source · macOS menubar app</div>
@@ -205,7 +205,7 @@
 
 </div>
 
-<script src="../lib.js"></script>
+<script src="../../lib.js"></script>
 <script>
 const TL={
   hook:[0.0,3.2], morph:[3.1,4.2], reveal:[4.0,7.6], scan:[7.5,11.2],
@@ -374,11 +374,8 @@ function drawCTA(t){
   $('#ctaUrlStyle').textContent=`#cta .url::after{width:${uw}%}`;
 }
 
-window.__seek=seek;
 const styleTag=document.createElement('style'); styleTag.id='ctaUrlStyle'; document.head.appendChild(styleTag);
-Promise.all([document.fonts.ready,
-  ...$$('#stage img').map(im=>im.complete && im.naturalWidth ? 1 : new Promise(r=>{im.onload=im.onerror=r;}))])
-  .then(()=>{ seek(0); requestAnimationFrame(()=>{ window.__ready=true; }); });
+whenReady(seek);   // shared boot handshake (lib.js): expose seek, await fonts+images, paint frame 0, flag __ready
 </script>
 </body>
 </html>

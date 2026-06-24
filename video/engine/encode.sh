@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assemble rendered frames into an H.264 promo at the target resolution.
+# Assemble rendered frames into an H.264 video at the target resolution.
 # No fade-IN (the first frame must not be black, or paused players show a black poster);
 # gentle fade-OUT only. Tagged BT.709 limited-range so QuickTime/Safari render it correctly.
 # Output dims default to 1080p landscape; override OW/OH for other aspect ratios (e.g. vertical 1080x1920).
@@ -8,8 +8,8 @@ CALLER_PWD="$PWD"
 cd "$(dirname "$0")"
 
 FRAMES_DIR="${1:-frames}"
-OUT="${2:-cctop-promo.mp4}"
-# build.sh passes paths relative to promo/, but we just cd'd into engine/ — resolve against the caller.
+OUT="${2:-out.mp4}"
+# build.sh passes paths relative to video/, but we just cd'd into engine/ — resolve against the caller.
 case "$FRAMES_DIR" in /*) ;; *) FRAMES_DIR="$CALLER_PWD/$FRAMES_DIR" ;; esac
 case "$OUT" in /*) ;; *) OUT="$CALLER_PWD/$OUT" ;; esac
 FPS=30

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>cctop — compact horizontal storyboard</title>
-<link rel="stylesheet" href="../theme.css">
+<link rel="stylesheet" href="../../theme.css">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--t1);
@@ -153,14 +153,14 @@
   <div class="sframe" data-i="1">
     <div class="mark" style="left:0;width:841px;justify-content:flex-end;top:470px"><span class="bar"></span><span class="nm">cctop</span></div>
     <div style="position:absolute;left:241px;width:600px;text-align:right;top:614px;font-size:32px;font-weight:500;color:var(--t2)">Keep an eye on every coding agent.</div>
-    <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px"><img src="assets/menubar-dark.png"></div>
+    <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px"><img src=".video-build/assets/menubar-dark.png"></div>
   </div>
 
   <!-- ============ FRAME 2 — SCAN ============ -->
   <div class="sframe" data-i="2">
     <div class="rail h-rail head" style="top:486px">See every session<br>at a glance.</div>
     <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px">
-      <img src="assets/menubar-dark.png">
+      <img src=".video-build/assets/menubar-dark.png">
       <div class="ring" style="left:17px;top:329px;width:646px;height:157px"></div>
     </div>
   </div>
@@ -174,7 +174,7 @@
       <span class="cap pressed">2</span>
     </div>
     <div class="panel" data-img="nav" style="left:905px;top:176px;width:680px;height:781px">
-      <img src="assets/menubar-navigate.png">
+      <img src=".video-build/assets/menubar-navigate.png">
     </div>
     <!-- ring lives in the frame (canvas coords), NOT inside .panel, so its 1px border can't offset it -->
     <div class="badgeRing" style="left:930px;top:513px;width:54px;height:54px;z-index:31"></div>
@@ -206,22 +206,22 @@
       <div class="chip"><span class="cdot" style="background:var(--teal)"></span>pi</div>
     </div>
     <div id="editors" style="left:201px;width:640px;text-align:right;top:680px;font-size:24px;color:#7d83a0;line-height:1.5">VS Code · Cursor · Zed<br>iTerm2 · Ghostty · Warp · Kitty · cmux</div>
-    <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px"><img src="assets/menubar-dark.png"></div>
+    <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px"><img src=".video-build/assets/menubar-dark.png"></div>
   </div>
 
   <!-- ============ FRAME 6 — THEMES ============ -->
   <div class="sframe" data-i="6">
     <div class="ctr head" style="top:250px;font-size:62px;font-weight:800;letter-spacing:-1.4px">…and it suits your setup.</div>
-    <div class="thpanel" style="left:300px;top:392px;width:480px;height:552px;transform:rotate(-6deg);z-index:1;background:#1c1d27"><img src="assets/theme-tokyoNight-dark.png"></div>
-    <div class="thpanel" style="left:582px;top:368px;width:480px;height:552px;transform:rotate(-2deg);z-index:3;background:#282828"><img src="assets/theme-gruvbox-dark.png"></div>
-    <div class="thpanel" style="left:858px;top:368px;width:480px;height:552px;transform:rotate(2deg);z-index:4;background:#e5e9f0"><img src="assets/theme-nord-light.png"></div>
-    <div class="thpanel" style="left:1140px;top:392px;width:480px;height:552px;transform:rotate(6deg);z-index:2;background:#f3f1ea"><img src="assets/theme-claude-light.png"></div>
+    <div class="thpanel" style="left:300px;top:392px;width:480px;height:552px;transform:rotate(-6deg);z-index:1;background:#1c1d27"><img src=".video-build/assets/theme-tokyoNight-dark.png"></div>
+    <div class="thpanel" style="left:582px;top:368px;width:480px;height:552px;transform:rotate(-2deg);z-index:3;background:#282828"><img src=".video-build/assets/theme-gruvbox-dark.png"></div>
+    <div class="thpanel" style="left:858px;top:368px;width:480px;height:552px;transform:rotate(2deg);z-index:4;background:#e5e9f0"><img src=".video-build/assets/theme-nord-light.png"></div>
+    <div class="thpanel" style="left:1140px;top:392px;width:480px;height:552px;transform:rotate(6deg);z-index:2;background:#f3f1ea"><img src=".video-build/assets/theme-claude-light.png"></div>
   </div>
 
   <!-- ============ FRAME 7 — CTA ============ -->
   <div class="sframe" data-i="7">
     <div id="cta">
-      <div class="ctr" style="top:262px"><img id="icon" src="assets/appicon.png"></div>
+      <div class="ctr" style="top:262px"><img id="icon" src=".video-build/assets/appicon.png"></div>
       <div class="ctr nm" style="top:454px">cctop</div>
       <div class="ctr tg" style="top:606px">Find the agent that needs you, and jump straight in.</div>
       <div class="ctr meta" style="top:678px">Free &amp; open source · macOS menubar app</div>
@@ -231,7 +231,7 @@
 
 </div>
 
-<script src="../lib.js"></script>
+<script src="../../lib.js"></script>
 <script>
 /* Storyboard: 8 static key frames. seek(t) shows frame round(t).
    Per-frame menubar band opacity (some beats suppress it). */
@@ -245,11 +245,7 @@ function seek(t){
   $('#tether').style.opacity = f===TETHER ? 1 : 0;
   $('#pill').classList.toggle('hero', f===TETHER);   // pill is the hero on the REVEAL beat
 }
-window.__seek = seek;
-
-Promise.all([document.fonts.ready,
-  ...$$('#stage img').map(im=>im.complete && im.naturalWidth ? 1 : new Promise(r=>{im.onload=im.onerror=r;}))])
-  .then(()=>{ seek(0); requestAnimationFrame(()=>{ window.__ready=true; }); });
+whenReady(seek);   // shared boot handshake (lib.js)
 </script>
 </body>
 </html>
