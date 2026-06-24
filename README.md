@@ -74,50 +74,40 @@ view and a reliable jump target.
 When you click a session card, or use Navigate mode, cctop tries to take you to
 the most specific place it can.
 
-<table>
-  <tr>
-    <th align="left">Focus level</th>
-    <th align="left">Supported apps</th>
-  </tr>
-  <tr>
-    <td>
-      <strong>Targets the exact session</strong><br>
-      <sub>Right window, tab, pane, surface, or desktop thread.</sub>
-    </td>
-    <td>
-      <img src="assets/icons/iterm2.png" alt="" height="16"> iTerm2<br>
-      <img src="assets/icons/cmux.svg" alt="" height="16"> cmux<br>
-      <img src="assets/icons/kitty.svg" alt="" height="16"> Kitty*<br>
-      <img src="assets/icons/ghostty.svg" alt="" height="16"> Ghostty*<br>
-      Terminal*<br>
-      <img src="assets/icons/openai.svg" alt="" height="16"> Codex Desktop<br>
-      <img src="assets/icons/zellij.svg" alt="" height="16"> Zellij<br>
-      <img src="assets/icons/tmux.svg" alt="" height="16"> tmux
-    </td>
-  </tr>
-  <tr>
-    <td>
-      <strong>Opens the project</strong><br>
-      <sub>Focuses the editor window, using the workspace file if present.</sub>
-    </td>
-    <td>
-      <img src="assets/icons/vscode.svg" alt="" height="16"> VS Code<br>
-      <img src="assets/icons/cursor.svg" alt="" height="16"> Cursor<br>
-      <img src="assets/icons/windsurf.svg" alt="" height="16"> Windsurf<br>
-      <img src="assets/icons/zed.svg" alt="" height="16"> Zed
-    </td>
-  </tr>
-  <tr>
-    <td>
-      <strong>Activates the app</strong><br>
-      <sub>Raises the app; find the tab manually.</sub>
-    </td>
-    <td>
-      <img src="assets/icons/claude.svg" alt="" height="16"> Claude Desktop<br>
-      <img src="assets/icons/warp.svg" alt="" height="16"> Warp
-    </td>
-  </tr>
-</table>
+**Targets the exact session**
+
+Right window, tab, pane, surface, or desktop thread.
+
+<p>
+  <img src="assets/icons/iterm2.png" alt="" height="16"> iTerm2 &nbsp;
+  <img src="assets/icons/cmux.svg" alt="" height="16"> cmux &nbsp;
+  <img src="assets/icons/kitty.svg" alt="" height="16"> Kitty* &nbsp;
+  <img src="assets/icons/ghostty.svg" alt="" height="16"> Ghostty* &nbsp;
+  Terminal* &nbsp;
+  <img src="assets/icons/openai.svg" alt="" height="16"> Codex Desktop &nbsp;
+  <img src="assets/icons/zellij.svg" alt="" height="16"> Zellij &nbsp;
+  <img src="assets/icons/tmux.svg" alt="" height="16"> tmux
+</p>
+
+**Opens the project**
+
+Focuses the editor window, using the workspace file if present.
+
+<p>
+  <img src="assets/icons/vscode.svg" alt="" height="16"> VS Code &nbsp;
+  <img src="assets/icons/cursor.svg" alt="" height="16"> Cursor &nbsp;
+  <img src="assets/icons/windsurf.svg" alt="" height="16"> Windsurf &nbsp;
+  <img src="assets/icons/zed.svg" alt="" height="16"> Zed
+</p>
+
+**Activates the app**
+
+Raises the app; find the tab manually.
+
+<p>
+  <img src="assets/icons/claude.svg" alt="" height="16"> Claude Desktop &nbsp;
+  <img src="assets/icons/warp.svg" alt="" height="16"> Warp
+</p>
 
 <details>
 <summary>Focus details and requirements</summary>
