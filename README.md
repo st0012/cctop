@@ -1,7 +1,10 @@
 # cctop
 
-[![GitHub release](https://img.shields.io/github/v/release/st0012/cctop?v=1)](https://github.com/st0012/cctop/releases/latest)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+<p>
+  <a href="https://github.com/st0012/cctop/releases/latest">Latest release</a>
+  &nbsp;|&nbsp;
+  <a href="LICENSE">MIT license</a>
+</p>
 
 **Keep an eye on your AI coding sessions.**
 
@@ -14,8 +17,6 @@ project with a keystroke.
   <a href="https://github.com/st0012/cctop/releases/latest/download/cctop-macOS-x86_64.dmg">Intel</a>
   &nbsp;|&nbsp;
   <a href="https://cctop.app">Website</a>
-  &nbsp;|&nbsp;
-  <a href="https://github.com/st0012/cctop/releases/latest">Latest release</a>
 </p>
 
 <p align="center">
@@ -36,38 +37,12 @@ project with a keystroke.
 Each integration reports session events locally; cctop turns them into one menubar
 view and a reliable jump target.
 
-<table>
-  <tr>
-    <td align="center" width="25%">
-      <a href="https://docs.anthropic.com/en/docs/claude-code">
-        <img src="assets/icons/claude-code.svg" alt="Claude Code" height="36"><br>
-        <strong>Claude Code / Desktop</strong>
-      </a>
-      <br><sub>Claude plugin + event hooks</sub>
-    </td>
-    <td align="center" width="25%">
-      <a href="https://github.com/openai/codex">
-        <img src="assets/icons/openai.svg" alt="OpenAI" height="36"><br>
-        <strong>Codex CLI / Desktop</strong>
-      </a>
-      <br><sub>Codex event hooks + trust step</sub>
-    </td>
-    <td align="center" width="25%">
-      <a href="https://opencode.ai">
-        <img src="assets/icons/opencode.svg" alt="opencode" height="28"><br>
-        <strong>opencode</strong>
-      </a>
-      <br><sub>opencode plugin events</sub>
-    </td>
-    <td align="center" width="25%">
-      <a href="https://github.com/badlogic/pi-mono">
-        <img src="assets/icons/pi.svg" alt="pi" height="36"><br>
-        <strong>pi</strong>
-      </a>
-      <br><sub>pi extension events</sub>
-    </td>
-  </tr>
-</table>
+- [Claude Code / Claude Desktop](https://docs.anthropic.com/en/docs/claude-code):
+  Claude plugin + event hooks.
+- [Codex CLI / Codex Desktop](https://github.com/openai/codex): Codex event
+  hooks + trust step.
+- [opencode](https://opencode.ai): opencode plugin events.
+- [pi](https://github.com/badlogic/pi-mono): pi extension events.
 
 ## Jump Support
 
