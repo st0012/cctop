@@ -5,14 +5,14 @@ All claims below were gathered via multi-source web research and adversarially v
 ## Verified frameworks (use these)
 
 ### StoryBrand — customer-as-hero, brand-as-guide  `[verified 3-0]`
-The foundational positioning reframe: "The hero of your brand story is not you. The hero is your customer"; the brand plays the **guide**. Apply before scripting so the promo centers the viewer's struggle and transformation, not the product.
+The foundational positioning reframe: "The hero of your brand story is not you. The hero is your customer"; the brand plays the **guide**. Apply before scripting so the video centers the viewer's struggle and transformation, not the product.
 - Provenance: Donald Miller, *Building a StoryBrand* (2.0, 2024).
 - Sources: https://storybrand.com · https://www.gravityglobal.com/blog/complete-guide-storybrand-framework
 - ⚠️ Refuted: the exact 7-step SB7 list (Character/Problem/Guide/Plan/CTA/Success/Failure) did **not** survive verification (0-3). Use the hero/guide reframe; don't codify the 7 steps verbatim without checking the primary book.
 
 ### Before-After-Bridge (BAB)  ·  PAS  ·  AIDA  `[verified 3-0 each]`
-Three complementary copy spines for choosing the shape of a 20–40s promo.
-- **BAB** — Before (undesirable now) → After (aspirational future) → Bridge (product as connector). Explicitly recommended for "short-form ads, social posts… storytelling in tight spaces." Attributed to Bob Bly. **Default for tight promos.**
+Three complementary copy spines for choosing the shape of a 20–40s video.
+- **BAB** — Before (undesirable now) → After (aspirational future) → Bridge (product as connector). Explicitly recommended for "short-form ads, social posts… storytelling in tight spaces." Attributed to Bob Bly. **Default for tight videos.**
 - **PAS** — Problem → Agitation (cost of inaction) → Solution. Attributed to Dan Kennedy. For pain-led messaging.
 - **AIDA** — Attention (scroll-stopping hook) → Interest (relatable pain) → Desire (what's possible) → Action (clear CTA). Canonical since Elias St. Elmo Lewis, 1898.
 - Sources: https://medium.com/@slobodandekanic.com/copywriting-the-before-after-bridge-bab-formula-comparative-analysis-with-examples-c7396a7f2cf5 · https://blog.hubspot.com/marketing/aida-model · https://www.hivedigital.com/blog/writing-frameworks-for-marketing-content/
@@ -38,5 +38,5 @@ Replace "and then" (chronology) with **"but"** (conflict/tension) or **"therefor
 The exact SB7 7-step list · the exact Story-Spine 7-prompt wording · AIDA-as-four-act-story · the "four hook formula types" (Bold/Question/Pattern-Interrupt/Proof) · "first 3 seconds is an algorithmic distribution checkpoint" · specific impression multipliers (4–7×, 65% threshold) · a fixed 1.5–2.5s cut cadence · a canonical 6-stage industry pre-production pipeline · a hard "concept-before-script" ordering rule. The framework-level guidance held; these granular operational specifics did not.
 
 ## Open gaps (need dedicated research before relying on them)
-1. How dev-tool/SaaS leaders (Linear, Vercel, Stripe, Apple, Superhuman) actually structure short promos — no public playbook survived verification.
+1. How dev-tool/SaaS leaders (Linear, Vercel, Stripe, Apple, Superhuman) actually structure short videos — no public playbook survived verification.
 2. LLM/AI storyboard-prompt frameworks — nothing verifiable yet.

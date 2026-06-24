@@ -1,7 +1,7 @@
 # cctop Video Framework
 
 A small, reproducible system for making cctop's videos — and the hard-won findings behind it.
-Pairs with the **storyboard skill** (the narrative half) and the video-pipeline memory.
+Pairs with the **video-storyboard skill** (the narrative half) and the video-pipeline memory.
 
 The split it's built around: **story → engine → theme → video**. You change one layer without
 touching the others. Recolour the app? Edit `theme.css`. New 15s "for teams" cut? Add a project
@@ -76,7 +76,7 @@ multiple palettes, copy `theme.css` to `themes/<name>.css` and point a video's `
 
 ## Recipe 2 — a new video for a different angle
 
-1. **Story first.** Run the storyboard skill (DESIGN mode) to get a positioning line, a
+1. **Story first.** Run the video-storyboard skill (DESIGN mode) to get a positioning line, a
    spine (Before-After-Bridge is the default for tight cuts), a beat sheet, and a shot list.
    Don't free-associate scenes — the skill exists because that's where these videos live or die.
 2. `cp -r projects/launch projects/<angle>`, then in `body.html` keep the `<link>`/`<script>` includes
@@ -98,7 +98,7 @@ Stills hide motion problems, so QA off the **encoded** mp4, not the source:
 
 1. `ffmpeg -i projects/<p>/.video-build/<p>.mp4 -vf fps=5 /tmp/sweep/frame_%05d.png` (every 0.2s; `frame_N = (N-1)*0.2s`).
 2. Fan out parallel reviewers over **overlapping** time-windows (so each transition sits inside one
-   window), + a cold-viewer comprehension pass, + an audit using the storyboard skill; a
+   window), + a cold-viewer comprehension pass, + an audit using the video-storyboard skill; a
    synthesizer merges into a deduped fix list. (This repo's sessions used the `Workflow` tool for it.)
 3. Apply fixes to the video HTML, re-render, repeat. A transient API overload can kill a whole
    workflow run — fall back to a hand pass over the same frames.
@@ -181,7 +181,7 @@ mp4s. The deliverable mp4 (~3.5 MB) can be committed as a release artifact if us
 ---
 
 ## See also
-- **the storyboard skill** — the narrative process: positioning → spine → beats → script →
+- **the video-storyboard skill** — the narrative process: positioning → spine → beats → script →
   storyboard → review, plus the failure-mode checklist.
 - **the video-pipeline memory** — the pipeline at a glance.
 - the v1 making-of is parked in the gitignored `.video-archive/` (it documents the superseded pipeline).

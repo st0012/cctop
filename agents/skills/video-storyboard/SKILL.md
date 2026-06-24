@@ -1,18 +1,18 @@
 ---
-name: promo-storyboard
-description: Use when designing, scripting, or storyboarding a short promotional / demo / launch / explainer video (especially for a developer tool, app, or SaaS), OR when auditing, critiquing, or improving an existing promo's narrative, hook, pacing, or storyboard. Runs a verified 6-stage process — positioning, message spine, beat sheet, script, storyboard, review — embedding StoryBrand, Before-After-Bridge / PAS / AIDA, the Pixar Story Spine, and the But/Therefore rule. Invoke whenever the work is about the STORY of a promo video rather than its rendering, including phrasings like "storyboard this", "what's the hook", "make the promo more compelling", "the video falls flat", "script a launch video", or "audit this promo". Do not use for the encoding/rendering pipeline itself.
+name: video-storyboard
+description: Use when designing, scripting, or storyboarding a short demo, launch, explainer, or marketing video (especially for a developer tool, app, or SaaS), OR when auditing, critiquing, or improving an existing video's narrative, hook, pacing, or storyboard. Runs a verified 6-stage process — positioning, message spine, beat sheet, script, storyboard, review — embedding StoryBrand, Before-After-Bridge / PAS / AIDA, the Pixar Story Spine, and the But/Therefore rule. Invoke whenever the work is about the STORY of a video rather than its rendering, including phrasings like "storyboard this", "what's the hook", "make the video more compelling", "the video falls flat", "script a launch video", or "audit this video". Do not use for the encoding/rendering pipeline itself.
 ---
 
-# Promo Storyboard
+# Video Storyboard
 
-A repeatable process for the part of a promo video that decides whether it works: the **narrative**. Rendering executes the story; this skill designs it.
+A repeatable process for the part of a video that decides whether it works: the **narrative**. Rendering executes the story; this skill designs it.
 
 It has two modes:
 
-- **DESIGN** — build a promo's story from scratch (product facts → approved storyboard).
-- **AUDIT** — run the same lenses over a finished or draft promo to find what's weak and how to fix it.
+- **DESIGN** — build a video's story from scratch (product facts → approved storyboard).
+- **AUDIT** — run the same lenses over a finished or draft video to find what's weak and how to fix it.
 
-Pick the mode from the request. "Storyboard a video for X" → DESIGN. "Why does this promo feel flat / make it better / review this cut" → AUDIT.
+Pick the mode from the request. "Storyboard a video for X" → DESIGN. "Why does this video feel flat / make it better / review this cut" → AUDIT.
 
 Everything here is built from frameworks that survived adversarial fact-checking. The frameworks are solid; many of the *numbers* floating around the industry are blog-grade rules of thumb. Where a guideline is directional rather than proven, it is marked `[directional]`. See `references/frameworks.md` for provenance, citations, and the specifics that were *refuted* (so you don't codify folklore).
 
@@ -20,7 +20,7 @@ Everything here is built from frameworks that survived adversarial fact-checking
 
 ## The core idea
 
-Most product promos fail the same way: they are a **feature montage from the product's point of view** ("here's the panel, here are the tabs, here are the themes"). They list capabilities instead of telling the story of a person whose problem gets solved.
+Most product videos fail the same way: they are a **feature montage from the product's point of view** ("here's the panel, here are the tabs, here are the themes"). They list capabilities instead of telling the story of a person whose problem gets solved.
 
 The fix is one reframe and four moves:
 
@@ -33,7 +33,7 @@ The fix is one reframe and four moves:
 
 ## Common failure modes (the floor-raisers)
 
-These are the specific ways promos break, distilled from real reviews. They generalize — check for them in DESIGN (avoid) and AUDIT (catch). Pre-empting these is most of what makes a *first* draft good instead of a third.
+These are the specific ways videos break, distilled from real reviews. They generalize — check for them in DESIGN (avoid) and AUDIT (catch). Pre-empting these is most of what makes a *first* draft good instead of a third.
 
 1. **The hook shows one thing and says another.** The opening line promises tension ("which one needs you?") while the visuals say "all fine" (e.g. every status indicator green). The first ~1.5s of *picture* must depict the problem, not just the text — a muted scroller reads the image, not the words. *Fix: put the problem-state on screen in frame one, with motion (the thing going wrong), before or under the line.*
 2. **Action without payoff.** You show the click / keypress / command, but never the **result**. The viewer feels the setup and never the relief. *Fix: every action beat needs an after-beat — show the win (the session opened, the thing unblocked, the status flipping to good).* This is the Story-Spine "until finally" / BAB "After," and it's the single most common missing beat.
@@ -51,7 +51,7 @@ It deliberately does **not** encode per-video creative specifics — the exact p
 
 ## DESIGN mode — the 6-stage pipeline
 
-Each stage takes one artifact and produces the next. Don't skip ahead; a weak positioning statement poisons every downstream stage. Keep each artifact short — a promo is 20–40 seconds, not a feature doc.
+Each stage takes one artifact and produces the next. Don't skip ahead; a weak positioning statement poisons every downstream stage. Keep each artifact short — a video is 20–40 seconds, not a feature doc.
 
 ### Stage 1 — Position  ·  *in:* product facts + audience  ·  *out:* one-paragraph positioning
 Write the story's frame **before** any script, using StoryBrand: the **viewer is the hero**, the **product is the guide** that helps them win. Name three things:
@@ -88,13 +88,13 @@ Before building, check the board against the **Audit checklist** below. Anything
 
 ---
 
-## AUDIT mode — score an existing promo
+## AUDIT mode — score an existing video
 
-Given a finished or draft promo (a description, a storyboard, or the actual frames — Read them if available), walk the checklist and produce: a **per-lens verdict (✅ / ⚠️ / ❌ with one line of why)** and a **prioritized fix list** (highest narrative impact first). Be specific and reference the moment/timecode.
+Given a finished or draft video (a description, a storyboard, or the actual frames — Read them if available), walk the checklist and produce: a **per-lens verdict (✅ / ⚠️ / ❌ with one line of why)** and a **prioritized fix list** (highest narrative impact first). Be specific and reference the moment/timecode.
 
 Two review disciplines (both learned from this skill underperforming a sharp human reviewer):
 - **Don't soften.** A missing payoff (lens 7), a hook whose visuals contradict its words (lens 4), and a wrong-altitude reveal (lens 6) **break the beat — rate them ❌, not ⚠️.** A "warn" on a broken beat reads as "it's fine," and it won't get fixed.
-- **Name the single highest-impact fix.** After the per-lens pass, don't end on a flat list of 2–3 "top" changes — pick **the one** change that most improves the promo and say so. Ranking is the value; a tie is a dodge.
+- **Name the single highest-impact fix.** After the per-lens pass, don't end on a flat list of 2–3 "top" changes — pick **the one** change that most improves the video and say so. Ranking is the value; a tie is a dodge.
 
 Run every lens — they catch different failure modes:
 
@@ -104,7 +104,7 @@ Run every lens — they catch different failure modes:
 4. **Hook.** Does the **first frame work muted** and grab in ~2s? Is it a *felt problem* or a title card / logo / slow fade? **Do the first ~1.5s of *visuals* match the words** — if the line poses a problem, the picture must show it (don't let the text say "trouble" while the image says "all fine")? On social the first 2s decide everything.
 5. **Value clarity.** Is "what is this and why care" obvious by ~sec 5? `[directional]`
 6. **Discovery-true reveal.** Is the product introduced the way the hero would actually first encounter it, then expanded — or does it open on the fully-formed internal UI and point at interior details before establishing the whole? A reveal that starts at the wrong altitude is a common, easy-to-miss miss.
-7. **Payoff.** Is there a clear *after* state — the moment of relief/win? A promo that shows the action (the click, the keypress) but never shows the **result** has no payoff; the viewer feels the setup but not the resolution. (This is the Story-Spine "until finally" and the BAB "After.")
+7. **Payoff.** Is there a clear *after* state — the moment of relief/win? A video that shows the action (the click, the keypress) but never shows the **result** has no payoff; the viewer feels the setup but not the resolution. (This is the Story-Spine "until finally" and the BAB "After.")
 8. **Pacing & length.** ~2s cuts, no slow build, shortest viable length? `[directional]`
 9. **CTA.** Is there a clear next step at the end?
 
@@ -116,6 +116,6 @@ For each ❌/⚠️, give the concrete narrative fix (what to add/cut/reorder), 
 
 - **Frameworks: solid. Numbers: directional.** StoryBrand (hero/guide), BAB, PAS, AIDA, the Pixar Story Spine, and the But/Therefore rule are well-established and primary-sourced. Every retention/timing figure (the "muted majority", "value by sec 3–5", "~2s cuts", length↔retention curve) is a vendor-blog rule of thumb — use as direction, re-check per platform, never present as proven.
 - **Do not codify the folklore.** Verification *refuted* the exact SB7 7-step list, the exact Story-Spine prompt wording, AIDA-as-a-four-act-story, fixed "hook formula types", and specific impression multipliers. Use the framework *principles* at the altitude above; don't invent precise step lists.
-- **Two known gaps:** there is no verified public playbook for how named companies (Linear, Vercel, Stripe, Apple…) structure promos, and no verified LLM storyboard-prompt framework. Don't assert specifics there.
+- **Two known gaps:** there is no verified public playbook for how named companies (Linear, Vercel, Stripe, Apple…) structure videos, and no verified LLM storyboard-prompt framework. Don't assert specifics there.
 
 Full provenance, citations, and the refuted list: `references/frameworks.md`.
