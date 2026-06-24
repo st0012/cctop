@@ -74,40 +74,13 @@ view and a reliable jump target.
 When you click a session card, or use Navigate mode, cctop tries to take you to
 the most specific place it can.
 
-**Targets the exact session**
-
-Right window, tab, pane, surface, or desktop thread.
-
-<p>
-  <img src="assets/icons/iterm2.png" alt="" height="16"> iTerm2 &nbsp;
-  <img src="assets/icons/cmux.svg" alt="" height="16"> cmux &nbsp;
-  <img src="assets/icons/kitty.svg" alt="" height="16"> Kitty* &nbsp;
-  <img src="assets/icons/ghostty.svg" alt="" height="16"> Ghostty* &nbsp;
-  Terminal* &nbsp;
-  <img src="assets/icons/openai.svg" alt="" height="16"> Codex Desktop &nbsp;
-  <img src="assets/icons/zellij.svg" alt="" height="16"> Zellij &nbsp;
-  <img src="assets/icons/tmux.svg" alt="" height="16"> tmux
-</p>
-
-**Opens the project**
-
-Focuses the editor window, using the workspace file if present.
-
-<p>
-  <img src="assets/icons/vscode.svg" alt="" height="16"> VS Code &nbsp;
-  <img src="assets/icons/cursor.svg" alt="" height="16"> Cursor &nbsp;
-  <img src="assets/icons/windsurf.svg" alt="" height="16"> Windsurf &nbsp;
-  <img src="assets/icons/zed.svg" alt="" height="16"> Zed
-</p>
-
-**Activates the app**
-
-Raises the app; find the tab manually.
-
-<p>
-  <img src="assets/icons/claude.svg" alt="" height="16"> Claude Desktop &nbsp;
-  <img src="assets/icons/warp.svg" alt="" height="16"> Warp
-</p>
+- **Targets the exact session:** iTerm2, cmux, Kitty*, Ghostty*, Terminal*,
+  Codex Desktop, Zellij, tmux. cctop jumps to the right window, tab, pane,
+  surface, or desktop thread.
+- **Opens the project:** VS Code, Cursor, Windsurf, Zed. cctop focuses the
+  editor window, using the workspace file if present.
+- **Activates the app:** Claude Desktop, Warp. cctop raises the host app so you
+  can find the tab manually.
 
 <details>
 <summary>Focus details and requirements</summary>
