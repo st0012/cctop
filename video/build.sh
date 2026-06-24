@@ -30,5 +30,5 @@ sleep 0.6
 node engine/render.mjs --url="http://127.0.0.1:$PORT/$PDIR/body.html" \
   --out="$BUILD/frames" --duration="$DUR" --fps="$FPS" --scale="$SCALE" --width="$W" --height="$H"
 OW="$W" OH="$H" bash engine/encode.sh "$BUILD/frames" "$BUILD/$PROJECT.mp4"
-bash engine/check.sh "$BUILD/$PROJECT.mp4" || echo "check.sh reported issues (above)"
+bash engine/check.sh "$BUILD/$PROJECT.mp4"     # set -e: a failed check fails the build (don't print "Built")
 echo "Built $BUILD/$PROJECT.mp4  (and ${PROJECT}-720p.mp4)"
