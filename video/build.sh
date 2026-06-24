@@ -16,7 +16,13 @@ mkdir -p "$ASSETS"
 ASSET_LIST="menubar-dark menubar-navigate theme-tokyoNight-dark theme-gruvbox-dark theme-nord-light theme-claude-light status-icon"
 [ -f "$PDIR/assets.txt" ] && ASSET_LIST="$(tr '\n' ' ' < "$PDIR/assets.txt")"
 for f in $ASSET_LIST; do cp "$REPO/docs/$f.png" "$ASSETS/$f.png"; done
-cp "$REPO/menubar/CctopMenubar/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png" "$ASSETS/appicon.png"
+# the real app icons: the full-colour AppIcon (CTA) and the menubar template logo (the pill grid,
+# tinted accent via CSS mask). Trim the template's transparent margin so it fills the grid box.
+XCA="$REPO/menubar/CctopMenubar/Assets.xcassets"
+cp "$XCA/AppIcon.appiconset/icon_512x512@2x.png" "$ASSETS/appicon.png"
+magick "$XCA/MenubarIcon.imageset/menubar-icon@2x.png" -trim +repage "$ASSETS/menubar-icon.png"
+# shared tool logos (agents/editors/terminals) for the STACK beat — see assets/icons/README.md
+mkdir -p "$ASSETS/icons"; cp "$REPO"/assets/icons/*.svg "$REPO"/assets/icons/*.png "$ASSETS/icons/"
 
 pkill -f "http.server $PORT" 2>/dev/null || true; sleep 0.3
 nohup python3 -m http.server "$PORT" --bind 127.0.0.1 >/tmp/cctop-video-http.log 2>&1 &

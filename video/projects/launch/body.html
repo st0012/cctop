@@ -24,10 +24,10 @@
   #band .glyph{opacity:.6;color:var(--t2);display:flex;align-items:center}
   #band .clock{font-size:20px;color:var(--t2);letter-spacing:.5px}
   #pill{display:inline-flex;align-items:center;gap:10px;padding:8px 13px;border-radius:12px;background:rgba(0,0,0,.34);will-change:transform,box-shadow}
-  #pill .grid{display:grid;grid-template-columns:repeat(2,14px);grid-template-rows:repeat(2,14px);gap:3px;opacity:0}
-  #pill .grid i{display:block;width:14px;height:14px;border-radius:4px;background:var(--accent)}
-  #pill .grid i:nth-child(1),#pill .grid i:nth-child(2){opacity:.92}
-  #pill .grid i:nth-child(3){opacity:.5}#pill .grid i:nth-child(4){opacity:.44}
+  /* the real app menubar logo (MenubarIcon template), accent-tinted via mask — the app's own asset */
+  #pill .grid{width:30px;height:30px;opacity:0;background:var(--accent);
+    -webkit-mask:url(.video-build/assets/menubar-icon.png) center/contain no-repeat;
+            mask:url(.video-build/assets/menubar-icon.png) center/contain no-repeat}
   #pill .sbar{display:flex;width:84px;height:14px;border-radius:6px;overflow:hidden;opacity:0}
   #pill .sbar b{display:block;height:100%}
   #pill .sbar .red{background:var(--red)}#pill .sbar .orange{background:var(--orange)}#pill .sbar .green{background:var(--green)}
@@ -95,7 +95,9 @@
   .chip{display:flex;align-items:center;gap:14px;padding:0 24px;height:64px;border-radius:16px;opacity:0;will-change:transform,opacity;
     background:rgba(192,202,245,.05);border:1px solid rgba(192,202,245,.11);
     font-family:var(--mono);font-size:27px;font-weight:600;color:var(--t1);white-space:nowrap}
-  .chip .cdot{width:16px;height:16px;border-radius:50%}
+  .chip .tmark{width:26px;height:26px;flex:none;background:var(--t1);
+    -webkit-mask:center/contain no-repeat;mask:center/contain no-repeat}
+  .chip .tmark.wide{width:108px}   /* opencode is a wordmark, not a glyph */
   #editors{position:absolute;left:201px;width:640px;text-align:right;top:680px;font-family:var(--mono);font-size:24px;color:#7d83a0;letter-spacing:.3px;line-height:1.5;opacity:0;will-change:transform,opacity}
 
   /* THEMES fan */
@@ -123,7 +125,7 @@
     <span class="apple"><svg width="19" height="23" viewBox="0 0 384 512" fill="currentColor"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg></span>
     <div class="cluster">
       <div id="pill">
-        <span class="grid"><i></i><i></i><i></i><i></i></span>
+        <span class="grid"></span>
         <span class="sbar"><b class="red" style="flex:1"></b><b class="orange" style="flex:1"></b><b class="green" style="flex:3"></b></span>
       </div>
       <span class="glyph"><svg width="26" height="19" viewBox="0 0 24 18" fill="currentColor"><path d="M12 14.5a1.9 1.9 0 110 3.8 1.9 1.9 0 010-3.8zM5.2 10.6a9.6 9.6 0 0113.6 0l-2 2a6.8 6.8 0 00-9.6 0l-2-2zM1.4 6.8a15 15 0 0121.2 0l-2 2a12.2 12.2 0 00-17.2 0l-2-2z"/></svg></span>
@@ -178,10 +180,10 @@
   <!-- STACK -->
   <div class="word" id="stackHead" style="left:341px;width:500px;text-align:right;top:332px;font-size:54px;font-weight:800;letter-spacing:-1px;line-height:1.08;color:#E8ECFB">Works with the<br>stack you've got.</div>
   <div id="chips">
-    <div class="chip"><span class="cdot" style="background:var(--accent)"></span>Claude Code</div>
-    <div class="chip"><span class="cdot" style="background:var(--gold)"></span>Codex</div>
-    <div class="chip"><span class="cdot" style="background:var(--blue)"></span>opencode</div>
-    <div class="chip"><span class="cdot" style="background:var(--teal)"></span>pi</div>
+    <div class="chip"><span class="tmark" style="-webkit-mask-image:url(.video-build/assets/icons/claude.svg);mask-image:url(.video-build/assets/icons/claude.svg)"></span>Claude Code</div>
+    <div class="chip"><span class="tmark" style="-webkit-mask-image:url(.video-build/assets/icons/openai.svg);mask-image:url(.video-build/assets/icons/openai.svg)"></span>Codex</div>
+    <div class="chip" style="justify-content:center"><span class="tmark wide" style="-webkit-mask-image:url(.video-build/assets/icons/opencode.svg);mask-image:url(.video-build/assets/icons/opencode.svg)"></span></div>
+    <div class="chip"><span class="tmark" style="-webkit-mask-image:url(.video-build/assets/icons/pi.svg);mask-image:url(.video-build/assets/icons/pi.svg)"></span>pi</div>
   </div>
   <div id="editors">VS Code · Cursor · Zed<br>iTerm2 · Ghostty · Warp · Kitty · cmux</div>
 
