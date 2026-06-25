@@ -18,16 +18,23 @@ function set(el,{o,x=0,y=0,s=1,blur=0,extra=''}){
   el.style.opacity=o; el.style.transform=`translate(${x}px,${y}px) scale(${s}) ${extra}`;
   el.style.filter=blur>0?`blur(${blur}px)`:'none';
 }
-/* The boot handshake every cut shares: expose seek to the renderer, wait for fonts + all
-   #stage images, paint frame 0, then flag __ready. A broken/missing image is recorded on
-   window.__error (NOT silently treated as loaded) so render.mjs can fail the build instead of
-   capturing a cut with missing visuals. Keeps cuts from cloning this verbatim. */
+/* The boot handshake every cut shares: expose seek to the renderer, wait for fonts + every
+   asset, paint frame 0, then flag __ready. A broken/missing asset is recorded on window.__error
+   (NOT silently treated as loaded) so render.mjs can fail the build instead of capturing a cut
+   with missing visuals. Covers both <img> elements AND CSS mask/-webkit-mask URLs — the menubar
+   pill and the stack tool logos are masked backgrounds, not <img>, so an <img>-only gate would
+   miss a renamed/missing logo and render a blank icon. Keeps cuts from cloning this verbatim. */
 function whenReady(seek){
   window.__seek=seek;
   const imgReady=im=> im.complete
     ? (im.naturalWidth>0 ? Promise.resolve() : Promise.reject(new Error(im.src)))
     : new Promise((res,rej)=>{ im.onload=res; im.onerror=()=>rej(new Error(im.src)); });
-  Promise.all([document.fonts.ready, ...$$('#stage img').map(imgReady)])
-    .catch(e=>{ window.__error='image failed to load: '+((e && e.message) || e); })
+  const masks=new Set();
+  $$('*').forEach(el=>{ const cs=getComputedStyle(el);
+    const v=[cs.maskImage,cs.webkitMaskImage].find(x=>x && x!=='none');
+    if(v){ const m=v.match(/url\(["']?([^"')]+)["']?\)/); if(m) masks.add(m[1]); } });
+  const fetchOK=url=> fetch(url).then(r=>{ if(!r.ok) throw new Error(url); });
+  Promise.all([document.fonts.ready, ...$$('#stage img').map(imgReady), ...[...masks].map(fetchOK)])
+    .catch(e=>{ window.__error='asset failed to load: '+((e && e.message) || e); })
     .finally(()=>{ seek(0); requestAnimationFrame(()=>{ window.__ready=true; }); });
 }
