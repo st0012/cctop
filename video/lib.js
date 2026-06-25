@@ -19,10 +19,15 @@ function set(el,{o,x=0,y=0,s=1,blur=0,extra=''}){
   el.style.filter=blur>0?`blur(${blur}px)`:'none';
 }
 /* The boot handshake every cut shares: expose seek to the renderer, wait for fonts + all
-   #stage images, paint frame 0, then flag __ready. Keeps cuts from cloning this verbatim. */
+   #stage images, paint frame 0, then flag __ready. A broken/missing image is recorded on
+   window.__error (NOT silently treated as loaded) so render.mjs can fail the build instead of
+   capturing a cut with missing visuals. Keeps cuts from cloning this verbatim. */
 function whenReady(seek){
   window.__seek=seek;
-  Promise.all([document.fonts.ready,
-    ...$$('#stage img').map(im=>im.complete && im.naturalWidth ? 1 : new Promise(r=>{im.onload=im.onerror=r;}))])
-    .then(()=>{ seek(0); requestAnimationFrame(()=>{ window.__ready=true; }); });
+  const imgReady=im=> im.complete
+    ? (im.naturalWidth>0 ? Promise.resolve() : Promise.reject(new Error(im.src)))
+    : new Promise((res,rej)=>{ im.onload=res; im.onerror=()=>rej(new Error(im.src)); });
+  Promise.all([document.fonts.ready, ...$$('#stage img').map(imgReady)])
+    .catch(e=>{ window.__error='image failed to load: '+((e && e.message) || e); })
+    .finally(()=>{ seek(0); requestAnimationFrame(()=>{ window.__ready=true; }); });
 }

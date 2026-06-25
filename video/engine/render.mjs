@@ -105,6 +105,10 @@ for (let i = 0; i < 120; i++) {
 }
 process.stdout.write('\n');
 
+// fail loudly if the page reported a broken/missing image — don't capture a cut with missing visuals
+const renderErr = await evalJS('window.__error || null').catch(() => null);
+if (renderErr) { console.error('render aborted:', renderErr); ws.close(); cleanup(); process.exit(1); }
+
 const t0 = Date.now();
 if (args.times) {
   // keyframe sampling mode: render specific timestamps to keyframe_<t>.png
