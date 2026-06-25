@@ -25,7 +25,6 @@ video/
 │       ├── body.html         ← the cut (~28s). A "video" = one self-contained HTML file.
 │       ├── storyboard.html   ← static key-frame design reference
 │       ├── jump-editor.html  ← project tool (NOT rendered — build only targets body.html)
-│       ├── making-of.html    ← visual making-of
 │       └── .video-build/     ← [gitignored] staged screenshots, frames, mp4, 720p, poster, qa
 ├── build.sh              ← one command: ./build.sh <project>
 ├── DELIVERABLES.md       ← project → published Release asset → source commit
@@ -85,7 +84,7 @@ multiple palettes, copy `theme.css` to `themes/<name>.css` and point a video's `
    Reuse `rev()`, `mix()`, easings (and `whenReady`) from `lib.js`. Put any new screenshots in `<repo>/docs/` and the project's asset list.
 4. `DUR=<seconds> ./build.sh <angle>`, then QA it (Recipe 3).
 
-A video's structure (see `launch.html`): a `TL` map of named scenes → `[start,end]`, a `seek(t)`
+A video's structure (see `projects/launch/body.html`): a `TL` map of named scenes → `[start,end]`, a `seek(t)`
 that dispatches to small `draw*()` functions, each computing its elements from `t`. The launch cut's
 arc — Hook → Reveal → Scan → Jump → **Payoff** → Stack → Themes → CTA — is one such composition;
 a new angle rearranges/replaces beats.
