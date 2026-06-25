@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { createServer } from 'node:net';
 
 const args = Object.fromEntries(process.argv.slice(2).map(a => {
   const [k, v] = a.replace(/^--/, '').split('=');
@@ -16,7 +17,14 @@ const DURATION   = +(args.duration || 25);
 const WIDTH      = +(args.width || 1920);
 const HEIGHT     = +(args.height || 1080);
 const SCALE      = +(args.scale || 2);
-const PORT       = +(args.port || 9333);
+// Each render gets its OWN free CDP port + isolated Chrome profile, so overlapping renders (or a
+// pre-existing Chrome already listening on a fixed port) can't cross-drive each other's pages.
+const freePort = () => new Promise((resolve, reject) => {
+  const srv = createServer().unref();
+  srv.on('error', reject);
+  srv.listen(0, '127.0.0.1', () => { const { port } = srv.address(); srv.close(() => resolve(port)); });
+});
+const PORT       = args.port ? +args.port : await freePort();
 const START      = +(args.start || 0);            // start frame (for resuming)
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
@@ -57,7 +65,10 @@ async function getPageWS() {
     try {
       const res = await fetch(`http://127.0.0.1:${PORT}/json`);
       const list = await res.json();
-      const page = list.find(t => t.type === 'page' && /127\.0\.0\.1:\d+\/.+\.html/.test(t.url));
+      // match OUR page by exact URL (defense-in-depth beyond the per-render port), not just the
+      // first .html target, so we never attach to an unrelated Chrome page on the same port.
+      const page = list.find(t => t.type === 'page' && t.url === URL_ARG)
+                || list.find(t => t.type === 'page' && /127\.0\.0\.1:\d+\/.+\.html/.test(t.url));
       if (page?.webSocketDebuggerUrl) return page.webSocketDebuggerUrl;
     } catch {}
     await sleep(150);
