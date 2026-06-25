@@ -1,7 +1,7 @@
 // Deterministic frame renderer: drives headless Chrome over CDP (zero deps, node v26 built-in WebSocket).
 // The target HTML must expose window.__seek(t) (seconds) and set window.__ready = true once assets are loaded.
 import { spawn } from 'node:child_process';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createServer } from 'node:net';
 
@@ -26,7 +26,19 @@ const freePort = () => new Promise((resolve, reject) => {
 });
 const PORT       = args.port ? +args.port : await freePort();
 const START      = +(args.start || 0);            // start frame (for resuming)
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+// Find a Chromium-family browser (mirrors scripts/render-og.sh): CHROME_BIN overrides; otherwise
+// probe common macOS/Linux paths so this isn't macOS-Chrome-only (CI, Brave, Edge, Chromium, …).
+const CHROME = process.env.CHROME_BIN || [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+  '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+  '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
+].find(p => existsSync(p));
+if (!CHROME) {
+  console.error('No Chromium-family browser found. Set CHROME_BIN to a Chrome/Chromium binary.');
+  process.exit(1);
+}
 
 // This driver speaks CDP over the global WebSocket (stable since Node 22; zero npm deps by design).
 // Fail fast with a clear message instead of a cryptic ReferenceError after Chrome has already started.
@@ -115,17 +127,19 @@ async function evalJS(expression, awaitPromise = false) {
 }
 
 process.stdout.write('waiting for __ready');
-for (let i = 0; i < 120; i++) {
-  const ready = await evalJS('window.__ready === true').catch(() => false);
-  if (ready) break;
-  process.stdout.write('.');
-  await sleep(100);
+let ready = false;
+for (let i = 0; i < 120 && !ready; i++) {
+  ready = await evalJS('window.__ready === true').catch(() => false);
+  if (!ready) { process.stdout.write('.'); await sleep(100); }
 }
 process.stdout.write('\n');
 
-// fail loudly if the page reported a broken/missing image — don't capture a cut with missing visuals
+// Fail loudly if the page reported a broken/missing asset, or never signalled readiness at all
+// (a stalled fonts/image/mask promise leaves __seek callable but assets unloaded). Either way we'd
+// otherwise photograph a partially-loaded cut that still passes the mechanical check.
 const renderErr = await evalJS('window.__error || null').catch(() => null);
 if (renderErr) { console.error('render aborted:', renderErr); ws.close(); cleanup(); process.exit(1); }
+if (!ready) { console.error('render aborted: page never signalled __ready (assets stalled?)'); ws.close(); cleanup(); process.exit(1); }
 
 const t0 = Date.now();
 if (args.times) {
