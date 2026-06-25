@@ -20,6 +20,13 @@ const PORT       = +(args.port || 9333);
 const START      = +(args.start || 0);            // start frame (for resuming)
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
+// This driver speaks CDP over the global WebSocket (stable since Node 22; zero npm deps by design).
+// Fail fast with a clear message instead of a cryptic ReferenceError after Chrome has already started.
+if (typeof WebSocket === 'undefined') {
+  console.error(`render.mjs needs a global WebSocket (Node 22+); running ${process.version}. Upgrade Node.`);
+  process.exit(1);
+}
+
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
