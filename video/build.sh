@@ -24,9 +24,14 @@ magick "$XCA/MenubarIcon.imageset/menubar-icon@2x.png" -trim +repage "$ASSETS/me
 # shared tool logos (agents/editors/terminals) for the STACK beat — see assets/icons/README.md
 mkdir -p "$ASSETS/icons"; cp "$REPO"/assets/icons/*.svg "$REPO"/assets/icons/*.png "$ASSETS/icons/"
 
-pkill -f "http.server $PORT" 2>/dev/null || true; sleep 0.3
+# serve over a free local port (never pkill — that could kill an unrelated http.server), and
+# always clean up the one WE start, on success or failure.
+while lsof -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; do PORT=$((PORT+1)); done
+SRV_PID=""; trap '[ -n "$SRV_PID" ] && kill "$SRV_PID" 2>/dev/null' EXIT
 nohup python3 -m http.server "$PORT" --bind 127.0.0.1 >/tmp/cctop-video-http.log 2>&1 &
+SRV_PID=$!
 sleep 0.6
+kill -0 "$SRV_PID" 2>/dev/null || { echo "preview server failed to start on port $PORT"; cat /tmp/cctop-video-http.log; exit 1; }
 node engine/render.mjs --url="http://127.0.0.1:$PORT/$PDIR/body.html" \
   --out="$BUILD/frames" --duration="$DUR" --fps="$FPS" --scale="$SCALE" --width="$W" --height="$H"
 OW="$W" OH="$H" bash engine/encode.sh "$BUILD/frames" "$BUILD/$PROJECT.mp4"
