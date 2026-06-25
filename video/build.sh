@@ -9,7 +9,8 @@ REPO="$(cd .. && pwd)"                 # <repo> root: needs <repo>/docs/*.png (r
 PDIR="projects/$PROJECT"
 [ -f "$PDIR/body.html" ] || { echo "no such project: $PDIR/body.html"; exit 1; }
 BUILD="$PDIR/.video-build"; ASSETS="$BUILD/assets"
-mkdir -p "$ASSETS"
+rm -rf "$ASSETS"; mkdir -p "$ASSETS"   # start from a clean staging dir so a removed/renamed source
+                                       # asset can't linger and silently end up in the rendered mp4
 
 # stage the screenshots this project references. No `|| true` — a missing source fails loudly.
 # (a per-project assets.txt, one basename per line, overrides the default set)
