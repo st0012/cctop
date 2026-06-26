@@ -20,9 +20,11 @@ project with a keystroke.
 </p>
 
 <p align="center">
-  <img src="docs/menubar-tokyonight-dark.png" alt="cctop menubar panel showing active AI coding sessions" width="520">
+  <img src="https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-preview.avif" alt="Animated preview of cctop tracking and jumping between AI coding sessions" width="780">
   <br>
   <em>One compact menubar view for sessions across tools.</em>
+  <br>
+  <a href="https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch.mp4">Full launch video (MP4)</a>
 </p>
 
 ## Why cctop
