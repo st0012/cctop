@@ -1,7 +1,8 @@
 # cctop Video Framework
 
 A small, reproducible system for making cctop's videos — and the hard-won findings behind it.
-Pairs with the **video-storyboard skill** (the narrative half) and the video-pipeline memory.
+Pairs with the **video-storyboard skill** (the narrative half), the **video-assets skill**
+(release publishing), and the video-pipeline memory.
 
 The split it's built around: **story → engine → theme → video**. You change one layer without
 touching the others. Recolour the app? Edit `theme.css`. New 15s "for teams" cut? Add a project
@@ -58,6 +59,34 @@ headlessly at 2× (supersampled), encodes, then runs `engine/check.sh` on the re
 **Iterate fast:** while authoring, render a few keyframes instead of the whole thing —
 `node engine/render.mjs --url=http://127.0.0.1:8123/projects/launch/body.html --out=/tmp/k --times=3.6,9,14 --scale=1`.
 
+## Publish
+
+Publishing is intentionally separate from rendering. First render and get explicit approval on the
+preview. Then use the repo-local **video-assets skill** so the README preview and full videos stay in
+sync.
+
+From the repo root, dry-run the standard launch asset set:
+
+```bash
+.agents/skills/video-assets/scripts/publish-launch-assets.sh --clobber --dry-run
+```
+
+Report the release tag, source files, stable asset names, and resulting URLs, then wait for explicit
+approval unless the latest user message clearly authorizes publishing. The real upload is:
+
+```bash
+.agents/skills/video-assets/scripts/publish-launch-assets.sh --clobber
+```
+
+That regenerates `cctop-launch-preview.avif` from `launch-720p.mp4`, then uploads:
+
+- `cctop-launch-preview.avif`
+- `cctop-launch-720p.mp4`
+- `cctop-launch.mp4`
+
+All three live on the non-latest `media-assets` GitHub Release. Do not create `v*` media-only
+releases, and do not commit `.video-build/` outputs.
+
 ---
 
 ## Recipe 1 — restyle after a colour change
@@ -82,7 +111,8 @@ multiple palettes, copy `theme.css` to `themes/<name>.css` and point a video's `
    and the `whenReady(seek)` boot, and replace the **scene content and timeline**.
 3. Edit the `TL` object (scene start/end times) and the per-scene `draw*()` functions / DOM.
    Reuse `rev()`, `mix()`, easings (and `whenReady`) from `lib.js`. Put any new screenshots in `<repo>/docs/` and the project's asset list.
-4. `DUR=<seconds> ./build.sh <angle>`, then QA it (Recipe 3).
+4. `DUR=<seconds> ./build.sh <angle>`, then QA it (Recipe 3). If the user approves the cut for
+   publishing, use the video-assets publishing workflow above rather than uploading one-off files.
 
 A video's structure (see `projects/launch/body.html`): a `TL` map of named scenes → `[start,end]`, a `seek(t)`
 that dispatches to small `draw*()` functions, each computing its elements from `t`. The launch cut's
@@ -172,15 +202,16 @@ The **screenshots** the videos use are already in `<repo>/docs/*.png`, so `build
 build time rather than duplicating. The **heavy, regenerable** parts — `frames/` (~1 GB/run at 2×) and the
 mp4s — are `.gitignore`d.
 
-So **a separate repo isn't needed.** Only consider one if you want to archive many large *finished*
-videos long-term — and even then, prefer GitHub Releases / object storage over a git repo for binary
-mp4s. The deliverable mp4 (~3.5 MB) can be committed as a release artifact if useful, but never
-`frames/`.
+So **a separate repo isn't needed.** Keep finished binaries on GitHub Releases / object storage, not
+in git. For the launch cut, the canonical release bucket is `media-assets`, with stable asset names
+managed by `$video-assets`.
 
 ---
 
 ## See also
 - **the video-storyboard skill** — the narrative process: positioning → spine → beats → script →
   storyboard → review, plus the failure-mode checklist.
+- **the video-assets skill** — the release asset process: generate the AVIF preview, upload the MP4s
+  and AVIF together, and keep README links stable.
 - **the video-pipeline memory** — the pipeline at a glance.
 - the v1 making-of is parked in the gitignored `.video-archive/` (it documents the superseded pipeline).

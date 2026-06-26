@@ -28,6 +28,44 @@ This file is the canonical guide for agents helping develop cctop. cctop itself 
 - Do not commit temporary explanation artifacts, local investigation HTML, screenshots, scratch scripts, or generated debugging files unless they are intentional product/docs assets.
 - Keep canonical agent guidance in this file. Pointer files such as `CLAUDE.md` should redirect here instead of duplicating instructions that will drift.
 
+## Video Workflow
+
+cctop has a repo-local video pipeline under `video/`. Treat video work as a two-skill flow:
+
+1. Use `$video-storyboard` for story, pacing, storyboard, and narrative critique.
+2. Use `$video-assets` for publishing rendered video assets after the user approves a render.
+
+The current launch video source lives at `video/projects/launch/body.html` with `storyboard.html` as its visual reference. Build from `video/`:
+
+```bash
+./build.sh launch
+```
+
+This writes gitignored outputs under `video/projects/launch/.video-build/`, including:
+
+- `launch.mp4`
+- `launch-720p.mp4`
+
+When a render is approved for publishing, do not manually upload one-off files. Run the `$video-assets` launch workflow instead. It regenerates the README AVIF preview from the 720p MP4 and publishes the full asset set to the non-latest `media-assets` GitHub Release:
+
+```bash
+.agents/skills/video-assets/scripts/publish-launch-assets.sh --clobber --dry-run
+```
+
+Before doing the real upload, report the release tag, source files, stable asset names, `--clobber` behavior, and resulting URLs, then wait for explicit approval unless the latest user message clearly authorizes publishing. The real publish command is:
+
+```bash
+.agents/skills/video-assets/scripts/publish-launch-assets.sh --clobber
+```
+
+The stable launch asset URLs are:
+
+- `https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-preview.avif`
+- `https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-720p.mp4`
+- `https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch.mp4`
+
+Do not use `v*` product-release tags for media-only work, and do not commit rendered MP4s or `.video-build/` outputs. README inline preview should use the release-hosted AVIF unless the developer explicitly asks for a committed preview asset.
+
 ## PR Standards
 
 - PR titles must be plain human-readable titles. Never prefix them with `[codex]`, tool names, or agent tags.

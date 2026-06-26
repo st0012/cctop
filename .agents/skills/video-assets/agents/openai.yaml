@@ -1,0 +1,4 @@
+interface:
+  display_name: "Video Assets"
+  short_description: "Manage cctop video release assets"
+  default_prompt: "Use $video-assets to publish or update cctop launch MP4 and AVIF preview assets on the non-latest media release."

@@ -12,6 +12,8 @@
      radial-gradient(1200px 900px at 24% 16%, #1d2034 0%, rgba(29,32,52,0) 60%),
      radial-gradient(1100px 820px at 82% 92%, #1e1b26 0%, rgba(30,27,38,0) 60%),
      linear-gradient(160deg,#15161f 0%, #1A1B26 46%, #191a28 100%);}
+  #stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+    box-shadow:inset 0 0 190px rgba(2,3,10,.36)}
   .head{color:#E8ECFB}
   .accent{color:var(--accent)}
 
@@ -91,28 +93,29 @@
   #payReply,#payRun{opacity:0;will-change:transform,opacity}
 
   /* STACK chips */
-  #chips{position:absolute;display:grid;grid-template-columns:repeat(2,248px);gap:18px;left:327px;top:498px}
-  .chip{display:flex;align-items:center;gap:14px;padding:0 24px;height:64px;border-radius:16px;opacity:0;will-change:transform,opacity;
+  #chips{position:absolute;display:grid;grid-template-columns:repeat(2,278px);gap:18px;left:296px;top:498px}
+  .chip{display:flex;align-items:center;justify-content:center;gap:14px;padding:0 20px;height:64px;border-radius:16px;opacity:0;will-change:transform,opacity;
     background:rgba(192,202,245,.05);border:1px solid rgba(192,202,245,.11);
-    font-family:var(--mono);font-size:27px;font-weight:600;color:var(--t1);white-space:nowrap}
+    font-family:var(--mono);font-size:26px;font-weight:600;color:var(--t1);white-space:nowrap;text-align:center;
+    box-shadow:0 22px 46px -28px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.04)}
   .chip .tmark{width:26px;height:26px;flex:none;background:var(--t1);
     -webkit-mask:center/contain no-repeat;mask:center/contain no-repeat}
   .chip .tmark.wide{width:108px}   /* opencode is a wordmark, not a glyph */
   #editors{position:absolute;left:201px;width:640px;text-align:right;top:680px;font-family:var(--mono);font-size:24px;color:#7d83a0;letter-spacing:.3px;line-height:1.5;opacity:0;will-change:transform,opacity}
 
   /* THEMES fan */
-  .thpanel{position:absolute;overflow:hidden;border-radius:16px;border:1px solid rgba(255,255,255,.06);opacity:0;will-change:transform,opacity;
-    box-shadow:0 34px 70px -28px rgba(0,0,0,.8);transform-origin:bottom center}
+  .thpanel{position:absolute;overflow:hidden;border-radius:16px;border:1px solid rgba(255,255,255,.08);opacity:0;will-change:transform,opacity;
+    box-shadow:0 38px 80px -28px rgba(0,0,0,.82), 0 0 46px -34px rgba(192,202,245,.42);transform-origin:bottom center}
   .thpanel img{display:block;width:100%}
 
   /* CTA */
   #cta{position:absolute;inset:0;opacity:0}
-  #cta #icon{width:168px;height:168px;border-radius:38px;box-shadow:0 40px 90px -25px rgba(0,0,0,.8),0 0 70px -18px rgba(247,118,142,.4);will-change:transform,opacity}
-  #cta .nm{font-size:108px;font-weight:700;letter-spacing:-4px;color:#E8ECFB}
-  #cta .tg{font-size:38px;color:var(--t2);font-weight:500}
+  #cta #icon{width:184px;height:184px;border-radius:42px;box-shadow:0 42px 95px -24px rgba(0,0,0,.86),0 0 86px -18px rgba(247,118,142,.46);will-change:transform,opacity}
+  #cta .nm{font-size:120px;font-weight:700;letter-spacing:-4px;color:#E8ECFB}
+  #cta .tg{font-size:41px;color:#C0CAF5;font-weight:520}
   #cta .meta{font-family:var(--mono);font-size:25px;color:var(--t3);letter-spacing:1px}
-  #cta .url{font-size:56px;font-weight:700;color:var(--accent);letter-spacing:-.5px;position:relative}
-  #cta .url::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:-10px;height:3px;background:var(--accent);width:0%}
+  #cta .url{font-size:64px;font-weight:750;color:var(--accent);letter-spacing:-.5px;position:relative;text-shadow:0 0 42px rgba(247,118,142,.25)}
+  #cta .url::after{content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:-12px;height:4px;background:var(--accent);width:0%;border-radius:4px}
 
   #tether{position:absolute;left:1500px;top:48px;opacity:0;z-index:40;will-change:opacity}
 </style>
@@ -182,7 +185,7 @@
   <div id="chips">
     <div class="chip"><span class="tmark" style="-webkit-mask-image:url(.video-build/assets/icons/claude.svg);mask-image:url(.video-build/assets/icons/claude.svg)"></span>Claude Code</div>
     <div class="chip"><span class="tmark" style="-webkit-mask-image:url(.video-build/assets/icons/openai.svg);mask-image:url(.video-build/assets/icons/openai.svg)"></span>Codex</div>
-    <div class="chip" style="justify-content:center"><span class="tmark wide" style="-webkit-mask-image:url(.video-build/assets/icons/opencode.svg);mask-image:url(.video-build/assets/icons/opencode.svg)"></span></div>
+    <div class="chip"><span class="tmark wide" style="-webkit-mask-image:url(.video-build/assets/icons/opencode.svg);mask-image:url(.video-build/assets/icons/opencode.svg)"></span></div>
     <div class="chip"><span class="tmark" style="-webkit-mask-image:url(.video-build/assets/icons/pi.svg);mask-image:url(.video-build/assets/icons/pi.svg)"></span>pi</div>
   </div>
   <div id="editors">VS Code · Cursor · Zed<br>iTerm2 · Ghostty · Warp · Kitty · cmux</div>
@@ -198,11 +201,11 @@
 
   <!-- CTA -->
   <div id="cta">
-    <div class="ctr" style="top:262px"><img id="icon" src=".video-build/assets/appicon.png"></div>
-    <div class="ctr nm" id="ctaNm" style="top:454px">cctop</div>
+    <div class="ctr" style="top:246px"><img id="icon" src=".video-build/assets/appicon.png"></div>
+    <div class="ctr nm" id="ctaNm" style="top:450px">cctop</div>
     <div class="ctr tg" id="ctaTg" style="top:606px">Find the agent that needs you, and jump straight in.</div>
-    <div class="ctr meta" id="ctaMeta" style="top:678px">Free &amp; open source · macOS menubar app</div>
-    <div class="ctr url" id="ctaUrl" style="top:742px">cctop.app</div>
+    <div class="ctr meta" id="ctaMeta" style="top:682px">Free &amp; open source · macOS menubar app</div>
+    <div class="ctr url" id="ctaUrl" style="top:750px">cctop.app</div>
   </div>
 
 </div>
@@ -210,10 +213,10 @@
 <script src="../../lib.js"></script>
 <script>
 const TL={
-  hook:[0.0,3.2], morph:[3.1,4.2], reveal:[4.0,7.6], scan:[7.5,11.2],
-  jump:[11.1,14.3], payoff:[14.2,17.9], stack:[17.8,21.1], themes:[21.0,23.9], cta:[23.8,28.2]
+  hook:[0.0,3.0], morph:[2.9,4.0], reveal:[3.8,7.2], scan:[7.1,10.7],
+  jump:[10.6,13.8], payoff:[13.7,17.4], stack:[17.3,20.5], themes:[20.4,23.2], cta:[23.0,27.8]
 };
-const TOTAL=28.2;
+const TOTAL=27.8;
 const PANEL={x:905,y:176,w:680,h:781};
 const PILL={x:1630,y:30};                       // pill centre — bloom origin + dot convergence
 const DOTC=[868,914,960,1006,1052], DOTY=538;   // hook dot centres at rest
@@ -330,6 +333,8 @@ function drawPayoff(t){
   const r=rev(t, a+0.95, a+1.35, b-0.4, b-0.05, 18);
   $('#payReply').style.opacity=r.o; $('#payReply').style.transform=`translateY(${r.y}px)`;
   const flip=mix(t, a+1.5, a+1.8);
+  const glow=mix(t, a+1.55, a+2.15);
+  card.style.boxShadow = `0 54px 120px -34px rgba(0,0,0,.85), 0 0 90px -34px rgba(${lerp(255,158,glow).toFixed(0)},${lerp(158,206,glow).toFixed(0)},${lerp(100,106,glow).toFixed(0)},.34)`;
   $('#payStatDot').style.background = flip>0.5?'var(--green)':'var(--orange)';
   $('#payStatT').textContent = flip>0.5?'Working':'Waiting on you';
   $('#payStat').style.color = flip>0.5?'var(--green)':'var(--orange)';
@@ -364,15 +369,15 @@ function drawThemes(t){
 /* CTA */
 function drawCTA(t){
   const [a,b]=TL.cta;
-  const root=$('#cta'); const o=mix(t,a+0.1,a+0.55); root.style.opacity=o; if(o<=0) return;
+  const root=$('#cta'); const o=mix(t,a+0.05,a+0.45); root.style.opacity=o; if(o<=0) return;
   const ic=$('#icon'); const ip=eBack(clamp(mix(t,a+0.15,a+0.95)));
   ic.style.opacity=clamp(mix(t,a+0.15,a+0.5));
   ic.style.transform=`translateY(${lerp(40,0,ip).toFixed(1)}px) scale(${lerp(.6,1,ip).toFixed(3)}) rotate(${lerp(-8,0,ip).toFixed(2)}deg)`;
-  set($('#ctaNm'), rev(t,a+0.5,a+1.0));
-  set($('#ctaTg'), rev(t,a+0.7,a+1.2));
-  set($('#ctaMeta'), rev(t,a+1.0,a+1.5));
-  set($('#ctaUrl'), rev(t,a+1.2,a+1.7));
-  const uw=clamp(mix(t,a+1.6,a+2.4))*100;
+  set($('#ctaNm'), rev(t,a+0.45,a+0.92));
+  set($('#ctaTg'), rev(t,a+0.68,a+1.12));
+  set($('#ctaMeta'), rev(t,a+0.95,a+1.38));
+  set($('#ctaUrl'), rev(t,a+1.15,a+1.58));
+  const uw=clamp(mix(t,a+1.48,a+2.2))*100;
   $('#ctaUrlStyle').textContent=`#cta .url::after{width:${uw}%}`;
 }
 

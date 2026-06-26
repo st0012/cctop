@@ -1,11 +1,17 @@
 ---
 name: video-storyboard
-description: Use when designing, scripting, or storyboarding a short demo, launch, explainer, or marketing video (especially for a developer tool, app, or SaaS), OR when auditing, critiquing, or improving an existing video's narrative, hook, pacing, or storyboard. Runs a verified 6-stage process — positioning, message spine, beat sheet, script, storyboard, review — embedding StoryBrand, Before-After-Bridge / PAS / AIDA, the Pixar Story Spine, and the But/Therefore rule. Invoke whenever the work is about the STORY of a video rather than its rendering, including phrasings like "storyboard this", "what's the hook", "make the video more compelling", "the video falls flat", "script a launch video", or "audit this video". Do not use for the encoding/rendering pipeline itself.
+description: Use when designing, scripting, or storyboarding a short demo, launch, explainer, or marketing video (especially for a developer tool, app, or SaaS), OR when auditing, critiquing, or improving an existing video's narrative, hook, pacing, or storyboard. Runs a verified 6-stage process — positioning, message spine, beat sheet, script, storyboard, review — embedding StoryBrand, Before-After-Bridge / PAS / AIDA, the Pixar Story Spine, and the But/Therefore rule. Invoke whenever the work is about the STORY of a video rather than its rendering, including phrasings like "storyboard this", "what's the hook", "make the video more compelling", "the video falls flat", "script a launch video", or "audit this video". After an approved render, hand off publishing to video-assets so MP4 and AVIF release assets stay in sync. Do not use this skill for the encoding/rendering pipeline itself.
 ---
 
 # Video Storyboard
 
 A repeatable process for the part of a video that decides whether it works: the **narrative**. Rendering executes the story; this skill designs it.
+
+For cctop launch videos, this is the first half of the workflow:
+
+1. Use this skill for story/script/storyboard/audit decisions.
+2. Render through the repo video pipeline (`cd video && ./build.sh launch` for the launch cut).
+3. After the user approves the rendered video, switch to `$video-assets` and publish with its confirmation gate. That workflow uploads `cctop-launch.mp4`, `cctop-launch-720p.mp4`, and a freshly generated `cctop-launch-preview.avif` together to the non-latest `media-assets` release.
 
 It has two modes:
 

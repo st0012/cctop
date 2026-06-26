@@ -6,12 +6,21 @@
 <link rel="stylesheet" href="../../theme.css">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  html,body{width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--t1);
+  html,body{width:100vw;height:100vh;overflow:hidden;background:var(--bg);color:var(--t1);
     font-family:var(--disp);-webkit-font-smoothing:antialiased;text-rendering:geometricPrecision}
-  #stage{position:absolute;inset:0;width:1920px;height:1080px;background:
+  #stage{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:top left;background:
      radial-gradient(1200px 900px at 24% 16%, #1d2034 0%, rgba(29,32,52,0) 60%),
      radial-gradient(1100px 820px at 82% 92%, #1e1b26 0%, rgba(30,27,38,0) 60%),
      linear-gradient(160deg,#15161f 0%, #1A1B26 46%, #191a28 100%);}
+  #storyControls{display:none;position:fixed;left:0;right:0;bottom:0;z-index:100;gap:8px;align-items:center;
+    padding:12px 16px;background:rgba(13,14,22,.92);border-top:1px solid rgba(192,202,245,.11);
+    box-shadow:0 -18px 50px rgba(0,0,0,.38);backdrop-filter:blur(18px)}
+  body.viewer-mode #storyControls{display:flex}
+  #storyControls .label{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-right:8px}
+  #storyControls button{height:36px;border:1px solid rgba(192,202,245,.14);border-radius:10px;background:rgba(192,202,245,.05);
+    color:var(--t2);font:600 13px var(--mono);padding:0 11px;cursor:pointer}
+  #storyControls button.active{border-color:rgba(247,118,142,.72);background:rgba(247,118,142,.15);color:#fbdce2;
+    box-shadow:0 0 22px -12px rgba(247,118,142,.75)}
 
   .head{color:#E8ECFB}
   .accent{color:var(--accent)}
@@ -96,26 +105,27 @@
   #payCard .run .ok{font-weight:700}
 
   /* STACK chips */
-  #chips{position:absolute;display:grid;grid-template-columns:repeat(2,248px);gap:18px}
-  .chip{display:flex;align-items:center;gap:14px;padding:0 24px;height:64px;border-radius:16px;
+  #chips{position:absolute;display:grid;grid-template-columns:repeat(2,278px);gap:18px}
+  .chip{display:flex;align-items:center;justify-content:center;gap:14px;padding:0 20px;height:64px;border-radius:16px;
     background:rgba(192,202,245,.05);border:1px solid rgba(192,202,245,.11);
-    font-family:var(--mono);font-size:27px;font-weight:600;color:var(--t1);white-space:nowrap}
+    font-family:var(--mono);font-size:26px;font-weight:600;color:var(--t1);white-space:nowrap;text-align:center;
+    box-shadow:0 22px 46px -28px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.04)}
   .chip .tmark{width:26px;height:26px;flex:none;background:var(--t1);
     -webkit-mask:center/contain no-repeat;mask:center/contain no-repeat}
   .chip .tmark.wide{width:108px}
   #editors{position:absolute;font-family:var(--mono);font-size:25px;color:var(--t3);letter-spacing:.3px}
 
   /* THEMES fan */
-  .thpanel{position:absolute;overflow:hidden;border-radius:16px;border:1px solid rgba(255,255,255,.06);
-    box-shadow:0 34px 70px -28px rgba(0,0,0,.8);transform-origin:bottom center}
+  .thpanel{position:absolute;overflow:hidden;border-radius:16px;border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 38px 80px -28px rgba(0,0,0,.82), 0 0 46px -34px rgba(192,202,245,.42);transform-origin:bottom center}
   .thpanel img{display:block;width:100%}
 
   /* CTA */
-  #cta #icon{width:168px;height:168px;border-radius:38px;box-shadow:0 40px 90px -25px rgba(0,0,0,.8),0 0 70px -18px rgba(247,118,142,.4)}
-  #cta .nm{font-size:108px;font-weight:700;letter-spacing:-4px;color:#E8ECFB}
-  #cta .tg{font-size:38px;color:var(--t2);font-weight:500}
+  #cta #icon{width:184px;height:184px;border-radius:42px;box-shadow:0 42px 95px -24px rgba(0,0,0,.86),0 0 86px -18px rgba(247,118,142,.46)}
+  #cta .nm{font-size:120px;font-weight:700;letter-spacing:-4px;color:#E8ECFB}
+  #cta .tg{font-size:41px;color:#C0CAF5;font-weight:520}
   #cta .meta{font-family:var(--mono);font-size:25px;color:var(--t3);letter-spacing:1px}
-  #cta .url{font-size:56px;font-weight:700;color:var(--accent);letter-spacing:-.5px}
+  #cta .url{font-size:64px;font-weight:750;color:var(--accent);letter-spacing:-.5px;text-shadow:0 0 42px rgba(247,118,142,.25)}
 
   /* tether (reveal) */
   #tether{position:absolute;opacity:0;z-index:40}
@@ -201,10 +211,10 @@
   <!-- ============ FRAME 5 — STACK ============ -->
   <div class="sframe" data-i="5">
     <div style="position:absolute;left:341px;width:500px;text-align:right;top:332px;font-size:54px;font-weight:800;letter-spacing:-1px;line-height:1.08;color:#E8ECFB">Works with the<br>stack you've got.</div>
-    <div id="chips" style="left:327px;top:498px">
+    <div id="chips" style="left:296px;top:498px">
       <div class="chip"><span class="tmark" style="-webkit-mask-image:url(.video-build/assets/icons/claude.svg);mask-image:url(.video-build/assets/icons/claude.svg)"></span>Claude Code</div>
       <div class="chip"><span class="tmark" style="-webkit-mask-image:url(.video-build/assets/icons/openai.svg);mask-image:url(.video-build/assets/icons/openai.svg)"></span>Codex</div>
-      <div class="chip" style="justify-content:center"><span class="tmark wide" style="-webkit-mask-image:url(.video-build/assets/icons/opencode.svg);mask-image:url(.video-build/assets/icons/opencode.svg)"></span></div>
+      <div class="chip"><span class="tmark wide" style="-webkit-mask-image:url(.video-build/assets/icons/opencode.svg);mask-image:url(.video-build/assets/icons/opencode.svg)"></span></div>
       <div class="chip"><span class="tmark" style="-webkit-mask-image:url(.video-build/assets/icons/pi.svg);mask-image:url(.video-build/assets/icons/pi.svg)"></span>pi</div>
     </div>
     <div id="editors" style="left:201px;width:640px;text-align:right;top:680px;font-size:24px;color:#7d83a0;line-height:1.5">VS Code · Cursor · Zed<br>iTerm2 · Ghostty · Warp · Kitty · cmux</div>
@@ -223,14 +233,25 @@
   <!-- ============ FRAME 7 — CTA ============ -->
   <div class="sframe" data-i="7">
     <div id="cta">
-      <div class="ctr" style="top:262px"><img id="icon" src=".video-build/assets/appicon.png"></div>
-      <div class="ctr nm" style="top:454px">cctop</div>
+      <div class="ctr" style="top:246px"><img id="icon" src=".video-build/assets/appicon.png"></div>
+      <div class="ctr nm" style="top:450px">cctop</div>
       <div class="ctr tg" style="top:606px">Find the agent that needs you, and jump straight in.</div>
-      <div class="ctr meta" style="top:678px">Free &amp; open source · macOS menubar app</div>
-      <div class="ctr url" style="top:742px">cctop.app</div>
+      <div class="ctr meta" style="top:682px">Free &amp; open source · macOS menubar app</div>
+      <div class="ctr url" style="top:750px">cctop.app</div>
     </div>
   </div>
 
+</div>
+<div id="storyControls" aria-label="Storyboard frames">
+  <span class="label">Frames</span>
+  <button data-frame="0">0 Hook</button>
+  <button data-frame="1">1 Reveal</button>
+  <button data-frame="2">2 Scan</button>
+  <button data-frame="3">3 Jump</button>
+  <button data-frame="4">4 Payoff</button>
+  <button data-frame="5">5 Stack</button>
+  <button data-frame="6">6 Themes</button>
+  <button data-frame="7">7 CTA</button>
 </div>
 
 <script src="../../lib.js"></script>
@@ -239,14 +260,35 @@
    Per-frame menubar band opacity (some beats suppress it). */
 const BAND = [0, 1.0, 0.92, 0.92, 0.70, 0.92, 0, 0];   // index = frame
 const TETHER = 1;                                       // tether visible only on REVEAL
+let currentFrame = 0;
 
 function seek(t){
   const f = Math.max(0, Math.min(7, Math.round(t)));
+  currentFrame = f;
   $$('.sframe').forEach(el=>el.classList.toggle('on', +el.dataset.i===f));
   $('#band').style.opacity = BAND[f];
   $('#tether').style.opacity = f===TETHER ? 1 : 0;
   $('#pill').classList.toggle('hero', f===TETHER);   // pill is the hero on the REVEAL beat
+  $$('#storyControls button').forEach(btn=>btn.classList.toggle('active', +btn.dataset.frame===f));
 }
+function fitStoryboard(){
+  const interactive = window.innerWidth < 1910 || window.innerHeight < 1070;
+  document.body.classList.toggle('viewer-mode', interactive);
+  const controls = $('#storyControls');
+  const pad = interactive ? 18 : 0;
+  const controlsH = interactive ? controls.offsetHeight : 0;
+  const scale = interactive ? Math.min((window.innerWidth-pad*2)/1920, (window.innerHeight-controlsH-pad*2)/1080) : 1;
+  const x = interactive ? Math.max(pad, (window.innerWidth-1920*scale)/2) : 0;
+  const y = interactive ? Math.max(pad, (window.innerHeight-controlsH-1080*scale)/2) : 0;
+  $('#stage').style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(${scale.toFixed(4)})`;
+}
+$$('#storyControls button').forEach(btn=>btn.addEventListener('click',()=>seek(+btn.dataset.frame)));
+window.addEventListener('resize', fitStoryboard);
+document.addEventListener('keydown', event=>{
+  if(event.key==='ArrowRight'){ seek(currentFrame+1); }
+  if(event.key==='ArrowLeft'){ seek(currentFrame-1); }
+});
+fitStoryboard();
 whenReady(seek);   // shared boot handshake (lib.js)
 </script>
 </body>
