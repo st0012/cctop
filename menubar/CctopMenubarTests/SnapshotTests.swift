@@ -4,6 +4,14 @@ import SwiftUI
 
 // swiftlint:disable file_length
 
+private func snapshotOutputDirectory(named directoryName: String) -> String {
+    // Set CCTOP_SNAPSHOT_OUTPUT_DIR to intentionally refresh committed docs screenshots.
+    ProcessInfo.processInfo.environment["CCTOP_SNAPSHOT_OUTPUT_DIR"] ??
+        URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(directoryName)
+            .path
+}
+
 @MainActor
 final class SnapshotTests: XCTestCase {
     /// Renders the PopupView with showcase sessions and saves light + dark screenshots.
@@ -188,9 +196,7 @@ final class SnapshotTests: XCTestCase {
     private func renderScreenshot(
         view: some View, colorScheme: ColorScheme, filename: String, width: CGFloat = 320
     ) throws -> NSSize {
-        let environment = ProcessInfo.processInfo.environment
-        let docsDir = environment["CCTOP_SNAPSHOT_OUTPUT_DIR"] ?? environment["SRCROOT"]
-            .map { $0 + "/../docs" } ?? "/tmp"
+        let docsDir = snapshotOutputDirectory(named: "cctop-screenshots")
         let outputPath = "\(docsDir)/\(filename)"
         try FileManager.default.createDirectory(
             at: URL(fileURLWithPath: docsDir), withIntermediateDirectories: true
@@ -445,9 +451,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
     private func renderScreenshot(
         view: some View, colorScheme: ColorScheme, filename: String, width: CGFloat = 320
     ) throws -> NSSize {
-        let environment = ProcessInfo.processInfo.environment
-        let docsDir = environment["CCTOP_SNAPSHOT_OUTPUT_DIR"] ?? environment["SRCROOT"]
-            .map { $0 + "/../docs" } ?? "/tmp/cctop-worktree-cleanup-screenshots"
+        let docsDir = snapshotOutputDirectory(named: "cctop-worktree-cleanup-screenshots")
         let outputPath = "\(docsDir)/\(filename)"
         try FileManager.default.createDirectory(
             at: URL(fileURLWithPath: docsDir), withIntermediateDirectories: true
