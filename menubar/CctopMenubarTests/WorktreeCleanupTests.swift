@@ -1139,6 +1139,51 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(preflightCandidate.reviewEvidence.untrackedPreview?.totalCount, 4)
     }
 
+    func testRemovalServiceRefusesReviewCandidateWhenCollapsedIgnoredEvidenceCountChanges() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let reviewCandidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Needs review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.ignoredFilesReason]),
+            checks: [],
+            reviewEvidence: WorktreeCleanupReviewEvidence(
+                ignoredPreview: WorktreeCleanupUntrackedPreview(paths: ["cache/a.local"])
+            )
+        )
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [
+                    worktreePath: cleanInspection(statusEntries: [
+                        "!! cache/a.local",
+                        "!! cache/b.local",
+                    ]),
+                ]
+            ),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused after collapsed ignored evidence count changed, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.reviewEvidence.ignoredPreview?.items, ["cache/"])
+        XCTAssertEqual(preflightCandidate.reviewEvidence.ignoredPreview?.totalCount, 2)
+    }
+
     func testRemovalServiceRefusesReviewCandidateWhenLocalFileEvidenceDisappears() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)

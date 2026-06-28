@@ -146,10 +146,11 @@ struct WorktreeCleanupUntrackedPreview: Equatable {
     }
 
     init?(paths: [String], visibleLimit: Int = 3) {
-        let displayItems = Self.displayItems(from: paths)
+        let sourcePaths = paths.filter { !$0.isEmpty }
+        let displayItems = Self.displayItems(from: sourcePaths)
         guard !displayItems.isEmpty else { return nil }
         self.items = Array(displayItems.prefix(visibleLimit))
-        totalCount = displayItems.count
+        totalCount = sourcePaths.count
     }
 
     private static func displayItems(from paths: [String]) -> [String] {
