@@ -48,8 +48,7 @@ struct WorktreeRemovalService {
         if preflightCandidate.state.reasons.contains(WorktreeCleanupCandidate.initializedSubmodulesReason) {
             return .refused(preflightCandidate)
         }
-        if preflightCandidate.state.reasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason)
-            && !candidate.state.reasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason) {
+        if preflightCandidate.state.reasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason) {
             return .refused(preflightCandidate)
         }
 

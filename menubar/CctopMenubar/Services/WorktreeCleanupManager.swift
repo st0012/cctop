@@ -45,14 +45,36 @@ class WorktreeCleanupManager: ObservableObject {
 }
 
 struct WorktreeCleanupRefreshSignature: Equatable {
-    private let endedCandidatePaths: [String]
+    private struct EndedSessionFingerprint: Equatable {
+        let path: String
+        let sessionId: String
+        let effectiveEndDate: Date
+        let displayName: String
+        let branch: String
+    }
+
+    private let endedSessions: [EndedSessionFingerprint]
     private let activeProjectPaths: [String]
 
     init(sourceSessions: [Session], activeProjectPaths: Set<String>) {
-        self.endedCandidatePaths = sourceSessions
+        self.endedSessions = sourceSessions
             .filter { $0.endedAt != nil }
-            .map { WorktreeCleanupScanner.standardizedPath($0.projectPath) }
-            .sorted()
+            .map {
+                EndedSessionFingerprint(
+                    path: WorktreeCleanupScanner.standardizedPath($0.projectPath),
+                    sessionId: $0.sessionId,
+                    effectiveEndDate: $0.effectiveEndDate,
+                    displayName: $0.displayName,
+                    branch: $0.branch
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.path != rhs.path { return lhs.path < rhs.path }
+                if lhs.effectiveEndDate != rhs.effectiveEndDate { return lhs.effectiveEndDate < rhs.effectiveEndDate }
+                if lhs.sessionId != rhs.sessionId { return lhs.sessionId < rhs.sessionId }
+                if lhs.displayName != rhs.displayName { return lhs.displayName < rhs.displayName }
+                return lhs.branch < rhs.branch
+            }
         self.activeProjectPaths = activeProjectPaths
             .map(WorktreeCleanupScanner.standardizedPath)
             .sorted()

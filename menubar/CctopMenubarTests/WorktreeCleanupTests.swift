@@ -848,6 +848,66 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertNotEqual(lhs, rhs)
     }
 
+    func testRefreshSignatureChangesWhenEndedSessionMetadataChangesForSamePath() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+        let old = historySession(
+            id: "old",
+            path: path,
+            name: "Old billing session",
+            branch: "feature/old-invoices",
+            endedAt: now.addingTimeInterval(-7_200)
+        )
+        let newer = historySession(
+            id: "new",
+            path: path,
+            name: "Generate invoice retry path",
+            branch: "feature/invoices",
+            endedAt: now
+        )
+        let lhs = WorktreeCleanupRefreshSignature(sourceSessions: [old], activeProjectPaths: [])
+        let rhs = WorktreeCleanupRefreshSignature(sourceSessions: [newer], activeProjectPaths: [])
+
+        XCTAssertNotEqual(lhs, rhs)
+    }
+
+    @MainActor
+    func testNonForcedRefreshRunsWhenLatestEndedSessionForPathChanges() async throws {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+        let old = historySession(
+            id: "old",
+            path: path,
+            name: "Old billing session",
+            branch: "feature/old-invoices",
+            endedAt: now.addingTimeInterval(-7_200)
+        )
+        let newer = historySession(
+            id: "new",
+            path: path,
+            name: "Generate invoice retry path",
+            branch: "feature/invoices",
+            endedAt: now
+        )
+        let manager = WorktreeCleanupManager(
+            scanner: scanner(
+                existingPaths: [path],
+                inspections: [path: cleanInspection()],
+                sizes: [path: 1_024]
+            )
+        )
+
+        manager.refresh(from: [old], activeProjectPaths: [])
+        try await waitForCleanupCandidates(manager) { candidates in
+            candidates.first?.sessionName == "Old billing session"
+        }
+
+        manager.refresh(from: [newer], activeProjectPaths: [])
+        try await waitForCleanupCandidates(manager) { candidates in
+            candidates.first?.sessionName == "Generate invoice retry path"
+                && candidates.first?.branchName == "feature/invoices"
+                && candidates.first?.lastActiveAt == self.now
+        }
+    }
+
     @MainActor
     func testForceRefreshBypassesStableSignature() async throws {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
@@ -1131,6 +1191,7 @@ final class WorktreeCleanupTests: XCTestCase {
             sessionName: "Needs review",
             worktreePath: worktreePath,
             worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
             branchName: "feature/invoices",
             lastActiveAt: now,
             storageBytes: 1_024,
@@ -1170,6 +1231,7 @@ final class WorktreeCleanupTests: XCTestCase {
             sessionName: "Needs review",
             worktreePath: worktreePath,
             worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
             branchName: "feature/invoices",
             lastActiveAt: now,
             storageBytes: 1_024,
@@ -1206,6 +1268,44 @@ final class WorktreeCleanupTests: XCTestCase {
             Set(preflightCandidate.state.reasons),
             Set([WorktreeCleanupCandidate.untrackedFilesReason, WorktreeCleanupCandidate.indexHiddenTrackedFilesReason])
         )
+    }
+
+    func testRemovalServiceRefusesReviewCandidateWithIndexHiddenTrackedFilesWithoutInvokingGit() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let reviewCandidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Needs review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.indexHiddenTrackedFilesReason]),
+            checks: []
+        )
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [
+                    worktreePath: cleanInspection(failureReasons: [WorktreeCleanupCandidate.indexHiddenTrackedFilesReason])
+                ]
+            ),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused for hidden-index tracked files, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .review([WorktreeCleanupCandidate.indexHiddenTrackedFilesReason]))
     }
 
     func testRemovalServiceRefusesReviewCandidateWhenIgnoredFileEvidenceChanges() {
