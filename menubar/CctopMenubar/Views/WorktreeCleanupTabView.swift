@@ -5,6 +5,7 @@ struct WorktreeCleanupTabView: View {
     let selectedIndex: Int?
     @Binding var selectedCandidate: WorktreeCleanupCandidate?
     var relativeTimeNow = Date()
+    var onSelect: (WorktreeCleanupCandidate) -> Void = { _ in }
     var onRemove: (WorktreeCleanupCandidate) -> Void = { _ in }
     var removalNotice: WorktreeRemovalNotice?
     var removingCandidateID: String?
@@ -66,7 +67,10 @@ struct WorktreeCleanupTabView: View {
     private func cleanupCard(_ candidate: WorktreeCleanupCandidate, isSelected: Bool = false) -> some View {
         WorktreeCleanupCardView(candidate: candidate, isSelected: isSelected, relativeTimeNow: relativeTimeNow)
             .contentShape(Rectangle())
-            .onTapGesture { selectedCandidate = candidate }
+            .onTapGesture {
+                selectedCandidate = candidate
+                onSelect(candidate)
+            }
             .help("Click to review cleanup details")
     }
 }

@@ -15,6 +15,7 @@ extension PopupView {
             selectedIndex: selectedIndex,
             selectedCandidate: $selectedCleanupCandidate,
             relativeTimeNow: relativeTimeNow,
+            onSelect: openCleanupDetail,
             onRemove: requestCleanupRemoval,
             removalNotice: cleanupRemovalNotice,
             removingCandidateID: removingCleanupCandidateID

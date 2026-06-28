@@ -487,7 +487,8 @@ extension PopupView {
         notifyLayoutChanged()
     }
 
-    private func openCleanupDetail(_ candidate: WorktreeCleanupCandidate) {
+    func openCleanupDetail(_ candidate: WorktreeCleanupCandidate) {
+        onCleanupTabVisible()
         selectedCleanupCandidate = candidate
     }
 

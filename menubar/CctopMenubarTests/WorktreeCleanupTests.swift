@@ -710,6 +710,20 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(visibilityRefreshCount, 1)
     }
 
+    @MainActor
+    func testOpeningCleanupDetailRequestsFreshCleanupScan() {
+        let candidate = cleanupCandidate(path: "/Users/dev/.codex/worktrees/billing-api")
+        var visibilityRefreshCount = 0
+        let view = popupView(
+            cleanupCandidates: [candidate],
+            onCleanupTabVisible: { visibilityRefreshCount += 1 }
+        )
+
+        view.openCleanupDetail(candidate)
+
+        XCTAssertEqual(visibilityRefreshCount, 1)
+    }
+
     func testCleanupCandidateSyncUpdatesSelectedDetailWhenIDStillExists() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
         let clean = cleanupCandidate(path: path)
