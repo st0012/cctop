@@ -14,6 +14,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var updater: UpdaterBase!
     private var pluginManager: PluginManager!
     private var historyManager: HistoryManager!
+    private var cleanupManager: WorktreeCleanupManager!
+    private let cleanupRemovalService = WorktreeRemovalService.live()
     private var navigateController = NavigateController()
     private var notchController: NotchStatusController!
     private var navKeyMonitor: Any?
@@ -48,20 +50,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         notchController.onPillClicked = { [weak self] in self?.togglePanel() }
         historyManager = HistoryManager()
         sessionManager = SessionManager(historyManager: historyManager)
+        cleanupManager = WorktreeCleanupManager()
+        sessionManager.cleanupRefreshHandler = { [weak self] historySessions, activePaths in
+            self?.cleanupManager.refresh(from: historySessions, activeProjectPaths: activePaths)
+        }
+        cleanupManager.refresh(
+            from: sessionManager.cleanupSourceSessions,
+            activeProjectPaths: sessionManager.cleanupActiveProjectPaths
+        )
         updater = makeUpdater()
         pluginManager = PluginManager()
 
         setupStatusItem()
         hasNotch = NSScreen.builtin?.hasPhysicalNotch == true
 
-        let contentView = PanelContentView(
-            sessionManager: sessionManager,
-            historyManager: historyManager,
-            updater: updater,
-            pluginManager: pluginManager,
-            navigate: navigateController,
-            onLayoutChanged: { [weak self] in self?.resizePanel(animate: true) }
-        )
+        let contentView = makePanelContentView()
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
@@ -83,6 +86,49 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         registerURLHandler()
         observeSessionUpdates()
         observeThemeChanges()
+    }
+
+    private func makePanelContentView() -> PanelContentView {
+        PanelContentView(
+            sessionManager: sessionManager,
+            historyManager: historyManager,
+            cleanupManager: cleanupManager,
+            updater: updater,
+            pluginManager: pluginManager,
+            navigate: navigateController,
+            onRemoveCleanupCandidate: { [weak self] candidate in
+                await self?.removeCleanupCandidate(candidate) ?? .refused(candidate)
+            },
+            onLayoutChanged: { [weak self] in
+                Task { @MainActor in self?.resizePanel(animate: true) }
+            }
+        )
+    }
+
+    @MainActor private func removeCleanupCandidate(
+        _ candidate: WorktreeCleanupCandidate
+    ) async -> WorktreeRemovalService.RemovalResult {
+        let sourceSessions = sessionManager.cleanupSourceSessions
+        let activePaths = sessionManager.cleanupActiveProjectPaths
+        let removalService = cleanupRemovalService
+        let result = await Task.detached(priority: .utility) {
+            removalService.remove(
+                candidate,
+                sourceSessions: sourceSessions,
+                activeProjectPaths: activePaths
+            )
+        }.value
+
+        if case .removed = result {
+            await MainActor.run {
+                cleanupManager.refresh(
+                    from: sessionManager.cleanupSourceSessions,
+                    activeProjectPaths: sessionManager.cleanupActiveProjectPaths,
+                    force: true
+                )
+            }
+        }
+        return result
     }
 
     @MainActor private func registerShortcuts() {

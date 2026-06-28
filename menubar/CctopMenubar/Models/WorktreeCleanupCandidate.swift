@@ -1,0 +1,217 @@
+import Foundation
+
+struct WorktreeCleanupCandidate: Identifiable, Equatable {
+    static let untrackedFilesReason = "Worktree has untracked files"
+
+    enum State: Equatable {
+        case clean
+        case review([String])
+        case ignored([String])
+
+        var label: String {
+            switch self {
+            case .clean: return "Clean"
+            case .review: return "Review"
+            case .ignored: return "Ignored"
+            }
+        }
+
+        var reasons: [String] {
+            switch self {
+            case .clean: return []
+            case .review(let reasons), .ignored(let reasons): return reasons
+            }
+        }
+
+        var isClean: Bool {
+            if case .clean = self { return true }
+            return false
+        }
+
+        var isActionable: Bool {
+            switch self {
+            case .clean, .review:
+                return true
+            case .ignored:
+                return false
+            }
+        }
+    }
+
+    let id: String
+    let sessionName: String
+    let worktreePath: String
+    let worktreeName: String
+    let branchName: String
+    let lastActiveAt: Date
+    let storageBytes: Int64?
+    let state: State
+    let suggestedCommand: String?
+    let checks: [WorktreeCleanupCheck]
+    let reviewEvidence: WorktreeCleanupReviewEvidence
+
+    init(
+        id: String,
+        sessionName: String,
+        worktreePath: String,
+        worktreeName: String,
+        branchName: String,
+        lastActiveAt: Date,
+        storageBytes: Int64?,
+        state: State,
+        suggestedCommand: String?,
+        checks: [WorktreeCleanupCheck],
+        reviewEvidence: WorktreeCleanupReviewEvidence = .empty
+    ) {
+        self.id = id
+        self.sessionName = sessionName
+        self.worktreePath = worktreePath
+        self.worktreeName = worktreeName
+        self.branchName = branchName
+        self.lastActiveAt = lastActiveAt
+        self.storageBytes = storageBytes
+        self.state = state
+        self.suggestedCommand = suggestedCommand
+        self.checks = checks
+        self.reviewEvidence = reviewEvidence
+    }
+
+    var formattedStorage: String {
+        Self.formatStorage(bytes: storageBytes)
+    }
+
+    func visibleReviewReasons(limit: Int = 3) -> [String] {
+        let reasons = state.reasons
+        guard limit > 0 else { return [] }
+        let cappedReasons = Array(reasons.prefix(limit))
+        guard let untrackedIndex = reasons.firstIndex(of: Self.untrackedFilesReason),
+              untrackedIndex >= limit,
+              !cappedReasons.contains(Self.untrackedFilesReason) else {
+            return cappedReasons
+        }
+        if limit == 1 {
+            return [Self.untrackedFilesReason]
+        }
+        return Array(reasons.prefix(limit - 1)) + [Self.untrackedFilesReason]
+    }
+
+    func remainingReviewReasonCount(limit: Int = 3) -> Int {
+        max(state.reasons.count - visibleReviewReasons(limit: limit).count, 0)
+    }
+
+    static func formatStorage(bytes: Int64?) -> String {
+        guard let bytes else { return "Unknown" }
+        if bytes < 1_024 { return "\(bytes) B" }
+        let kilobytes = Double(bytes) / 1_024.0
+        if kilobytes < 1_024 { return "\(Int(kilobytes.rounded())) KB" }
+        let megabytes = kilobytes / 1_024.0
+        if megabytes < 1_024 { return "\(Int(megabytes.rounded())) MB" }
+        let gigabytes = megabytes / 1_024.0
+        let rounded = (gigabytes * 10).rounded() / 10
+        if rounded == rounded.rounded() {
+            return "\(Int(rounded)) GB"
+        }
+        return String(format: "%.1f GB", rounded)
+    }
+}
+
+struct WorktreeCleanupReviewEvidence: Equatable {
+    static let empty = WorktreeCleanupReviewEvidence()
+
+    let untrackedPreview: WorktreeCleanupUntrackedPreview?
+
+    init(untrackedPreview: WorktreeCleanupUntrackedPreview? = nil) {
+        self.untrackedPreview = untrackedPreview
+    }
+}
+
+struct WorktreeCleanupUntrackedPreview: Equatable {
+    let items: [String]
+    let totalCount: Int
+
+    var remainingCount: Int {
+        max(totalCount - items.count, 0)
+    }
+
+    init?(paths: [String], visibleLimit: Int = 3) {
+        let displayItems = Self.displayItems(from: paths)
+        guard !displayItems.isEmpty else { return nil }
+        self.items = Array(displayItems.prefix(visibleLimit))
+        totalCount = displayItems.count
+    }
+
+    private static func displayItems(from paths: [String]) -> [String] {
+        var seen: Set<String> = []
+        var result: [String] = []
+        for path in paths where !path.isEmpty {
+            let item = displayItem(for: path)
+            if seen.insert(item).inserted {
+                result.append(item)
+            }
+        }
+        return result
+    }
+
+    private static func displayItem(for path: String) -> String {
+        if path.hasSuffix("/") {
+            return path
+        }
+        guard let slash = path.firstIndex(of: "/") else {
+            return path
+        }
+        let firstComponent = path[..<slash]
+        guard !firstComponent.isEmpty else {
+            return path
+        }
+        return "\(firstComponent)/"
+    }
+}
+
+struct WorktreeCleanupCheck: Equatable {
+    enum Status: Equatable {
+        case ok
+        case review
+        case ignored
+
+        var label: String {
+            switch self {
+            case .ok: return "OK"
+            case .review: return "Review"
+            case .ignored: return "Ignored"
+            }
+        }
+    }
+
+    let label: String
+    let status: Status
+}
+
+enum WorktreeRemovalConfirmation: Identifiable, Equatable {
+    case reviewWarning(WorktreeCleanupCandidate)
+    case final(WorktreeCleanupCandidate)
+
+    var id: String {
+        switch self {
+        case .reviewWarning(let candidate):
+            return "review-warning-\(candidate.id)"
+        case .final(let candidate):
+            return "final-\(candidate.id)"
+        }
+    }
+
+    var candidate: WorktreeCleanupCandidate {
+        switch self {
+        case .reviewWarning(let candidate), .final(let candidate):
+            return candidate
+        }
+    }
+
+    var confirmedReviewWarning: WorktreeRemovalConfirmation? {
+        guard case .reviewWarning(let candidate) = self else { return nil }
+        return .final(candidate)
+    }
+
+    static func initial(for candidate: WorktreeCleanupCandidate) -> WorktreeRemovalConfirmation {
+        candidate.state.isClean ? .final(candidate) : .reviewWarning(candidate)
+    }
+}

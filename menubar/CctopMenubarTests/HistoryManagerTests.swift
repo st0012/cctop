@@ -253,6 +253,18 @@ final class HistoryManagerTests: XCTestCase {
         XCTAssertEqual(result[0].lastEditor, "Cursor")
     }
 
+    func testRebuildCachesDecodedHistorySessionsAndKeepsCacheOnNoopRebuild() throws {
+        let endedAt = Date(timeIntervalSince1970: 1_000)
+        let session = mockSession(project: "cached-app", endedAt: endedAt, lastActivity: endedAt)
+        try session.writeToFile(path: historyDir.appendingPathComponent("cached.json").path)
+
+        XCTAssertTrue(sut.rebuildRecentProjects())
+        XCTAssertEqual(sut.lastDecodedHistorySessions.map(\.projectName), ["cached-app"])
+
+        XCTAssertFalse(sut.rebuildRecentProjects())
+        XCTAssertEqual(sut.lastDecodedHistorySessions.map(\.projectName), ["cached-app"])
+    }
+
     // MARK: - relativeDescription tests
 
     func testRelativeTimeJustNow() {

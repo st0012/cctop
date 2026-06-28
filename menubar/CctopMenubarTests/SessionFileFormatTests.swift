@@ -1266,6 +1266,8 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
@@ -1274,6 +1276,8 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
     }
 
@@ -1303,6 +1307,8 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-without-source"])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
@@ -1311,6 +1317,8 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-without-source"])
+        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-without-source"])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
     }
 
@@ -1343,6 +1351,8 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-claude-session"])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
@@ -1356,6 +1366,8 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-claude-session"])
+        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-claude-session"])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
     }
 

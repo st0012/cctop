@@ -1,0 +1,202 @@
+import Foundation
+import os.log
+
+private let worktreeInspectorLogger = Logger(
+    subsystem: "com.st0012.CctopMenubar",
+    category: "GitWorktreeInspector"
+)
+
+struct GitWorktreeInspector {
+    var runGit: (String, [String]) -> GitCommandResult = GitCommand.run
+
+    func listWorktrees(from path: String) -> [GitWorktreeListEntry]? {
+        let list = runGit(path, ["worktree", "list", "--porcelain"])
+        guard list.exitCode == 0 else { return nil }
+        return Self.parseWorktreeList(list.stdout)
+    }
+
+    func inspect(path: String) -> GitWorktreeInspection {
+        var failures: [String] = []
+
+        guard let entries = listWorktrees(from: path) else {
+            return GitWorktreeInspection(
+                isRegisteredWorktree: false,
+                isLinkedWorktree: false,
+                mainWorktreePath: nil,
+                branchName: nil,
+                statusEntries: nil,
+                uniqueCommitCount: nil,
+                failureReasons: ["Path is not a registered Git worktree"]
+            )
+        }
+
+        let standardizedPath = Config.standardizedPath(path)
+        let mainWorktreePath = entries.first?.path
+        guard let matchIndex = entries.firstIndex(where: { Config.standardizedPath($0.path) == standardizedPath }) else {
+            return GitWorktreeInspection(
+                isRegisteredWorktree: false,
+                isLinkedWorktree: false,
+                mainWorktreePath: mainWorktreePath,
+                branchName: nil,
+                statusEntries: nil,
+                uniqueCommitCount: nil,
+                failureReasons: ["Path is not listed by Git worktree metadata"]
+            )
+        }
+
+        let branch = branchName(path: path, fallback: entries[matchIndex].branchName, failures: &failures)
+        let statusEntries = statusEntries(path: path, failures: &failures)
+        let uniqueCommitCount = uniqueCommitCount(path: path, branchKnown: branch != nil, failures: &failures)
+
+        return GitWorktreeInspection(
+            isRegisteredWorktree: true,
+            isLinkedWorktree: matchIndex > 0,
+            mainWorktreePath: mainWorktreePath,
+            branchName: branch,
+            statusEntries: statusEntries,
+            uniqueCommitCount: uniqueCommitCount,
+            failureReasons: failures
+        )
+    }
+
+    private func branchName(path: String, fallback: String?, failures: inout [String]) -> String? {
+        let result = runGit(path, ["branch", "--show-current"])
+        if result.exitCode == 0, let branch = Config.nonEmpty(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return branch
+        }
+        if let fallback, !fallback.isEmpty {
+            return fallback
+        }
+        failures.append("Branch is unknown or detached")
+        return nil
+    }
+
+    private func statusEntries(path: String, failures: inout [String]) -> [String]? {
+        let result = runGit(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+        guard result.exitCode == 0 else {
+            failures.append("Git status could not be read")
+            return nil
+        }
+        return Self.parseStatusEntries(result.stdout)
+    }
+
+    private func uniqueCommitCount(path: String, branchKnown: Bool, failures: inout [String]) -> Int? {
+        guard branchKnown else { return nil }
+        let upstream = runGit(path, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        guard upstream.exitCode == 0 else {
+            failures.append("No upstream branch")
+            return nil
+        }
+        let result = runGit(path, ["rev-list", "--count", "@{u}..HEAD"])
+        guard result.exitCode == 0,
+              let count = Int(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            failures.append("Branch unique commits could not be verified")
+            return nil
+        }
+        return count
+    }
+
+    static func parseWorktreeList(_ output: String) -> [GitWorktreeListEntry] {
+        var entries: [GitWorktreeListEntry] = []
+        var path: String?
+        var branch: String?
+        var isPrunable = false
+
+        func flush() {
+            guard let currentPath = path else { return }
+            entries.append(GitWorktreeListEntry(path: currentPath, branchName: branch, isPrunable: isPrunable))
+            path = nil
+            branch = nil
+            isPrunable = false
+        }
+
+        for line in output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+            if line.isEmpty {
+                flush()
+            } else if line.hasPrefix("worktree ") {
+                flush()
+                path = String(line.dropFirst("worktree ".count))
+            } else if line.hasPrefix("branch refs/heads/") {
+                branch = String(line.dropFirst("branch refs/heads/".count))
+            } else if line.hasPrefix("prunable") {
+                isPrunable = true
+            }
+        }
+        flush()
+        return entries
+    }
+
+    static func parseStatusEntries(_ output: String) -> [String] {
+        output
+            .split(separator: "\u{0}", omittingEmptySubsequences: true)
+            .map(String.init)
+    }
+}
+
+struct GitWorktreeListEntry: Equatable {
+    let path: String
+    let branchName: String?
+    let isPrunable: Bool
+}
+
+struct GitCommandResult {
+    let exitCode: Int32
+    let stdout: String
+    let stderr: String
+}
+
+enum GitCommand {
+    static func run(cwd: String, arguments: [String]) -> GitCommandResult {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["-C", cwd] + arguments
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+
+        do {
+            try process.run()
+        } catch {
+            worktreeInspectorLogger.debug("git failed to launch: \(error.localizedDescription, privacy: .public)")
+            return GitCommandResult(exitCode: 127, stdout: "", stderr: error.localizedDescription)
+        }
+
+        let group = DispatchGroup()
+        let stdoutReader = PipeOutputReader(fileHandle: stdout.fileHandleForReading)
+        let stderrReader = PipeOutputReader(fileHandle: stderr.fileHandleForReading)
+        stdoutReader.start(group: group)
+        stderrReader.start(group: group)
+        process.waitUntilExit()
+        group.wait()
+
+        return GitCommandResult(
+            exitCode: process.terminationStatus,
+            stdout: stdoutReader.stringValue,
+            stderr: stderrReader.stringValue
+        )
+    }
+}
+
+private final class PipeOutputReader {
+    private let fileHandle: FileHandle
+    private let queue = DispatchQueue(label: "com.st0012.CctopMenubar.GitCommand.PipeOutputReader")
+    private var data = Data()
+
+    init(fileHandle: FileHandle) {
+        self.fileHandle = fileHandle
+    }
+
+    var stringValue: String {
+        String(data: data, encoding: .utf8) ?? ""
+    }
+
+    func start(group: DispatchGroup) {
+        group.enter()
+        queue.async {
+            self.data = self.fileHandle.readDataToEndOfFile()
+            group.leave()
+        }
+    }
+}

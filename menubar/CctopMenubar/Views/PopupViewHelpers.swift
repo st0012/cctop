@@ -169,12 +169,17 @@ struct TabButtonView: View {
                 Text(label)
                     .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 Text("\(count)")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
+            .fixedSize(horizontal: true, vertical: false)
             .background {
                 SelectionSurfaceChrome(
                     isSelected: isSelected,
@@ -201,9 +206,11 @@ struct TabButtonView: View {
 struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
     @ObservedObject var historyManager: HistoryManager
+    @ObservedObject var cleanupManager: WorktreeCleanupManager
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @ObservedObject var navigate: NavigateController
+    var onRemoveCleanupCandidate: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalResult)?
     /// Called (async on main) whenever content layout changes so the host can resize the panel.
     var onLayoutChanged: () -> Void = {}
     @ObservedObject private var themeManager = ThemeManager.shared
@@ -213,10 +220,12 @@ struct PanelContentView: View {
         PopupView(
             sessions: sessionManager.sessions,
             recentProjects: historyManager.recentProjects,
+            cleanupCandidates: cleanupManager.candidates,
             updater: updater,
             pluginManager: pluginManager,
             navigate: navigate,
             overlayController: overlayController,
+            onRemoveCleanupCandidate: onRemoveCleanupCandidate,
             onLayoutChanged: onLayoutChanged
         )
         .frame(width: 320)
@@ -257,6 +266,13 @@ struct PanelContentView: View {
     PopupView(
         sessions: Session.mockSessions, recentProjects: RecentProject.mockRecents,
         updater: DisabledUpdater(), pluginManager: previewPluginManager()
+    ).frame(width: 320)
+}
+#Preview("Cleanup") {
+    PopupView(
+        sessions: Session.mockSessions, recentProjects: RecentProject.mockRecents,
+        cleanupCandidates: WorktreeCleanupCandidate.mockCandidates,
+        updater: DisabledUpdater(), pluginManager: previewPluginManager(), initialTab: .cleanup
     ).frame(width: 320)
 }
 #Preview("Only Recents") {

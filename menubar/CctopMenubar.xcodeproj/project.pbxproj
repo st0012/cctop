@@ -117,6 +117,19 @@
 		FST000010000000000000001 /* FocusStrategyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FST000020000000000000001 /* FocusStrategyTests.swift */; };
 		MFT000010000000000000001 /* MultiplexerFocusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = MFT000020000000000000001 /* MultiplexerFocusTests.swift */; };
 		TMT000010000000000000001 /* ThemeManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TMT000020000000000000001 /* ThemeManagerTests.swift */; };
+		WCC000010000000000000001 /* WorktreeCleanupCandidate.swift in Sources */ = {isa = PBXBuildFile; fileRef = WCC000020000000000000001 /* WorktreeCleanupCandidate.swift */; };
+		WCM000010000000000000001 /* WorktreeCleanupCandidate+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = WCM000020000000000000001 /* WorktreeCleanupCandidate+Mock.swift */; };
+		WCS000010000000000000001 /* WorktreeCleanupScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WCS000020000000000000001 /* WorktreeCleanupScanner.swift */; };
+		WGI000010000000000000001 /* GitWorktreeInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = WGI000020000000000000001 /* GitWorktreeInspector.swift */; };
+		WDS000010000000000000001 /* DirectorySizeScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = WDS000020000000000000001 /* DirectorySizeScanner.swift */; };
+		WGM000010000000000000001 /* WorktreeCleanupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = WGM000020000000000000001 /* WorktreeCleanupManager.swift */; };
+		WRS000010000000000000001 /* WorktreeRemovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = WRS000020000000000000001 /* WorktreeRemovalService.swift */; };
+		PNV000010000000000000001 /* PopupNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = PNV000020000000000000001 /* PopupNavigation.swift */; };
+		PES000010000000000000001 /* PopupView+EmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = PES000020000000000000001 /* PopupView+EmptyState.swift */; };
+		WCV000010000000000000001 /* WorktreeCleanupCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WCV000020000000000000001 /* WorktreeCleanupCardView.swift */; };
+		WDV000010000000000000001 /* WorktreeCleanupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WDV000020000000000000001 /* WorktreeCleanupDetailView.swift */; };
+		WTV000010000000000000001 /* WorktreeCleanupTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WTV000020000000000000001 /* WorktreeCleanupTabView.swift */; };
+		WCT000010000000000000001 /* WorktreeCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WCT000020000000000000001 /* WorktreeCleanupTests.swift */; };
 		SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SLP000020000000000000001 /* SessionLifecyclePolicy.swift */; };
 		SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SIP000020000000000000001 /* SessionIdentityPolicy.swift */; };
 		DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */; };
@@ -258,6 +271,19 @@
 		FST000020000000000000001 /* FocusStrategyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusStrategyTests.swift; sourceTree = "<group>"; };
 		MFT000020000000000000001 /* MultiplexerFocusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiplexerFocusTests.swift; sourceTree = "<group>"; };
 		TMT000020000000000000001 /* ThemeManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManagerTests.swift; sourceTree = "<group>"; };
+		WCC000020000000000000001 /* WorktreeCleanupCandidate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupCandidate.swift; sourceTree = "<group>"; };
+		WCM000020000000000000001 /* WorktreeCleanupCandidate+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WorktreeCleanupCandidate+Mock.swift"; sourceTree = "<group>"; };
+		WCS000020000000000000001 /* WorktreeCleanupScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupScanner.swift; sourceTree = "<group>"; };
+		WGI000020000000000000001 /* GitWorktreeInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitWorktreeInspector.swift; sourceTree = "<group>"; };
+		WDS000020000000000000001 /* DirectorySizeScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectorySizeScanner.swift; sourceTree = "<group>"; };
+		WGM000020000000000000001 /* WorktreeCleanupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupManager.swift; sourceTree = "<group>"; };
+		WRS000020000000000000001 /* WorktreeRemovalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeRemovalService.swift; sourceTree = "<group>"; };
+		PNV000020000000000000001 /* PopupNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupNavigation.swift; sourceTree = "<group>"; };
+		PES000020000000000000001 /* PopupView+EmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PopupView+EmptyState.swift"; sourceTree = "<group>"; };
+		WCV000020000000000000001 /* WorktreeCleanupCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupCardView.swift; sourceTree = "<group>"; };
+		WDV000020000000000000001 /* WorktreeCleanupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupDetailView.swift; sourceTree = "<group>"; };
+		WTV000020000000000000001 /* WorktreeCleanupTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupTabView.swift; sourceTree = "<group>"; };
+		WCT000020000000000000001 /* WorktreeCleanupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -326,6 +352,11 @@
 				JM0000020000000000000001 /* NavigateController.swift */,
 				PC0000020000000000000001 /* PanelCoordinator.swift */,
 				NSC000020000000000000001 /* NotchStatusController.swift */,
+				WCS000020000000000000001 /* WorktreeCleanupScanner.swift */,
+				WGI000020000000000000001 /* GitWorktreeInspector.swift */,
+				WDS000020000000000000001 /* DirectorySizeScanner.swift */,
+				WGM000020000000000000001 /* WorktreeCleanupManager.swift */,
+				WRS000020000000000000001 /* WorktreeRemovalService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -388,6 +419,8 @@
 				SDP000020000000000000001 /* SessionDisplayPolicy.swift */,
 				SCN000020000000000000001 /* StatusCounts.swift */,
 				PPO000020000000000000001 /* PanelPositioning.swift */,
+				WCC000020000000000000001 /* WorktreeCleanupCandidate.swift */,
+				WCM000020000000000000001 /* WorktreeCleanupCandidate+Mock.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -400,6 +433,8 @@
 				D10000060000000000000001 /* SessionCardView.swift */,
 				SBV000020000000000000001 /* SourceBadgeView.swift */,
 				D10000080000000000000001 /* PopupView.swift */,
+				PNV000020000000000000001 /* PopupNavigation.swift */,
+				PES000020000000000000001 /* PopupView+EmptyState.swift */,
 				PVH000020000000000000001 /* PopupViewHelpers.swift */,
 				D1000000A000000000000001 /* QuitButton.swift */,
 				J10000020000000000000001 /* SettingsSection.swift */,
@@ -415,6 +450,9 @@
 				MIR000020000000000000001 /* MenubarIconRenderer.swift */,
 				NSP000020000000000000001 /* NotchStatusPanel.swift */,
 				NSV000020000000000000001 /* NotchStatusView.swift */,
+				WCV000020000000000000001 /* WorktreeCleanupCardView.swift */,
+				WDV000020000000000000001 /* WorktreeCleanupDetailView.swift */,
+				WTV000020000000000000001 /* WorktreeCleanupTabView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -468,6 +506,7 @@
 				FST000020000000000000001 /* FocusStrategyTests.swift */,
 				MFT000020000000000000001 /* MultiplexerFocusTests.swift */,
 				TMT000020000000000000001 /* ThemeManagerTests.swift */,
+				WCT000020000000000000001 /* WorktreeCleanupTests.swift */,
 			);
 			path = CctopMenubarTests;
 			sourceTree = "<group>";
@@ -668,6 +707,18 @@
 				SCTRL0010000000000000001 /* SettingsControls.swift in Sources */,
 				NROW00010000000000000001 /* NotificationSettingsRow.swift in Sources */,
 				PPO000010000000000000001 /* PanelPositioning.swift in Sources */,
+				WCC000010000000000000001 /* WorktreeCleanupCandidate.swift in Sources */,
+				WCM000010000000000000001 /* WorktreeCleanupCandidate+Mock.swift in Sources */,
+				WCS000010000000000000001 /* WorktreeCleanupScanner.swift in Sources */,
+				WGI000010000000000000001 /* GitWorktreeInspector.swift in Sources */,
+				WDS000010000000000000001 /* DirectorySizeScanner.swift in Sources */,
+				WGM000010000000000000001 /* WorktreeCleanupManager.swift in Sources */,
+				WRS000010000000000000001 /* WorktreeRemovalService.swift in Sources */,
+				PNV000010000000000000001 /* PopupNavigation.swift in Sources */,
+				PES000010000000000000001 /* PopupView+EmptyState.swift in Sources */,
+				WCV000010000000000000001 /* WorktreeCleanupCardView.swift in Sources */,
+				WDV000010000000000000001 /* WorktreeCleanupDetailView.swift in Sources */,
+				WTV000010000000000000001 /* WorktreeCleanupTabView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -726,6 +777,7 @@
 				FST000010000000000000001 /* FocusStrategyTests.swift in Sources */,
 				MFT000010000000000000001 /* MultiplexerFocusTests.swift in Sources */,
 				TMT000010000000000000001 /* ThemeManagerTests.swift in Sources */,
+				WCT000010000000000000001 /* WorktreeCleanupTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

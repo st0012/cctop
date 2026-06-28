@@ -13,6 +13,7 @@ class HistoryManager: ObservableObject {
     let historyDir: URL
     static let maxFiles = 50
     static let maxAgeDays = 30
+    private(set) var lastDecodedHistorySessions: [Session] = []
     private var lastRebuildFingerprint: HistoryRebuildFingerprint?
 
     init(historyDir: URL = URL(fileURLWithPath: Config.historyDir())) {
@@ -68,6 +69,7 @@ class HistoryManager: ObservableObject {
         }
 
         let sessions = loadDecodedHistoryFiles().map(\.session)
+        lastDecodedHistorySessions = sessions
         let nextRecentProjects = Self.buildRecentProjects(
             from: sessions, excludingActive: activePaths
         )

@@ -1,0 +1,121 @@
+import AppKit
+import SwiftUI
+
+extension PopupView {
+    var cleanupContent: some View {
+        WorktreeCleanupTabView(
+            candidates: actionableCleanupCandidates,
+            selectedIndex: selectedIndex,
+            selectedCandidate: $selectedCleanupCandidate,
+            relativeTimeNow: relativeTimeNow,
+            onRemove: requestCleanupRemoval,
+            removalNotice: cleanupRemovalNotice,
+            removingCandidateID: removingCleanupCandidateID
+        )
+    }
+
+    var noActiveSessionsContent: some View {
+        emptyPlaceholder(systemImage: "circle.dotted", title: "No active sessions")
+    }
+
+    var noIdleSessionsContent: some View {
+        emptyPlaceholder(systemImage: "moon", title: "No idle sessions")
+    }
+
+    func emptyPlaceholder(systemImage: String, title: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 20))
+                .foregroundStyle(Color.textMuted)
+            Text(title)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.textMuted)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+    }
+
+    func openInFinder(path: String) {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+    }
+
+    func copyPath(_ path: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
+    }
+
+    func requestCleanupRemoval(_ candidate: WorktreeCleanupCandidate) {
+        pendingRemovalConfirmation = .initial(for: candidate)
+    }
+
+    func performCleanupRemoval(_ candidate: WorktreeCleanupCandidate) {
+        guard let onRemoveCleanupCandidate else { return }
+        cleanupRemovalNotice = nil
+        removingCleanupCandidateID = candidate.id
+        notifyLayoutChanged()
+
+        Task {
+            let result = await onRemoveCleanupCandidate(candidate)
+            await MainActor.run {
+                removingCleanupCandidateID = nil
+                handleCleanupRemovalResult(result, originalCandidate: candidate)
+                notifyLayoutChanged()
+            }
+        }
+    }
+
+    func handleCleanupRemovalResult(
+        _ result: WorktreeRemovalService.RemovalResult,
+        originalCandidate: WorktreeCleanupCandidate
+    ) {
+        switch result {
+        case .removed:
+            selectedCleanupCandidate = nil
+            cleanupRemovalNotice = nil
+        case .refused(let latestCandidate):
+            selectedCleanupCandidate = latestCandidate
+            cleanupRemovalNotice = WorktreeRemovalNotice(
+                title: "Review Required",
+                message: latestCandidate.state.reasons.first ?? "The worktree is no longer safe to remove automatically."
+            )
+        case .failed(let gitResult):
+            selectedCleanupCandidate = originalCandidate
+            cleanupRemovalNotice = WorktreeRemovalNotice(
+                title: "Remove Failed",
+                message: cleanupFailureMessage(from: gitResult)
+            )
+        }
+    }
+
+    func cleanupFailureMessage(from result: WorktreeRemovalService.GitResult) -> String {
+        Config.nonEmpty(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
+            ?? Config.nonEmpty(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
+            ?? "git exited with status \(result.exitCode)"
+    }
+
+    func removalAlert(for confirmation: WorktreeRemovalConfirmation) -> Alert {
+        switch confirmation {
+        case .reviewWarning(let candidate):
+            return Alert(
+                title: Text("Review Worktree?"),
+                message: Text("This worktree needs review. Removal uses git worktree remove without --force, and Git may refuse it."),
+                primaryButton: .default(Text("Continue")) {
+                    DispatchQueue.main.async {
+                        pendingRemovalConfirmation = .final(candidate)
+                    }
+                },
+                secondaryButton: .cancel()
+            )
+        case .final(let candidate):
+            return Alert(
+                title: Text("Remove Worktree?"),
+                message: Text("Runs git worktree remove for \(candidate.worktreeName). The branch is left intact."),
+                primaryButton: .destructive(Text("Remove")) {
+                    performCleanupRemoval(candidate)
+                },
+                secondaryButton: .cancel()
+            )
+        }
+    }
+}

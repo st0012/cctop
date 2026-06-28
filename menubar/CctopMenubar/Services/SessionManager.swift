@@ -13,6 +13,9 @@ class SessionManager: ObservableObject {
 
     let historyManager: HistoryManager
     let dataSources: SessionDataSources
+    var cleanupRefreshHandler: (([Session], Set<String>) -> Void)?
+    private(set) var cleanupSourceSessions: [Session] = []
+    private(set) var cleanupActiveProjectPaths: Set<String> = []
 
     private let sessionsDir: URL
     private var source: DispatchSourceFileSystemObject?
@@ -108,7 +111,9 @@ class SessionManager: ObservableObject {
         // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped
         // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
         archiveAndRemoveFinishedNonDesktop(liveCandidates, winners: winners)
-        historyManager.rebuildRecentProjects(excludingActive: Set(sessions.map(\.projectPath)))
+        let activeProjectPaths = Set(newSessions.map(\.projectPath))
+        _ = historyManager.rebuildRecentProjects(excludingActive: activeProjectPaths)
+        refreshCleanupSources(from: visibleDecoded.map(\.session), activeProjectPaths: activeProjectPaths)
     }
 
     private func hideAutoHiddenSessions(_ sessions: [(URL, Session)]) {
@@ -264,8 +269,17 @@ class SessionManager: ObservableObject {
             }
         }
         if removedAny {
-            historyManager.rebuildRecentProjects(excludingActive: Set(sessions.map(\.projectPath)))
+            let activeProjectPaths = Set(sessions.map(\.projectPath))
+            if historyManager.rebuildRecentProjects(excludingActive: activeProjectPaths) {
+                refreshCleanupSources(from: [], activeProjectPaths: activeProjectPaths)
+            }
         }
+    }
+
+    private func refreshCleanupSources(from currentSessions: [Session], activeProjectPaths: Set<String>) {
+        cleanupSourceSessions = historyManager.lastDecodedHistorySessions + currentSessions
+        cleanupActiveProjectPaths = activeProjectPaths
+        cleanupRefreshHandler?(cleanupSourceSessions, activeProjectPaths)
     }
 
     /// Apply display-side status adjustments. The session file on disk is NOT modified.
