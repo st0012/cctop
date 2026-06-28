@@ -176,6 +176,7 @@ struct WorktreeCleanupScanner {
             sessionName: context.sessionName,
             worktreePath: context.path,
             worktreeName: context.worktreeName,
+            mainWorktreePath: inspection.mainWorktreePath,
             branchName: context.displayBranch(branchName),
             lastActiveAt: context.lastActiveAt,
             storageBytes: storageBytes,

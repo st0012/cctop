@@ -44,6 +44,7 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
     let sessionName: String
     let worktreePath: String
     let worktreeName: String
+    let mainWorktreePath: String?
     let branchName: String
     let lastActiveAt: Date
     let storageBytes: Int64?
@@ -56,6 +57,7 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
         sessionName: String,
         worktreePath: String,
         worktreeName: String,
+        mainWorktreePath: String? = nil,
         branchName: String,
         lastActiveAt: Date,
         storageBytes: Int64?,
@@ -67,6 +69,7 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
         self.sessionName = sessionName
         self.worktreePath = worktreePath
         self.worktreeName = worktreeName
+        self.mainWorktreePath = mainWorktreePath
         self.branchName = branchName
         self.lastActiveAt = lastActiveAt
         self.storageBytes = storageBytes

@@ -39,6 +39,9 @@ struct WorktreeRemovalService {
         if candidate.state.isClean && !preflightCandidate.state.isClean {
             return .refused(preflightCandidate)
         }
+        if preflightCandidate.changesWorktreeIdentity(comparedTo: candidate) {
+            return .refused(preflightCandidate)
+        }
         if preflightCandidate.changesLocalFileReviewEvidence(comparedTo: candidate) {
             return .refused(preflightCandidate)
         }
@@ -68,6 +71,12 @@ struct WorktreeRemovalService {
 }
 
 private extension WorktreeCleanupCandidate {
+    func changesWorktreeIdentity(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
+        worktreePath != candidate.worktreePath
+            || mainWorktreePath != candidate.mainWorktreePath
+            || branchName != candidate.branchName
+    }
+
     func changesLocalFileReviewEvidence(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
         let confirmedReasons = Set(candidate.state.reasons)
         let localFileEvidencePairs = [

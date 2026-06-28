@@ -833,6 +833,7 @@ final class WorktreeCleanupTests: XCTestCase {
             sessionName: "Needs review",
             worktreePath: worktreePath,
             worktreeName: "billing-api",
+            mainWorktreePath: mainPath,
             branchName: "feature/invoices",
             lastActiveAt: now,
             storageBytes: 1_024,
@@ -854,6 +855,38 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(result, .removed(GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")))
     }
 
+    func testRemovalServiceRefusesWhenPreflightWorktreeIdentityChanges() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let staleCleanCandidate = cleanupCandidate(path: worktreePath)
+        let recreatedInspection = GitWorktreeInspection(
+            isRegisteredWorktree: true,
+            isLinkedWorktree: true,
+            isLocked: false,
+            mainWorktreePath: "/Users/dev/projects/other-main",
+            branchName: "feature/other-work",
+            statusEntries: [],
+            uniqueCommitCount: 0,
+            failureReasons: []
+        )
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: recreatedInspection]),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
+            }
+        )
+
+        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused when worktree identity changed, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.branchName, "feature/other-work")
+    }
+
     func testRemovalServiceLetsGitRefuseReviewCandidateWithDirtyPreflight() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)
@@ -862,6 +895,7 @@ final class WorktreeCleanupTests: XCTestCase {
             sessionName: "Needs review",
             worktreePath: worktreePath,
             worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
             branchName: "feature/invoices",
             lastActiveAt: now,
             storageBytes: 1_024,
@@ -1502,6 +1536,7 @@ final class WorktreeCleanupTests: XCTestCase {
             sessionName: "Generate invoice retry path",
             worktreePath: path,
             worktreeName: URL(fileURLWithPath: path).lastPathComponent,
+            mainWorktreePath: "/Users/dev/projects/billing-api",
             branchName: "feature/invoices",
             lastActiveAt: now,
             storageBytes: 1_024,
