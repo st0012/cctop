@@ -2,6 +2,8 @@ import Foundation
 
 struct WorktreeCleanupCandidate: Identifiable, Equatable {
     static let untrackedFilesReason = "Worktree has untracked files"
+    static let ignoredFilesReason = "Worktree has ignored files"
+    private static let localFileReasons = [untrackedFilesReason, ignoredFilesReason]
 
     enum State: Equatable {
         case clean
@@ -81,15 +83,16 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
         let reasons = state.reasons
         guard limit > 0 else { return [] }
         let cappedReasons = Array(reasons.prefix(limit))
-        guard let untrackedIndex = reasons.firstIndex(of: Self.untrackedFilesReason),
-              untrackedIndex >= limit,
-              !cappedReasons.contains(Self.untrackedFilesReason) else {
+        guard let localFileReason = Self.localFileReasons.first(where: { reason in
+            guard let index = reasons.firstIndex(of: reason) else { return false }
+            return index >= limit && !cappedReasons.contains(reason)
+        }) else {
             return cappedReasons
         }
         if limit == 1 {
-            return [Self.untrackedFilesReason]
+            return [localFileReason]
         }
-        return Array(reasons.prefix(limit - 1)) + [Self.untrackedFilesReason]
+        return Array(reasons.prefix(limit - 1)) + [localFileReason]
     }
 
     func remainingReviewReasonCount(limit: Int = 3) -> Int {
@@ -116,9 +119,18 @@ struct WorktreeCleanupReviewEvidence: Equatable {
     static let empty = WorktreeCleanupReviewEvidence()
 
     let untrackedPreview: WorktreeCleanupUntrackedPreview?
+    let ignoredPreview: WorktreeCleanupUntrackedPreview?
 
-    init(untrackedPreview: WorktreeCleanupUntrackedPreview? = nil) {
+    init(
+        untrackedPreview: WorktreeCleanupUntrackedPreview? = nil,
+        ignoredPreview: WorktreeCleanupUntrackedPreview? = nil
+    ) {
         self.untrackedPreview = untrackedPreview
+        self.ignoredPreview = ignoredPreview
+    }
+
+    var hasLocalFilePreview: Bool {
+        untrackedPreview != nil || ignoredPreview != nil
     }
 }
 

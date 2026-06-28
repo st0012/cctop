@@ -84,7 +84,7 @@ struct GitWorktreeInspector {
     }
 
     private func statusEntries(path: String, failures: inout [String]) -> [String]? {
-        let result = runGit(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
+        let result = runGit(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"])
         guard result.exitCode == 0 else {
             failures.append("Git status could not be read")
             return nil

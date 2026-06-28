@@ -23,6 +23,7 @@ extension WorktreeCleanupCandidate {
                 WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: .ok),
                 WorktreeCleanupCheck(label: "No uncommitted tracked changes", status: .ok),
                 WorktreeCleanupCheck(label: "No untracked files", status: .ok),
+                WorktreeCleanupCheck(label: "No ignored files", status: .ok),
                 WorktreeCleanupCheck(label: "Branch has no unique local commits", status: .ok),
                 WorktreeCleanupCheck(label: "Worktree is not locked", status: .ok),
                 WorktreeCleanupCheck(label: "Storage size scan completed", status: storageBytes == nil ? .ignored : .ok),
@@ -32,16 +33,26 @@ extension WorktreeCleanupCandidate {
     }
 
     static func mockReviewEvidence(for state: State) -> WorktreeCleanupReviewEvidence {
-        guard state.reasons.contains(untrackedFilesReason),
-              let preview = WorktreeCleanupUntrackedPreview(paths: [
-                  "scratch notes.md",
-                  "generated/output.json",
-                  "local-fixtures/sample data.json",
-                  "tmp/",
-              ]) else {
+        let untrackedPreview = state.reasons.contains(untrackedFilesReason)
+            ? WorktreeCleanupUntrackedPreview(paths: [
+                "scratch notes.md",
+                "generated/output.json",
+                "local-fixtures/sample data.json",
+                "tmp/",
+            ])
+            : nil
+        let ignoredPreview = state.reasons.contains(ignoredFilesReason)
+            ? WorktreeCleanupUntrackedPreview(paths: [
+                ".env.local",
+                "DerivedData/cache.db",
+                "tmp/cache.json",
+                "secrets.json",
+            ])
+            : nil
+        guard untrackedPreview != nil || ignoredPreview != nil else {
             return .empty
         }
-        return WorktreeCleanupReviewEvidence(untrackedPreview: preview)
+        return WorktreeCleanupReviewEvidence(untrackedPreview: untrackedPreview, ignoredPreview: ignoredPreview)
     }
 
     static let mockCandidates: [WorktreeCleanupCandidate] = [

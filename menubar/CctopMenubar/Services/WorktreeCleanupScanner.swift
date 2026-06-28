@@ -180,7 +180,10 @@ struct WorktreeCleanupScanner {
             if !Self.untrackedPaths(fromStatusEntries: statusEntries).isEmpty {
                 reasons.appendUnique(WorktreeCleanupCandidate.untrackedFilesReason)
             }
-            if statusEntries.contains(where: { !$0.hasPrefix("??") }) {
+            if !Self.ignoredPaths(fromStatusEntries: statusEntries).isEmpty {
+                reasons.appendUnique(WorktreeCleanupCandidate.ignoredFilesReason)
+            }
+            if Self.hasTrackedChanges(fromStatusEntries: statusEntries) {
                 reasons.appendUnique("Worktree has uncommitted tracked changes")
             }
         } else {
@@ -203,18 +206,46 @@ struct WorktreeCleanupScanner {
     }
 
     static func untrackedPaths(fromStatusEntries entries: [String]) -> [String] {
+        paths(fromStatusEntries: entries, prefix: "?? ")
+    }
+
+    static func ignoredPaths(fromStatusEntries entries: [String]) -> [String] {
+        paths(fromStatusEntries: entries, prefix: "!! ")
+    }
+
+    static func hasTrackedChanges(fromStatusEntries entries: [String]) -> Bool {
+        entries.contains { entry in
+            guard entry.count >= 3,
+                  entry[entry.index(entry.startIndex, offsetBy: 2)] == " " else {
+                return false
+            }
+            guard !entry.hasPrefix("?? "), !entry.hasPrefix("!! ") else {
+                return false
+            }
+            return entry.prefix(2).contains { $0 != " " }
+        }
+    }
+
+    private static func paths(fromStatusEntries entries: [String], prefix: String) -> [String] {
         entries.compactMap { entry in
-            guard entry.hasPrefix("?? ") else { return nil }
-            return String(entry.dropFirst(3))
+            guard entry.hasPrefix(prefix) else { return nil }
+            return String(entry.dropFirst(prefix.count))
         }
     }
 
     static func reviewEvidence(for inspection: GitWorktreeInspection) -> WorktreeCleanupReviewEvidence {
-        guard let statusEntries = inspection.statusEntries,
-              let preview = WorktreeCleanupUntrackedPreview(paths: untrackedPaths(fromStatusEntries: statusEntries)) else {
+        guard let statusEntries = inspection.statusEntries else {
             return .empty
         }
-        return WorktreeCleanupReviewEvidence(untrackedPreview: preview)
+        let untrackedPreview = WorktreeCleanupUntrackedPreview(paths: untrackedPaths(fromStatusEntries: statusEntries))
+        let ignoredPreview = WorktreeCleanupUntrackedPreview(paths: ignoredPaths(fromStatusEntries: statusEntries))
+        guard untrackedPreview != nil || ignoredPreview != nil else {
+            return .empty
+        }
+        return WorktreeCleanupReviewEvidence(
+            untrackedPreview: untrackedPreview,
+            ignoredPreview: ignoredPreview
+        )
     }
 
     private func checks(
@@ -224,14 +255,16 @@ struct WorktreeCleanupScanner {
     ) -> [WorktreeCleanupCheck] {
         let statusEntries = inspection.statusEntries ?? []
         let statusUnavailable = inspection.statusEntries == nil
-        let trackedDirty = statusEntries.contains { !$0.hasPrefix("??") }
+        let trackedDirty = Self.hasTrackedChanges(fromStatusEntries: statusEntries)
         let untrackedDirty = !Self.untrackedPaths(fromStatusEntries: statusEntries).isEmpty
+        let ignoredDirty = !Self.ignoredPaths(fromStatusEntries: statusEntries).isEmpty
         let commitCount = inspection.uniqueCommitCount
         return [
             WorktreeCleanupCheck(label: "No active cctop sessions here", status: active ? .ok : .ignored),
             WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: inspection.isLinkedWorktree ? .ok : .ignored),
             WorktreeCleanupCheck(label: "No uncommitted tracked changes", status: statusUnavailable || trackedDirty ? .review : .ok),
             WorktreeCleanupCheck(label: "No untracked files", status: statusUnavailable || untrackedDirty ? .review : .ok),
+            WorktreeCleanupCheck(label: "No ignored files", status: statusUnavailable || ignoredDirty ? .review : .ok),
             WorktreeCleanupCheck(label: "Branch has no unique local commits", status: commitCount == 0 ? .ok : .review),
             WorktreeCleanupCheck(label: "Main checkout path is known", status: inspection.mainWorktreePath == nil ? .review : .ok),
             WorktreeCleanupCheck(label: "Worktree is not locked", status: inspection.isLocked ? .review : .ok),

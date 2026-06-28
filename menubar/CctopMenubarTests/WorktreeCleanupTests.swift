@@ -125,6 +125,28 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(candidate.state, .review(["Worktree has untracked files"]))
     }
 
+    func testIgnoredOnlyStatusProducesReviewWithPreview() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+        let inspection = cleanInspection(statusEntries: [
+            "!! .env.local",
+            "!! build/output.o",
+            "!! tmp/cache.db",
+            "!! secrets.json",
+        ])
+
+        let candidate = scanner(
+            existingPaths: [path],
+            inspections: [path: inspection]
+        ).candidates(from: [historySession(path: path)], activeProjectPaths: [])[0]
+
+        XCTAssertEqual(candidate.state, .review([WorktreeCleanupCandidate.ignoredFilesReason]))
+        XCTAssertTrue(candidate.checks.contains(WorktreeCleanupCheck(label: "No ignored files", status: .review)))
+        let preview = candidate.reviewEvidence.ignoredPreview
+        XCTAssertEqual(preview?.items, [".env.local", "build/", "tmp/"])
+        XCTAssertEqual(preview?.totalCount, 4)
+        XCTAssertEqual(preview?.remainingCount, 1)
+    }
+
     func testUntrackedPreviewCapsItemsAndCountsRemaining() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
         let inspection = cleanInspection(statusEntries: [
@@ -298,13 +320,17 @@ final class WorktreeCleanupTests: XCTestCase {
 
         XCTAssertEqual(candidate.state, .review(["Git status could not be read"]))
         XCTAssertEqual(
-            candidate.checks.filter { $0.label == "No uncommitted tracked changes" || $0.label == "No untracked files" }
+            candidate.checks.filter {
+                $0.label == "No uncommitted tracked changes"
+                    || $0.label == "No untracked files"
+                    || $0.label == "No ignored files"
+            }
                 .map(\.status),
-            [.review, .review]
+            [.review, .review, .review]
         )
     }
 
-    func testInspectorReadsZPorcelainStatusWithAllUntrackedFiles() {
+    func testInspectorReadsZPorcelainStatusWithAllUntrackedAndIgnoredFiles() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
         var statusArguments: [String]?
         let inspector = GitWorktreeInspector { _, arguments in
@@ -320,11 +346,11 @@ final class WorktreeCleanupTests: XCTestCase {
                 )
             case ["branch", "--show-current"]:
                 return GitCommandResult(exitCode: 0, stdout: "feature/invoices\n", stderr: "")
-            case ["status", "--porcelain=v1", "-z", "--untracked-files=all"]:
+            case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]:
                 statusArguments = arguments
                 return GitCommandResult(
                     exitCode: 0,
-                    stdout: "?? file with spaces.txt\0?? nested/path.txt\0 M tracked.swift\0",
+                    stdout: "?? file with spaces.txt\0?? nested/path.txt\0!! .env.local\0 M tracked.swift\0",
                     stderr: ""
                 )
             case ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]:
@@ -338,8 +364,11 @@ final class WorktreeCleanupTests: XCTestCase {
 
         let inspection = inspector.inspect(path: path)
 
-        XCTAssertEqual(statusArguments, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
-        XCTAssertEqual(inspection.statusEntries, ["?? file with spaces.txt", "?? nested/path.txt", " M tracked.swift"])
+        XCTAssertEqual(statusArguments, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"])
+        XCTAssertEqual(
+            inspection.statusEntries,
+            ["?? file with spaces.txt", "?? nested/path.txt", "!! .env.local", " M tracked.swift"]
+        )
     }
 
     func testInspectorReadsZPorcelainWorktreeListLockedMetadata() {
@@ -357,10 +386,11 @@ final class WorktreeCleanupTests: XCTestCase {
         ])
     }
 
-    func testZStatusParserPreservesPathsAndExcludesTrackedRenameCopyFromUntrackedPreview() {
+    func testZStatusParserPreservesPathsAndClassifiesUntrackedIgnoredAndTrackedEntries() {
         let entries = GitWorktreeInspector.parseStatusEntries(
             "?? foo bar.rb\0"
                 + "?? nested/path with spaces.txt\0"
+                + "!! .env.local\0"
                 + "R  renamed new.swift\0renamed old.swift\0"
                 + "C  copied new.swift\0copied old.swift\0"
                 + " M Sources/App.swift\0"
@@ -369,6 +399,7 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(entries, [
             "?? foo bar.rb",
             "?? nested/path with spaces.txt",
+            "!! .env.local",
             "R  renamed new.swift",
             "renamed old.swift",
             "C  copied new.swift",
@@ -379,6 +410,8 @@ final class WorktreeCleanupTests: XCTestCase {
             WorktreeCleanupScanner.untrackedPaths(fromStatusEntries: entries),
             ["foo bar.rb", "nested/path with spaces.txt"]
         )
+        XCTAssertEqual(WorktreeCleanupScanner.ignoredPaths(fromStatusEntries: entries), [".env.local"])
+        XCTAssertTrue(WorktreeCleanupScanner.hasTrackedChanges(fromStatusEntries: entries))
     }
 
     func testUntrackedReviewReasonStaysVisiblePastReasonCap() {
@@ -757,6 +790,32 @@ final class WorktreeCleanupTests: XCTestCase {
             return XCTFail("Expected removal to be refused after dirty preflight, got \(result)")
         }
         XCTAssertEqual(preflightCandidate.state, .review(["Worktree has untracked files"]))
+    }
+
+    func testRemovalServiceRefusesStaleCleanCandidateWhenIgnoredFilesAppearBeforePreflight() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let staleCleanCandidate = cleanupCandidate(path: worktreePath)
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [worktreePath: cleanInspection(statusEntries: ["!! .env.local"])]
+            ),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused after ignored-file preflight, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .review([WorktreeCleanupCandidate.ignoredFilesReason]))
+        XCTAssertEqual(preflightCandidate.reviewEvidence.ignoredPreview?.items, [".env.local"])
     }
 
     func testRemovalServiceRefusesStaleCleanCandidateWhenActivePathAppearsBeforePreflight() {

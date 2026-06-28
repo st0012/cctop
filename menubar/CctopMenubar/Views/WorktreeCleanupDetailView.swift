@@ -127,6 +127,9 @@ struct WorktreeCleanupDetailView: View {
             if reason == WorktreeCleanupCandidate.untrackedFilesReason,
                let preview = candidate.reviewEvidence.untrackedPreview {
                 CleanupUntrackedPreviewBlock(preview: preview, isCompact: usesCompactUntrackedPreviewLayout)
+            } else if reason == WorktreeCleanupCandidate.ignoredFilesReason,
+                      let preview = candidate.reviewEvidence.ignoredPreview {
+                CleanupUntrackedPreviewBlock(preview: preview, isCompact: usesCompactUntrackedPreviewLayout)
             }
         }
     }
@@ -288,7 +291,7 @@ struct WorktreeCleanupDetailView: View {
     }
 
     private var usesCompactUntrackedPreviewLayout: Bool {
-        candidate.state.reasons.count > 1 && candidate.reviewEvidence.untrackedPreview != nil
+        candidate.state.reasons.count > 1 && candidate.reviewEvidence.hasLocalFilePreview
     }
 
     private var detailContentSpacing: CGFloat {
