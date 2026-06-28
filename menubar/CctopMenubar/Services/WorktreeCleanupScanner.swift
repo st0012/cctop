@@ -284,6 +284,10 @@ struct WorktreeCleanupScanner {
             WorktreeCleanupCheck(label: "No active cctop sessions here", status: active ? .ok : .ignored),
             WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: inspection.isLinkedWorktree ? .ok : .ignored),
             WorktreeCleanupCheck(label: "No uncommitted tracked changes", status: statusUnavailable || trackedDirty ? .review : .ok),
+            WorktreeCleanupCheck(
+                label: "No index-hidden tracked files",
+                status: inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason) ? .review : .ok
+            ),
             WorktreeCleanupCheck(label: "No untracked files", status: statusUnavailable || untrackedDirty ? .review : .ok),
             WorktreeCleanupCheck(label: "No ignored files", status: statusUnavailable || ignoredDirty ? .review : .ok),
             WorktreeCleanupCheck(label: "Branch has no unique local commits", status: commitCount == 0 ? .ok : .review),

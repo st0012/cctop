@@ -58,6 +58,7 @@ struct GitWorktreeInspector {
         let branch = branchName(path: path, fallback: entries[matchIndex].branchName, failures: &failures)
         let statusEntries = statusEntries(path: path, failures: &failures)
         let uniqueCommitCount = uniqueCommitCount(path: path, branchKnown: branch != nil, failures: &failures)
+        detectIndexHiddenTrackedFiles(path: path, failures: &failures)
         detectInitializedSubmodules(path: path, failures: &failures)
 
         return GitWorktreeInspection(
@@ -91,6 +92,19 @@ struct GitWorktreeInspector {
             return nil
         }
         return Self.parseStatusEntries(result.stdout)
+    }
+
+    private func detectIndexHiddenTrackedFiles(path: String, failures: inout [String]) {
+        let result = runGit(path, ["ls-files", "-v", "-z"])
+        guard result.exitCode == 0 else { return }
+        let entries = Self.parseStatusEntries(result.stdout)
+        let hasHiddenTrackedFiles = entries.contains { entry in
+            guard let marker = entry.first else { return false }
+            return marker == "S" || marker == "s" || marker == "h"
+        }
+        if hasHiddenTrackedFiles {
+            failures.append(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason)
+        }
     }
 
     private func detectInitializedSubmodules(path: String, failures: inout [String]) {

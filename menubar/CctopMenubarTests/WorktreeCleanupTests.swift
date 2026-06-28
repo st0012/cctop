@@ -129,6 +129,19 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(candidate.state, .review(["Worktree has uncommitted tracked changes"]))
     }
 
+    func testIndexHiddenTrackedFilesProduceReview() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+        let inspection = cleanInspection(failureReasons: [WorktreeCleanupCandidate.indexHiddenTrackedFilesReason])
+
+        let candidate = scanner(
+            existingPaths: [path],
+            inspections: [path: inspection]
+        ).candidates(from: [historySession(path: path)], activeProjectPaths: [])[0]
+
+        XCTAssertEqual(candidate.state, .review([WorktreeCleanupCandidate.indexHiddenTrackedFilesReason]))
+        XCTAssertTrue(candidate.checks.contains(WorktreeCleanupCheck(label: "No index-hidden tracked files", status: .review)))
+    }
+
     func testUntrackedFilesProduceReview() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
         let inspection = cleanInspection(statusEntries: ["?? scratch.txt"])
@@ -401,6 +414,20 @@ final class WorktreeCleanupTests: XCTestCase {
             inspection.statusEntries,
             ["?? file with spaces.txt", "?? nested/path.txt", "!! .env.local", " M tracked.swift"]
         )
+    }
+
+    func testInspectorMarksAssumeUnchangedTrackedEditsForReviewWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(indexMarker: "h")
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
+    func testInspectorMarksSkipWorktreeTrackedEditsForReviewWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(indexMarker: "S")
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
     }
 
     func testInspectorMarksInitializedSubmodulesForReview() {
@@ -1069,6 +1096,33 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(preflightCandidate.reviewEvidence.ignoredPreview?.items, [".env.local"])
     }
 
+    func testRemovalServiceRefusesStaleCleanCandidateWhenIndexHiddenTrackedFilesAppearBeforePreflight() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let staleCleanCandidate = cleanupCandidate(path: worktreePath)
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [
+                    worktreePath: cleanInspection(failureReasons: [WorktreeCleanupCandidate.indexHiddenTrackedFilesReason])
+                ]
+            ),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused after hidden-index tracked files appeared, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .review([WorktreeCleanupCandidate.indexHiddenTrackedFilesReason]))
+    }
+
     func testRemovalServiceRefusesReviewCandidateWhenPreflightAddsIgnoredFiles() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)
@@ -1106,6 +1160,52 @@ final class WorktreeCleanupTests: XCTestCase {
             Set(["Branch has 1 unique local commit", WorktreeCleanupCandidate.ignoredFilesReason])
         )
         XCTAssertEqual(preflightCandidate.reviewEvidence.ignoredPreview?.items, [".env.local"])
+    }
+
+    func testRemovalServiceRefusesReviewCandidateWhenIndexHiddenTrackedFilesAppearBeforePreflight() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let reviewCandidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Needs review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.untrackedFilesReason]),
+            checks: [],
+            reviewEvidence: WorktreeCleanupReviewEvidence(
+                untrackedPreview: WorktreeCleanupUntrackedPreview(paths: ["scratch.txt"])
+            )
+        )
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [
+                    worktreePath: cleanInspection(
+                        statusEntries: ["?? scratch.txt"],
+                        failureReasons: [WorktreeCleanupCandidate.indexHiddenTrackedFilesReason]
+                    )
+                ]
+            ),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused after hidden-index tracked files appeared, got \(result)")
+        }
+        XCTAssertEqual(
+            Set(preflightCandidate.state.reasons),
+            Set([WorktreeCleanupCandidate.untrackedFilesReason, WorktreeCleanupCandidate.indexHiddenTrackedFilesReason])
+        )
     }
 
     func testRemovalServiceRefusesReviewCandidateWhenIgnoredFileEvidenceChanges() {
@@ -1634,7 +1734,8 @@ final class WorktreeCleanupTests: XCTestCase {
         branch: String = "feature/invoices",
         statusEntries: [String] = [],
         uniqueCommitCount: Int? = 0,
-        isLocked: Bool = false
+        isLocked: Bool = false,
+        failureReasons: [String] = []
     ) -> GitWorktreeInspection {
         GitWorktreeInspection(
             isRegisteredWorktree: true,
@@ -1644,7 +1745,7 @@ final class WorktreeCleanupTests: XCTestCase {
             branchName: branch,
             statusEntries: statusEntries,
             uniqueCommitCount: uniqueCommitCount,
-            failureReasons: []
+            failureReasons: failureReasons
         )
     }
 
@@ -1655,6 +1756,38 @@ final class WorktreeCleanupTests: XCTestCase {
         isLocked: Bool = false
     ) -> GitWorktreeListEntry {
         GitWorktreeListEntry(path: path, branchName: branch, isPrunable: isPrunable, isLocked: isLocked)
+    }
+
+    private func hiddenTrackedEditInspection(indexMarker: String) -> GitWorktreeInspection {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+        let inspector = GitWorktreeInspector { _, arguments in
+            switch arguments {
+            case ["worktree", "list", "--porcelain", "-z"]:
+                return GitCommandResult(
+                    exitCode: 0,
+                    stdout: "worktree /Users/dev/projects/billing-api\0"
+                        + "branch refs/heads/main\0\0"
+                        + "worktree \(path)\0"
+                        + "branch refs/heads/feature/invoices\0\0",
+                    stderr: ""
+                )
+            case ["branch", "--show-current"]:
+                return GitCommandResult(exitCode: 0, stdout: "feature/invoices\n", stderr: "")
+            case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]:
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            case ["ls-files", "-v", "-z"]:
+                return GitCommandResult(exitCode: 0, stdout: "\(indexMarker) tracked.txt\0H clean.txt\0", stderr: "")
+            case ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]:
+                return GitCommandResult(exitCode: 0, stdout: "origin/feature/invoices\n", stderr: "")
+            case ["rev-list", "--count", "@{u}..HEAD"]:
+                return GitCommandResult(exitCode: 0, stdout: "0\n", stderr: "")
+            case ["submodule", "status", "--recursive"]:
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            default:
+                return GitCommandResult(exitCode: 1, stdout: "", stderr: "unexpected \(arguments)")
+            }
+        }
+        return inspector.inspect(path: path)
     }
 
     private func historySession(
