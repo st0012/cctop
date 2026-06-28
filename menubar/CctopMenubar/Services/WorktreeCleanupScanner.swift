@@ -63,7 +63,7 @@ struct WorktreeCleanupScanner {
     }
 
     private func candidate(from context: CandidateContext, activeProjectPaths: Set<String>) -> WorktreeCleanupCandidate {
-        guard !activeProjectPaths.contains(context.path) else {
+        guard !isProtectedByActiveSession(context.path, activeProjectPaths: activeProjectPaths) else {
             return ignoredCandidate(
                 context: context,
                 state: .ignored(["Active cctop session is using this path"]),
@@ -104,6 +104,13 @@ struct WorktreeCleanupScanner {
             inspection: inspection,
             storageBytes: measureSize(context.path)
         )
+    }
+
+    private func isProtectedByActiveSession(_ path: String, activeProjectPaths: Set<String>) -> Bool {
+        let descendantPrefix = path.hasSuffix("/") ? path : "\(path)/"
+        return activeProjectPaths.contains { activePath in
+            activePath == path || activePath.hasPrefix(descendantPrefix)
+        }
     }
 
     private func ignoredCandidate(

@@ -43,6 +43,34 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(candidates[0].state, .ignored(["Active cctop session is using this path"]))
     }
 
+    func testActiveProjectPathDescendantIsIgnored() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+
+        let candidates = scanner(
+            existingPaths: [path],
+            inspections: [path: cleanInspection()]
+        ).candidates(
+            from: [historySession(path: path)],
+            activeProjectPaths: ["/Users/dev/.codex/worktrees/billing-api/pkg"]
+        )
+
+        XCTAssertEqual(candidates[0].state, .ignored(["Active cctop session is using this path"]))
+    }
+
+    func testActiveProjectPathPrefixSiblingDoesNotProtectCandidate() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+
+        let candidates = scanner(
+            existingPaths: [path],
+            inspections: [path: cleanInspection()]
+        ).candidates(
+            from: [historySession(path: path)],
+            activeProjectPaths: ["/Users/dev/.codex/worktrees/billing-api-next"]
+        )
+
+        XCTAssertEqual(candidates[0].state, .clean)
+    }
+
     func testMissingPathIsIgnored() {
         let path = "/Users/dev/.codex/worktrees/missing"
 
@@ -646,6 +674,32 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
             return XCTFail("Expected removal to be refused once the path became active, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .ignored(["Active cctop session is using this path"]))
+    }
+
+    func testRemovalServiceRefusesStaleCleanCandidateWhenActiveDescendantAppearsBeforePreflight() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let staleCleanCandidate = cleanupCandidate(path: worktreePath)
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: cleanInspection()]),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(
+            staleCleanCandidate,
+            sourceSessions: [session],
+            activeProjectPaths: ["/Users/dev/.codex/worktrees/billing-api/pkg"]
+        )
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused once a descendant path became active, got \(result)")
         }
         XCTAssertEqual(preflightCandidate.state, .ignored(["Active cctop session is using this path"]))
     }
