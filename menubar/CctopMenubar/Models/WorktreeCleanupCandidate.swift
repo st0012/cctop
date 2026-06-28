@@ -140,17 +140,21 @@ struct WorktreeCleanupReviewEvidence: Equatable {
 struct WorktreeCleanupUntrackedPreview: Equatable {
     let items: [String]
     let totalCount: Int
+    private let sourcePathSignature: [String]
 
     var remainingCount: Int {
         max(totalCount - items.count, 0)
     }
 
     init?(paths: [String], visibleLimit: Int = 3) {
-        let sourcePaths = paths.filter { !$0.isEmpty }
+        let sourcePaths = paths
+            .map(Self.normalizedSourcePath)
+            .filter { !$0.isEmpty }
         let displayItems = Self.displayItems(from: sourcePaths)
         guard !displayItems.isEmpty else { return nil }
         self.items = Array(displayItems.prefix(visibleLimit))
         totalCount = sourcePaths.count
+        sourcePathSignature = Array(Set(sourcePaths)).sorted()
     }
 
     private static func displayItems(from paths: [String]) -> [String] {
@@ -177,6 +181,10 @@ struct WorktreeCleanupUntrackedPreview: Equatable {
             return path
         }
         return "\(firstComponent)/"
+    }
+
+    private static func normalizedSourcePath(_ path: String) -> String {
+        Config.standardizedPath(path.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
 
