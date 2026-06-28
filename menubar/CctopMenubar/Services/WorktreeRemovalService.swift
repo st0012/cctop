@@ -46,6 +46,9 @@ struct WorktreeRemovalService {
               inspection.isLinkedWorktree else {
             return .refused(preflightCandidate)
         }
+        guard inspection.branchName != nil else {
+            return .refused(preflightCandidate)
+        }
 
         let result = runGit([
             "-C",

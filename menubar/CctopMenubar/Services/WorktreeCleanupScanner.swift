@@ -13,6 +13,7 @@ struct GitWorktreeInspection: Equatable {
 
 struct WorktreeCleanupScanner {
     var fileExists: (String) -> Bool
+    var resolveWorktreeRoot: (String) -> String?
     var inspectGit: (String) -> GitWorktreeInspection
     var measureSize: (String) -> Int64?
 
@@ -20,6 +21,7 @@ struct WorktreeCleanupScanner {
         let inspector = GitWorktreeInspector()
         return WorktreeCleanupScanner(
             fileExists: { FileManager.default.fileExists(atPath: $0) },
+            resolveWorktreeRoot: { inspector.worktreeRoot(containing: $0) },
             inspectGit: { inspector.inspect(path: $0) },
             measureSize: { DirectorySizeScanner.sizeOfDirectory(atPath: $0) }
         )
@@ -48,15 +50,22 @@ struct WorktreeCleanupScanner {
 
     private func latestEndedSessionContextsByPath(_ sessions: [Session]) -> [String: CandidateContext] {
         var result: [String: CandidateContext] = [:]
+        var resolvedPaths: [String: String] = [:]
         for session in sessions {
             guard session.endedAt != nil else { continue }
-            let path = Self.standardizedPath(session.projectPath)
+            let rawPath = Self.standardizedPath(session.projectPath)
+            let path = resolvedPaths[rawPath] ?? {
+                let resolvedPath = fileExists(rawPath) ? resolveWorktreeRoot(rawPath).map(Self.standardizedPath) : nil
+                let path = resolvedPath ?? rawPath
+                resolvedPaths[rawPath] = path
+                return path
+            }()
             guard let existing = result[path] else {
-                result[path] = CandidateContext(session: session)
+                result[path] = CandidateContext(session: session, path: path)
                 continue
             }
             if session.effectiveEndDate > existing.lastActiveAt {
-                result[path] = CandidateContext(session: session)
+                result[path] = CandidateContext(session: session, path: path)
             }
         }
         return result
@@ -242,10 +251,10 @@ private struct CandidateContext {
     let fallbackBranch: String
     let lastActiveAt: Date
 
-    init(session: Session) {
-        path = WorktreeCleanupScanner.standardizedPath(session.projectPath)
+    init(session: Session, path: String? = nil) {
+        self.path = path ?? WorktreeCleanupScanner.standardizedPath(session.projectPath)
         sessionName = session.displayName
-        worktreeName = URL(fileURLWithPath: path).lastPathComponent
+        worktreeName = URL(fileURLWithPath: self.path).lastPathComponent
         fallbackBranch = session.branch
         lastActiveAt = session.effectiveEndDate
     }

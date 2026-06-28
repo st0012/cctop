@@ -15,6 +15,15 @@ struct GitWorktreeInspector {
         return Self.parseWorktreeList(list.stdout)
     }
 
+    func worktreeRoot(containing path: String) -> String? {
+        guard let entries = listWorktrees(from: path) else { return nil }
+        let standardizedPath = Config.standardizedPath(path)
+        return entries
+            .map(\.path)
+            .filter { Self.path(standardizedPath, isSameAsOrDescendantOf: Config.standardizedPath($0)) }
+            .max { lhs, rhs in lhs.count < rhs.count }
+    }
+
     func inspect(path: String) -> GitWorktreeInspection {
         var failures: [String] = []
 
@@ -145,6 +154,10 @@ struct GitWorktreeInspector {
         output
             .split(separator: "\u{0}", omittingEmptySubsequences: true)
             .map(String.init)
+    }
+
+    private static func path(_ path: String, isSameAsOrDescendantOf root: String) -> Bool {
+        path == root || path.hasPrefix(root.hasSuffix("/") ? root : "\(root)/")
     }
 }
 

@@ -204,6 +204,55 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(candidate.storageBytes, 842 * 1_024 * 1_024)
     }
 
+    func testEndedSessionSubdirectoryUsesRegisteredWorktreeRoot() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let sessionPath = "/Users/dev/.codex/worktrees/billing-api/pkg"
+
+        let candidates = scanner(
+            existingPaths: [worktreePath, sessionPath],
+            inspections: [worktreePath: cleanInspection()],
+            resolvedRoots: [sessionPath: worktreePath],
+            sizes: [worktreePath: 2_048]
+        ).candidates(from: [historySession(path: sessionPath)], activeProjectPaths: [])
+
+        XCTAssertEqual(candidates.map(\.id), [worktreePath])
+        XCTAssertEqual(candidates[0].worktreePath, worktreePath)
+        XCTAssertEqual(candidates[0].worktreeName, "billing-api")
+        XCTAssertEqual(candidates[0].sessionName, "Generate invoice retry path")
+        XCTAssertEqual(candidates[0].state, .clean)
+    }
+
+    func testEndedSessionSubdirectoriesGroupByRegisteredWorktreeRoot() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let olderPath = "/Users/dev/.codex/worktrees/billing-api/pkg"
+        let newerPath = "/Users/dev/.codex/worktrees/billing-api/tests"
+        let older = historySession(
+            id: "older",
+            path: olderPath,
+            name: "Older subdirectory run",
+            endedAt: now.addingTimeInterval(-7_200)
+        )
+        let newer = historySession(
+            id: "newer",
+            path: newerPath,
+            name: "Latest subdirectory run",
+            endedAt: now
+        )
+
+        let candidates = scanner(
+            existingPaths: [worktreePath, olderPath, newerPath],
+            inspections: [worktreePath: cleanInspection()],
+            resolvedRoots: [
+                olderPath: worktreePath,
+                newerPath: worktreePath,
+            ]
+        ).candidates(from: [older, newer], activeProjectPaths: [])
+
+        XCTAssertEqual(candidates.map(\.id), [worktreePath])
+        XCTAssertEqual(candidates[0].sessionName, "Latest subdirectory run")
+        XCTAssertEqual(candidates[0].lastActiveAt, now)
+    }
+
     func testStorageFailureKeepsOtherwiseSafeCandidateClean() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
 
@@ -375,6 +424,28 @@ final class WorktreeCleanupTests: XCTestCase {
             .candidates(from: [historySession(path: path)], activeProjectPaths: [])[0]
 
         XCTAssertEqual(candidate.state, .review(["Main checkout path could not be verified"]))
+    }
+
+    func testInspectorResolvesContainingWorktreeRoot() {
+        let repo = "/Users/dev/projects/billing-api"
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let sessionPath = "/Users/dev/.codex/worktrees/billing-api/pkg"
+        var arguments: [String]?
+        let output = [
+            "worktree \(repo)",
+            "branch refs/heads/master",
+            "",
+            "worktree \(worktreePath)",
+            "branch refs/heads/feature/invoices",
+            "",
+        ].joined(separator: "\u{0}")
+        let inspector = GitWorktreeInspector(runGit: { path, args in
+            arguments = [path] + args
+            return GitCommandResult(exitCode: 0, stdout: output, stderr: "")
+        })
+
+        XCTAssertEqual(inspector.worktreeRoot(containing: sessionPath), worktreePath)
+        XCTAssertEqual(arguments, [sessionPath, "worktree", "list", "--porcelain", "-z"])
     }
 
     func testRegisteredSiblingWithoutEndedSessionIsNotAdded() {
@@ -704,6 +775,48 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(preflightCandidate.state, .ignored(["Active cctop session is using this path"]))
     }
 
+    func testRemovalServiceRefusesDetachedBranchReviewCandidateWithoutInvokingGit() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let candidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Detached cleanup",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            branchName: "unknown",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review(["Branch is unknown or detached"]),
+            checks: []
+        )
+        let detachedInspection = GitWorktreeInspection(
+            isRegisteredWorktree: true,
+            isLinkedWorktree: true,
+            isLocked: false,
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: nil,
+            statusEntries: [],
+            uniqueCommitCount: nil,
+            failureReasons: ["Branch is unknown or detached"]
+        )
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: detachedInspection]),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected detached branch review candidate to be refused, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .review(["Branch is unknown or detached"]))
+    }
+
     func testRemovalServiceRefusesIgnoredCandidateWithoutInvokingGit() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)
@@ -837,10 +950,12 @@ final class WorktreeCleanupTests: XCTestCase {
     private func scanner(
         existingPaths: Set<String>,
         inspections: [String: GitWorktreeInspection] = [:],
+        resolvedRoots: [String: String] = [:],
         sizes: [String: Int64] = ["/Users/dev/.codex/worktrees/billing-api": 1_024]
     ) -> WorktreeCleanupScanner {
         WorktreeCleanupScanner(
             fileExists: { existingPaths.contains($0) },
+            resolveWorktreeRoot: { resolvedRoots[$0] },
             inspectGit: { path in
                 inspections[path] ?? GitWorktreeInspection(
                     isRegisteredWorktree: false,
