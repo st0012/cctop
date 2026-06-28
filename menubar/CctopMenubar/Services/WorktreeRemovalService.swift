@@ -83,8 +83,8 @@ private extension WorktreeCleanupCandidate {
             ),
         ]
         return localFileEvidencePairs.contains { pair in
-            guard state.reasons.contains(pair.reason) else { return false }
-            return !confirmedReasons.contains(pair.reason) || pair.preflightPreview != pair.confirmedPreview
+            let addedReason = state.reasons.contains(pair.reason) && !confirmedReasons.contains(pair.reason)
+            return pair.preflightPreview != pair.confirmedPreview || addedReason
         }
     }
 }

@@ -1060,6 +1060,42 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(preflightCandidate.reviewEvidence.untrackedPreview?.totalCount, 4)
     }
 
+    func testRemovalServiceRefusesReviewCandidateWhenLocalFileEvidenceDisappears() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let reviewCandidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Needs review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.untrackedFilesReason]),
+            checks: [],
+            reviewEvidence: WorktreeCleanupReviewEvidence(
+                untrackedPreview: WorktreeCleanupUntrackedPreview(paths: ["scratch.txt"])
+            )
+        )
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: cleanInspection()]),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused after local-file evidence disappeared, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .clean)
+        XCTAssertEqual(preflightCandidate.reviewEvidence, .empty)
+    }
+
     func testRemovalServiceRefusesStaleCleanCandidateWhenActivePathAppearsBeforePreflight() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)
