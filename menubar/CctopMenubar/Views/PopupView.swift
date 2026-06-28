@@ -459,7 +459,7 @@ extension PopupView {
             openInEditor(project: project)
             NSApp.deactivate()
         case .cleanupCandidate(let candidate):
-            selectedCleanupCandidate = candidate
+            openCleanupDetail(candidate)
         }
         if isNavigateActive && target.confirmsNavigate {
             navigate?.didConfirmSubject.send()
@@ -491,6 +491,10 @@ extension PopupView {
         ensureSelectedTabAvailable()
         ensureSelectedCleanupCandidateAvailable()
         notifyLayoutChanged()
+    }
+
+    private func openCleanupDetail(_ candidate: WorktreeCleanupCandidate) {
+        selectedCleanupCandidate = candidate
     }
 
 }
