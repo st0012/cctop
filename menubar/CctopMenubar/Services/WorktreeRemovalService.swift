@@ -39,7 +39,7 @@ struct WorktreeRemovalService {
         if candidate.state.isClean && !preflightCandidate.state.isClean {
             return .refused(preflightCandidate)
         }
-        if preflightCandidate.addsLocalFileReviewEvidence(comparedTo: candidate) {
+        if preflightCandidate.changesLocalFileReviewEvidence(comparedTo: candidate) {
             return .refused(preflightCandidate)
         }
 
@@ -68,11 +68,23 @@ struct WorktreeRemovalService {
 }
 
 private extension WorktreeCleanupCandidate {
-    func addsLocalFileReviewEvidence(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
+    func changesLocalFileReviewEvidence(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
         let confirmedReasons = Set(candidate.state.reasons)
-        return [
-            WorktreeCleanupCandidate.untrackedFilesReason,
-            WorktreeCleanupCandidate.ignoredFilesReason,
-        ].contains { state.reasons.contains($0) && !confirmedReasons.contains($0) }
+        let localFileEvidencePairs = [
+            (
+                reason: WorktreeCleanupCandidate.untrackedFilesReason,
+                preflightPreview: reviewEvidence.untrackedPreview,
+                confirmedPreview: candidate.reviewEvidence.untrackedPreview
+            ),
+            (
+                reason: WorktreeCleanupCandidate.ignoredFilesReason,
+                preflightPreview: reviewEvidence.ignoredPreview,
+                confirmedPreview: candidate.reviewEvidence.ignoredPreview
+            ),
+        ]
+        return localFileEvidencePairs.contains { pair in
+            guard state.reasons.contains(pair.reason) else { return false }
+            return !confirmedReasons.contains(pair.reason) || pair.preflightPreview != pair.confirmedPreview
+        }
     }
 }
