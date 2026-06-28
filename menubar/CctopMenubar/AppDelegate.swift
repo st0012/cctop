@@ -501,6 +501,12 @@ extension AppDelegate {
     @MainActor private func execute(_ actions: [PanelAction]) {
         for action in actions {
             switch action {
+            case .refreshCleanup:
+                cleanupManager.refresh(
+                    from: sessionManager.cleanupSourceSessions,
+                    activeProjectPaths: sessionManager.cleanupActiveProjectPaths,
+                    force: true
+                )
             case .showPanel:
                 notchVisibilityWork?.cancel()
                 // Plugin/hook state can change outside the app (e.g. trusting

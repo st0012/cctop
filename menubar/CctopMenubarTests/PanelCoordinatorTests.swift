@@ -31,6 +31,23 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertTrue(r.actions.contains(.startNavigateMode(panelWasClosed: true)))
     }
 
+    func testPanelOpenActionsRefreshCleanupBeforeShowing() {
+        let results = [
+            handle(.menubarIconClicked(appIsActive: false), mode: .hidden),
+            handle(.navigateShortcut(), mode: .hidden),
+            handle(.menubarIconClicked(appIsActive: false, panelVisibleInActiveSpace: false), mode: .normal),
+            handle(.navigateShortcut(panelVisibleInActiveSpace: false), mode: .normal)
+        ]
+
+        for result in results {
+            guard let refreshIndex = result.actions.firstIndex(of: .refreshCleanup),
+                  let showIndex = result.actions.firstIndex(of: .showPanel) else {
+                return XCTFail("Expected cleanup refresh and show actions in \(result.actions)")
+            }
+            XCTAssertLessThan(refreshIndex, showIndex)
+        }
+    }
+
     func testHidden_otherEvents_noOp() {
         let r = handle(.escape, mode: .hidden)
         XCTAssertEqual(r.state.mode, .hidden)

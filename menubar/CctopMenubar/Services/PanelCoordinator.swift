@@ -35,6 +35,7 @@ enum PanelEvent {
 }
 
 enum PanelAction: Equatable {
+    case refreshCleanup
     case showPanel
     case dismissPanel          // hides panel + stops nav key monitor
     case navigatePanel
@@ -74,7 +75,7 @@ struct PanelCoordinator {
         case (.hidden, .menubarIconClicked):
             return Result(
                 state: PanelState(mode: .normal),
-                actions: [.captureApps, .showPanel, .activateApp, .startNavKeyMonitor,
+                actions: [.captureApps, .refreshCleanup, .showPanel, .activateApp, .startNavKeyMonitor,
                           .postNavAction(.reset)]
             )
 
@@ -82,7 +83,7 @@ struct PanelCoordinator {
             let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: true))
             return Result(
                 state: PanelState(mode: mode),
-                actions: [.showPanel, .activateApp, .startNavKeyMonitor,
+                actions: [.refreshCleanup, .showPanel, .activateApp, .startNavKeyMonitor,
                           .startNavigateMode(panelWasClosed: true)]
             )
 
@@ -98,7 +99,7 @@ struct PanelCoordinator {
         )):
             return Result(
                 state: PanelState(mode: .normal),
-                actions: [.captureApps, .showPanel, .activateApp, .startNavKeyMonitor,
+                actions: [.captureApps, .refreshCleanup, .showPanel, .activateApp, .startNavKeyMonitor,
                           .postNavAction(.reset)]
             )
 
@@ -134,7 +135,7 @@ struct PanelCoordinator {
             let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: true))
             return Result(
                 state: PanelState(mode: mode),
-                actions: [.showPanel, .activateApp, .startNavKeyMonitor,
+                actions: [.refreshCleanup, .showPanel, .activateApp, .startNavKeyMonitor,
                           .startNavigateMode(panelWasClosed: true)]
             )
 
