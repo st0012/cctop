@@ -1,25 +1,19 @@
 import Foundation
 
 struct WorktreeRemovalService {
-    struct GitResult: Equatable {
-        let exitCode: Int32
-        let stdout: String
-        let stderr: String
-    }
-
     enum RemovalResult: Equatable {
-        case removed(GitResult)
+        case removed(GitCommandResult)
         case refused(WorktreeCleanupCandidate)
-        case failed(GitResult)
+        case failed(GitCommandResult)
     }
 
     var scanner: WorktreeCleanupScanner
-    var runGit: ([String]) -> GitResult
+    var runGit: ([String]) -> GitCommandResult
 
     static func live() -> WorktreeRemovalService {
         WorktreeRemovalService(
             scanner: .live(),
-            runGit: Self.runGit(arguments:)
+            runGit: GitCommand.run(arguments:)
         )
     }
 
@@ -64,58 +58,5 @@ struct WorktreeRemovalService {
             return .failed(result)
         }
         return .removed(result)
-    }
-
-    private static func runGit(arguments: [String]) -> GitResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = arguments
-
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-
-        do {
-            try process.run()
-        } catch {
-            return GitResult(exitCode: 127, stdout: "", stderr: error.localizedDescription)
-        }
-
-        let group = DispatchGroup()
-        let stdoutReader = RemovalPipeOutputReader(fileHandle: stdout.fileHandleForReading)
-        let stderrReader = RemovalPipeOutputReader(fileHandle: stderr.fileHandleForReading)
-        stdoutReader.start(group: group)
-        stderrReader.start(group: group)
-        process.waitUntilExit()
-        group.wait()
-
-        return GitResult(
-            exitCode: process.terminationStatus,
-            stdout: stdoutReader.stringValue,
-            stderr: stderrReader.stringValue
-        )
-    }
-}
-
-private final class RemovalPipeOutputReader {
-    private let fileHandle: FileHandle
-    private let queue = DispatchQueue(label: "com.st0012.CctopMenubar.WorktreeRemovalService.PipeOutputReader")
-    private var data = Data()
-
-    init(fileHandle: FileHandle) {
-        self.fileHandle = fileHandle
-    }
-
-    var stringValue: String {
-        String(data: data, encoding: .utf8) ?? ""
-    }
-
-    func start(group: DispatchGroup) {
-        group.enter()
-        queue.async {
-            self.data = self.fileHandle.readDataToEndOfFile()
-            group.leave()
-        }
     }
 }

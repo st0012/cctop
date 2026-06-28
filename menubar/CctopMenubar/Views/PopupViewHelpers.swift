@@ -15,6 +15,17 @@ enum PanelNavAction {
     case up, down, confirm, escape, reset, toggleTab, previousTab, nextTab
 }
 
+extension PopupView {
+    func openInFinder(path: String) {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
+    }
+
+    func copyPath(_ path: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
+    }
+}
+
 // MARK: - Card selection style
 
 struct CardSelectionStyle: ViewModifier {

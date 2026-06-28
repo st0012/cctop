@@ -752,6 +752,103 @@ final class SessionFileFormatTests: XCTestCase {
     }
 
     @MainActor
+    func testCleanupActivePathsIncludeHiddenLiveSessions() throws {
+        let root = NSTemporaryDirectory() + "cctop-hidden-active-cleanup-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let worktreePath = (root as NSString).appendingPathComponent(".codex/worktrees/hidden-live")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        var hidden = Session(
+            sessionId: "hidden-live",
+            projectPath: worktreePath,
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        hidden.hidden = true
+        hidden.pid = 999_998
+        let hiddenPath = (sessionsDir as NSString).appendingPathComponent("999998.json")
+        try hidden.writeToFile(path: hiddenPath)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            processAlive: { $0.sessionId == "hidden-live" }
+        )
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [worktreePath])
+    }
+
+    @MainActor
+    func testCleanupActivePathsIncludeAutoHiddenLiveSessions() throws {
+        let root = NSTemporaryDirectory() + "cctop-auto-hidden-active-cleanup-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let worktreePath = (root as NSString).appendingPathComponent(".codex/worktrees/title-helper")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        var titleGeneration = codexDesktopSession(sessionId: "title-helper-active", projectPath: worktreePath)
+        titleGeneration.sessionName = nil
+        titleGeneration.lastPrompt = codexTitleGenerationPrompt()
+        titleGeneration.lastActivity = Date()
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-title-helper-active.json")
+        try titleGeneration.writeToFile(path: sessionPath)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            desktopAppConnection: DesktopAppConnectionLookup { _ in true },
+            processAlive: { $0.sessionId == "title-helper-active" }
+        )
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [worktreePath])
+        XCTAssertTrue(try Session.fromFile(path: sessionPath).hidden)
+    }
+
+    @MainActor
+    func testCleanupSnapshotForRemovalRefreshesHiddenActiveProtection() throws {
+        let root = NSTemporaryDirectory() + "cctop-hidden-active-refresh-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let worktreePath = (root as NSString).appendingPathComponent(".codex/worktrees/late-hidden")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            processAlive: { $0.sessionId == "late-hidden" }
+        )
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
+
+        var hidden = Session(
+            sessionId: "late-hidden",
+            projectPath: worktreePath,
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        hidden.hidden = true
+        hidden.pid = 999_997
+        try hidden.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("999997.json"))
+
+        let snapshot = manager.cleanupSnapshotForRemoval()
+
+        XCTAssertEqual(snapshot.activeProjectPaths, [worktreePath])
+    }
+
+    @MainActor
     func testSessionManagerHidesGenericSubagentSessionFilesWithoutArchivingOrRemovingThem() throws {
         let root = NSTemporaryDirectory() + "cctop-generic-subagent-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")

@@ -6,6 +6,11 @@ import os.log
 
 let sessionManagerLogger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
 
+struct WorktreeCleanupSessionSnapshot {
+    let sourceSessions: [Session]
+    let activeProjectPaths: Set<String>
+}
+
 @MainActor
 // swiftlint:disable:next type_body_length
 class SessionManager: ObservableObject {
@@ -111,9 +116,18 @@ class SessionManager: ObservableObject {
         // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped
         // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
         archiveAndRemoveFinishedNonDesktop(liveCandidates, winners: winners)
-        let activeProjectPaths = Set(newSessions.map(\.projectPath))
+        let hiddenActiveProjectPaths = activeProjectPaths(in: hidden + autoHidden)
+        let activeProjectPaths = Set(newSessions.map(\.projectPath)).union(hiddenActiveProjectPaths)
         _ = historyManager.rebuildRecentProjects(excludingActive: activeProjectPaths)
         refreshCleanupSources(from: visibleDecoded.map(\.session), activeProjectPaths: activeProjectPaths)
+    }
+
+    func cleanupSnapshotForRemoval() -> WorktreeCleanupSessionSnapshot {
+        loadSessions()
+        return WorktreeCleanupSessionSnapshot(
+            sourceSessions: cleanupSourceSessions,
+            activeProjectPaths: cleanupActiveProjectPaths
+        )
     }
 
     private func hideAutoHiddenSessions(_ sessions: [(URL, Session)]) {

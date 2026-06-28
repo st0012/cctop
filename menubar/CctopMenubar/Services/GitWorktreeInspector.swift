@@ -10,7 +10,7 @@ struct GitWorktreeInspector {
     var runGit: (String, [String]) -> GitCommandResult = GitCommand.run
 
     func listWorktrees(from path: String) -> [GitWorktreeListEntry]? {
-        let list = runGit(path, ["worktree", "list", "--porcelain"])
+        let list = runGit(path, ["worktree", "list", "--porcelain", "-z"])
         guard list.exitCode == 0 else { return nil }
         return Self.parseWorktreeList(list.stdout)
     }
@@ -22,6 +22,7 @@ struct GitWorktreeInspector {
             return GitWorktreeInspection(
                 isRegisteredWorktree: false,
                 isLinkedWorktree: false,
+                isLocked: false,
                 mainWorktreePath: nil,
                 branchName: nil,
                 statusEntries: nil,
@@ -36,6 +37,7 @@ struct GitWorktreeInspector {
             return GitWorktreeInspection(
                 isRegisteredWorktree: false,
                 isLinkedWorktree: false,
+                isLocked: false,
                 mainWorktreePath: mainWorktreePath,
                 branchName: nil,
                 statusEntries: nil,
@@ -51,6 +53,7 @@ struct GitWorktreeInspector {
         return GitWorktreeInspection(
             isRegisteredWorktree: true,
             isLinkedWorktree: matchIndex > 0,
+            isLocked: entries[matchIndex].isLocked,
             mainWorktreePath: mainWorktreePath,
             branchName: branch,
             statusEntries: statusEntries,
@@ -101,16 +104,26 @@ struct GitWorktreeInspector {
         var path: String?
         var branch: String?
         var isPrunable = false
+        var isLocked = false
 
         func flush() {
             guard let currentPath = path else { return }
-            entries.append(GitWorktreeListEntry(path: currentPath, branchName: branch, isPrunable: isPrunable))
+            entries.append(
+                GitWorktreeListEntry(
+                    path: currentPath,
+                    branchName: branch,
+                    isPrunable: isPrunable,
+                    isLocked: isLocked
+                )
+            )
             path = nil
             branch = nil
             isPrunable = false
+            isLocked = false
         }
 
-        for line in output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+        let separator: Character = output.contains("\u{0}") ? "\u{0}" : "\n"
+        for line in output.split(separator: separator, omittingEmptySubsequences: false).map(String.init) {
             if line.isEmpty {
                 flush()
             } else if line.hasPrefix("worktree ") {
@@ -120,6 +133,8 @@ struct GitWorktreeInspector {
                 branch = String(line.dropFirst("branch refs/heads/".count))
             } else if line.hasPrefix("prunable") {
                 isPrunable = true
+            } else if line.hasPrefix("locked") {
+                isLocked = true
             }
         }
         flush()
@@ -137,19 +152,28 @@ struct GitWorktreeListEntry: Equatable {
     let path: String
     let branchName: String?
     let isPrunable: Bool
+    let isLocked: Bool
 }
 
-struct GitCommandResult {
+struct GitCommandResult: Equatable {
     let exitCode: Int32
     let stdout: String
     let stderr: String
 }
 
 enum GitCommand {
+    static func run(arguments: [String]) -> GitCommandResult {
+        runProcess(arguments: arguments)
+    }
+
     static func run(cwd: String, arguments: [String]) -> GitCommandResult {
+        runProcess(arguments: ["-C", cwd] + arguments)
+    }
+
+    private static func runProcess(arguments: [String]) -> GitCommandResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        process.arguments = ["-C", cwd] + arguments
+        process.arguments = arguments
 
         let stdout = Pipe()
         let stderr = Pipe()

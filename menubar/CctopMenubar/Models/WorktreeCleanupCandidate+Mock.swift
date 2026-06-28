@@ -18,14 +18,14 @@ extension WorktreeCleanupCandidate {
             lastActiveAt: Date().addingTimeInterval(-7_200),
             storageBytes: storageBytes,
             state: state,
-            suggestedCommand: state.isClean ? "git -C /Users/dev/projects/billing-api worktree remove \(path)" : nil,
             checks: [
                 WorktreeCleanupCheck(label: "No active cctop sessions here", status: .ok),
                 WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: .ok),
                 WorktreeCleanupCheck(label: "No uncommitted tracked changes", status: .ok),
                 WorktreeCleanupCheck(label: "No untracked files", status: .ok),
                 WorktreeCleanupCheck(label: "Branch has no unique local commits", status: .ok),
-                WorktreeCleanupCheck(label: "Storage size scan completed", status: storageBytes == nil ? .review : .ok),
+                WorktreeCleanupCheck(label: "Worktree is not locked", status: .ok),
+                WorktreeCleanupCheck(label: "Storage size scan completed", status: storageBytes == nil ? .ignored : .ok),
             ],
             reviewEvidence: reviewEvidence ?? mockReviewEvidence(for: state)
         )

@@ -45,41 +45,16 @@ class WorktreeCleanupManager: ObservableObject {
 }
 
 struct WorktreeCleanupRefreshSignature: Equatable {
-    private let sourceSessions: [CleanupSourceSessionSignature]
+    private let endedCandidatePaths: [String]
     private let activeProjectPaths: [String]
 
     init(sourceSessions: [Session], activeProjectPaths: Set<String>) {
-        self.sourceSessions = sourceSessions
-            .map(CleanupSourceSessionSignature.init)
+        self.endedCandidatePaths = sourceSessions
+            .filter { $0.endedAt != nil }
+            .map { WorktreeCleanupScanner.standardizedPath($0.projectPath) }
             .sorted()
         self.activeProjectPaths = activeProjectPaths
             .map(WorktreeCleanupScanner.standardizedPath)
             .sorted()
-    }
-}
-
-private struct CleanupSourceSessionSignature: Equatable, Comparable {
-    let sessionId: String
-    let projectPath: String
-    let displayName: String
-    let branch: String
-    let effectiveEndDate: Date
-    let lifecycle: SessionLifecycle
-    let isHostedByDesktopApp: Bool
-
-    init(session: Session) {
-        sessionId = session.sessionId
-        projectPath = WorktreeCleanupScanner.standardizedPath(session.projectPath)
-        displayName = session.displayName
-        branch = session.branch
-        effectiveEndDate = session.effectiveEndDate
-        lifecycle = session.lifecycle
-        isHostedByDesktopApp = session.isHostedByDesktopApp
-    }
-
-    static func < (lhs: CleanupSourceSessionSignature, rhs: CleanupSourceSessionSignature) -> Bool {
-        if lhs.projectPath != rhs.projectPath { return lhs.projectPath < rhs.projectPath }
-        if lhs.sessionId != rhs.sessionId { return lhs.sessionId < rhs.sessionId }
-        return lhs.effectiveEndDate < rhs.effectiveEndDate
     }
 }

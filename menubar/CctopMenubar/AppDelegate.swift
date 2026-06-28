@@ -108,14 +108,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @MainActor private func removeCleanupCandidate(
         _ candidate: WorktreeCleanupCandidate
     ) async -> WorktreeRemovalService.RemovalResult {
-        let sourceSessions = sessionManager.cleanupSourceSessions
-        let activePaths = sessionManager.cleanupActiveProjectPaths
+        let cleanupSnapshot = sessionManager.cleanupSnapshotForRemoval()
         let removalService = cleanupRemovalService
         let result = await Task.detached(priority: .utility) {
             removalService.remove(
                 candidate,
-                sourceSessions: sourceSessions,
-                activeProjectPaths: activePaths
+                sourceSessions: cleanupSnapshot.sourceSessions,
+                activeProjectPaths: cleanupSnapshot.activeProjectPaths
             )
         }.value
 

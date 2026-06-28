@@ -246,7 +246,7 @@ final class SnapshotTests: XCTestCase {
             "Worktree has uncommitted tracked changes",
             WorktreeCleanupCandidate.untrackedFilesReason,
             "No upstream branch",
-            "Storage size scan completed after fallback sizing",
+            "Worktree is locked",
         ])
         return WorktreeCleanupCandidate(
             id: path,
@@ -257,7 +257,6 @@ final class SnapshotTests: XCTestCase {
             lastActiveAt: Date().addingTimeInterval(-86_400 * 16),
             storageBytes: 426 * 1_024 * 1_024,
             state: state,
-            suggestedCommand: nil,
             checks: [
                 WorktreeCleanupCheck(label: "No active cctop sessions here", status: .ok),
                 WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: .ok),
@@ -265,6 +264,7 @@ final class SnapshotTests: XCTestCase {
                 WorktreeCleanupCheck(label: "No untracked files", status: .review),
                 WorktreeCleanupCheck(label: "Branch has no unique local commits", status: .review),
                 WorktreeCleanupCheck(label: "Main checkout path is known", status: .ok),
+                WorktreeCleanupCheck(label: "Worktree is not locked", status: .ok),
                 WorktreeCleanupCheck(label: "Storage size scan completed", status: .ok),
             ],
             reviewEvidence: WorktreeCleanupCandidate.mockReviewEvidence(for: state)
@@ -294,14 +294,13 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         let secondaryReview: WorktreeCleanupCandidate
         let longStress: WorktreeCleanupCandidate
         let unknownSafety: WorktreeCleanupCandidate
-        let ignoredCandidates: [WorktreeCleanupCandidate]
 
         var allCandidates: [WorktreeCleanupCandidate] {
             [clean, review, untrackedOnly, secondaryReview, longStress, unknownSafety]
         }
 
         var productInputCandidates: [WorktreeCleanupCandidate] {
-            allCandidates + ignoredCandidates
+            allCandidates
         }
     }
 
@@ -312,7 +311,6 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         let lastActiveAt: Date
         let storageBytes: Int64?
         let state: WorktreeCleanupCandidate.State
-        let suggestedCommand: String?
         let checks: [WorktreeCleanupCheck]?
         let reviewEvidence: WorktreeCleanupReviewEvidence?
 
@@ -323,7 +321,6 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             lastActiveAt: Date,
             storageBytes: Int64?,
             state: WorktreeCleanupCandidate.State,
-            suggestedCommand: String? = nil,
             checks: [WorktreeCleanupCheck]? = nil,
             reviewEvidence: WorktreeCleanupReviewEvidence? = nil
         ) {
@@ -333,34 +330,23 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             self.lastActiveAt = lastActiveAt
             self.storageBytes = storageBytes
             self.state = state
-            self.suggestedCommand = suggestedCommand
             self.checks = checks
             self.reviewEvidence = reviewEvidence
         }
     }
 
-    private struct LocalDiagnostic {
-        let historySessions: Int
-        let sessionFiles: Int
-        let uniquePaths: Int
-        let worktreeStylePaths: Int
-        let liveOverviewCandidates: Int
-        let sourceSessions: Int
-        let activePaths: Int
-    }
-
     func testGenerateCleanupScenarioScreenshots() throws {
         let scenario = cleanupScenario()
-        try renderLiveLocalOverview()
         try renderListScreenshots(for: scenario)
         try renderDetailScreenshots(for: scenario)
+        try renderConfirmationScreenshots(for: scenario)
         try renderSpecialStateScreenshots(for: scenario)
     }
 
     private func renderListScreenshots(for scenario: Scenario) throws {
         let actionableCount = scenario.productInputCandidates.filter(\.state.isActionable).count
         XCTAssertEqual(actionableCount, scenario.allCandidates.count)
-        XCTAssertGreaterThan(scenario.productInputCandidates.count, actionableCount)
+        XCTAssertEqual(scenario.productInputCandidates.count, actionableCount)
 
         let mixedList = cleanupPopup(candidates: scenario.productInputCandidates)
         let mixedListSize = try renderScreenshot(
@@ -368,9 +354,6 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         )
         try renderScreenshot(
             view: mixedList, colorScheme: .light, filename: "worktree-cleanup-list-mixed-light.png"
-        )
-        try renderScreenshot(
-            view: mixedList, colorScheme: .dark, filename: "worktree-cleanup-ignored-suppression.png"
         )
         XCTAssertLessThanOrEqual(mixedListSize.width, 320)
         XCTAssertLessThanOrEqual(mixedListSize.height, 430)
@@ -414,7 +397,24 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         XCTAssertLessThanOrEqual(untrackedOnlySize.height, 430)
         XCTAssertLessThanOrEqual(unknownSize.height, 430)
         XCTAssertEqual(scenario.unknownSafety.formattedStorage, "Unknown")
-        XCTAssertNil(scenario.unknownSafety.suggestedCommand)
+    }
+
+    private func renderConfirmationScreenshots(for scenario: Scenario) throws {
+        let reviewSize = try renderScreenshot(
+            view: CleanupConfirmationProofView(confirmation: .reviewWarning(scenario.review)),
+            colorScheme: .dark,
+            filename: "worktree-cleanup-confirmation-review.png"
+        )
+        let finalSize = try renderScreenshot(
+            view: CleanupConfirmationProofView(confirmation: .final(scenario.clean)),
+            colorScheme: .dark,
+            filename: "worktree-cleanup-confirmation-final.png"
+        )
+
+        XCTAssertLessThanOrEqual(reviewSize.width, 320)
+        XCTAssertLessThanOrEqual(finalSize.width, 320)
+        XCTAssertLessThanOrEqual(reviewSize.height, 430)
+        XCTAssertLessThanOrEqual(finalSize.height, 430)
     }
 
     private func renderSpecialStateScreenshots(for scenario: Scenario) throws {
@@ -438,31 +438,6 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             onRemove: { _ in }
         )
         try renderScreenshot(view: emptyState, colorScheme: .dark, filename: "worktree-cleanup-empty.png")
-
-        let hiddenCleanupTab = cleanupPopup(candidates: scenario.ignoredCandidates)
-        try renderScreenshot(
-            view: hiddenCleanupTab, colorScheme: .dark, filename: "worktree-cleanup-no-actionable-popup.png"
-        )
-    }
-
-    private func renderLiveLocalOverview() throws {
-        let local = liveLocalDiagnostic()
-        print(
-            "Live cleanup diagnostic: history=\(local.historySessions), sessions=\(local.sessionFiles), "
-            + "sources=\(local.sourceSessions), uniquePaths=\(local.uniquePaths), "
-            + "worktreeStylePaths=\(local.worktreeStylePaths), activePaths=\(local.activePaths), "
-            + "liveOverviewCandidates=\(local.liveOverviewCandidates)"
-        )
-
-        let candidates = liveLocalOverviewCandidates()
-        guard !candidates.isEmpty else { return }
-        let size = try renderScreenshot(
-            view: cleanupPopup(candidates: candidates),
-            colorScheme: .dark,
-            filename: "worktree-cleanup-live-local-overview.png"
-        )
-        XCTAssertLessThanOrEqual(size.width, 320)
-        XCTAssertLessThanOrEqual(size.height, 430)
     }
 
     @discardableResult
@@ -600,8 +575,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             untrackedOnly: untrackedOnly,
             secondaryReview: secondaryReview,
             longStress: worstCaseReviewCleanupCandidate(now: now),
-            unknownSafety: unknownSafety,
-            ignoredCandidates: ignoredScenarioCandidates(now: now)
+            unknownSafety: unknownSafety
         )
     }
 
@@ -615,14 +589,9 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             lastActiveAt: seed.lastActiveAt,
             storageBytes: seed.storageBytes,
             state: seed.state,
-            suggestedCommand: seed.suggestedCommand ?? cleanSuggestedCommand(for: seed),
             checks: seed.checks ?? cleanupScenarioChecks(for: seed.state, storageBytes: seed.storageBytes),
             reviewEvidence: seed.reviewEvidence ?? WorktreeCleanupCandidate.mockReviewEvidence(for: seed.state)
         )
-    }
-
-    private func cleanSuggestedCommand(for seed: CandidateSeed) -> String? {
-        seed.state.isClean ? "git -C /Users/st0012/projects/rdoc worktree remove \(seed.path)" : nil
     }
 
     private func worstCaseReviewCleanupCandidate(now: Date) -> WorktreeCleanupCandidate {
@@ -631,7 +600,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             "Worktree has uncommitted tracked changes",
             WorktreeCleanupCandidate.untrackedFilesReason,
             "No upstream branch",
-            "Storage size scan completed after fallback sizing",
+            "Worktree is locked",
         ])
         return WorktreeCleanupCandidate(
             id: path,
@@ -642,7 +611,6 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             lastActiveAt: now.addingTimeInterval(-86_400 * 16),
             storageBytes: 426 * 1_024 * 1_024,
             state: state,
-            suggestedCommand: nil,
             checks: [
                 WorktreeCleanupCheck(label: "No active cctop sessions here", status: .ok),
                 WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: .ok),
@@ -650,6 +618,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
                 WorktreeCleanupCheck(label: "No untracked files", status: .review),
                 WorktreeCleanupCheck(label: "Branch has no unique local commits", status: .review),
                 WorktreeCleanupCheck(label: "Main checkout path is known", status: .ok),
+                WorktreeCleanupCheck(label: "Worktree is not locked", status: .ok),
                 WorktreeCleanupCheck(label: "Storage size scan completed", status: .ok),
             ],
             reviewEvidence: WorktreeCleanupCandidate.mockReviewEvidence(for: state)
@@ -669,7 +638,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
                     "Git status could not be read",
                     "Main checkout path could not be verified",
                     "Branch upstream or commit safety could not be verified",
-                    "Storage size scan failed",
+                    "Worktree is locked",
                 ]),
                 checks: [
                     WorktreeCleanupCheck(label: "No active cctop sessions here", status: .ok),
@@ -678,56 +647,10 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
                     WorktreeCleanupCheck(label: "No untracked files", status: .review),
                     WorktreeCleanupCheck(label: "Branch has no unique local commits", status: .review),
                     WorktreeCleanupCheck(label: "Main checkout path is known", status: .review),
-                    WorktreeCleanupCheck(label: "Storage size scan completed", status: .review),
+                    WorktreeCleanupCheck(label: "Worktree is not locked", status: .review),
+                    WorktreeCleanupCheck(label: "Storage size scan completed", status: .ignored),
                 ]
             )
-        )
-    }
-
-    private func ignoredScenarioCandidates(now: Date) -> [WorktreeCleanupCandidate] {
-        [
-            ignoredCandidate(
-                path: "/Users/st0012/projects/cctop",
-                sessionName: "Main checkout should stay quiet",
-                branch: "master",
-                lastActiveAt: now.addingTimeInterval(-3_600),
-                reason: "Path is the main checkout, not a linked worktree"
-            ),
-            ignoredCandidate(
-                path: "/Users/st0012/projects/cctop/.claude/worktrees/heuristic-newton-a46d2f",
-                sessionName: "Active path stays protected",
-                branch: "claude/heuristic-newton-a46d2f",
-                lastActiveAt: now.addingTimeInterval(-900),
-                reason: "Active cctop session is using this path"
-            ),
-            ignoredCandidate(
-                path: "/Users/st0012/projects/cctop/.claude/worktrees/missing-local-dir",
-                sessionName: "Missing local worktree",
-                branch: "claude/missing-local-dir",
-                lastActiveAt: now.addingTimeInterval(-86_400 * 40),
-                reason: "Path no longer exists"
-            ),
-        ]
-    }
-
-    private func ignoredCandidate(
-        path: String,
-        sessionName: String,
-        branch: String,
-        lastActiveAt: Date,
-        reason: String
-    ) -> WorktreeCleanupCandidate {
-        WorktreeCleanupCandidate(
-            id: path,
-            sessionName: sessionName,
-            worktreePath: path,
-            worktreeName: URL(fileURLWithPath: path).lastPathComponent,
-            branchName: branch,
-            lastActiveAt: lastActiveAt,
-            storageBytes: nil,
-            state: .ignored([reason]),
-            suggestedCommand: nil,
-            checks: [WorktreeCleanupCheck(label: reason, status: .ignored)]
         )
     }
 
@@ -757,87 +680,6 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         }
     }
 
-    private func liveLocalDiagnostic(now: Date = Date()) -> LocalDiagnostic {
-        let historySessions = decodedLocalSessions(in: URL(fileURLWithPath: Config.historyDir()))
-        let sessionFiles = decodedLocalSessions(in: URL(fileURLWithPath: Config.sessionsDir()))
-        let sourceSessions = historySessions + sessionFiles
-        let uniquePaths = Set(sourceSessions.map { WorktreeCleanupScanner.standardizedPath($0.projectPath) })
-        let activeProjectPaths = Set(
-            sessionFiles
-                .filter { $0.endedAt == nil && now.timeIntervalSince($0.lastActivity) < 600 }
-                .map { WorktreeCleanupScanner.standardizedPath($0.projectPath) }
-        )
-        return LocalDiagnostic(
-            historySessions: historySessions.count,
-            sessionFiles: sessionFiles.count,
-            uniquePaths: uniquePaths.count,
-            worktreeStylePaths: uniquePaths.filter { Self.isWorktreeStylePath($0) }.count,
-            liveOverviewCandidates: liveLocalOverviewCandidates(now: now).count,
-            sourceSessions: sourceSessions.count,
-            activePaths: activeProjectPaths.count
-        )
-    }
-
-    private func liveLocalOverviewCandidates(now: Date = Date()) -> [WorktreeCleanupCandidate] {
-        let historySessions = decodedLocalSessions(in: URL(fileURLWithPath: Config.historyDir()))
-        let sessionFiles = decodedLocalSessions(in: URL(fileURLWithPath: Config.sessionsDir()))
-        let activeProjectPaths = Set(
-            sessionFiles
-                .filter { $0.endedAt == nil && now.timeIntervalSince($0.lastActivity) < 600 }
-                .map { WorktreeCleanupScanner.standardizedPath($0.projectPath) }
-        )
-        var latestByPath: [String: Session] = [:]
-        for session in historySessions + sessionFiles {
-            let path = WorktreeCleanupScanner.standardizedPath(session.projectPath)
-            guard Self.isWorktreeStylePath(path), !activeProjectPaths.contains(path) else { continue }
-            if let existing = latestByPath[path], existing.effectiveEndDate >= session.effectiveEndDate { continue }
-            latestByPath[path] = session
-        }
-        return latestByPath.values
-            .sorted { $0.effectiveEndDate > $1.effectiveEndDate }
-            .prefix(8)
-            .map(liveOverviewCandidate(from:))
-    }
-
-    private func liveOverviewCandidate(from session: Session) -> WorktreeCleanupCandidate {
-        let path = WorktreeCleanupScanner.standardizedPath(session.projectPath)
-        return WorktreeCleanupCandidate(
-            id: path,
-            sessionName: session.displayName,
-            worktreePath: path,
-            worktreeName: URL(fileURLWithPath: path).lastPathComponent,
-            branchName: session.branch.isEmpty ? "unknown" : session.branch,
-            lastActiveAt: session.effectiveEndDate,
-            storageBytes: nil,
-            state: .review([
-                "Bounded live screenshot skipped Git safety checks",
-                "Storage size scan skipped",
-            ]),
-            suggestedCommand: nil,
-            checks: [
-                WorktreeCleanupCheck(label: "Real local session/path metadata", status: .ok),
-                WorktreeCleanupCheck(label: "Git safety checks skipped for bounded screenshot", status: .review),
-                WorktreeCleanupCheck(label: "Storage size scan skipped", status: .review),
-            ]
-        )
-    }
-
-    private static func isWorktreeStylePath(_ path: String) -> Bool {
-        path.contains("/.claude/worktrees/") || path.contains("/.codex/worktrees/")
-    }
-
-    private func decodedLocalSessions(in directory: URL) -> [Session] {
-        guard let urls = try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil
-        ) else { return [] }
-        return urls
-            .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url) else { return nil }
-                return try? JSONDecoder.sessionDecoder.decode(Session.self, from: data)
-            }
-    }
-
     private func cleanupScenarioChecks(
         for state: WorktreeCleanupCandidate.State,
         storageBytes: Int64?
@@ -849,7 +691,8 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             WorktreeCleanupCheck(label: "No uncommitted tracked changes", status: needsReview ? .review : .ok),
             WorktreeCleanupCheck(label: "No untracked files", status: needsReview ? .review : .ok),
             WorktreeCleanupCheck(label: "Branch has no unique local commits", status: needsReview ? .review : .ok),
-            WorktreeCleanupCheck(label: "Storage size scan completed", status: storageBytes == nil ? .review : .ok),
+            WorktreeCleanupCheck(label: "Worktree is not locked", status: .ok),
+            WorktreeCleanupCheck(label: "Storage size scan completed", status: storageBytes == nil ? .ignored : .ok),
         ]
     }
 
@@ -862,6 +705,59 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
 
     private func inertPluginManager() -> PluginManager {
         PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
+    }
+}
+
+private struct CleanupConfirmationProofView: View {
+    let confirmation: WorktreeRemovalConfirmation
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 18)
+            VStack(alignment: .leading, spacing: 12) {
+                Text(confirmation.title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.textPrimary)
+                    .lineLimit(1)
+                Text(confirmation.message)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Text("Cancel")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background {
+                            RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
+                                .fill(Color.panelControlBackground)
+                        }
+                    Text(confirmation.primaryButtonTitle)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.statusAttention)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background {
+                            RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
+                                .fill(Color.statusAttention.opacity(0.10))
+                        }
+                }
+            }
+            .padding(14)
+            .background {
+                RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
+                    .fill(Color.groupedContentBackground)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
+                    .stroke(Color.groupedRowBorder, lineWidth: 1)
+            }
+            .padding(16)
+            Spacer(minLength: 18)
+        }
+        .frame(maxWidth: .infinity, minHeight: 220)
     }
 }
 // swiftlint:enable type_body_length

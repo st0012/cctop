@@ -46,7 +46,6 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
     let lastActiveAt: Date
     let storageBytes: Int64?
     let state: State
-    let suggestedCommand: String?
     let checks: [WorktreeCleanupCheck]
     let reviewEvidence: WorktreeCleanupReviewEvidence
 
@@ -59,7 +58,6 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
         lastActiveAt: Date,
         storageBytes: Int64?,
         state: State,
-        suggestedCommand: String?,
         checks: [WorktreeCleanupCheck],
         reviewEvidence: WorktreeCleanupReviewEvidence = .empty
     ) {
@@ -71,7 +69,6 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
         self.lastActiveAt = lastActiveAt
         self.storageBytes = storageBytes
         self.state = state
-        self.suggestedCommand = suggestedCommand
         self.checks = checks
         self.reviewEvidence = reviewEvidence
     }
@@ -203,6 +200,33 @@ enum WorktreeRemovalConfirmation: Identifiable, Equatable {
         switch self {
         case .reviewWarning(let candidate), .final(let candidate):
             return candidate
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .reviewWarning:
+            return "Review Worktree?"
+        case .final:
+            return "Remove Worktree?"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .reviewWarning:
+            return "This worktree needs review. Removal uses plain git worktree remove, and Git may refuse it."
+        case .final(let candidate):
+            return "Runs git worktree remove for \(candidate.worktreeName). The branch is left intact."
+        }
+    }
+
+    var primaryButtonTitle: String {
+        switch self {
+        case .reviewWarning:
+            return "Continue"
+        case .final:
+            return "Remove"
         }
     }
 

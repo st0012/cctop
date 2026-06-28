@@ -3,6 +3,7 @@ import Foundation
 struct GitWorktreeInspection: Equatable {
     let isRegisteredWorktree: Bool
     let isLinkedWorktree: Bool
+    let isLocked: Bool
     let mainWorktreePath: String?
     let branchName: String?
     let statusEntries: [String]?
@@ -120,7 +121,6 @@ struct WorktreeCleanupScanner {
             lastActiveAt: context.lastActiveAt,
             storageBytes: nil,
             state: state,
-            suggestedCommand: nil,
             checks: checks
         )
     }
@@ -133,7 +133,6 @@ struct WorktreeCleanupScanner {
     ) -> WorktreeCleanupCandidate {
         let reasons = reviewReasons(for: inspection, storageBytes: storageBytes)
         let state: WorktreeCleanupCandidate.State = reasons.isEmpty ? .clean : .review(reasons)
-        let command = state.isClean ? suggestedCommand(mainWorktreePath: inspection.mainWorktreePath, worktreePath: context.path) : nil
         let reviewEvidence = Self.reviewEvidence(for: inspection)
 
         return WorktreeCleanupCandidate(
@@ -145,7 +144,6 @@ struct WorktreeCleanupScanner {
             lastActiveAt: context.lastActiveAt,
             storageBytes: storageBytes,
             state: state,
-            suggestedCommand: command,
             checks: checks(for: inspection, storageBytes: storageBytes, active: true),
             reviewEvidence: reviewEvidence
         )
@@ -158,6 +156,9 @@ struct WorktreeCleanupScanner {
         }
         if inspection.mainWorktreePath == nil {
             reasons.appendUnique("Main checkout path could not be verified")
+        }
+        if inspection.isLocked {
+            reasons.appendUnique("Worktree is locked")
         }
         if let statusEntries = inspection.statusEntries {
             if !Self.untrackedPaths(fromStatusEntries: statusEntries).isEmpty {
@@ -175,9 +176,6 @@ struct WorktreeCleanupScanner {
             }
         } else if !reasons.contains(where: Self.isCommitSafetyReason) {
             reasons.appendUnique("Branch upstream or commit safety could not be verified")
-        }
-        if storageBytes == nil {
-            reasons.appendUnique("Storage size scan failed")
         }
         return reasons
     }
@@ -220,24 +218,13 @@ struct WorktreeCleanupScanner {
             WorktreeCleanupCheck(label: "No untracked files", status: statusUnavailable || untrackedDirty ? .review : .ok),
             WorktreeCleanupCheck(label: "Branch has no unique local commits", status: commitCount == 0 ? .ok : .review),
             WorktreeCleanupCheck(label: "Main checkout path is known", status: inspection.mainWorktreePath == nil ? .review : .ok),
-            WorktreeCleanupCheck(label: "Storage size scan completed", status: storageBytes == nil ? .review : .ok),
+            WorktreeCleanupCheck(label: "Worktree is not locked", status: inspection.isLocked ? .review : .ok),
+            WorktreeCleanupCheck(label: "Storage size scan completed", status: storageBytes == nil ? .ignored : .ok),
         ]
-    }
-
-    private func suggestedCommand(mainWorktreePath: String?, worktreePath: String) -> String? {
-        guard let mainWorktreePath else { return nil }
-        return "git -C \(Self.shellQuote(mainWorktreePath)) worktree remove \(Self.shellQuote(worktreePath))"
     }
 
     static func standardizedPath(_ path: String) -> String {
         Config.standardizedPath(path)
-    }
-
-    static func shellQuote(_ path: String) -> String {
-        guard path.range(of: #"^[A-Za-z0-9_@%+=:,./-]+$"#, options: .regularExpression) == nil else {
-            return path
-        }
-        return "'\(path.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 }
 

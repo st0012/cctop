@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 extension PopupView {
@@ -34,15 +33,6 @@ extension PopupView {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
-    }
-
-    func openInFinder(path: String) {
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path)
-    }
-
-    func copyPath(_ path: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(path, forType: .string)
     }
 
     func requestCleanupRemoval(_ candidate: WorktreeCleanupCandidate) {
@@ -88,7 +78,7 @@ extension PopupView {
         }
     }
 
-    func cleanupFailureMessage(from result: WorktreeRemovalService.GitResult) -> String {
+    func cleanupFailureMessage(from result: GitCommandResult) -> String {
         Config.nonEmpty(result.stderr.trimmingCharacters(in: .whitespacesAndNewlines))
             ?? Config.nonEmpty(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
             ?? "git exited with status \(result.exitCode)"
@@ -98,9 +88,9 @@ extension PopupView {
         switch confirmation {
         case .reviewWarning(let candidate):
             return Alert(
-                title: Text("Review Worktree?"),
-                message: Text("This worktree needs review. Removal uses git worktree remove without --force, and Git may refuse it."),
-                primaryButton: .default(Text("Continue")) {
+                title: Text(confirmation.title),
+                message: Text(confirmation.message),
+                primaryButton: .default(Text(confirmation.primaryButtonTitle)) {
                     DispatchQueue.main.async {
                         pendingRemovalConfirmation = .final(candidate)
                     }
@@ -109,9 +99,9 @@ extension PopupView {
             )
         case .final(let candidate):
             return Alert(
-                title: Text("Remove Worktree?"),
-                message: Text("Runs git worktree remove for \(candidate.worktreeName). The branch is left intact."),
-                primaryButton: .destructive(Text("Remove")) {
+                title: Text(confirmation.title),
+                message: Text(confirmation.message),
+                primaryButton: .destructive(Text(confirmation.primaryButtonTitle)) {
                     performCleanupRemoval(candidate)
                 },
                 secondaryButton: .cancel()

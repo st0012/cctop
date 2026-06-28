@@ -97,6 +97,22 @@ extension SessionManager {
         )
     }
 
+    func activeProjectPaths(in decoded: [(url: URL, session: Session)]) -> Set<String> {
+        let now = dataSources.now()
+        let candidates = Self.buildCandidates(
+            decoded,
+            now: now,
+            desktopAppConnectionLookup: dataSources.desktopAppConnection,
+            claudeMetadata: Self.claudeDesktopMetadataSnapshot(
+                in: decoded.map(\.session),
+                claudeDesktopSessions: dataSources.claudeDesktopSessions
+            ),
+            codexThreads: dataSources.codexThreads,
+            processAlive: dataSources.processAlive
+        )
+        return Set(candidates.filter { $0.session.lifecycle != .finished }.map(\.session.projectPath))
+    }
+
     func currentStatusesByStableKey() -> [String: SessionStatus] {
         Dictionary(
             sessions.map { (SessionIdentityPolicy.stableKey(for: $0), $0.status) },

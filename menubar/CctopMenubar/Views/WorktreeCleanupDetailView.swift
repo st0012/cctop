@@ -267,7 +267,7 @@ struct WorktreeCleanupDetailView: View {
     }
 
     private var nonOKChecks: [WorktreeCleanupCheck] {
-        candidate.checks.filter { $0.status != .ok }
+        candidate.checks.filter { $0.status == .review }
     }
 
     private var visibleReasons: [String] {

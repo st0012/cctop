@@ -41,7 +41,6 @@ final class WorktreeCleanupTests: XCTestCase {
         )
 
         XCTAssertEqual(candidates[0].state, .ignored(["Active cctop session is using this path"]))
-        XCTAssertNil(candidates[0].suggestedCommand)
     }
 
     func testMissingPathIsIgnored() {
@@ -58,6 +57,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let inspection = GitWorktreeInspection(
             isRegisteredWorktree: true,
             isLinkedWorktree: false,
+            isLocked: false,
             mainWorktreePath: path,
             branchName: "master",
             statusEntries: [],
@@ -83,7 +83,6 @@ final class WorktreeCleanupTests: XCTestCase {
         ).candidates(from: [historySession(path: path)], activeProjectPaths: [])[0]
 
         XCTAssertEqual(candidate.state, .review(["Worktree has uncommitted tracked changes"]))
-        XCTAssertNil(candidate.suggestedCommand)
     }
 
     func testUntrackedFilesProduceReview() {
@@ -124,6 +123,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let inspection = GitWorktreeInspection(
             isRegisteredWorktree: true,
             isLinkedWorktree: true,
+            isLocked: false,
             mainWorktreePath: "/Users/dev/projects/billing-api",
             branchName: "feature/invoices",
             statusEntries: nil,
@@ -174,13 +174,9 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(candidate.state, WorktreeCleanupCandidate.State.clean)
         XCTAssertEqual(candidate.branchName, "feature/invoices")
         XCTAssertEqual(candidate.storageBytes, 842 * 1_024 * 1_024)
-        XCTAssertEqual(
-            candidate.suggestedCommand,
-            "git -C /Users/dev/projects/billing-api worktree remove /Users/dev/.codex/worktrees/billing-api"
-        )
     }
 
-    func testStorageFailureProducesReview() {
+    func testStorageFailureKeepsOtherwiseSafeCandidateClean() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
 
         let candidate = scanner(
@@ -189,7 +185,22 @@ final class WorktreeCleanupTests: XCTestCase {
             sizes: [:]
         ).candidates(from: [historySession(path: path)], activeProjectPaths: [])[0]
 
-        XCTAssertEqual(candidate.state, .review(["Storage size scan failed"]))
+        XCTAssertEqual(candidate.state, .clean)
+        XCTAssertNil(candidate.storageBytes)
+        XCTAssertEqual(candidate.formattedStorage, "Unknown")
+        XCTAssertEqual(candidate.checks.last, WorktreeCleanupCheck(label: "Storage size scan completed", status: .ignored))
+    }
+
+    func testLockedWorktreeProducesReview() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+
+        let candidate = scanner(
+            existingPaths: [path],
+            inspections: [path: cleanInspection(isLocked: true)]
+        ).candidates(from: [historySession(path: path)], activeProjectPaths: [])[0]
+
+        XCTAssertEqual(candidate.state, .review(["Worktree is locked"]))
+        XCTAssertTrue(candidate.checks.contains(WorktreeCleanupCheck(label: "Worktree is not locked", status: .review)))
     }
 
     func testMissingStatusMarksStatusChecksForReview() {
@@ -197,6 +208,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let inspection = GitWorktreeInspection(
             isRegisteredWorktree: true,
             isLinkedWorktree: true,
+            isLocked: false,
             mainWorktreePath: "/Users/dev/projects/billing-api",
             branchName: "feature/invoices",
             statusEntries: nil,
@@ -220,17 +232,13 @@ final class WorktreeCleanupTests: XCTestCase {
         var statusArguments: [String]?
         let inspector = GitWorktreeInspector { _, arguments in
             switch arguments {
-            case ["worktree", "list", "--porcelain"]:
+            case ["worktree", "list", "--porcelain", "-z"]:
                 return GitCommandResult(
                     exitCode: 0,
-                    stdout: """
-                    worktree /Users/dev/projects/billing-api
-                    branch refs/heads/main
-
-                    worktree \(path)
-                    branch refs/heads/feature/invoices
-
-                    """,
+                    stdout: "worktree /Users/dev/projects/billing-api\0"
+                        + "branch refs/heads/main\0\0"
+                        + "worktree \(path)\0"
+                        + "branch refs/heads/feature/invoices\0\0",
                     stderr: ""
                 )
             case ["branch", "--show-current"]:
@@ -255,6 +263,21 @@ final class WorktreeCleanupTests: XCTestCase {
 
         XCTAssertEqual(statusArguments, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])
         XCTAssertEqual(inspection.statusEntries, ["?? file with spaces.txt", "?? nested/path.txt", " M tracked.swift"])
+    }
+
+    func testInspectorReadsZPorcelainWorktreeListLockedMetadata() {
+        let entries = GitWorktreeInspector.parseWorktreeList(
+            "worktree /Users/dev/projects/billing-api\0"
+                + "branch refs/heads/main\0\0"
+                + "worktree /Users/dev/.codex/worktrees/billing-api\0"
+                + "branch refs/heads/feature/invoices\0"
+                + "locked maintenance reason\0\0"
+        )
+
+        XCTAssertEqual(entries, [
+            worktreeEntry("/Users/dev/projects/billing-api", branch: "main"),
+            worktreeEntry("/Users/dev/.codex/worktrees/billing-api", branch: "feature/invoices", isLocked: true),
+        ])
     }
 
     func testZStatusParserPreservesPathsAndExcludesTrackedRenameCopyFromUntrackedPreview() {
@@ -293,10 +316,9 @@ final class WorktreeCleanupTests: XCTestCase {
             state: .review([
                 "No upstream branch",
                 "Branch unique commits could not be verified",
-                "Storage size scan failed",
+                "Worktree is locked",
                 "Worktree has untracked files",
             ]),
-            suggestedCommand: nil,
             checks: []
         )
 
@@ -313,6 +335,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let inspection = GitWorktreeInspection(
             isRegisteredWorktree: true,
             isLinkedWorktree: true,
+            isLocked: false,
             mainWorktreePath: nil,
             branchName: "feature/invoices",
             statusEntries: [],
@@ -324,7 +347,6 @@ final class WorktreeCleanupTests: XCTestCase {
             .candidates(from: [historySession(path: path)], activeProjectPaths: [])[0]
 
         XCTAssertEqual(candidate.state, .review(["Main checkout path could not be verified"]))
-        XCTAssertNil(candidate.suggestedCommand)
     }
 
     func testRegisteredSiblingWithoutEndedSessionIsNotAdded() {
@@ -389,6 +411,7 @@ final class WorktreeCleanupTests: XCTestCase {
                 repo: GitWorktreeInspection(
                     isRegisteredWorktree: true,
                     isLinkedWorktree: false,
+                    isLocked: false,
                     mainWorktreePath: repo,
                     branchName: "master",
                     statusEntries: [],
@@ -503,14 +526,14 @@ final class WorktreeCleanupTests: XCTestCase {
             scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: cleanInspection()]),
             runGit: { arguments in
                 gitArguments.append(arguments)
-                return WorktreeRemovalService.GitResult(exitCode: 0, stdout: "removed\n", stderr: "")
+                return GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
             }
         )
 
         let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
 
         XCTAssertEqual(gitArguments, [["-C", mainPath, "worktree", "remove", worktreePath]])
-        XCTAssertEqual(result, .removed(WorktreeRemovalService.GitResult(exitCode: 0, stdout: "removed\n", stderr: "")))
+        XCTAssertEqual(result, .removed(GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")))
     }
 
     func testRemovalServiceRunsGitWorktreeRemoveWithArgumentArrayForReviewCandidate() {
@@ -526,7 +549,6 @@ final class WorktreeCleanupTests: XCTestCase {
             lastActiveAt: now,
             storageBytes: 1_024,
             state: .review(["Worktree has untracked files"]),
-            suggestedCommand: nil,
             checks: []
         )
         var gitArguments: [[String]] = []
@@ -534,14 +556,14 @@ final class WorktreeCleanupTests: XCTestCase {
             scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: cleanInspection()]),
             runGit: { arguments in
                 gitArguments.append(arguments)
-                return WorktreeRemovalService.GitResult(exitCode: 0, stdout: "removed\n", stderr: "")
+                return GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
             }
         )
 
         let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
 
         XCTAssertEqual(gitArguments, [["-C", mainPath, "worktree", "remove", worktreePath]])
-        XCTAssertEqual(result, .removed(WorktreeRemovalService.GitResult(exitCode: 0, stdout: "removed\n", stderr: "")))
+        XCTAssertEqual(result, .removed(GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")))
     }
 
     func testRemovalServiceLetsGitRefuseReviewCandidateWithDirtyPreflight() {
@@ -556,10 +578,9 @@ final class WorktreeCleanupTests: XCTestCase {
             lastActiveAt: now,
             storageBytes: 1_024,
             state: .review(["Worktree has untracked files"]),
-            suggestedCommand: nil,
             checks: []
         )
-        let failure = WorktreeRemovalService.GitResult(
+        let failure = GitCommandResult(
             exitCode: 128,
             stdout: "",
             stderr: "fatal: contains modified or untracked files\n"
@@ -594,7 +615,7 @@ final class WorktreeCleanupTests: XCTestCase {
             ),
             runGit: { _ in
                 didRunGit = true
-                return WorktreeRemovalService.GitResult(exitCode: 0, stdout: "", stderr: "")
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
             }
         )
 
@@ -605,6 +626,28 @@ final class WorktreeCleanupTests: XCTestCase {
             return XCTFail("Expected removal to be refused after dirty preflight, got \(result)")
         }
         XCTAssertEqual(preflightCandidate.state, .review(["Worktree has untracked files"]))
+    }
+
+    func testRemovalServiceRefusesStaleCleanCandidateWhenActivePathAppearsBeforePreflight() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let staleCleanCandidate = cleanupCandidate(path: worktreePath)
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: cleanInspection()]),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [worktreePath])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused once the path became active, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .ignored(["Active cctop session is using this path"]))
     }
 
     func testRemovalServiceRefusesIgnoredCandidateWithoutInvokingGit() {
@@ -619,7 +662,6 @@ final class WorktreeCleanupTests: XCTestCase {
             lastActiveAt: now,
             storageBytes: 1_024,
             state: .ignored(["Active cctop session is using this path"]),
-            suggestedCommand: nil,
             checks: []
         )
         var didRunGit = false
@@ -627,7 +669,7 @@ final class WorktreeCleanupTests: XCTestCase {
             scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: cleanInspection()]),
             runGit: { _ in
                 didRunGit = true
-                return WorktreeRemovalService.GitResult(exitCode: 0, stdout: "", stderr: "")
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
             }
         )
 
@@ -641,7 +683,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)
         let candidate = cleanupCandidate(path: worktreePath)
-        let failure = WorktreeRemovalService.GitResult(
+        let failure = GitCommandResult(
             exitCode: 128,
             stdout: "",
             stderr: "fatal: contains modified or untracked files\n"
@@ -678,13 +720,14 @@ final class WorktreeCleanupTests: XCTestCase {
             lastActiveAt: now,
             storageBytes: 1_024,
             state: .review(["Worktree has untracked files"]),
-            suggestedCommand: nil,
             checks: []
         )
 
         XCTAssertEqual(WorktreeRemovalConfirmation.initial(for: clean), .final(clean))
         XCTAssertEqual(WorktreeRemovalConfirmation.initial(for: review), .reviewWarning(review))
         XCTAssertEqual(WorktreeRemovalConfirmation.reviewWarning(review).confirmedReviewWarning, .final(review))
+        XCTAssertEqual(WorktreeRemovalConfirmation.reviewWarning(review).primaryButtonTitle, "Continue")
+        XCTAssertEqual(WorktreeRemovalConfirmation.final(clean).primaryButtonTitle, "Remove")
     }
 
     func testCleanupViewsExposeOnlyRemoveActions() throws {
@@ -721,6 +764,22 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(detailViewSource.contains("isExpanded.toggle()"))
     }
 
+    func testCleanupCommandStringSurfaceIsRemoved() throws {
+        let root = try repoRoot()
+        let cleanupSources = try [
+            "menubar/CctopMenubar/Models/WorktreeCleanupCandidate.swift",
+            "menubar/CctopMenubar/Models/WorktreeCleanupCandidate+Mock.swift",
+            "menubar/CctopMenubar/Services/WorktreeCleanupScanner.swift",
+            "menubar/CctopMenubarTests/SnapshotTests.swift",
+        ].map { path in
+            try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+        }.joined(separator: "\n")
+
+        XCTAssertFalse(cleanupSources.contains("suggestedCommand"))
+        XCTAssertFalse(cleanupSources.contains("shellQuote"))
+        XCTAssertFalse(cleanupSources.contains("Copy Command"))
+    }
+
     private func scanner(
         existingPaths: Set<String>,
         inspections: [String: GitWorktreeInspection] = [:],
@@ -732,6 +791,7 @@ final class WorktreeCleanupTests: XCTestCase {
                 inspections[path] ?? GitWorktreeInspection(
                     isRegisteredWorktree: false,
                     isLinkedWorktree: false,
+                    isLocked: false,
                     mainWorktreePath: nil,
                     branchName: nil,
                     statusEntries: nil,
@@ -746,11 +806,13 @@ final class WorktreeCleanupTests: XCTestCase {
     private func cleanInspection(
         branch: String = "feature/invoices",
         statusEntries: [String] = [],
-        uniqueCommitCount: Int? = 0
+        uniqueCommitCount: Int? = 0,
+        isLocked: Bool = false
     ) -> GitWorktreeInspection {
         GitWorktreeInspection(
             isRegisteredWorktree: true,
             isLinkedWorktree: true,
+            isLocked: isLocked,
             mainWorktreePath: "/Users/dev/projects/billing-api",
             branchName: branch,
             statusEntries: statusEntries,
@@ -759,8 +821,13 @@ final class WorktreeCleanupTests: XCTestCase {
         )
     }
 
-    private func worktreeEntry(_ path: String, branch: String, isPrunable: Bool = false) -> GitWorktreeListEntry {
-        GitWorktreeListEntry(path: path, branchName: branch, isPrunable: isPrunable)
+    private func worktreeEntry(
+        _ path: String,
+        branch: String,
+        isPrunable: Bool = false,
+        isLocked: Bool = false
+    ) -> GitWorktreeListEntry {
+        GitWorktreeListEntry(path: path, branchName: branch, isPrunable: isPrunable, isLocked: isLocked)
     }
 
     private func historySession(
@@ -825,7 +892,6 @@ final class WorktreeCleanupTests: XCTestCase {
             lastActiveAt: now,
             storageBytes: 1_024,
             state: .clean,
-            suggestedCommand: "git -C /Users/dev/projects/billing-api worktree remove \(path)",
             checks: []
         )
     }
