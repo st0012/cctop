@@ -104,10 +104,7 @@ struct PopupView: View {
         }
         .onChange(of: sessions) { _ in ensureSelectedTabAvailable() }
         .onChange(of: recentProjects.map(\.id)) { _ in ensureSelectedTabAvailable() }
-        .onChange(of: cleanupCandidates.map(\.id)) { _ in
-            ensureSelectedTabAvailable()
-            ensureSelectedCleanupCandidateAvailable()
-        }
+        .onChange(of: actionableCleanupCandidates.map(\.id)) { _ in handleCleanupCandidatesChanged() }
         .onChange(of: selectedCleanupCandidate?.id) { _ in
             cleanupRemovalNotice = nil
             notifyLayoutChanged()
@@ -443,7 +440,7 @@ extension PopupView {
 
     private func confirmSelection() {
         guard let index = selectedIndex else { return }
-        let target = PopupSelectionTarget.target(
+        guard let target = PopupSelectionTarget.target(
             for: selectedTab,
             index: index,
             in: PopupSelectionContext(
@@ -452,7 +449,9 @@ extension PopupView {
                 recentProjects: recentProjects,
                 cleanupCandidates: actionableCleanupCandidates
             )
-        )
+        ) else {
+            return
+        }
         switch target {
         case .activeSession(let session), .idleSession(let session):
             focusSession(session)
@@ -461,10 +460,8 @@ extension PopupView {
             NSApp.deactivate()
         case .cleanupCandidate(let candidate):
             selectedCleanupCandidate = candidate
-        case nil:
-            return
         }
-        if isNavigateActive {
+        if isNavigateActive && target.confirmsNavigate {
             navigate?.didConfirmSubject.send()
         }
     }
@@ -488,6 +485,12 @@ extension PopupView {
            !actionableCleanupCandidates.contains(where: { $0.id == selectedCleanupCandidate.id }) {
             self.selectedCleanupCandidate = nil
         }
+    }
+
+    func handleCleanupCandidatesChanged() {
+        ensureSelectedTabAvailable()
+        ensureSelectedCleanupCandidateAvailable()
+        notifyLayoutChanged()
     }
 
 }

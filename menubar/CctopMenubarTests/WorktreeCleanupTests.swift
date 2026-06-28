@@ -587,6 +587,38 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(target, .cleanupCandidate(candidate))
     }
 
+    @MainActor
+    func testCleanupCandidateChangeNotifiesLayout() async throws {
+        let candidate = cleanupCandidate(path: "/Users/dev/.codex/worktrees/billing-api")
+        let layoutChanged = expectation(description: "cleanup candidate change notifies layout")
+        let view = popupView(
+            cleanupCandidates: [candidate],
+            onLayoutChanged: { layoutChanged.fulfill() }
+        )
+
+        view.handleCleanupCandidatesChanged()
+
+        await fulfillment(of: [layoutChanged], timeout: 1)
+    }
+
+    @MainActor
+    func testNavigateConfirmingCleanupCandidateKeepsNavigateModeActive() async throws {
+        let candidate = cleanupCandidate(path: "/Users/dev/.codex/worktrees/billing-api")
+        let target = PopupSelectionTarget.target(
+            for: .cleanup,
+            index: 0,
+            in: PopupSelectionContext(
+                activeSessions: [],
+                idleSessions: [],
+                recentProjects: [],
+                cleanupCandidates: [candidate]
+            )
+        )
+
+        XCTAssertEqual(target, .cleanupCandidate(candidate))
+        XCTAssertEqual(target?.confirmsNavigate, false)
+    }
+
     func testRefreshSignatureIsStableForIdenticalInputs() {
         let session = historySession(path: "/Users/dev/.codex/worktrees/billing-api")
         let lhs = WorktreeCleanupRefreshSignature(
@@ -1063,6 +1095,30 @@ final class WorktreeCleanupTests: XCTestCase {
             state: .clean,
             checks: []
         )
+    }
+
+    @MainActor
+    private func popupView(
+        cleanupCandidates: [WorktreeCleanupCandidate],
+        pluginManager: PluginManager? = nil,
+        navigate: NavigateController? = nil,
+        initialTab: PopupTab = .active,
+        onLayoutChanged: @escaping () -> Void = {}
+    ) -> PopupView {
+        PopupView(
+            sessions: [],
+            cleanupCandidates: cleanupCandidates,
+            updater: DisabledUpdater(),
+            pluginManager: pluginManager ?? inertPluginManager(),
+            navigate: navigate,
+            initialTab: initialTab,
+            onLayoutChanged: onLayoutChanged
+        )
+    }
+
+    @MainActor
+    private func inertPluginManager() -> PluginManager {
+        PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
     }
 
     private func repoRoot() throws -> URL {

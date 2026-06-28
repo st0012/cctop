@@ -47,6 +47,15 @@ enum PopupSelectionTarget: Equatable {
     case recentProject(RecentProject)
     case cleanupCandidate(WorktreeCleanupCandidate)
 
+    var confirmsNavigate: Bool {
+        switch self {
+        case .activeSession, .idleSession, .recentProject:
+            return true
+        case .cleanupCandidate:
+            return false
+        }
+    }
+
     static func target(
         for tab: PopupTab,
         index: Int,
