@@ -1,6 +1,14 @@
 import SwiftUI
 
 extension PopupView {
+    static func syncedCleanupCandidate(
+        _ selectedCandidate: WorktreeCleanupCandidate?,
+        in candidates: [WorktreeCleanupCandidate]
+    ) -> WorktreeCleanupCandidate? {
+        guard let selectedCandidate else { return nil }
+        return candidates.first { $0.id == selectedCandidate.id }
+    }
+
     var cleanupContent: some View {
         WorktreeCleanupTabView(
             candidates: actionableCleanupCandidates,
@@ -37,6 +45,16 @@ extension PopupView {
 
     func requestCleanupRemoval(_ candidate: WorktreeCleanupCandidate) {
         pendingRemovalConfirmation = .initial(for: candidate)
+    }
+
+    func handleSelectedTabChanged(_ newTab: PopupTab) {
+        selectedIndex = nil
+        if newTab == .cleanup {
+            onCleanupTabVisible()
+        } else {
+            selectedCleanupCandidate = nil
+            cleanupRemovalNotice = nil
+        }
     }
 
     func performCleanupRemoval(_ candidate: WorktreeCleanupCandidate) {

@@ -16,6 +16,7 @@ struct PopupView: View {
     var initialTab: PopupTab = .active
     var initialCleanupCandidate: WorktreeCleanupCandidate?
     var onRemoveCleanupCandidate: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalResult)?
+    var onCleanupTabVisible: () -> Void = {}
     /// Called (async on main) whenever content layout changes so the host can resize the panel.
     var onLayoutChanged: () -> Void = {}
     @State private var selectedTab: PopupTab = .active
@@ -95,16 +96,10 @@ struct PopupView: View {
             handleNavAction(action)
         }
         .onReceive(relativeTimeRefresh) { relativeTimeNow = $0 }
-        .onChange(of: selectedTab) { newTab in
-            selectedIndex = nil
-            if newTab != .cleanup {
-                selectedCleanupCandidate = nil
-                cleanupRemovalNotice = nil
-            }
-        }
+        .onChange(of: selectedTab) { handleSelectedTabChanged($0) }
         .onChange(of: sessions) { _ in ensureSelectedTabAvailable() }
         .onChange(of: recentProjects.map(\.id)) { _ in ensureSelectedTabAvailable() }
-        .onChange(of: actionableCleanupCandidates.map(\.id)) { _ in handleCleanupCandidatesChanged() }
+        .onChange(of: actionableCleanupCandidates) { _ in handleCleanupCandidatesChanged() }
         .onChange(of: selectedCleanupCandidate?.id) { _ in
             cleanupRemovalNotice = nil
             notifyLayoutChanged()
@@ -118,6 +113,9 @@ struct PopupView: View {
                let initialCleanupCandidate,
                actionableCleanupCandidates.contains(where: { $0.id == initialCleanupCandidate.id }) {
                 selectedCleanupCandidate = initialCleanupCandidate
+            }
+            if selectedTab == .cleanup {
+                onCleanupTabVisible()
             }
         }
     }
@@ -375,12 +373,11 @@ extension PopupView {
         cleanupCandidates.filter(\.state.isActionable)
     }
 
-    private func ensureSelectedCleanupCandidateAvailable() {
-        guard let selectedCleanupCandidate,
-              !actionableCleanupCandidates.contains(where: { $0.id == selectedCleanupCandidate.id }) else {
-            return
-        }
-        self.selectedCleanupCandidate = nil
+    private func syncSelectedCleanupCandidate() {
+        selectedCleanupCandidate = Self.syncedCleanupCandidate(
+            selectedCleanupCandidate,
+            in: actionableCleanupCandidates
+        )
     }
     private var availableTabs: [PopupTab] {
         PopupTab.availableTabs(
@@ -481,15 +478,12 @@ extension PopupView {
             selectedTab = .active
             return
         }
-        if let selectedCleanupCandidate,
-           !actionableCleanupCandidates.contains(where: { $0.id == selectedCleanupCandidate.id }) {
-            self.selectedCleanupCandidate = nil
-        }
+        syncSelectedCleanupCandidate()
     }
 
     func handleCleanupCandidatesChanged() {
         ensureSelectedTabAvailable()
-        ensureSelectedCleanupCandidateAvailable()
+        syncSelectedCleanupCandidate()
         notifyLayoutChanged()
     }
 

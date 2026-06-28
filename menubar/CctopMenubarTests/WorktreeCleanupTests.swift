@@ -275,6 +275,22 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(candidates[0].lastActiveAt, now)
     }
 
+    func testEndedSessionDeletedSubdirectoryUsesNearestExistingWorktreeRoot() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let deletedPath = "/Users/dev/.codex/worktrees/billing-api/pkg/generated"
+
+        let candidates = scanner(
+            existingPaths: [worktreePath],
+            inspections: [worktreePath: cleanInspection()],
+            resolvedRoots: [worktreePath: worktreePath],
+            sizes: [worktreePath: 2_048]
+        ).candidates(from: [historySession(path: deletedPath)], activeProjectPaths: [])
+
+        XCTAssertEqual(candidates.map(\.id), [worktreePath])
+        XCTAssertEqual(candidates[0].worktreePath, worktreePath)
+        XCTAssertEqual(candidates[0].state, .clean)
+    }
+
     func testStorageFailureKeepsOtherwiseSafeCandidateClean() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
 
@@ -635,6 +651,39 @@ final class WorktreeCleanupTests: XCTestCase {
     }
 
     @MainActor
+    func testCleanupTabBecomingVisibleRequestsFreshCleanupScan() {
+        let candidate = cleanupCandidate(path: "/Users/dev/.codex/worktrees/billing-api")
+        var visibilityRefreshCount = 0
+        let view = popupView(
+            cleanupCandidates: [candidate],
+            onCleanupTabVisible: { visibilityRefreshCount += 1 }
+        )
+
+        view.handleSelectedTabChanged(.cleanup)
+        view.handleSelectedTabChanged(.active)
+
+        XCTAssertEqual(visibilityRefreshCount, 1)
+    }
+
+    func testCleanupCandidateSyncUpdatesSelectedDetailWhenIDStillExists() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+        let clean = cleanupCandidate(path: path)
+        let review = WorktreeCleanupCandidate(
+            id: path,
+            sessionName: clean.sessionName,
+            worktreePath: clean.worktreePath,
+            worktreeName: clean.worktreeName,
+            branchName: clean.branchName,
+            lastActiveAt: clean.lastActiveAt,
+            storageBytes: clean.storageBytes,
+            state: .review(["Worktree has untracked files"]),
+            checks: []
+        )
+
+        XCTAssertEqual(PopupView.syncedCleanupCandidate(clean, in: [review]), review)
+    }
+
+    @MainActor
     func testNavigateConfirmingCleanupCandidateKeepsNavigateModeActive() async throws {
         let candidate = cleanupCandidate(path: "/Users/dev/.codex/worktrees/billing-api")
         let target = PopupSelectionTarget.target(
@@ -678,6 +727,36 @@ final class WorktreeCleanupTests: XCTestCase {
         )
 
         XCTAssertNotEqual(lhs, rhs)
+    }
+
+    @MainActor
+    func testForceRefreshBypassesStableSignature() async throws {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        var inspection = cleanInspection()
+        let manager = WorktreeCleanupManager(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { _ in true },
+                resolveWorktreeRoot: { _ in nil },
+                inspectGit: { _ in inspection },
+                measureSize: { _ in 1_024 }
+            )
+        )
+
+        manager.refresh(from: [session], activeProjectPaths: [])
+        try await waitForCleanupCandidates(manager) { candidates in
+            candidates.first?.state == .clean
+        }
+
+        inspection = cleanInspection(statusEntries: ["?? scratch.txt"])
+        manager.refresh(from: [session], activeProjectPaths: [])
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(manager.candidates.first?.state, .clean)
+
+        manager.refresh(from: [session], activeProjectPaths: [], force: true)
+        try await waitForCleanupCandidates(manager) { candidates in
+            candidates.first?.state == .review(["Worktree has untracked files"])
+        }
     }
 
     func testRemovalServiceRunsGitWorktreeRemoveWithArgumentArrayForCleanCandidate() {
@@ -1157,11 +1236,26 @@ final class WorktreeCleanupTests: XCTestCase {
     }
 
     @MainActor
+    private func waitForCleanupCandidates(
+        _ manager: WorktreeCleanupManager,
+        matching predicate: ([WorktreeCleanupCandidate]) -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        for _ in 0..<50 {
+            if predicate(manager.candidates) { return }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("Timed out waiting for cleanup candidates", file: file, line: line)
+    }
+
+    @MainActor
     private func popupView(
         cleanupCandidates: [WorktreeCleanupCandidate],
         pluginManager: PluginManager? = nil,
         navigate: NavigateController? = nil,
         initialTab: PopupTab = .active,
+        onCleanupTabVisible: @escaping () -> Void = {},
         onLayoutChanged: @escaping () -> Void = {}
     ) -> PopupView {
         PopupView(
@@ -1171,6 +1265,7 @@ final class WorktreeCleanupTests: XCTestCase {
             pluginManager: pluginManager ?? inertPluginManager(),
             navigate: navigate,
             initialTab: initialTab,
+            onCleanupTabVisible: onCleanupTabVisible,
             onLayoutChanged: onLayoutChanged
         )
     }

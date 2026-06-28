@@ -99,6 +99,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             onRemoveCleanupCandidate: { [weak self] candidate in
                 await self?.removeCleanupCandidate(candidate) ?? .refused(candidate)
             },
+            onCleanupTabVisible: { [weak self] in
+                Task { @MainActor in self?.refreshCleanupForPresentation() }
+            },
             onLayoutChanged: { [weak self] in
                 Task { @MainActor in self?.resizePanel(animate: true) }
             }
@@ -128,6 +131,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
         }
         return result
+    }
+
+    @MainActor private func refreshCleanupForPresentation() {
+        cleanupManager.refresh(
+            from: sessionManager.cleanupSourceSessions,
+            activeProjectPaths: sessionManager.cleanupActiveProjectPaths,
+            force: true
+        )
     }
 
     @MainActor private func registerShortcuts() {
@@ -502,11 +513,7 @@ extension AppDelegate {
         for action in actions {
             switch action {
             case .refreshCleanup:
-                cleanupManager.refresh(
-                    from: sessionManager.cleanupSourceSessions,
-                    activeProjectPaths: sessionManager.cleanupActiveProjectPaths,
-                    force: true
-                )
+                refreshCleanupForPresentation()
             case .showPanel:
                 notchVisibilityWork?.cancel()
                 // Plugin/hook state can change outside the app (e.g. trusting

@@ -55,8 +55,7 @@ struct WorktreeCleanupScanner {
             guard session.endedAt != nil else { continue }
             let rawPath = Self.standardizedPath(session.projectPath)
             let path = resolvedPaths[rawPath] ?? {
-                let resolvedPath = fileExists(rawPath) ? resolveWorktreeRoot(rawPath).map(Self.standardizedPath) : nil
-                let path = resolvedPath ?? rawPath
+                let path = resolvedCandidatePath(for: rawPath)
                 resolvedPaths[rawPath] = path
                 return path
             }()
@@ -69,6 +68,21 @@ struct WorktreeCleanupScanner {
             }
         }
         return result
+    }
+
+    private func resolvedCandidatePath(for rawPath: String) -> String {
+        let probePath = nearestExistingPath(atOrAbove: rawPath) ?? rawPath
+        return resolveWorktreeRoot(probePath).map(Self.standardizedPath) ?? rawPath
+    }
+
+    private func nearestExistingPath(atOrAbove path: String) -> String? {
+        var current = path
+        while true {
+            if fileExists(current) { return current }
+            let parent = (current as NSString).deletingLastPathComponent
+            guard parent != current else { return nil }
+            current = parent
+        }
     }
 
     private func candidate(from context: CandidateContext, activeProjectPaths: Set<String>) -> WorktreeCleanupCandidate {
