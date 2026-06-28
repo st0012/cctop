@@ -403,6 +403,39 @@ final class WorktreeCleanupTests: XCTestCase {
         )
     }
 
+    func testInspectorMarksInitializedSubmodulesForReview() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+        let inspector = GitWorktreeInspector { _, arguments in
+            switch arguments {
+            case ["worktree", "list", "--porcelain", "-z"]:
+                return GitCommandResult(
+                    exitCode: 0,
+                    stdout: "worktree /Users/dev/projects/billing-api\0"
+                        + "branch refs/heads/main\0\0"
+                        + "worktree \(path)\0"
+                        + "branch refs/heads/feature/invoices\0\0",
+                    stderr: ""
+                )
+            case ["branch", "--show-current"]:
+                return GitCommandResult(exitCode: 0, stdout: "feature/invoices\n", stderr: "")
+            case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]:
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            case ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]:
+                return GitCommandResult(exitCode: 0, stdout: "origin/feature/invoices\n", stderr: "")
+            case ["rev-list", "--count", "@{u}..HEAD"]:
+                return GitCommandResult(exitCode: 0, stdout: "0\n", stderr: "")
+            case ["submodule", "status", "--recursive"]:
+                return GitCommandResult(exitCode: 0, stdout: " abc123 deps/sub (heads/main)\n", stderr: "")
+            default:
+                return GitCommandResult(exitCode: 1, stdout: "", stderr: "unexpected \(arguments)")
+            }
+        }
+
+        let inspection = inspector.inspect(path: path)
+
+        XCTAssertEqual(inspection.failureReasons, [WorktreeCleanupCandidate.initializedSubmodulesReason])
+    }
+
     func testInspectorReadsZPorcelainWorktreeListLockedMetadata() {
         let entries = GitWorktreeInspector.parseWorktreeList(
             "worktree /Users/dev/projects/billing-api\0"
@@ -899,6 +932,49 @@ final class WorktreeCleanupTests: XCTestCase {
             return XCTFail("Expected removal to be refused when worktree identity changed, got \(result)")
         }
         XCTAssertEqual(preflightCandidate.branchName, "feature/other-work")
+    }
+
+    func testRemovalServiceRefusesInitializedSubmoduleCandidateWithoutInvokingGit() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let candidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Submodule cleanup",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.initializedSubmodulesReason]),
+            checks: []
+        )
+        let inspection = GitWorktreeInspection(
+            isRegisteredWorktree: true,
+            isLinkedWorktree: true,
+            isLocked: false,
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            statusEntries: [],
+            uniqueCommitCount: 0,
+            failureReasons: [WorktreeCleanupCandidate.initializedSubmodulesReason]
+        )
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: inspection]),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
+            }
+        )
+
+        let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected initialized-submodule review candidate to be refused, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .review([WorktreeCleanupCandidate.initializedSubmodulesReason]))
     }
 
     func testRemovalServiceLetsGitRefuseReviewCandidateWithDirtyPreflight() {

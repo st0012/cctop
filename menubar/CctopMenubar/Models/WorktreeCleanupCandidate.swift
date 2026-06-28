@@ -3,6 +3,7 @@ import Foundation
 struct WorktreeCleanupCandidate: Identifiable, Equatable {
     static let untrackedFilesReason = "Worktree has untracked files"
     static let ignoredFilesReason = "Worktree has ignored files"
+    static let initializedSubmodulesReason = "Worktree contains initialized submodules"
     private static let localFileReasons = [untrackedFilesReason, ignoredFilesReason]
 
     enum State: Equatable {

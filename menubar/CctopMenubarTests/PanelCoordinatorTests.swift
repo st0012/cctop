@@ -31,21 +31,23 @@ final class PanelCoordinatorTests: XCTestCase {
         XCTAssertTrue(r.actions.contains(.startNavigateMode(panelWasClosed: true)))
     }
 
-    func testPanelOpenActionsRefreshCleanupBeforeShowing() {
-        let results = [
-            handle(.menubarIconClicked(appIsActive: false), mode: .hidden),
-            handle(.navigateShortcut(), mode: .hidden),
-            handle(.menubarIconClicked(appIsActive: false, panelVisibleInActiveSpace: false), mode: .normal),
-            handle(.navigateShortcut(panelVisibleInActiveSpace: false), mode: .normal)
-        ]
-
-        for result in results {
-            guard let refreshIndex = result.actions.firstIndex(of: .refreshCleanup),
-                  let showIndex = result.actions.firstIndex(of: .showPanel) else {
-                return XCTFail("Expected cleanup refresh and show actions in \(result.actions)")
-            }
-            XCTAssertLessThan(refreshIndex, showIndex)
-        }
+    func testPanelOpenActionsDoNotForceCleanupRefresh() {
+        XCTAssertEqual(
+            handle(.menubarIconClicked(appIsActive: false), mode: .hidden).actions,
+            [.captureApps, .showPanel, .activateApp, .startNavKeyMonitor, .postNavAction(.reset)]
+        )
+        XCTAssertEqual(
+            handle(.navigateShortcut(), mode: .hidden).actions,
+            [.showPanel, .activateApp, .startNavKeyMonitor, .startNavigateMode(panelWasClosed: true)]
+        )
+        XCTAssertEqual(
+            handle(.menubarIconClicked(appIsActive: false, panelVisibleInActiveSpace: false), mode: .normal).actions,
+            [.captureApps, .showPanel, .activateApp, .startNavKeyMonitor, .postNavAction(.reset)]
+        )
+        XCTAssertEqual(
+            handle(.navigateShortcut(panelVisibleInActiveSpace: false), mode: .normal).actions,
+            [.showPanel, .activateApp, .startNavKeyMonitor, .startNavigateMode(panelWasClosed: true)]
+        )
     }
 
     func testHidden_otherEvents_noOp() {

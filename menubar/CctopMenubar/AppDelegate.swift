@@ -512,8 +512,6 @@ extension AppDelegate {
     @MainActor private func execute(_ actions: [PanelAction]) {
         for action in actions {
             switch action {
-            case .refreshCleanup:
-                refreshCleanupForPresentation()
             case .showPanel:
                 notchVisibilityWork?.cancel()
                 // Plugin/hook state can change outside the app (e.g. trusting

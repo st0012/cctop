@@ -58,6 +58,7 @@ struct GitWorktreeInspector {
         let branch = branchName(path: path, fallback: entries[matchIndex].branchName, failures: &failures)
         let statusEntries = statusEntries(path: path, failures: &failures)
         let uniqueCommitCount = uniqueCommitCount(path: path, branchKnown: branch != nil, failures: &failures)
+        detectInitializedSubmodules(path: path, failures: &failures)
 
         return GitWorktreeInspection(
             isRegisteredWorktree: true,
@@ -90,6 +91,20 @@ struct GitWorktreeInspector {
             return nil
         }
         return Self.parseStatusEntries(result.stdout)
+    }
+
+    private func detectInitializedSubmodules(path: String, failures: inout [String]) {
+        let result = runGit(path, ["submodule", "status", "--recursive"])
+        guard result.exitCode == 0 else { return }
+        let hasInitializedSubmodules = result.stdout
+            .split(whereSeparator: \.isNewline)
+            .contains { line in
+                guard let marker = line.first else { return false }
+                return marker != "-"
+            }
+        if hasInitializedSubmodules {
+            failures.append(WorktreeCleanupCandidate.initializedSubmodulesReason)
+        }
     }
 
     private func uniqueCommitCount(path: String, branchKnown: Bool, failures: inout [String]) -> Int? {

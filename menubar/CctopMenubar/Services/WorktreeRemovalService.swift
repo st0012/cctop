@@ -45,6 +45,9 @@ struct WorktreeRemovalService {
         if preflightCandidate.changesLocalFileReviewEvidence(comparedTo: candidate) {
             return .refused(preflightCandidate)
         }
+        if preflightCandidate.state.reasons.contains(WorktreeCleanupCandidate.initializedSubmodulesReason) {
+            return .refused(preflightCandidate)
+        }
 
         let inspection = scanner.inspectGit(preflightCandidate.worktreePath)
         guard let mainWorktreePath = inspection.mainWorktreePath,
