@@ -57,6 +57,22 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(candidates[0].state, .ignored(["Active cctop session is using this path"]))
     }
 
+    func testActiveProjectPathResolvingToCandidateRootIsIgnored() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+        let aliasPath = "/tmp/billing-api-link"
+
+        let candidates = scanner(
+            existingPaths: [path, aliasPath],
+            inspections: [path: cleanInspection()],
+            resolvedRoots: [aliasPath: path]
+        ).candidates(
+            from: [historySession(path: path)],
+            activeProjectPaths: [aliasPath]
+        )
+
+        XCTAssertEqual(candidates[0].state, .ignored(["Active cctop session is using this path"]))
+    }
+
     func testActiveProjectPathPrefixSiblingDoesNotProtectCandidate() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
 
@@ -1140,6 +1156,37 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
             return XCTFail("Expected removal to be refused once a descendant path became active, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .ignored(["Active cctop session is using this path"]))
+    }
+
+    func testRemovalServiceRefusesStaleCleanCandidateWhenActiveAliasAppearsBeforePreflight() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let aliasPath = "/tmp/billing-api-link"
+        let session = historySession(path: worktreePath)
+        let staleCleanCandidate = cleanupCandidate(path: worktreePath)
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath, aliasPath],
+                inspections: [worktreePath: cleanInspection()],
+                resolvedRoots: [aliasPath: worktreePath]
+            ),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(
+            staleCleanCandidate,
+            sourceSessions: [session],
+            activeProjectPaths: [aliasPath]
+        )
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused once an alias path became active, got \(result)")
         }
         XCTAssertEqual(preflightCandidate.state, .ignored(["Active cctop session is using this path"]))
     }

@@ -31,7 +31,7 @@ struct WorktreeCleanupScanner {
         from sourceSessions: [Session],
         activeProjectPaths: Set<String>
     ) -> [WorktreeCleanupCandidate] {
-        let activePaths = Set(activeProjectPaths.map(Self.standardizedPath))
+        let activePaths = resolvedActiveProjectPaths(activeProjectPaths)
         let contexts = candidateContexts(from: sourceSessions)
 
         return contexts.values
@@ -73,6 +73,12 @@ struct WorktreeCleanupScanner {
     private func resolvedCandidatePath(for rawPath: String) -> String {
         let probePath = nearestExistingPath(atOrAbove: rawPath) ?? rawPath
         return resolveWorktreeRoot(probePath).map(Self.standardizedPath) ?? rawPath
+    }
+
+    private func resolvedActiveProjectPaths(_ activeProjectPaths: Set<String>) -> Set<String> {
+        Set(activeProjectPaths.map { activePath in
+            resolvedCandidatePath(for: Self.standardizedPath(activePath))
+        })
     }
 
     private func nearestExistingPath(atOrAbove path: String) -> String? {
