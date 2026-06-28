@@ -39,6 +39,9 @@ struct WorktreeRemovalService {
         if candidate.state.isClean && !preflightCandidate.state.isClean {
             return .refused(preflightCandidate)
         }
+        if preflightCandidate.addsLocalFileReviewEvidence(comparedTo: candidate) {
+            return .refused(preflightCandidate)
+        }
 
         let inspection = scanner.inspectGit(preflightCandidate.worktreePath)
         guard let mainWorktreePath = inspection.mainWorktreePath,
@@ -61,5 +64,15 @@ struct WorktreeRemovalService {
             return .failed(result)
         }
         return .removed(result)
+    }
+}
+
+private extension WorktreeCleanupCandidate {
+    func addsLocalFileReviewEvidence(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
+        let confirmedReasons = Set(candidate.state.reasons)
+        return [
+            WorktreeCleanupCandidate.untrackedFilesReason,
+            WorktreeCleanupCandidate.ignoredFilesReason,
+        ].contains { state.reasons.contains($0) && !confirmedReasons.contains($0) }
     }
 }
