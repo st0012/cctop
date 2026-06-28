@@ -513,6 +513,35 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(arguments, [sessionPath, "worktree", "list", "--porcelain", "-z"])
     }
 
+    func testInspectorResolvesSymlinkedPathToContainingWorktreeRoot() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-worktree-inspector-\(UUID().uuidString)")
+        let repo = root.appendingPathComponent("repo")
+        let worktree = root.appendingPathComponent("worktree")
+        let nested = worktree.appendingPathComponent("pkg")
+        let symlink = root.appendingPathComponent("worktree-link")
+        let symlinkedNestedPath = symlink.appendingPathComponent("pkg").path
+
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: worktree)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let output = [
+            "worktree \(repo.path)",
+            "branch refs/heads/master",
+            "",
+            "worktree \(worktree.path)",
+            "branch refs/heads/feature/invoices",
+            "",
+        ].joined(separator: "\u{0}")
+        let inspector = GitWorktreeInspector(runGit: { _, _ in
+            GitCommandResult(exitCode: 0, stdout: output, stderr: "")
+        })
+
+        XCTAssertEqual(inspector.worktreeRoot(containing: symlinkedNestedPath), worktree.path)
+    }
+
     func testRegisteredSiblingWithoutEndedSessionIsNotAdded() {
         let repo = "/Users/dev/projects/billing-api"
         let historyPath = "/Users/dev/projects/billing-api/.claude/worktrees/old-session"

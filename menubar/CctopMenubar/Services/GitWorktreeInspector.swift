@@ -17,10 +17,10 @@ struct GitWorktreeInspector {
 
     func worktreeRoot(containing path: String) -> String? {
         guard let entries = listWorktrees(from: path) else { return nil }
-        let standardizedPath = Config.standardizedPath(path)
+        let comparablePath = Self.comparablePath(path)
         return entries
             .map(\.path)
-            .filter { Self.path(standardizedPath, isSameAsOrDescendantOf: Config.standardizedPath($0)) }
+            .filter { Self.path(comparablePath, isSameAsOrDescendantOf: Self.comparablePath($0)) }
             .max { lhs, rhs in lhs.count < rhs.count }
     }
 
@@ -40,9 +40,9 @@ struct GitWorktreeInspector {
             )
         }
 
-        let standardizedPath = Config.standardizedPath(path)
+        let comparablePath = Self.comparablePath(path)
         let mainWorktreePath = entries.first?.path
-        guard let matchIndex = entries.firstIndex(where: { Config.standardizedPath($0.path) == standardizedPath }) else {
+        guard let matchIndex = entries.firstIndex(where: { Self.comparablePath($0.path) == comparablePath }) else {
             return GitWorktreeInspection(
                 isRegisteredWorktree: false,
                 isLinkedWorktree: false,
@@ -158,6 +158,10 @@ struct GitWorktreeInspector {
 
     private static func path(_ path: String, isSameAsOrDescendantOf root: String) -> Bool {
         path == root || path.hasPrefix(root.hasSuffix("/") ? root : "\(root)/")
+    }
+
+    private static func comparablePath(_ path: String) -> String {
+        Config.standardizedPath((path as NSString).resolvingSymlinksInPath)
     }
 }
 
