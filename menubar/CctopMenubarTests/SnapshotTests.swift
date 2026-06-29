@@ -540,7 +540,17 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
                     WorktreeCleanupCandidate.untrackedFilesReason,
                     WorktreeCleanupCandidate.ignoredFilesReason,
                     "No upstream branch",
-                ])
+                ]),
+                reviewEvidence: localFilePreviewEvidence(
+                    untrackedPaths: [
+                        "scratch notes.md",
+                        "generated/output.json",
+                    ],
+                    ignoredPaths: [
+                        ".env.local",
+                        "cache/build.log",
+                    ]
+                )
             )
         )
         let untrackedOnly = cleanupScenarioCandidate(
@@ -713,6 +723,13 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             return .empty
         }
         return WorktreeCleanupReviewEvidence(untrackedPreview: preview)
+    }
+
+    private func localFilePreviewEvidence(untrackedPaths: [String], ignoredPaths: [String]) -> WorktreeCleanupReviewEvidence {
+        WorktreeCleanupReviewEvidence(
+            untrackedPreview: WorktreeCleanupUntrackedPreview(paths: untrackedPaths),
+            ignoredPreview: WorktreeCleanupUntrackedPreview(paths: ignoredPaths)
+        )
     }
 
     private func inertPluginManager() -> PluginManager {
