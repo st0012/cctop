@@ -8,6 +8,7 @@ private let worktreeInspectorLogger = Logger(
 
 struct GitWorktreeInspector {
     var runGit: (String, [String]) -> GitCommandResult = GitCommand.run
+    var runGitWithInput: (String, [String], String) -> GitCommandResult = GitCommand.run
     var worktreeFileMode: (String) -> String? = Self.gitWorktreeFileMode
 
     func listWorktrees(from path: String) -> [GitWorktreeListEntry]? {
@@ -108,11 +109,20 @@ struct GitWorktreeInspector {
 
     private func hasWorktreeContentChangedFromIndex(path: String, entry: IndexHiddenTrackedEntry) -> Bool {
         let worktreeObject = runGit(path, ["hash-object", "--path=\(entry.path)", "--", entry.path])
-        guard worktreeObject.exitCode == 0 else { return true }
+        guard worktreeObject.exitCode == 0 else {
+            return !isSparseCheckoutIndexOnlyPath(path: path, entry: entry)
+        }
         guard let worktreeObjectID = Config.nonEmpty(worktreeObject.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) else { return true }
         guard worktreeObjectID == entry.objectID else { return true }
         guard let worktreeMode = worktreeFileMode(Self.absolutePath(path, entry.path)) else { return true }
         return worktreeMode != entry.mode
+    }
+
+    private func isSparseCheckoutIndexOnlyPath(path: String, entry: IndexHiddenTrackedEntry) -> Bool {
+        guard entry.marker == "S" || entry.marker == "s" else { return false }
+        let result = runGitWithInput(path, ["sparse-checkout", "check-rules", "-z"], "\(entry.path)\u{0}")
+        guard result.exitCode == 0 else { return false }
+        return !Self.parseStatusEntries(result.stdout).contains(entry.path)
     }
 
     private func detectInitializedSubmodules(path: String, failures: inout [String]) {
@@ -211,7 +221,7 @@ struct GitWorktreeInspector {
             guard parts.count == 2 else { return nil }
             let fields = parts[0].split(separator: " ")
             guard fields.count >= 3 else { return nil }
-            return IndexHiddenTrackedEntry(mode: String(fields[0]), path: String(parts[1]), objectID: String(fields[1]))
+            return IndexHiddenTrackedEntry(marker: String(marker), mode: String(fields[0]), path: String(parts[1]), objectID: String(fields[1]))
         }
     }
 
@@ -253,6 +263,7 @@ struct GitWorktreeListEntry: Equatable {
 }
 
 private struct IndexHiddenTrackedEntry {
+    let marker: String
     let mode: String
     let path: String
     let objectID: String
@@ -273,7 +284,11 @@ enum GitCommand {
         runProcess(arguments: ["-C", cwd] + arguments)
     }
 
-    private static func runProcess(arguments: [String]) -> GitCommandResult {
+    static func run(cwd: String, arguments: [String], stdin: String) -> GitCommandResult {
+        runProcess(arguments: ["-C", cwd] + arguments, stdin: stdin)
+    }
+
+    private static func runProcess(arguments: [String], stdin: String? = nil) -> GitCommandResult {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = arguments
@@ -282,12 +297,20 @@ enum GitCommand {
         let stderr = Pipe()
         process.standardOutput = stdout
         process.standardError = stderr
+        let inputPipe = Pipe()
+        if stdin != nil {
+            process.standardInput = inputPipe
+        }
 
         do {
             try process.run()
         } catch {
             worktreeInspectorLogger.debug("git failed to launch: \(error.localizedDescription, privacy: .public)")
             return GitCommandResult(exitCode: 127, stdout: "", stderr: error.localizedDescription)
+        }
+        if let stdin {
+            inputPipe.fileHandleForWriting.write(Data(stdin.utf8))
+            inputPipe.fileHandleForWriting.closeFile()
         }
 
         let group = DispatchGroup()

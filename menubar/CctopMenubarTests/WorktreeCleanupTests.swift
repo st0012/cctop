@@ -458,8 +458,30 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
     }
 
+    func testInspectorIgnoresSparseCheckoutIndexOnlySkipWorktreeFilesWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(
+            indexMarker: "S",
+            worktreeObjectExitCode: 128,
+            sparseCheckRulesOutput: ""
+        )
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
     func testInspectorMarksSkipWorktreeTrackedModeChangesForReviewWhenStatusIsClean() {
         let inspection = hiddenTrackedEditInspection(indexMarker: "S", indexMode: "100644", worktreeMode: "100755")
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
+    func testInspectorMarksSparseCheckoutIncludedSkipWorktreeDeletionsForReviewWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(
+            indexMarker: "S",
+            worktreeObjectExitCode: 128,
+            sparseCheckRulesOutput: "tracked.txt\0"
+        )
 
         XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
         XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
@@ -1913,7 +1935,8 @@ final class WorktreeCleanupTests: XCTestCase {
         indexObjectID: String = "index-clean",
         worktreeObjectID: String = "index-clean",
         worktreeMode: String = "100644",
-        worktreeObjectExitCode: Int32 = 0
+        worktreeObjectExitCode: Int32 = 0,
+        sparseCheckRulesOutput: String? = nil
     ) -> GitWorktreeInspection {
         let path = "/Users/dev/.codex/worktrees/billing-api"
         let inspector = GitWorktreeInspector(
@@ -1953,6 +1976,17 @@ final class WorktreeCleanupTests: XCTestCase {
             default:
                 return GitCommandResult(exitCode: 1, stdout: "", stderr: "unexpected \(arguments)")
             }
+            },
+            runGitWithInput: { _, arguments, input in
+                switch arguments {
+                case ["sparse-checkout", "check-rules", "-z"] where input == "tracked.txt\0":
+                    guard let sparseCheckRulesOutput else {
+                        return GitCommandResult(exitCode: 128, stdout: "", stderr: "fatal: this worktree is not sparse")
+                    }
+                    return GitCommandResult(exitCode: 0, stdout: sparseCheckRulesOutput, stderr: "")
+                default:
+                    return GitCommandResult(exitCode: 1, stdout: "", stderr: "unexpected \(arguments)")
+                }
             },
             worktreeFileMode: { filePath in
                 filePath == "\(path)/tracked.txt" ? worktreeMode : nil
