@@ -538,6 +538,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
                 state: .review([
                     "Worktree has uncommitted tracked changes",
                     WorktreeCleanupCandidate.untrackedFilesReason,
+                    WorktreeCleanupCandidate.ignoredFilesReason,
                     "No upstream branch",
                 ])
             )
