@@ -150,6 +150,14 @@ struct WorktreeCleanupUntrackedPreview: Equatable {
         max(totalCount - items.count, 0)
     }
 
+    var decisionEvidenceText: String {
+        var evidenceItems = items
+        if remainingCount > 0 {
+            evidenceItems.append("and \(remainingCount) more")
+        }
+        return evidenceItems.joined(separator: ", ")
+    }
+
     init?(paths: [String], visibleLimit: Int = 3) {
         let sourcePaths = paths
             .filter { !$0.isEmpty }

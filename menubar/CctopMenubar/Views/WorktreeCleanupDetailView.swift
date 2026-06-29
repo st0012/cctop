@@ -16,7 +16,9 @@ struct WorktreeCleanupDetailView: View {
                     summaryBlock
                     pathBlock
                     noticeBlock
-                    reviewReasonsBlock
+                    if !showsNoticeLocalFileEvidence {
+                        reviewReasonsBlock
+                    }
                     if candidate.state.isClean {
                         checksBlock
                     }
@@ -183,7 +185,7 @@ struct WorktreeCleanupDetailView: View {
                     .foregroundStyle(Color.textSecondary)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
-                if removalNotice.forceOffer != nil {
+                if showsNoticeLocalFileEvidence {
                     CleanupForceRemovalEvidenceBlock(evidence: candidate.reviewEvidence)
                 }
             }
@@ -323,7 +325,10 @@ struct WorktreeCleanupDetailView: View {
         return "~" + candidate.worktreePath.dropFirst(home.count)
     }
 
-    private var removeHelp: String {
+}
+
+private extension WorktreeCleanupDetailView {
+    var removeHelp: String {
         if removalNotice?.forceOffer != nil {
             return "Run git worktree remove --force after confirming; local changes in the worktree can be deleted"
         }
@@ -333,10 +338,13 @@ struct WorktreeCleanupDetailView: View {
         return "Run git worktree remove after an extra confirmation; Git may refuse unsafe worktrees"
     }
 
-    private var actionTitle: String {
+    var actionTitle: String {
         isRemoving ? "Removing..." : (removalNotice?.forceOffer == nil ? "Remove" : "Force Remove...")
     }
 
+    var showsNoticeLocalFileEvidence: Bool {
+        removalNotice != nil && candidate.reviewEvidence.hasLocalFilePreview
+    }
 }
 
 private struct CleanupForceRemovalEvidenceBlock: View {
@@ -357,12 +365,11 @@ private struct CleanupForceRemovalEvidenceBlock: View {
     }
 
     private func previewBlock(label: String, preview: WorktreeCleanupUntrackedPreview) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(Color.textMuted)
-            CleanupUntrackedPreviewBlock(preview: preview, isCompact: true)
-        }
+        Text("\(label): \(preview.decisionEvidenceText)")
+            .font(.system(size: 9, design: .monospaced))
+            .foregroundStyle(Color.textSecondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

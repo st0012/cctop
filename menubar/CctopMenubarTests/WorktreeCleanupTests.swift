@@ -197,6 +197,19 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(preview?.remainingCount, 2)
     }
 
+    func testUntrackedPreviewDecisionEvidenceTextIncludesRemainingCount() throws {
+        let preview = try XCTUnwrap(WorktreeCleanupUntrackedPreview(paths: [
+            "foo.rb",
+            "bar.rb",
+            "something/",
+            "notes with spaces.md",
+            "tmp/cache.json",
+            "very-long-local-directory-name-for-middle-truncation/output.txt",
+        ]))
+
+        XCTAssertEqual(preview.decisionEvidenceText, "foo.rb, bar.rb, something/, and 3 more")
+    }
+
     func testStatusUnavailableDoesNotInventUntrackedPreview() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
         let inspection = GitWorktreeInspection(
