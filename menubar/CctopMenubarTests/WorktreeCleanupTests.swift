@@ -430,6 +430,13 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
     }
 
+    func testInspectorMarksAssumeUnchangedTrackedDeletionsForReviewWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(indexMarker: "h", worktreeObjectExitCode: 128)
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
     func testInspectorMarksSkipWorktreeTrackedEditsForReviewWhenStatusIsClean() {
         let inspection = hiddenTrackedEditInspection(indexMarker: "S", worktreeObjectID: "worktree-edited")
 
@@ -442,6 +449,13 @@ final class WorktreeCleanupTests: XCTestCase {
 
         XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
         XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
+    func testInspectorMarksSkipWorktreeTrackedDeletionsForReviewWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(indexMarker: "S", worktreeObjectExitCode: 128)
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
     }
 
     func testInspectorMarksCombinedHiddenTrackedEditsForReviewWhenStatusIsClean() {
@@ -1882,7 +1896,8 @@ final class WorktreeCleanupTests: XCTestCase {
     private func hiddenTrackedEditInspection(
         indexMarker: String,
         indexObjectID: String = "index-clean",
-        worktreeObjectID: String = "index-clean"
+        worktreeObjectID: String = "index-clean",
+        worktreeObjectExitCode: Int32 = 0
     ) -> GitWorktreeInspection {
         let path = "/Users/dev/.codex/worktrees/billing-api"
         let inspector = GitWorktreeInspector { _, arguments in
@@ -1907,7 +1922,11 @@ final class WorktreeCleanupTests: XCTestCase {
                     stderr: ""
                 )
             case ["hash-object", "--path=tracked.txt", "--", "tracked.txt"]:
-                return GitCommandResult(exitCode: 0, stdout: "\(worktreeObjectID)\n", stderr: "")
+                return GitCommandResult(
+                    exitCode: worktreeObjectExitCode,
+                    stdout: worktreeObjectExitCode == 0 ? "\(worktreeObjectID)\n" : "",
+                    stderr: worktreeObjectExitCode == 0 ? "" : "fatal: could not open 'tracked.txt': No such file or directory"
+                )
             case ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]:
                 return GitCommandResult(exitCode: 0, stdout: "origin/feature/invoices\n", stderr: "")
             case ["rev-list", "--count", "@{u}..HEAD"]:

@@ -107,10 +107,8 @@ struct GitWorktreeInspector {
 
     private func hasWorktreeContentChangedFromIndex(path: String, entry: IndexHiddenTrackedEntry) -> Bool {
         let worktreeObject = runGit(path, ["hash-object", "--path=\(entry.path)", "--", entry.path])
-        guard worktreeObject.exitCode == 0,
-              let worktreeObjectID = Config.nonEmpty(worktreeObject.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return false
-        }
+        guard worktreeObject.exitCode == 0 else { return true }
+        guard let worktreeObjectID = Config.nonEmpty(worktreeObject.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) else { return true }
         return worktreeObjectID != entry.objectID
     }
 
