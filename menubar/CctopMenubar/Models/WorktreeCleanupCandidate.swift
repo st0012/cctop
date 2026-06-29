@@ -150,7 +150,6 @@ struct WorktreeCleanupUntrackedPreview: Equatable {
 
     init?(paths: [String], visibleLimit: Int = 3) {
         let sourcePaths = paths
-            .map(Self.normalizedSourcePath)
             .filter { !$0.isEmpty }
         let displayItems = Self.displayItems(from: sourcePaths)
         guard !displayItems.isEmpty else { return nil }
@@ -183,10 +182,6 @@ struct WorktreeCleanupUntrackedPreview: Equatable {
             return path
         }
         return "\(firstComponent)/"
-    }
-
-    private static func normalizedSourcePath(_ path: String) -> String {
-        Config.standardizedPath(path.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
 
