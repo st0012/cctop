@@ -95,16 +95,23 @@ struct GitWorktreeInspector {
     }
 
     private func detectIndexHiddenTrackedFiles(path: String, failures: inout [String]) {
-        let result = runGit(path, ["ls-files", "-v", "-z"])
+        let result = runGit(path, ["ls-files", "-s", "-v", "-z"])
         guard result.exitCode == 0 else { return }
-        let entries = Self.parseStatusEntries(result.stdout)
-        let hasHiddenTrackedFiles = entries.contains { entry in
-            guard let marker = entry.first else { return false }
-            return marker == "S" || marker == "s" || marker == "h"
+        let hasHiddenTrackedEdits = Self.indexHiddenTrackedEntries(result.stdout).contains { entry in
+            hasWorktreeContentChangedFromIndex(path: path, entry: entry)
         }
-        if hasHiddenTrackedFiles {
+        if hasHiddenTrackedEdits {
             failures.append(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason)
         }
+    }
+
+    private func hasWorktreeContentChangedFromIndex(path: String, entry: IndexHiddenTrackedEntry) -> Bool {
+        let worktreeObject = runGit(path, ["hash-object", "--path=\(entry.path)", "--", entry.path])
+        guard worktreeObject.exitCode == 0,
+              let worktreeObjectID = Config.nonEmpty(worktreeObject.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return false
+        }
+        return worktreeObjectID != entry.objectID
     }
 
     private func detectInitializedSubmodules(path: String, failures: inout [String]) {
@@ -185,6 +192,28 @@ struct GitWorktreeInspector {
             .map(String.init)
     }
 
+    private static func indexHiddenTrackedEntries(_ output: String) -> [IndexHiddenTrackedEntry] {
+        parseStatusEntries(output).compactMap { entry in
+            guard let marker = entry.first,
+                  marker == "S" || marker == "s" || marker == "h" else {
+                return nil
+            }
+            let separatorIndex = entry.index(after: entry.startIndex)
+            guard separatorIndex < entry.endIndex,
+                  entry[separatorIndex] == " " else {
+                return nil
+            }
+            let pathIndex = entry.index(after: separatorIndex)
+            guard pathIndex < entry.endIndex else { return nil }
+            let remainder = entry[pathIndex...]
+            let parts = remainder.split(separator: "\t", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { return nil }
+            let fields = parts[0].split(separator: " ")
+            guard fields.count >= 3 else { return nil }
+            return IndexHiddenTrackedEntry(path: String(parts[1]), objectID: String(fields[1]))
+        }
+    }
+
     private static func path(_ path: String, isSameAsOrDescendantOf root: String) -> Bool {
         path == root || path.hasPrefix(root.hasSuffix("/") ? root : "\(root)/")
     }
@@ -199,6 +228,11 @@ struct GitWorktreeListEntry: Equatable {
     let branchName: String?
     let isPrunable: Bool
     let isLocked: Bool
+}
+
+private struct IndexHiddenTrackedEntry {
+    let path: String
+    let objectID: String
 }
 
 struct GitCommandResult: Equatable {

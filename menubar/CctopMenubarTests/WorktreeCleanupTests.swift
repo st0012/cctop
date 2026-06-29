@@ -417,14 +417,35 @@ final class WorktreeCleanupTests: XCTestCase {
     }
 
     func testInspectorMarksAssumeUnchangedTrackedEditsForReviewWhenStatusIsClean() {
-        let inspection = hiddenTrackedEditInspection(indexMarker: "h")
+        let inspection = hiddenTrackedEditInspection(indexMarker: "h", worktreeObjectID: "worktree-edited")
 
         XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
         XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
     }
 
+    func testInspectorIgnoresCleanAssumeUnchangedTrackedFilesWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(indexMarker: "h")
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
     func testInspectorMarksSkipWorktreeTrackedEditsForReviewWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(indexMarker: "S", worktreeObjectID: "worktree-edited")
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
+    func testInspectorIgnoresCleanSkipWorktreeTrackedFilesWhenStatusIsClean() {
         let inspection = hiddenTrackedEditInspection(indexMarker: "S")
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
+    func testInspectorMarksCombinedHiddenTrackedEditsForReviewWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(indexMarker: "s", worktreeObjectID: "worktree-edited")
 
         XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
         XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
@@ -1858,7 +1879,11 @@ final class WorktreeCleanupTests: XCTestCase {
         GitWorktreeListEntry(path: path, branchName: branch, isPrunable: isPrunable, isLocked: isLocked)
     }
 
-    private func hiddenTrackedEditInspection(indexMarker: String) -> GitWorktreeInspection {
+    private func hiddenTrackedEditInspection(
+        indexMarker: String,
+        indexObjectID: String = "index-clean",
+        worktreeObjectID: String = "index-clean"
+    ) -> GitWorktreeInspection {
         let path = "/Users/dev/.codex/worktrees/billing-api"
         let inspector = GitWorktreeInspector { _, arguments in
             switch arguments {
@@ -1875,8 +1900,14 @@ final class WorktreeCleanupTests: XCTestCase {
                 return GitCommandResult(exitCode: 0, stdout: "feature/invoices\n", stderr: "")
             case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]:
                 return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
-            case ["ls-files", "-v", "-z"]:
-                return GitCommandResult(exitCode: 0, stdout: "\(indexMarker) tracked.txt\0H clean.txt\0", stderr: "")
+            case ["ls-files", "-s", "-v", "-z"]:
+                return GitCommandResult(
+                    exitCode: 0,
+                    stdout: "\(indexMarker) 100644 \(indexObjectID) 0\ttracked.txt\0H 100644 clean-id 0\tclean.txt\0",
+                    stderr: ""
+                )
+            case ["hash-object", "--path=tracked.txt", "--", "tracked.txt"]:
+                return GitCommandResult(exitCode: 0, stdout: "\(worktreeObjectID)\n", stderr: "")
             case ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]:
                 return GitCommandResult(exitCode: 0, stdout: "origin/feature/invoices\n", stderr: "")
             case ["rev-list", "--count", "@{u}..HEAD"]:
