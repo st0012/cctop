@@ -8,6 +8,7 @@ private let worktreeInspectorLogger = Logger(
 
 struct GitWorktreeInspector {
     var runGit: (String, [String]) -> GitCommandResult = GitCommand.run
+    var worktreeFileMode: (String) -> String? = Self.gitWorktreeFileMode
 
     func listWorktrees(from path: String) -> [GitWorktreeListEntry]? {
         let list = runGit(path, ["worktree", "list", "--porcelain", "-z"])
@@ -109,7 +110,9 @@ struct GitWorktreeInspector {
         let worktreeObject = runGit(path, ["hash-object", "--path=\(entry.path)", "--", entry.path])
         guard worktreeObject.exitCode == 0 else { return true }
         guard let worktreeObjectID = Config.nonEmpty(worktreeObject.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) else { return true }
-        return worktreeObjectID != entry.objectID
+        guard worktreeObjectID == entry.objectID else { return true }
+        guard let worktreeMode = worktreeFileMode(Self.absolutePath(path, entry.path)) else { return true }
+        return worktreeMode != entry.mode
     }
 
     private func detectInitializedSubmodules(path: String, failures: inout [String]) {
@@ -208,8 +211,29 @@ struct GitWorktreeInspector {
             guard parts.count == 2 else { return nil }
             let fields = parts[0].split(separator: " ")
             guard fields.count >= 3 else { return nil }
-            return IndexHiddenTrackedEntry(path: String(parts[1]), objectID: String(fields[1]))
+            return IndexHiddenTrackedEntry(mode: String(fields[0]), path: String(parts[1]), objectID: String(fields[1]))
         }
+    }
+
+    private static func absolutePath(_ root: String, _ relativePath: String) -> String {
+        URL(fileURLWithPath: root, isDirectory: true)
+            .appendingPathComponent(relativePath)
+            .path
+    }
+
+    private static func gitWorktreeFileMode(at path: String) -> String? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let type = attributes[.type] as? FileAttributeType else {
+            return nil
+        }
+        if type == .typeSymbolicLink {
+            return "120000"
+        }
+        guard type == .typeRegular,
+              let permissions = attributes[.posixPermissions] as? NSNumber else {
+            return nil
+        }
+        return permissions.intValue & 0o111 == 0 ? "100644" : "100755"
     }
 
     private static func path(_ path: String, isSameAsOrDescendantOf root: String) -> Bool {
@@ -229,6 +253,7 @@ struct GitWorktreeListEntry: Equatable {
 }
 
 private struct IndexHiddenTrackedEntry {
+    let mode: String
     let path: String
     let objectID: String
 }
