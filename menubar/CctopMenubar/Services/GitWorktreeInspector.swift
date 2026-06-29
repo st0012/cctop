@@ -10,6 +10,7 @@ struct GitWorktreeInspector {
     var runGit: (String, [String]) -> GitCommandResult = GitCommand.run
     var runGitWithInput: (String, [String], String) -> GitCommandResult = GitCommand.run
     var worktreeFileMode: (String) -> String? = Self.gitWorktreeFileMode
+    var symlinkDestination: (String) -> String? = Self.symlinkDestination
 
     func listWorktrees(from path: String) -> [GitWorktreeListEntry]? {
         let list = runGit(path, ["worktree", "list", "--porcelain", "-z"])
@@ -88,7 +89,7 @@ struct GitWorktreeInspector {
     }
 
     private func statusEntries(path: String, failures: inout [String]) -> [String]? {
-        let result = runGit(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"])
+        let result = runGit(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=traditional"])
         guard result.exitCode == 0 else {
             failures.append("Git status could not be read")
             return nil
@@ -108,14 +109,27 @@ struct GitWorktreeInspector {
     }
 
     private func hasWorktreeContentChangedFromIndex(path: String, entry: IndexHiddenTrackedEntry) -> Bool {
-        let worktreeObject = runGit(path, ["hash-object", "--path=\(entry.path)", "--", entry.path])
-        guard worktreeObject.exitCode == 0 else {
+        guard let worktreeObjectID = worktreeObjectID(path: path, entry: entry) else {
             return !isSparseCheckoutIndexOnlyPath(path: path, entry: entry)
         }
-        guard let worktreeObjectID = Config.nonEmpty(worktreeObject.stdout.trimmingCharacters(in: .whitespacesAndNewlines)) else { return true }
         guard worktreeObjectID == entry.objectID else { return true }
         guard let worktreeMode = worktreeFileMode(Self.absolutePath(path, entry.path)) else { return true }
         return worktreeMode != entry.mode
+    }
+
+    private func worktreeObjectID(path: String, entry: IndexHiddenTrackedEntry) -> String? {
+        if entry.mode == "120000" {
+            guard let destination = symlinkDestination(Self.absolutePath(path, entry.path)) else {
+                return nil
+            }
+            let result = runGitWithInput(path, ["hash-object", "--stdin"], destination)
+            guard result.exitCode == 0 else { return nil }
+            return Config.nonEmpty(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        let result = runGit(path, ["hash-object", "--path=\(entry.path)", "--", entry.path])
+        guard result.exitCode == 0 else { return nil }
+        return Config.nonEmpty(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     private func isSparseCheckoutIndexOnlyPath(path: String, entry: IndexHiddenTrackedEntry) -> Bool {
@@ -244,6 +258,10 @@ struct GitWorktreeInspector {
             return nil
         }
         return permissions.intValue & 0o111 == 0 ? "100644" : "100755"
+    }
+
+    private static func symlinkDestination(at path: String) -> String? {
+        try? FileManager.default.destinationOfSymbolicLink(atPath: path)
     }
 
     private static func path(_ path: String, isSameAsOrDescendantOf root: String) -> Bool {

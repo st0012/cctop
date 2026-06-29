@@ -391,7 +391,7 @@ final class WorktreeCleanupTests: XCTestCase {
                 )
             case ["branch", "--show-current"]:
                 return GitCommandResult(exitCode: 0, stdout: "feature/invoices\n", stderr: "")
-            case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]:
+            case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=traditional"]:
                 statusArguments = arguments
                 return GitCommandResult(
                     exitCode: 0,
@@ -409,7 +409,7 @@ final class WorktreeCleanupTests: XCTestCase {
 
         let inspection = inspector.inspect(path: path)
 
-        XCTAssertEqual(statusArguments, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"])
+        XCTAssertEqual(statusArguments, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=traditional"])
         XCTAssertEqual(
             inspection.statusEntries,
             ["?? file with spaces.txt", "?? nested/path.txt", "!! .env.local", " M tracked.swift"]
@@ -456,6 +456,36 @@ final class WorktreeCleanupTests: XCTestCase {
 
         XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
         XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
+    func testInspectorIgnoresCleanAssumeUnchangedSymlinksWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(
+            indexMarker: "h",
+            indexMode: "120000",
+            indexObjectID: "link-target-object",
+            worktreeObjectID: "target-file-object",
+            worktreeMode: "120000",
+            symlinkDestination: "target.txt",
+            symlinkObjectID: "link-target-object"
+        )
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+    }
+
+    func testInspectorMarksAssumeUnchangedSymlinkTargetChangesForReviewWhenStatusIsClean() {
+        let inspection = hiddenTrackedEditInspection(
+            indexMarker: "h",
+            indexMode: "120000",
+            indexObjectID: "link-target-object",
+            worktreeObjectID: "target-file-object",
+            worktreeMode: "120000",
+            symlinkDestination: "other.txt",
+            symlinkObjectID: "changed-link-object"
+        )
+
+        XCTAssertTrue(inspection.statusEntries?.isEmpty == true)
+        XCTAssertTrue(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
     }
 
     func testInspectorIgnoresSparseCheckoutIndexOnlySkipWorktreeFilesWhenStatusIsClean() {
@@ -516,7 +546,7 @@ final class WorktreeCleanupTests: XCTestCase {
                 )
             case ["branch", "--show-current"]:
                 return GitCommandResult(exitCode: 0, stdout: "feature/invoices\n", stderr: "")
-            case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]:
+            case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=traditional"]:
                 return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
             case ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]:
                 return GitCommandResult(exitCode: 0, stdout: "origin/feature/invoices\n", stderr: "")
@@ -1936,6 +1966,8 @@ final class WorktreeCleanupTests: XCTestCase {
         worktreeObjectID: String = "index-clean",
         worktreeMode: String = "100644",
         worktreeObjectExitCode: Int32 = 0,
+        symlinkDestination: String? = nil,
+        symlinkObjectID: String? = nil,
         sparseCheckRulesOutput: String? = nil
     ) -> GitWorktreeInspection {
         let path = "/Users/dev/.codex/worktrees/billing-api"
@@ -1953,7 +1985,7 @@ final class WorktreeCleanupTests: XCTestCase {
                 )
             case ["branch", "--show-current"]:
                 return GitCommandResult(exitCode: 0, stdout: "feature/invoices\n", stderr: "")
-            case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"]:
+            case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=traditional"]:
                 return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
             case ["ls-files", "-s", "-v", "-z"]:
                 return GitCommandResult(
@@ -1979,6 +2011,8 @@ final class WorktreeCleanupTests: XCTestCase {
             },
             runGitWithInput: { _, arguments, input in
                 switch arguments {
+                case ["hash-object", "--stdin"] where input == symlinkDestination:
+                    return GitCommandResult(exitCode: 0, stdout: "\(symlinkObjectID ?? "")\n", stderr: "")
                 case ["sparse-checkout", "check-rules", "-z"] where input == "tracked.txt\0":
                     guard let sparseCheckRulesOutput else {
                         return GitCommandResult(exitCode: 128, stdout: "", stderr: "fatal: this worktree is not sparse")
@@ -1990,6 +2024,9 @@ final class WorktreeCleanupTests: XCTestCase {
             },
             worktreeFileMode: { filePath in
                 filePath == "\(path)/tracked.txt" ? worktreeMode : nil
+            },
+            symlinkDestination: { filePath in
+                filePath == "\(path)/tracked.txt" ? symlinkDestination : nil
             }
         )
         return inspector.inspect(path: path)
