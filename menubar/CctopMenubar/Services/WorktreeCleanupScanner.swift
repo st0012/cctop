@@ -212,7 +212,7 @@ struct WorktreeCleanupScanner {
                 reasons.appendUnique(WorktreeCleanupCandidate.trackedChangesReason)
             }
         } else {
-            reasons.appendUnique("Git status could not be read")
+            reasons.appendUnique(WorktreeCleanupCandidate.statusUnreadableReason)
         }
         if let count = inspection.uniqueCommitCount {
             if count > 0 {

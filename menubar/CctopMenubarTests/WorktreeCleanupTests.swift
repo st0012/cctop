@@ -1519,6 +1519,52 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(result, .failed(failure))
     }
 
+    func testRemovalServiceRefusesWhenFreshStatusCannotBeRead() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let reviewCandidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Needs review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review(["Branch has 1 unique local commit"]),
+            checks: []
+        )
+        var didRunGit = false
+        let unreadableStatusInspection = GitWorktreeInspection(
+            isRegisteredWorktree: true,
+            isLinkedWorktree: true,
+            isLocked: false,
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            statusEntries: nil,
+            uniqueCommitCount: 1,
+            failureReasons: []
+        )
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [worktreePath: unreadableStatusInspection]
+            ),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
+            }
+        )
+
+        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected unreadable fresh status to refuse removal, got \(result)")
+        }
+        XCTAssertTrue(preflightCandidate.state.reasons.contains(WorktreeCleanupCandidate.statusUnreadableReason))
+    }
+
     func testRemovalServiceRefusesForceWhenFreshEvidenceChangesBeforeForce() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)

@@ -138,7 +138,8 @@ private extension WorktreeCleanupCandidate {
             return self
         }
         if state.reasons.contains(WorktreeCleanupCandidate.initializedSubmodulesReason)
-            || state.reasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason) {
+            || state.reasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason)
+            || state.reasons.contains(WorktreeCleanupCandidate.statusUnreadableReason) {
             return self
         }
         return nil
