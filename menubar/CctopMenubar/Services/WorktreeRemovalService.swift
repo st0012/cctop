@@ -50,6 +50,9 @@ struct WorktreeRemovalService {
     ) -> RemovalResult {
         switch readyCandidate(offer.candidate, sourceSessions: sourceSessions, activeProjectPaths: activeProjectPaths) {
         case .ready(let readiness):
+            guard readiness.candidate.hasSameForceRemovalReasons(as: offer.candidate) else {
+                return .refused(readiness.candidate)
+            }
             guard readiness.candidate.canOfferForceRemoval(for: offer.failure) else {
                 return .refused(readiness.candidate)
             }
@@ -190,6 +193,10 @@ private extension WorktreeCleanupCandidate {
     func canOfferForceRemoval(for result: GitCommandResult) -> Bool {
         isForceEligibleGitFailure(result)
             && state.reasons.allSatisfy(Self.isForceEligibleReason)
+    }
+
+    func hasSameForceRemovalReasons(as candidate: WorktreeCleanupCandidate) -> Bool {
+        Set(state.reasons) == Set(candidate.state.reasons)
     }
 
     private func isForceEligibleGitFailure(_ result: GitCommandResult) -> Bool {
