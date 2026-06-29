@@ -11,7 +11,7 @@ enum PopupTab {
         var tabs: [PopupTab] = [.active]
         if hasIdleSessions { tabs.append(.idle) }
         if hasRecentProjects { tabs.append(.recent) }
-        if hasCleanupCandidates { tabs.append(.cleanup) }
+        tabs.append(.cleanup)
         return tabs
     }
 

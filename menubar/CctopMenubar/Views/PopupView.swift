@@ -16,7 +16,9 @@ struct PopupView: View {
     var initialTab: PopupTab = .active
     var initialCleanupCandidate: WorktreeCleanupCandidate?
     var onRemoveCleanupCandidate: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalResult)?
+    var onForceRemoveCleanupCandidate: ((WorktreeForceRemovalOffer) async -> WorktreeRemovalService.RemovalResult)?
     var onCleanupTabVisible: () -> Void = {}
+    var onCleanupTabHidden: () -> Void = {}
     /// Called (async on main) whenever content layout changes so the host can resize the panel.
     var onLayoutChanged: () -> Void = {}
     @State private var selectedTab: PopupTab = .active
@@ -116,6 +118,8 @@ struct PopupView: View {
             }
             if selectedTab == .cleanup {
                 onCleanupTabVisible()
+            } else {
+                onCleanupTabHidden()
             }
         }
     }
@@ -137,9 +141,7 @@ struct PopupView: View {
             if !recentProjects.isEmpty {
                 tabButton("Recent", count: recentProjects.count, tab: .recent)
             }
-            if !actionableCleanupCandidates.isEmpty {
-                tabButton("Cleanup", count: actionableCleanupCandidates.count, tab: .cleanup)
-            }
+            tabButton("Cleanup", count: actionableCleanupCandidates.count, tab: .cleanup)
             Spacer()
         }
         .padding(.horizontal, 12)
@@ -484,6 +486,7 @@ extension PopupView {
     func handleCleanupCandidatesChanged() {
         ensureSelectedTabAvailable()
         syncSelectedCleanupCandidate()
+        cleanupRemovalNotice = nil
         notifyLayoutChanged()
     }
 

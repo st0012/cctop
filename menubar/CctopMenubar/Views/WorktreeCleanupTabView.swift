@@ -6,7 +6,7 @@ struct WorktreeCleanupTabView: View {
     @Binding var selectedCandidate: WorktreeCleanupCandidate?
     var relativeTimeNow = Date()
     var onSelect: (WorktreeCleanupCandidate) -> Void = { _ in }
-    var onRemove: (WorktreeCleanupCandidate) -> Void = { _ in }
+    var onRemove: (WorktreeCleanupCandidate, WorktreeForceRemovalOffer?) -> Void = { _, _ in }
     var removalNotice: WorktreeRemovalNotice?
     var removingCandidateID: String?
 
@@ -16,7 +16,7 @@ struct WorktreeCleanupTabView: View {
                 candidate: candidate,
                 relativeTimeNow: relativeTimeNow,
                 onBack: { selectedCandidate = nil },
-                onRemove: { onRemove(candidate) },
+                onRemove: { onRemove(candidate, removalNotice?.forceOffer) },
                 removalNotice: removalNotice,
                 isRemoving: removingCandidateID == candidate.id
             )
@@ -80,7 +80,7 @@ struct WorktreeCleanupTabView: View {
         candidates: WorktreeCleanupCandidate.mockCandidates,
         selectedIndex: nil,
         selectedCandidate: .constant(nil),
-        onRemove: { _ in }
+        onRemove: { _, _ in }
     )
     .frame(width: 320)
 }

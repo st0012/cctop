@@ -15,6 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var pluginManager: PluginManager!
     private var historyManager: HistoryManager!
     private var cleanupManager: WorktreeCleanupManager!
+    private var cleanupRefreshGate: WorktreeCleanupRefreshGate!
     private let cleanupRemovalService = WorktreeRemovalService.live()
     private var navigateController = NavigateController()
     private var notchController: NotchStatusController!
@@ -51,11 +52,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         historyManager = HistoryManager()
         sessionManager = SessionManager(historyManager: historyManager)
         cleanupManager = WorktreeCleanupManager()
+        cleanupRefreshGate = WorktreeCleanupRefreshGate(manager: cleanupManager)
         sessionManager.cleanupRefreshHandler = { [weak self] historySessions, activePaths in
-            self?.cleanupManager.refresh(from: historySessions, activeProjectPaths: activePaths)
+            self?.cleanupRefreshGate.updateSources(historySessions, activeProjectPaths: activePaths)
         }
-        cleanupManager.refresh(
-            from: sessionManager.cleanupSourceSessions,
+        cleanupRefreshGate.updateSources(
+            sessionManager.cleanupSourceSessions,
             activeProjectPaths: sessionManager.cleanupActiveProjectPaths
         )
         updater = makeUpdater()
@@ -99,8 +101,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             onRemoveCleanupCandidate: { [weak self] candidate in
                 await self?.removeCleanupCandidate(candidate) ?? .refused(candidate)
             },
+            onForceRemoveCleanupCandidate: { [weak self] offer in
+                await self?.forceRemoveCleanupCandidate(offer) ?? .refused(offer.candidate)
+            },
             onCleanupTabVisible: { [weak self] in
-                Task { @MainActor in self?.refreshCleanupForPresentation() }
+                Task { @MainActor in self?.setCleanupVisible(true) }
+            },
+            onCleanupTabHidden: { [weak self] in
+                Task { @MainActor in self?.setCleanupVisible(false) }
             },
             onLayoutChanged: { [weak self] in
                 Task { @MainActor in self?.resizePanel(animate: true) }
@@ -123,22 +131,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         if case .removed = result {
             await MainActor.run {
-                cleanupManager.refresh(
-                    from: sessionManager.cleanupSourceSessions,
-                    activeProjectPaths: sessionManager.cleanupActiveProjectPaths,
-                    force: true
-                )
+                cleanupRefreshGate.refreshIfVisible(force: true)
             }
         }
         return result
     }
 
-    @MainActor private func refreshCleanupForPresentation() {
-        cleanupManager.refresh(
-            from: sessionManager.cleanupSourceSessions,
-            activeProjectPaths: sessionManager.cleanupActiveProjectPaths,
-            force: true
-        )
+    @MainActor private func forceRemoveCleanupCandidate(
+        _ offer: WorktreeForceRemovalOffer
+    ) async -> WorktreeRemovalService.RemovalResult {
+        let cleanupSnapshot = sessionManager.cleanupSnapshotForRemoval()
+        let removalService = cleanupRemovalService
+        let result = await Task.detached(priority: .utility) {
+            removalService.forceRemove(
+                offer,
+                sourceSessions: cleanupSnapshot.sourceSessions,
+                activeProjectPaths: cleanupSnapshot.activeProjectPaths
+            )
+        }.value
+
+        if case .removed = result {
+            await MainActor.run {
+                cleanupRefreshGate.refreshIfVisible(force: true)
+            }
+        }
+        return result
+    }
+
+    @MainActor private func setCleanupVisible(_ visible: Bool) {
+        cleanupRefreshGate.setCleanupVisible(visible)
     }
 
     @MainActor private func registerShortcuts() {

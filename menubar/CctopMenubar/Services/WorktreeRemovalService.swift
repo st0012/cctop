@@ -4,7 +4,13 @@ struct WorktreeRemovalService {
     enum RemovalResult: Equatable {
         case removed(GitCommandResult)
         case refused(WorktreeCleanupCandidate)
+        case forceRequired(WorktreeForceRemovalOffer)
         case failed(GitCommandResult)
+    }
+
+    private struct RemovalReadiness {
+        let candidate: WorktreeCleanupCandidate
+        let mainWorktreePath: String
     }
 
     var scanner: WorktreeCleanupScanner
@@ -22,6 +28,48 @@ struct WorktreeRemovalService {
         sourceSessions: [Session],
         activeProjectPaths: Set<String>
     ) -> RemovalResult {
+        switch readyCandidate(candidate, sourceSessions: sourceSessions, activeProjectPaths: activeProjectPaths) {
+        case .ready(let readiness):
+            let result = runGit(removeArguments(for: readiness, force: false))
+            guard result.exitCode == 0 else {
+                guard readiness.candidate.canOfferForceRemoval(for: result) else {
+                    return .failed(result)
+                }
+                return .forceRequired(WorktreeForceRemovalOffer(candidate: readiness.candidate, failure: result))
+            }
+            return .removed(result)
+        case .refused(let latestCandidate):
+            return .refused(latestCandidate)
+        }
+    }
+
+    func forceRemove(
+        _ offer: WorktreeForceRemovalOffer,
+        sourceSessions: [Session],
+        activeProjectPaths: Set<String>
+    ) -> RemovalResult {
+        switch readyCandidate(offer.candidate, sourceSessions: sourceSessions, activeProjectPaths: activeProjectPaths) {
+        case .ready(let readiness):
+            guard readiness.candidate.canOfferForceRemoval(for: offer.failure) else {
+                return .refused(readiness.candidate)
+            }
+            let result = runGit(removeArguments(for: readiness, force: true))
+            return result.exitCode == 0 ? .removed(result) : .failed(result)
+        case .refused(let latestCandidate):
+            return .refused(latestCandidate)
+        }
+    }
+
+    private enum ReadinessResult {
+        case ready(RemovalReadiness)
+        case refused(WorktreeCleanupCandidate)
+    }
+
+    private func readyCandidate(
+        _ candidate: WorktreeCleanupCandidate,
+        sourceSessions: [Session],
+        activeProjectPaths: Set<String>
+    ) -> ReadinessResult {
         guard candidate.state.isActionable else {
             return .refused(candidate)
         }
@@ -60,17 +108,21 @@ struct WorktreeRemovalService {
             return .refused(refusal)
         }
 
-        let result = runGit([
+        return .ready(RemovalReadiness(candidate: finalCandidate, mainWorktreePath: mainWorktreePath))
+    }
+
+    private func removeArguments(for readiness: RemovalReadiness, force: Bool) -> [String] {
+        var arguments = [
             "-C",
-            mainWorktreePath,
+            readiness.mainWorktreePath,
             "worktree",
             "remove",
-            preflightCandidate.worktreePath,
-        ])
-        guard result.exitCode == 0 else {
-            return .failed(result)
+        ]
+        if force {
+            arguments.append("--force")
         }
-        return .removed(result)
+        arguments.append(readiness.candidate.worktreePath)
+        return arguments
     }
 }
 
@@ -132,5 +184,26 @@ private extension WorktreeCleanupCandidate {
             let addedReason = state.reasons.contains(pair.reason) && !confirmedReasons.contains(pair.reason)
             return pair.preflightPreview != pair.confirmedPreview || addedReason
         }
+    }
+
+    func canOfferForceRemoval(for result: GitCommandResult) -> Bool {
+        isForceEligibleGitFailure(result)
+            && state.reasons.allSatisfy(Self.isForceEligibleReason)
+    }
+
+    private func isForceEligibleGitFailure(_ result: GitCommandResult) -> Bool {
+        guard result.exitCode != 0 else { return false }
+        let output = "\(result.stderr)\n\(result.stdout)".lowercased()
+        guard output.contains("--force") else { return false }
+        return output.contains("modified")
+            || output.contains("untracked")
+            || output.contains("dirty")
+            || output.contains("local changes")
+    }
+
+    private static func isForceEligibleReason(_ reason: String) -> Bool {
+        reason == WorktreeCleanupCandidate.untrackedFilesReason
+            || reason == WorktreeCleanupCandidate.ignoredFilesReason
+            || reason == WorktreeCleanupCandidate.trackedChangesReason
     }
 }

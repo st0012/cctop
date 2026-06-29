@@ -3,6 +3,7 @@ import Foundation
 struct WorktreeCleanupCandidate: Identifiable, Equatable {
     static let untrackedFilesReason = "Worktree has untracked files"
     static let ignoredFilesReason = "Worktree has ignored files"
+    static let trackedChangesReason = "Worktree has uncommitted tracked changes"
     static let initializedSubmodulesReason = "Worktree contains initialized submodules"
     static let indexHiddenTrackedFilesReason = "Worktree has tracked files hidden by Git index flags"
     private static let localFileReasons = [untrackedFilesReason, ignoredFilesReason]
@@ -204,9 +205,15 @@ struct WorktreeCleanupCheck: Equatable {
     let status: Status
 }
 
+struct WorktreeForceRemovalOffer: Equatable {
+    let candidate: WorktreeCleanupCandidate
+    let failure: GitCommandResult
+}
+
 enum WorktreeRemovalConfirmation: Identifiable, Equatable {
     case reviewWarning(WorktreeCleanupCandidate)
     case final(WorktreeCleanupCandidate)
+    case force(WorktreeForceRemovalOffer)
 
     var id: String {
         switch self {
@@ -214,6 +221,8 @@ enum WorktreeRemovalConfirmation: Identifiable, Equatable {
             return "review-warning-\(candidate.id)"
         case .final(let candidate):
             return "final-\(candidate.id)"
+        case .force(let offer):
+            return "force-\(offer.candidate.id)"
         }
     }
 
@@ -221,6 +230,8 @@ enum WorktreeRemovalConfirmation: Identifiable, Equatable {
         switch self {
         case .reviewWarning(let candidate), .final(let candidate):
             return candidate
+        case .force(let offer):
+            return offer.candidate
         }
     }
 
@@ -230,6 +241,8 @@ enum WorktreeRemovalConfirmation: Identifiable, Equatable {
             return "Review Worktree?"
         case .final:
             return "Remove Worktree?"
+        case .force:
+            return "Force Remove Worktree?"
         }
     }
 
@@ -239,6 +252,10 @@ enum WorktreeRemovalConfirmation: Identifiable, Equatable {
             return "This worktree needs review. Removal uses plain git worktree remove, and Git may refuse it."
         case .final(let candidate):
             return "Runs git worktree remove for \(candidate.worktreeName). The branch is left intact."
+        case .force(let offer):
+            let candidate = offer.candidate
+            return "Runs git worktree remove --force for \(candidate.worktreeName) at \(candidate.worktreePath) on \(candidate.branchName). "
+                + "This can delete uncommitted tracked changes plus untracked or ignored files in that worktree. The branch is left intact."
         }
     }
 
@@ -248,6 +265,8 @@ enum WorktreeRemovalConfirmation: Identifiable, Equatable {
             return "Continue"
         case .final:
             return "Remove"
+        case .force:
+            return "Force Remove"
         }
     }
 

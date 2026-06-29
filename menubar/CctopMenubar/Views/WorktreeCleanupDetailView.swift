@@ -158,7 +158,7 @@ struct WorktreeCleanupDetailView: View {
     private var actionRow: some View {
         VStack(spacing: 6) {
             CleanupDetailActionButton(
-                title: isRemoving ? "Removing..." : "Remove",
+                title: actionTitle,
                 systemImage: isRemoving ? "hourglass" : "trash",
                 isPrimary: true,
                 isDisabled: isRemoving,
@@ -183,6 +183,9 @@ struct WorktreeCleanupDetailView: View {
                     .foregroundStyle(Color.textSecondary)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
+                if removalNotice.forceOffer != nil {
+                    CleanupForceRemovalEvidenceBlock(evidence: candidate.reviewEvidence)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
@@ -321,12 +324,46 @@ struct WorktreeCleanupDetailView: View {
     }
 
     private var removeHelp: String {
+        if removalNotice?.forceOffer != nil {
+            return "Run git worktree remove --force after confirming; local changes in the worktree can be deleted"
+        }
         if candidate.state.isClean {
             return "Run git worktree remove after confirming"
         }
         return "Run git worktree remove after an extra confirmation; Git may refuse unsafe worktrees"
     }
 
+    private var actionTitle: String {
+        isRemoving ? "Removing..." : (removalNotice?.forceOffer == nil ? "Remove" : "Force Remove...")
+    }
+
+}
+
+private struct CleanupForceRemovalEvidenceBlock: View {
+    let evidence: WorktreeCleanupReviewEvidence
+
+    var body: some View {
+        if evidence.hasLocalFilePreview {
+            VStack(alignment: .leading, spacing: 4) {
+                if let preview = evidence.untrackedPreview {
+                    previewBlock(label: "Untracked files", preview: preview)
+                }
+                if let preview = evidence.ignoredPreview {
+                    previewBlock(label: "Ignored files", preview: preview)
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private func previewBlock(label: String, preview: WorktreeCleanupUntrackedPreview) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(Color.textMuted)
+            CleanupUntrackedPreviewBlock(preview: preview, isCompact: true)
+        }
+    }
 }
 
 private struct CleanupUntrackedPreviewBlock: View {
@@ -419,6 +456,7 @@ private struct CleanupDetailActionButton: View {
 struct WorktreeRemovalNotice: Equatable {
     let title: String
     let message: String
+    var forceOffer: WorktreeForceRemovalOffer?
 }
 
 #Preview("Clean detail") {

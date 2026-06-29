@@ -44,8 +44,12 @@ extension PopupView {
         .padding(.vertical, 24)
     }
 
-    func requestCleanupRemoval(_ candidate: WorktreeCleanupCandidate) {
-        pendingRemovalConfirmation = .initial(for: candidate)
+    func requestCleanupRemoval(_ candidate: WorktreeCleanupCandidate, forceOffer: WorktreeForceRemovalOffer?) {
+        if let forceOffer {
+            pendingRemovalConfirmation = .force(forceOffer)
+        } else {
+            pendingRemovalConfirmation = .initial(for: candidate)
+        }
     }
 
     func handleSelectedTabChanged(_ newTab: PopupTab) {
@@ -53,6 +57,7 @@ extension PopupView {
         if newTab == .cleanup {
             onCleanupTabVisible()
         } else {
+            onCleanupTabHidden()
             selectedCleanupCandidate = nil
             cleanupRemovalNotice = nil
         }
@@ -74,6 +79,22 @@ extension PopupView {
         }
     }
 
+    func performCleanupForceRemoval(_ offer: WorktreeForceRemovalOffer) {
+        guard let onForceRemoveCleanupCandidate else { return }
+        cleanupRemovalNotice = nil
+        removingCleanupCandidateID = offer.candidate.id
+        notifyLayoutChanged()
+
+        Task {
+            let result = await onForceRemoveCleanupCandidate(offer)
+            await MainActor.run {
+                removingCleanupCandidateID = nil
+                handleCleanupRemovalResult(result, originalCandidate: offer.candidate)
+                notifyLayoutChanged()
+            }
+        }
+    }
+
     func handleCleanupRemovalResult(
         _ result: WorktreeRemovalService.RemovalResult,
         originalCandidate: WorktreeCleanupCandidate
@@ -82,6 +103,13 @@ extension PopupView {
         case .removed:
             selectedCleanupCandidate = nil
             cleanupRemovalNotice = nil
+        case .forceRequired(let offer):
+            selectedCleanupCandidate = offer.candidate
+            cleanupRemovalNotice = WorktreeRemovalNotice(
+                title: "Remove Failed",
+                message: cleanupForceOfferMessage(),
+                forceOffer: offer
+            )
         case .refused(let latestCandidate):
             selectedCleanupCandidate = latestCandidate
             cleanupRemovalNotice = WorktreeRemovalNotice(
@@ -103,6 +131,10 @@ extension PopupView {
             ?? "git exited with status \(result.exitCode)"
     }
 
+    func cleanupForceOfferMessage() -> String {
+        "Plain removal failed; Git suggested --force for local files."
+    }
+
     func removalAlert(for confirmation: WorktreeRemovalConfirmation) -> Alert {
         switch confirmation {
         case .reviewWarning(let candidate):
@@ -122,6 +154,15 @@ extension PopupView {
                 message: Text(confirmation.message),
                 primaryButton: .destructive(Text(confirmation.primaryButtonTitle)) {
                     performCleanupRemoval(candidate)
+                },
+                secondaryButton: .cancel()
+            )
+        case .force(let offer):
+            return Alert(
+                title: Text(confirmation.title),
+                message: Text(confirmation.message),
+                primaryButton: .destructive(Text(confirmation.primaryButtonTitle)) {
+                    performCleanupForceRemoval(offer)
                 },
                 secondaryButton: .cancel()
             )

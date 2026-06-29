@@ -44,6 +44,36 @@ class WorktreeCleanupManager: ObservableObject {
     }
 }
 
+@MainActor
+final class WorktreeCleanupRefreshGate {
+    private let manager: WorktreeCleanupManager
+    private var sourceSessions: [Session] = []
+    private var activeProjectPaths: Set<String> = []
+    private var isCleanupVisible = false
+
+    init(manager: WorktreeCleanupManager) {
+        self.manager = manager
+    }
+
+    func updateSources(_ sourceSessions: [Session], activeProjectPaths: Set<String>) {
+        self.sourceSessions = sourceSessions
+        self.activeProjectPaths = activeProjectPaths
+        refreshIfVisible()
+    }
+
+    func setCleanupVisible(_ visible: Bool) {
+        isCleanupVisible = visible
+        if visible {
+            refreshIfVisible(force: true)
+        }
+    }
+
+    func refreshIfVisible(force: Bool = false) {
+        guard isCleanupVisible else { return }
+        manager.refresh(from: sourceSessions, activeProjectPaths: activeProjectPaths, force: force)
+    }
+}
+
 struct WorktreeCleanupRefreshSignature: Equatable {
     private struct EndedSessionFingerprint: Equatable {
         let path: String
