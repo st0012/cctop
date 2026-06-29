@@ -167,8 +167,7 @@ struct WorktreeCleanupScanner {
         inspection: GitWorktreeInspection,
         storageBytes: Int64?
     ) -> WorktreeCleanupCandidate {
-        let reasons = reviewReasons(for: inspection, storageBytes: storageBytes)
-        let state: WorktreeCleanupCandidate.State = reasons.isEmpty ? .clean : .review(reasons)
+        let state = Self.state(for: inspection, storageBytes: storageBytes)
         let reviewEvidence = Self.reviewEvidence(for: inspection)
 
         return WorktreeCleanupCandidate(
@@ -181,12 +180,17 @@ struct WorktreeCleanupScanner {
             lastActiveAt: context.lastActiveAt,
             storageBytes: storageBytes,
             state: state,
-            checks: checks(for: inspection, storageBytes: storageBytes, active: true),
+            checks: Self.checks(for: inspection, storageBytes: storageBytes, active: true),
             reviewEvidence: reviewEvidence
         )
     }
 
-    private func reviewReasons(for inspection: GitWorktreeInspection, storageBytes: Int64?) -> [String] {
+    static func state(for inspection: GitWorktreeInspection, storageBytes: Int64?) -> WorktreeCleanupCandidate.State {
+        let reasons = reviewReasons(for: inspection, storageBytes: storageBytes)
+        return reasons.isEmpty ? .clean : .review(reasons)
+    }
+
+    private static func reviewReasons(for inspection: GitWorktreeInspection, storageBytes: Int64?) -> [String] {
         var reasons = inspection.failureReasons
         if inspection.branchName?.isEmpty ?? true {
             reasons.appendUnique("Branch is unknown or detached")
@@ -269,7 +273,7 @@ struct WorktreeCleanupScanner {
         )
     }
 
-    private func checks(
+    static func checks(
         for inspection: GitWorktreeInspection,
         storageBytes: Int64?,
         active: Bool

@@ -499,6 +499,68 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
     }
 
+    func testInspectorBatchesSparseCheckoutChecksForAbsentSkipWorktreeEntriesWhenStatusIsClean() {
+        let path = "/Users/dev/.codex/worktrees/billing-api"
+        var hashObjectArguments: [[String]] = []
+        var sparseCheckInputs: [String] = []
+        let inspector = GitWorktreeInspector(
+            runGit: { _, arguments in
+                switch arguments {
+                case ["worktree", "list", "--porcelain", "-z"]:
+                    return GitCommandResult(
+                        exitCode: 0,
+                        stdout: "worktree /Users/dev/projects/billing-api\0"
+                            + "branch refs/heads/main\0\0"
+                            + "worktree \(path)\0"
+                            + "branch refs/heads/feature/invoices\0\0",
+                        stderr: ""
+                    )
+                case ["branch", "--show-current"]:
+                    return GitCommandResult(exitCode: 0, stdout: "feature/invoices\n", stderr: "")
+                case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=traditional"]:
+                    return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+                case ["ls-files", "-s", "-v", "-z"]:
+                    return GitCommandResult(
+                        exitCode: 0,
+                        stdout: "S 100644 index-a 0\ta.txt\0"
+                            + "S 100644 index-b 0\tb.txt\0"
+                            + "s 100644 index-c 0\tc.txt\0"
+                            + "H 100644 clean-id 0\tclean.txt\0",
+                        stderr: ""
+                    )
+                case ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]:
+                    return GitCommandResult(exitCode: 0, stdout: "origin/feature/invoices\n", stderr: "")
+                case ["rev-list", "--count", "@{u}..HEAD"]:
+                    return GitCommandResult(exitCode: 0, stdout: "0\n", stderr: "")
+                case ["submodule", "status", "--recursive"]:
+                    return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+                case let args where args.first == "hash-object":
+                    hashObjectArguments.append(args)
+                    return GitCommandResult(exitCode: 128, stdout: "", stderr: "fatal: missing")
+                default:
+                    return GitCommandResult(exitCode: 1, stdout: "", stderr: "unexpected \(arguments)")
+                }
+            },
+            runGitWithInput: { _, arguments, input in
+                switch arguments {
+                case ["sparse-checkout", "check-rules", "-z"]:
+                    sparseCheckInputs.append(input)
+                    return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+                default:
+                    return GitCommandResult(exitCode: 1, stdout: "", stderr: "unexpected \(arguments)")
+                }
+            },
+            worktreeFileMode: { _ in nil },
+            symlinkDestination: { _ in nil }
+        )
+
+        let inspection = inspector.inspect(path: path)
+
+        XCTAssertFalse(inspection.failureReasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason))
+        XCTAssertEqual(hashObjectArguments, [])
+        XCTAssertEqual(sparseCheckInputs, ["a.txt\0b.txt\0c.txt\0"])
+    }
+
     func testInspectorMarksSkipWorktreeTrackedModeChangesForReviewWhenStatusIsClean() {
         let inspection = hiddenTrackedEditInspection(indexMarker: "S", indexMode: "100644", worktreeMode: "100755")
 
@@ -1448,6 +1510,43 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(preflightCandidate.reviewEvidence.ignoredPreview?.items, [".env.local"])
     }
 
+    func testRemovalServiceRefusesWhenFinalInspectionAddsIgnoredEvidence() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let staleCleanCandidate = cleanupCandidate(path: worktreePath)
+        var didRunGit = false
+        var inspectionCount = 0
+        let service = WorktreeRemovalService(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { $0 == worktreePath },
+                resolveWorktreeRoot: { _ in nil },
+                inspectGit: { _ in
+                    inspectionCount += 1
+                    if inspectionCount == 1 {
+                        return self.cleanInspection()
+                    }
+                    return self.cleanInspection(statusEntries: ["!! .env.local"])
+                },
+                measureSize: { _ in 1_024 }
+            ),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [])
+
+        XCTAssertFalse(didRunGit)
+        XCTAssertEqual(inspectionCount, 2)
+        guard case .refused(let finalCandidate) = result else {
+            return XCTFail("Expected removal to be refused after final inspection found ignored evidence, got \(result)")
+        }
+        XCTAssertEqual(finalCandidate.state, .review([WorktreeCleanupCandidate.ignoredFilesReason]))
+        XCTAssertEqual(finalCandidate.checks.first { $0.label == "No ignored files" }?.status, .review)
+        XCTAssertEqual(finalCandidate.reviewEvidence.ignoredPreview?.items, [".env.local"])
+    }
+
     func testRemovalServiceRefusesReviewCandidateWhenUntrackedFileEvidenceAppearsForSameReason() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)
@@ -2103,7 +2202,7 @@ final class WorktreeCleanupTests: XCTestCase {
                 }
             },
             worktreeFileMode: { filePath in
-                filePath == "\(path)/tracked.txt" ? worktreeMode : nil
+                filePath == "\(path)/tracked.txt" && worktreeObjectExitCode == 0 ? worktreeMode : nil
             },
             symlinkDestination: { filePath in
                 filePath == "\(path)/tracked.txt" ? symlinkDestination : nil

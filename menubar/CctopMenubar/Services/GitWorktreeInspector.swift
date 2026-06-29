@@ -100,17 +100,26 @@ struct GitWorktreeInspector {
     private func detectIndexHiddenTrackedFiles(path: String, failures: inout [String]) {
         let result = runGit(path, ["ls-files", "-s", "-v", "-z"])
         guard result.exitCode == 0 else { return }
-        let hasHiddenTrackedEdits = Self.indexHiddenTrackedEntries(result.stdout).contains { entry in
-            hasWorktreeContentChangedFromIndex(path: path, entry: entry)
+        let entries = Self.indexHiddenTrackedEntries(result.stdout)
+        let sparseIndexOnlyPaths = sparseCheckoutIndexOnlyPaths(path: path, entries: entries)
+        let hasHiddenTrackedEdits = entries.contains { entry in
+            hasWorktreeContentChangedFromIndex(path: path, entry: entry, sparseIndexOnlyPaths: sparseIndexOnlyPaths)
         }
         if hasHiddenTrackedEdits {
             failures.append(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason)
         }
     }
 
-    private func hasWorktreeContentChangedFromIndex(path: String, entry: IndexHiddenTrackedEntry) -> Bool {
+    private func hasWorktreeContentChangedFromIndex(
+        path: String,
+        entry: IndexHiddenTrackedEntry,
+        sparseIndexOnlyPaths: Set<String>
+    ) -> Bool {
+        if sparseIndexOnlyPaths.contains(entry.path) {
+            return false
+        }
         guard let worktreeObjectID = worktreeObjectID(path: path, entry: entry) else {
-            return !isSparseCheckoutIndexOnlyPath(path: path, entry: entry)
+            return true
         }
         guard worktreeObjectID == entry.objectID else { return true }
         guard let worktreeMode = worktreeFileMode(Self.absolutePath(path, entry.path)) else { return true }
@@ -132,11 +141,19 @@ struct GitWorktreeInspector {
         return Config.nonEmpty(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    private func isSparseCheckoutIndexOnlyPath(path: String, entry: IndexHiddenTrackedEntry) -> Bool {
-        guard entry.marker == "S" || entry.marker == "s" else { return false }
-        let result = runGitWithInput(path, ["sparse-checkout", "check-rules", "-z"], "\(entry.path)\u{0}")
-        guard result.exitCode == 0 else { return false }
-        return !Self.parseStatusEntries(result.stdout).contains(entry.path)
+    private func sparseCheckoutIndexOnlyPaths(path: String, entries: [IndexHiddenTrackedEntry]) -> Set<String> {
+        let absentSkippedPaths = entries
+            .filter { entry in
+                (entry.marker == "S" || entry.marker == "s")
+                    && worktreeFileMode(Self.absolutePath(path, entry.path)) == nil
+            }
+            .map(\.path)
+        guard !absentSkippedPaths.isEmpty else { return [] }
+        let input = absentSkippedPaths.joined(separator: "\u{0}") + "\u{0}"
+        let result = runGitWithInput(path, ["sparse-checkout", "check-rules", "-z"], input)
+        guard result.exitCode == 0 else { return [] }
+        let includedPaths = Set(Self.parseStatusEntries(result.stdout))
+        return Set(absentSkippedPaths).subtracting(includedPaths)
     }
 
     private func detectInitializedSubmodules(path: String, failures: inout [String]) {

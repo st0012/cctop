@@ -36,20 +36,11 @@ struct WorktreeRemovalService {
             return .refused(preflightCandidate)
         }
 
-        if candidate.state.isClean && !preflightCandidate.state.isClean {
-            return .refused(preflightCandidate)
-        }
-        if preflightCandidate.changesWorktreeIdentity(comparedTo: candidate) {
-            return .refused(preflightCandidate)
-        }
-        if preflightCandidate.changesLocalFileReviewEvidence(comparedTo: candidate) {
-            return .refused(preflightCandidate)
-        }
-        if preflightCandidate.state.reasons.contains(WorktreeCleanupCandidate.initializedSubmodulesReason) {
-            return .refused(preflightCandidate)
-        }
-        if preflightCandidate.state.reasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason) {
-            return .refused(preflightCandidate)
+        if let refusal = preflightCandidate.refusalCandidate(
+            comparedTo: candidate,
+            refuseCleanDowngrade: candidate.state.isClean
+        ) {
+            return .refused(refusal)
         }
 
         let inspection = scanner.inspectGit(preflightCandidate.worktreePath)
@@ -58,8 +49,15 @@ struct WorktreeRemovalService {
               inspection.isLinkedWorktree else {
             return .refused(preflightCandidate)
         }
-        guard inspection.branchName != nil else {
+        guard let branchName = inspection.branchName else {
             return .refused(preflightCandidate)
+        }
+        let finalCandidate = preflightCandidate.refreshed(with: inspection, branchName: branchName)
+        if let refusal = finalCandidate.refusalCandidate(
+            comparedTo: preflightCandidate,
+            refuseCleanDowngrade: preflightCandidate.state.isClean
+        ) {
+            return .refused(refusal)
         }
 
         let result = runGit([
@@ -77,6 +75,39 @@ struct WorktreeRemovalService {
 }
 
 private extension WorktreeCleanupCandidate {
+    func refusalCandidate(
+        comparedTo candidate: WorktreeCleanupCandidate,
+        refuseCleanDowngrade: Bool
+    ) -> WorktreeCleanupCandidate? {
+        if refuseCleanDowngrade && !state.isClean {
+            return self
+        }
+        if changesWorktreeIdentity(comparedTo: candidate) || changesLocalFileReviewEvidence(comparedTo: candidate) {
+            return self
+        }
+        if state.reasons.contains(WorktreeCleanupCandidate.initializedSubmodulesReason)
+            || state.reasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason) {
+            return self
+        }
+        return nil
+    }
+
+    func refreshed(with inspection: GitWorktreeInspection, branchName: String) -> WorktreeCleanupCandidate {
+        WorktreeCleanupCandidate(
+            id: id,
+            sessionName: sessionName,
+            worktreePath: worktreePath,
+            worktreeName: worktreeName,
+            mainWorktreePath: inspection.mainWorktreePath,
+            branchName: branchName,
+            lastActiveAt: lastActiveAt,
+            storageBytes: storageBytes,
+            state: WorktreeCleanupScanner.state(for: inspection, storageBytes: storageBytes),
+            checks: WorktreeCleanupScanner.checks(for: inspection, storageBytes: storageBytes, active: true),
+            reviewEvidence: WorktreeCleanupScanner.reviewEvidence(for: inspection)
+        )
+    }
+
     func changesWorktreeIdentity(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
         worktreePath != candidate.worktreePath
             || mainWorktreePath != candidate.mainWorktreePath
