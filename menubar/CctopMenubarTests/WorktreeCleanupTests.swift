@@ -108,6 +108,45 @@ final class WorktreeCleanupTests: XCTestCase {
         )
 
         XCTAssertEqual(candidates.map(\.id), [candidatePath])
+        XCTAssertEqual(candidates[0].state, .clean)
+        XCTAssertEqual(resolvedPaths, [candidatePath])
+    }
+
+    func testScannerProtectsPlausibleActiveAliasInProtectedFolderWithoutResolvingIt() {
+        let candidatePath = "/Users/dev/.codex/worktrees/billing-api"
+        let activeDocumentsAliasPath = "/Users/dev/Documents/link-to-billing-api"
+        var resolvedPaths: [String] = []
+        let scanner = WorktreeCleanupScanner(
+            fileExists: { path in
+                path == candidatePath || path == activeDocumentsAliasPath
+            },
+            resolveWorktreeRoot: { path in
+                resolvedPaths.append(path)
+                return path == candidatePath || path == activeDocumentsAliasPath ? candidatePath : nil
+            },
+            inspectGit: { path in
+                path == candidatePath ? self.cleanInspection() : GitWorktreeInspection(
+                    isRegisteredWorktree: false,
+                    isLinkedWorktree: false,
+                    isLocked: false,
+                    mainWorktreePath: nil,
+                    branchName: nil,
+                    statusEntries: nil,
+                    uniqueCommitCount: nil,
+                    failureReasons: ["unexpected inspection"]
+                )
+            },
+            measureSize: { path in
+                path == candidatePath ? 1_024 : nil
+            }
+        )
+
+        let candidates = scanner.candidates(
+            from: [historySession(path: candidatePath)],
+            activeProjectPaths: [activeDocumentsAliasPath]
+        )
+
+        XCTAssertEqual(candidates[0].state, .ignored(["Active cctop session is using this path"]))
         XCTAssertEqual(resolvedPaths, [candidatePath])
     }
 

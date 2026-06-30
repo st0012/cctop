@@ -78,31 +78,14 @@ struct WorktreeCleanupScanner {
     private func resolvedActiveProjectPaths(_ activeProjectPaths: Set<String>, candidatePaths: Set<String>) -> Set<String> {
         Set(activeProjectPaths.map { activePath in
             let standardizedPath = Self.standardizedPath(activePath)
+            if let candidatePath = plausibleProtectedActiveAliasTarget(standardizedPath, candidatePaths: candidatePaths) {
+                return candidatePath
+            }
             guard shouldResolveActiveProjectPath(standardizedPath, candidatePaths: candidatePaths) else {
                 return standardizedPath
             }
             return resolvedCandidatePath(for: standardizedPath)
         })
-    }
-
-    private func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths: Set<String>) -> Bool {
-        if candidatePaths.contains(where: { candidatePath in
-            Self.isPath(activePath, sameAsOrDescendantOf: candidatePath)
-                || Self.isPath(candidatePath, sameAsOrDescendantOf: activePath)
-        }) {
-            return true
-        }
-        return !Self.isLikelyPrivacyProtectedUserPath(activePath)
-    }
-
-    private static func isPath(_ path: String, sameAsOrDescendantOf parentPath: String) -> Bool {
-        path == parentPath || path.hasPrefix(parentPath.hasSuffix("/") ? parentPath : "\(parentPath)/")
-    }
-
-    private static func isLikelyPrivacyProtectedUserPath(_ path: String) -> Bool {
-        let pathComponents = URL(fileURLWithPath: path).pathComponents
-        guard pathComponents.count > 3, pathComponents[1] == "Users" else { return false }
-        return ["Desktop", "Documents", "Downloads"].contains(pathComponents[3])
     }
 
     private func nearestExistingPath(atOrAbove path: String) -> String? {
@@ -327,6 +310,43 @@ struct WorktreeCleanupScanner {
 
     static func standardizedPath(_ path: String) -> String {
         Config.standardizedPath(path)
+    }
+}
+
+private extension WorktreeCleanupScanner {
+    func plausibleProtectedActiveAliasTarget(_ activePath: String, candidatePaths: Set<String>) -> String? {
+        guard Self.isLikelyPrivacyProtectedUserPath(activePath) else { return nil }
+        let activeName = URL(fileURLWithPath: activePath).lastPathComponent
+        return candidatePaths
+            .filter { candidatePath in
+                let candidateName = URL(fileURLWithPath: candidatePath).lastPathComponent
+                return !candidateName.isEmpty && activeName.contains(candidateName)
+            }
+            .max { lhs, rhs in
+                let lhsName = URL(fileURLWithPath: lhs).lastPathComponent
+                let rhsName = URL(fileURLWithPath: rhs).lastPathComponent
+                return lhsName.count < rhsName.count
+            }
+    }
+
+    func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths: Set<String>) -> Bool {
+        if candidatePaths.contains(where: { candidatePath in
+            Self.isPath(activePath, sameAsOrDescendantOf: candidatePath)
+                || Self.isPath(candidatePath, sameAsOrDescendantOf: activePath)
+        }) {
+            return true
+        }
+        return !Self.isLikelyPrivacyProtectedUserPath(activePath)
+    }
+
+    static func isPath(_ path: String, sameAsOrDescendantOf parentPath: String) -> Bool {
+        path == parentPath || path.hasPrefix(parentPath.hasSuffix("/") ? parentPath : "\(parentPath)/")
+    }
+
+    static func isLikelyPrivacyProtectedUserPath(_ path: String) -> Bool {
+        let pathComponents = URL(fileURLWithPath: path).pathComponents
+        guard pathComponents.count > 3, pathComponents[1] == "Users" else { return false }
+        return ["Desktop", "Documents", "Downloads"].contains(pathComponents[3])
     }
 }
 
