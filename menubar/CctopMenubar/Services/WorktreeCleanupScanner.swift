@@ -31,8 +31,8 @@ struct WorktreeCleanupScanner {
         from sourceSessions: [Session],
         activeProjectPaths: Set<String>
     ) -> [WorktreeCleanupCandidate] {
-        let activePaths = resolvedActiveProjectPaths(activeProjectPaths)
         let contexts = candidateContexts(from: sourceSessions)
+        let activePaths = resolvedActiveProjectPaths(activeProjectPaths, candidatePaths: Set(contexts.keys))
 
         return contexts.values
             .map { candidate(from: $0, activeProjectPaths: activePaths) }
@@ -75,10 +75,34 @@ struct WorktreeCleanupScanner {
         return resolveWorktreeRoot(probePath).map(Self.standardizedPath) ?? rawPath
     }
 
-    private func resolvedActiveProjectPaths(_ activeProjectPaths: Set<String>) -> Set<String> {
+    private func resolvedActiveProjectPaths(_ activeProjectPaths: Set<String>, candidatePaths: Set<String>) -> Set<String> {
         Set(activeProjectPaths.map { activePath in
-            resolvedCandidatePath(for: Self.standardizedPath(activePath))
+            let standardizedPath = Self.standardizedPath(activePath)
+            guard shouldResolveActiveProjectPath(standardizedPath, candidatePaths: candidatePaths) else {
+                return standardizedPath
+            }
+            return resolvedCandidatePath(for: standardizedPath)
         })
+    }
+
+    private func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths: Set<String>) -> Bool {
+        if candidatePaths.contains(where: { candidatePath in
+            Self.isPath(activePath, sameAsOrDescendantOf: candidatePath)
+                || Self.isPath(candidatePath, sameAsOrDescendantOf: activePath)
+        }) {
+            return true
+        }
+        return !Self.isLikelyPrivacyProtectedUserPath(activePath)
+    }
+
+    private static func isPath(_ path: String, sameAsOrDescendantOf parentPath: String) -> Bool {
+        path == parentPath || path.hasPrefix(parentPath.hasSuffix("/") ? parentPath : "\(parentPath)/")
+    }
+
+    private static func isLikelyPrivacyProtectedUserPath(_ path: String) -> Bool {
+        let pathComponents = URL(fileURLWithPath: path).pathComponents
+        guard pathComponents.count > 3, pathComponents[1] == "Users" else { return false }
+        return ["Desktop", "Documents", "Downloads"].contains(pathComponents[3])
     }
 
     private func nearestExistingPath(atOrAbove path: String) -> String? {
