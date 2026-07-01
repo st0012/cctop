@@ -17,6 +17,7 @@ build:
 
 test:
 	npm --prefix plugins/opencode test
+	node --test plugins/pi/test/*.test.mjs
 	xcodebuild test -project $(PROJECT) -scheme CctopMenubar -configuration Debug -derivedDataPath $(DERIVED) $(SIGN)
 
 lint:

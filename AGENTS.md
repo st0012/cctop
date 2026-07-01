@@ -124,7 +124,8 @@ cctop/
 │   ├── package.json   # Plugin manifest and node:test script
 │   └── test/          # node:test coverage for opencode event translation
 ├── plugins/pi/        # pi coding agent extension (TS, translates events to cctop-hook calls)
-│   └── cctop.ts       # Extension entry point, calls cctop-hook binary
+│   ├── cctop.ts       # Extension entry point, calls cctop-hook binary
+│   └── test/          # node:test coverage for pi event translation
 ├── scripts/
 │   ├── bundle-macos.sh        # Build and bundle .app
 │   ├── sign-and-notarize.sh   # Code sign + Apple notarization
@@ -275,7 +276,7 @@ All supported clients use `cctop-hook` as the single entry point for session sta
 # Build both targets (menubar app + cctop-hook CLI)
 make build
 
-# Run all tests (OpenCode plugin node:test suite + Swift tests)
+# Run all tests (opencode + pi plugin node:test suites + Swift tests)
 make test
 
 # Lint with swiftlint --strict
@@ -354,7 +355,13 @@ Automated plugin tests live under `plugins/opencode/test/` and use Node's built-
 npm --prefix plugins/opencode test
 ```
 
-`make test` runs the opencode plugin tests before the Swift test suite. For hook event mapping changes, also run `make contract`; it verifies the hook schema, fixtures, Swift parser, and plugin hook calls stay in sync.
+The pi extension (`plugins/pi/cctop.ts`) has an equivalent `node:test` suite under `plugins/pi/test/`. It loads the TypeScript source directly via Node's built-in type stripping (Node 23.6+), so there is no build step:
+
+```bash
+node --test plugins/pi/test/*.test.mjs
+```
+
+`make test` runs the opencode and pi plugin tests before the Swift test suite. For hook event mapping changes, also run `make contract`; it verifies the hook schema, fixtures, Swift parser, and plugin hook calls stay in sync.
 
 For local development, you can manually copy your modified plugin to override the installed version:
 
