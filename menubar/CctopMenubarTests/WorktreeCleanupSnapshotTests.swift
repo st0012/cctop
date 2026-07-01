@@ -62,6 +62,19 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         try renderSpecialStateScreenshots(for: scenario)
     }
 
+    func testGenerateCleanupScanningPopupScreenshot() throws {
+        let scenario = cleanupScenario()
+        let view = cleanupPopup(candidates: Array(scenario.productInputCandidates.prefix(3)), isScanning: true)
+        let size = try renderScreenshot(
+            view: view,
+            colorScheme: .dark,
+            filename: "worktree-cleanup-popup-scanning-tab-dark.png"
+        )
+
+        XCTAssertLessThanOrEqual(size.width, 320)
+        XCTAssertLessThanOrEqual(size.height, 430)
+    }
+
     private func renderListScreenshots(for scenario: Scenario) throws {
         let actionableCount = scenario.productInputCandidates.filter(\.state.isActionable).count
         XCTAssertEqual(actionableCount, scenario.allCandidates.count)
@@ -189,9 +202,36 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             candidates: [],
             selectedIndex: nil,
             selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
+            isScanning: false,
             onRemove: { _, _ in }
         )
         try renderScreenshot(view: emptyState, colorScheme: .dark, filename: "worktree-cleanup-empty.png")
+
+        let scanningEmptyState = WorktreeCleanupTabView(
+            candidates: [],
+            selectedIndex: nil,
+            selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
+            isScanning: true,
+            onRemove: { _, _ in }
+        )
+        try renderScreenshot(
+            view: scanningEmptyState,
+            colorScheme: .dark,
+            filename: "worktree-cleanup-scanning-empty.png"
+        )
+
+        let scanningPreviousCandidates = WorktreeCleanupTabView(
+            candidates: Array(overflow.prefix(3)),
+            selectedIndex: nil,
+            selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
+            isScanning: true,
+            onRemove: { _, _ in }
+        )
+        try renderScreenshot(
+            view: scanningPreviousCandidates,
+            colorScheme: .dark,
+            filename: "worktree-cleanup-scanning-with-candidates.png"
+        )
     }
 
     @discardableResult
@@ -251,12 +291,14 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
     private func cleanupPopup(
         candidates: [WorktreeCleanupCandidate],
         selectedCandidate: WorktreeCleanupCandidate? = nil,
-        sessions: [Session] = Session.qaShowcase
+        sessions: [Session] = Session.qaShowcase,
+        isScanning: Bool = false
     ) -> PopupView {
         PopupView(
             sessions: sessions,
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
+            cleanupIsScanning: isScanning,
             updater: DisabledUpdater(),
             pluginManager: inertPluginManager(),
             initialTab: .cleanup,

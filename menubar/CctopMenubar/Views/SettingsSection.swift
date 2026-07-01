@@ -82,6 +82,15 @@ struct SettingsSection: View {
                 }
                 groupedDivider
                 NotificationSettingsRow(notificationPermission: notificationPermission)
+                groupedDivider
+                settingsRow("File Access") {
+                    Button("Open Settings") {
+                        openFileAccessSettings()
+                    }
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.segmentActiveText)
+                    .buttonStyle(.plain)
+                }
             }
         }
         .padding(AppChrome.settingsContentPadding)
@@ -236,6 +245,12 @@ struct SettingsSection: View {
             .padding(.vertical, 8)
     }
 
+    private func openFileAccessSettings() {
+        if NSWorkspace.shared.open(FileAccessSettings.filesAndFoldersURL) {
+            return
+        }
+        NSWorkspace.shared.open(FileAccessSettings.privacySecurityURL)
+    }
 }
 
 // MARK: - Monitored Tools

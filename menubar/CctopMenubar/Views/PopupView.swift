@@ -9,6 +9,7 @@ struct PopupView: View {
     let sessions: [Session]
     var recentProjects: [RecentProject] = []
     var cleanupCandidates: [WorktreeCleanupCandidate] = []
+    var cleanupIsScanning = false
     @ObservedObject var updater: UpdaterBase
     let pluginManager: PluginManager
     var navigate: NavigateController?
@@ -102,6 +103,7 @@ struct PopupView: View {
         .onChange(of: sessions) { _ in ensureSelectedTabAvailable() }
         .onChange(of: recentProjects.map(\.id)) { _ in ensureSelectedTabAvailable() }
         .onChange(of: actionableCleanupCandidates) { _ in handleCleanupCandidatesChanged() }
+        .onChange(of: cleanupIsScanning) { _ in handleCleanupScanningChanged() }
         .onChange(of: selectedCleanupCandidate?.id) { _ in
             cleanupRemovalNotice = nil
             notifyLayoutChanged()
@@ -141,15 +143,15 @@ struct PopupView: View {
             if !recentProjects.isEmpty {
                 tabButton("Recent", count: recentProjects.count, tab: .recent)
             }
-            tabButton("Cleanup", count: actionableCleanupCandidates.count, tab: .cleanup)
+            tabButton("Cleanup", count: actionableCleanupCandidates.count, tab: .cleanup, isScanning: cleanupIsScanning)
             Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
     }
 
-    private func tabButton(_ label: String, count: Int, tab: PopupTab) -> some View {
-        TabButtonView(label: label, count: count, isSelected: selectedTab == tab) {
+    private func tabButton(_ label: String, count: Int, tab: PopupTab, isScanning: Bool = false) -> some View {
+        TabButtonView(label: label, count: count, isScanning: isScanning, isSelected: selectedTab == tab) {
             if overlayController.active != nil { closeOverlay(animated: false) }
             withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
             notifyLayoutChanged()

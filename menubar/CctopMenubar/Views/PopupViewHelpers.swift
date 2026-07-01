@@ -170,6 +170,7 @@ struct RollUpEffect: ViewModifier {
 struct TabButtonView: View {
     let label: String
     let count: Int
+    var isScanning = false
     let isSelected: Bool
     let action: () -> Void
     @State private var isHovered = false
@@ -182,11 +183,18 @@ struct TabButtonView: View {
                     .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
-                Text("\(count)")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                if isScanning {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 10, height: 10)
+                        .accessibilityLabel("\(label) scanning")
+                } else {
+                    Text("\(count)")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
@@ -235,6 +243,7 @@ struct PanelContentView: View {
             sessions: sessionManager.sessions,
             recentProjects: historyManager.recentProjects,
             cleanupCandidates: cleanupManager.candidates,
+            cleanupIsScanning: cleanupManager.isScanning,
             updater: updater,
             pluginManager: pluginManager,
             navigate: navigate,

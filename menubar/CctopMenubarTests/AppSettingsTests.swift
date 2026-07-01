@@ -18,6 +18,17 @@ final class AppSettingsTests: XCTestCase {
         let cases = AppearanceMode.allCases
         XCTAssertEqual(cases, [.system, .light, .dark])
     }
+
+    func testFileAccessSettingsURLsOpenPrivacySystemSettings() {
+        XCTAssertEqual(
+            FileAccessSettings.filesAndFoldersURL.absoluteString,
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders"
+        )
+        XCTAssertEqual(
+            FileAccessSettings.privacySecurityURL.absoluteString,
+            "x-apple.systempreferences:com.apple.preference.security"
+        )
+    }
 }
 
 @MainActor

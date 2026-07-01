@@ -9,6 +9,7 @@ private let worktreeCleanupLogger = Logger(
 @MainActor
 class WorktreeCleanupManager: ObservableObject {
     @Published var candidates: [WorktreeCleanupCandidate] = []
+    @Published private(set) var isScanning = false
 
     private let scanner: WorktreeCleanupScanner
     private var refreshGeneration = 0
@@ -29,12 +30,14 @@ class WorktreeCleanupManager: ObservableObject {
         refreshGeneration += 1
         let generation = refreshGeneration
         let scanner = scanner
+        isScanning = true
         DispatchQueue.global(qos: .utility).async {
             let next = scanner
                 .candidates(from: sourceSessions, activeProjectPaths: activeProjectPaths)
                 .filter(\.state.isActionable)
             DispatchQueue.main.async {
                 guard generation == self.refreshGeneration else { return }
+                self.isScanning = false
                 if next != self.candidates {
                     worktreeCleanupLogger.info("cleanup candidates \(self.candidates.count) -> \(next.count)")
                     self.candidates = next

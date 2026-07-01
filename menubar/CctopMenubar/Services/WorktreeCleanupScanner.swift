@@ -54,6 +54,7 @@ struct WorktreeCleanupScanner {
         for session in sessions {
             guard session.endedAt != nil else { continue }
             let rawPath = Self.standardizedPath(session.projectPath)
+            guard shouldScanEndedSessionPath(rawPath) else { continue }
             let path = resolvedPaths[rawPath] ?? {
                 let path = resolvedCandidatePath(for: rawPath)
                 resolvedPaths[rawPath] = path
@@ -311,6 +312,11 @@ struct WorktreeCleanupScanner {
 }
 
 private extension WorktreeCleanupScanner {
+    func shouldScanEndedSessionPath(_ path: String) -> Bool {
+        guard Self.isLikelyPrivacyProtectedUserPath(path) else { return true }
+        return Self.isPlausibleCleanupWorktreePath(path)
+    }
+
     func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths: Set<String>) -> Bool {
         if candidatePaths.contains(where: { candidatePath in
             Self.isPath(activePath, sameAsOrDescendantOf: candidatePath)
@@ -329,6 +335,19 @@ private extension WorktreeCleanupScanner {
         let pathComponents = URL(fileURLWithPath: path).pathComponents
         guard pathComponents.count > 3, pathComponents[1] == "Users" else { return false }
         return ["Desktop", "Documents", "Downloads"].contains(pathComponents[3])
+    }
+
+    static func isPlausibleCleanupWorktreePath(_ path: String) -> Bool {
+        let pathComponents = URL(fileURLWithPath: path).pathComponents
+        guard pathComponents.count >= 3 else { return false }
+        for index in 0..<(pathComponents.count - 2) {
+            let marker = pathComponents[index]
+            guard marker == ".claude" || marker == ".codex" else { continue }
+            if pathComponents[index + 1] == "worktrees", !pathComponents[index + 2].isEmpty {
+                return true
+            }
+        }
+        return false
     }
 }
 

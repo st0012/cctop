@@ -112,6 +112,73 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(resolvedPaths, [candidatePath])
     }
 
+    func testScannerSkipsProtectedEndedProjectPathWithoutFileProbes() {
+        let documentsProjectPath = "/Users/dev/Documents/Codex/old-session"
+        var probedPaths: [String] = []
+        var resolvedPaths: [String] = []
+        var inspectedPaths: [String] = []
+
+        let scanner = WorktreeCleanupScanner(
+            fileExists: { path in
+                probedPaths.append(path)
+                return true
+            },
+            resolveWorktreeRoot: { path in
+                resolvedPaths.append(path)
+                return nil
+            },
+            inspectGit: { path in
+                inspectedPaths.append(path)
+                return self.cleanInspection()
+            },
+            measureSize: { _ in 1_024 }
+        )
+
+        let candidates = scanner.candidates(
+            from: [historySession(path: documentsProjectPath)],
+            activeProjectPaths: []
+        )
+
+        XCTAssertEqual(candidates, [])
+        XCTAssertEqual(probedPaths, [])
+        XCTAssertEqual(resolvedPaths, [])
+        XCTAssertEqual(inspectedPaths, [])
+    }
+
+    func testScannerStillScansProtectedEndedWorktreePath() {
+        let documentsWorktreePath = "/Users/dev/Documents/app/.claude/worktrees/feature-x"
+        var probedPaths: [String] = []
+        var resolvedPaths: [String] = []
+        var inspectedPaths: [String] = []
+
+        let scanner = WorktreeCleanupScanner(
+            fileExists: { path in
+                probedPaths.append(path)
+                return path == documentsWorktreePath
+            },
+            resolveWorktreeRoot: { path in
+                resolvedPaths.append(path)
+                return path == documentsWorktreePath ? documentsWorktreePath : nil
+            },
+            inspectGit: { path in
+                inspectedPaths.append(path)
+                return self.cleanInspection(branch: "claude/feature-x")
+            },
+            measureSize: { _ in 1_024 }
+        )
+
+        let candidates = scanner.candidates(
+            from: [historySession(path: documentsWorktreePath)],
+            activeProjectPaths: []
+        )
+
+        XCTAssertEqual(candidates.map(\.id), [documentsWorktreePath])
+        XCTAssertEqual(candidates[0].branchName, "claude/feature-x")
+        XCTAssertFalse(probedPaths.isEmpty)
+        XCTAssertEqual(resolvedPaths, [documentsWorktreePath])
+        XCTAssertEqual(inspectedPaths, [documentsWorktreePath])
+    }
+
     func testActiveProjectPathPrefixSiblingDoesNotProtectCandidate() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
 
@@ -971,6 +1038,19 @@ final class WorktreeCleanupTests: XCTestCase {
     }
 
     @MainActor
+    func testCleanupScanningChangeNotifiesLayout() async throws {
+        let layoutChanged = expectation(description: "cleanup scanning change notifies layout")
+        let view = popupView(
+            cleanupCandidates: [],
+            onLayoutChanged: { layoutChanged.fulfill() }
+        )
+
+        view.handleCleanupScanningChanged()
+
+        await fulfillment(of: [layoutChanged], timeout: 1)
+    }
+
+    @MainActor
     func testCleanupTabBecomingVisibleRequestsFreshCleanupScan() {
         let candidate = cleanupCandidate(path: "/Users/dev/.codex/worktrees/billing-api")
         var visibilityRefreshCount = 0
@@ -1137,6 +1217,85 @@ final class WorktreeCleanupTests: XCTestCase {
         try await waitForCleanupCandidates(manager) { candidates in
             candidates.first?.state == .review(["Worktree has untracked files"])
         }
+    }
+
+    @MainActor
+    func testRefreshPublishesScanningWhileScanIsBlockedAndClearsAfterCompletion() async throws {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let scanStarted = expectation(description: "scan started")
+        let releaseScan = DispatchSemaphore(value: 0)
+        let manager = WorktreeCleanupManager(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { _ in true },
+                resolveWorktreeRoot: { _ in nil },
+                inspectGit: { _ in
+                    scanStarted.fulfill()
+                    releaseScan.wait()
+                    return self.cleanInspection()
+                },
+                measureSize: { _ in 1_024 }
+            )
+        )
+
+        manager.refresh(from: [session], activeProjectPaths: [], force: true)
+
+        XCTAssertTrue(manager.isScanning)
+        await fulfillment(of: [scanStarted], timeout: 1)
+
+        releaseScan.signal()
+        try await waitForCleanupCandidates(manager) { candidates in
+            candidates.first?.id == worktreePath
+        }
+        XCTAssertFalse(manager.isScanning)
+    }
+
+    @MainActor
+    func testRefreshKeepsScanningUntilLatestGenerationCompletes() async throws {
+        let firstPath = "/Users/dev/.codex/worktrees/first"
+        let secondPath = "/Users/dev/.codex/worktrees/second"
+        let firstStarted = expectation(description: "first scan started")
+        let secondStarted = expectation(description: "second scan started")
+        let releaseFirst = DispatchSemaphore(value: 0)
+        let releaseSecond = DispatchSemaphore(value: 0)
+        let manager = WorktreeCleanupManager(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { _ in true },
+                resolveWorktreeRoot: { _ in nil },
+                inspectGit: { path in
+                    switch path {
+                    case firstPath:
+                        firstStarted.fulfill()
+                        releaseFirst.wait()
+                        return self.cleanInspection(branch: "feature/first")
+                    case secondPath:
+                        secondStarted.fulfill()
+                        releaseSecond.wait()
+                        return self.cleanInspection(branch: "feature/second")
+                    default:
+                        return self.cleanInspection()
+                    }
+                },
+                measureSize: { _ in 1_024 }
+            )
+        )
+
+        manager.refresh(from: [historySession(path: firstPath)], activeProjectPaths: [], force: true)
+        await fulfillment(of: [firstStarted], timeout: 1)
+
+        manager.refresh(from: [historySession(path: secondPath)], activeProjectPaths: [], force: true)
+        XCTAssertTrue(manager.isScanning)
+        await fulfillment(of: [secondStarted], timeout: 1)
+
+        releaseFirst.signal()
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(manager.isScanning)
+
+        releaseSecond.signal()
+        try await waitForCleanupCandidates(manager) { candidates in
+            candidates.first?.id == secondPath
+        }
+        XCTAssertFalse(manager.isScanning)
     }
 
     @MainActor

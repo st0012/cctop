@@ -4,6 +4,7 @@ struct WorktreeCleanupTabView: View {
     let candidates: [WorktreeCleanupCandidate]
     let selectedIndex: Int?
     @Binding var selectedCandidate: WorktreeCleanupCandidate?
+    var isScanning = false
     var relativeTimeNow = Date()
     var onSelect: (WorktreeCleanupCandidate) -> Void = { _ in }
     var onRemove: (WorktreeCleanupCandidate, WorktreeForceRemovalOffer?) -> Void = { _, _ in }
@@ -11,6 +12,18 @@ struct WorktreeCleanupTabView: View {
     var removingCandidateID: String?
 
     var body: some View {
+        if isScanning && !candidates.isEmpty {
+            VStack(spacing: 0) {
+                scanningBanner
+                cleanupContent
+            }
+        } else {
+            cleanupContent
+        }
+    }
+
+    @ViewBuilder
+    private var cleanupContent: some View {
         if let candidate = selectedCandidate {
             WorktreeCleanupDetailView(
                 candidate: candidate,
@@ -22,10 +35,16 @@ struct WorktreeCleanupTabView: View {
             )
         } else if candidates.isEmpty {
             VStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.textMuted)
-                Text("No cleanup candidates")
+                if isScanning {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Scanning worktrees")
+                } else {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Color.textMuted)
+                }
+                Text(isScanning ? "Scanning worktrees..." : "No cleanup candidates")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.textMuted)
                     .multilineTextAlignment(.center)
@@ -34,6 +53,27 @@ struct WorktreeCleanupTabView: View {
             .padding(.vertical, 24)
         } else {
             cleanupList
+        }
+    }
+
+    private var scanningBanner: some View {
+        HStack(spacing: 6) {
+            ProgressView()
+                .controlSize(.mini)
+                .frame(width: 12, height: 12)
+                .accessibilityLabel("Scanning worktrees")
+            Text("Scanning worktrees...")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Color.textMuted)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(Color.panelControlBackground)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.panelControlBorder)
+                .frame(height: 1)
         }
     }
 

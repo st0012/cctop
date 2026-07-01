@@ -14,6 +14,7 @@ extension PopupView {
             candidates: actionableCleanupCandidates,
             selectedIndex: selectedIndex,
             selectedCandidate: $selectedCleanupCandidate,
+            isScanning: cleanupIsScanning,
             relativeTimeNow: relativeTimeNow,
             onSelect: openCleanupDetail,
             onRemove: requestCleanupRemoval,
@@ -39,6 +40,10 @@ extension PopupView {
             selectedCleanupCandidate = nil
             cleanupRemovalNotice = nil
         }
+    }
+
+    func handleCleanupScanningChanged() {
+        notifyLayoutChanged()
     }
 
     func performCleanupRemoval(_ candidate: WorktreeCleanupCandidate) {

@@ -113,6 +113,15 @@ final class QASnapshotTests: XCTestCase {
         )
     }
 
+    func testSettingsFileAccessRecoveryRow() throws {
+        try renderSettingsSnapshot(
+            updater: DisabledUpdater(),
+            name: "16-settings-file-access-bottom-dark",
+            colorScheme: .dark,
+            scrollToBottom: true
+        )
+    }
+
     // MARK: - Polish review matrix
 
     func testPolishReviewMatrix() throws {
