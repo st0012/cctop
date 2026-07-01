@@ -6,9 +6,9 @@ import SwiftUI
 /// "installed" and "trusted" as separate user-visible states.
 struct CodexPluginRowView: View {
     @ObservedObject var pluginManager: PluginManager
-    @Binding var installFailed: Bool
     @StateObject private var setupFlow = CodexSetupFlow()
     @State private var removeHovered = false
+    @State private var installFailed = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -280,32 +280,24 @@ struct HooksReadyBadge: View {
 }
 
 #Preview("Not installed") {
-    CodexPluginRowView(
-        pluginManager: previewCodexPM(status: .notInstalled), installFailed: .constant(false)
-    )
-    .frame(width: 320).padding()
+    CodexPluginRowView(pluginManager: previewCodexPM(status: .notInstalled))
+        .frame(width: 320).padding()
 }
 #Preview("Untrusted") {
-    CodexPluginRowView(
-        pluginManager: previewCodexPM(status: .installedUntrusted), installFailed: .constant(false)
-    )
-    .frame(width: 320).padding()
+    CodexPluginRowView(pluginManager: previewCodexPM(status: .installedUntrusted))
+        .frame(width: 320).padding()
 }
 #Preview("Hooks disabled") {
-    CodexPluginRowView(
-        pluginManager: previewCodexPM(status: .hooksDisabled), installFailed: .constant(false)
-    )
-    .frame(width: 320).padding()
+    CodexPluginRowView(pluginManager: previewCodexPM(status: .hooksDisabled))
+        .frame(width: 320).padding()
 }
 #Preview("Trusted") {
-    CodexPluginRowView(
-        pluginManager: previewCodexPM(status: .trusted), installFailed: .constant(false)
-    )
-    .frame(width: 320).padding()
+    CodexPluginRowView(pluginManager: previewCodexPM(status: .trusted))
+        .frame(width: 320).padding()
 }
 #Preview("Stray legacy key") {
     let pm = previewCodexPM(status: .notInstalled)
     pm.codexLegacyConfigKey = true
-    return CodexPluginRowView(pluginManager: pm, installFailed: .constant(false))
+    return CodexPluginRowView(pluginManager: pm)
         .frame(width: 320).padding()
 }

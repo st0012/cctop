@@ -9,7 +9,6 @@ struct SettingsSection: View {
     @StateObject private var notificationPermission: NotificationPermissionController
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
-    @State private var installFailed = false
 
     init(
         updater: UpdaterBase,
@@ -39,10 +38,7 @@ struct SettingsSection: View {
 
             sectionHeader("Tools")
             settingsGroup {
-                MonitoredToolsView(
-                    pluginManager: pluginManager,
-                    installFailed: $installFailed
-                )
+                MonitoredToolsView(pluginManager: pluginManager)
             }
 
             sectionHeader("Appearance")
@@ -257,23 +253,22 @@ struct SettingsSection: View {
 
 private struct MonitoredToolsView: View {
     @ObservedObject var pluginManager: PluginManager
-    @Binding var installFailed: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ClaudeCodePluginRowView(pluginManager: pluginManager)
             if pluginManager.ocConfigExists {
                 PluginRowView(name: "opencode", installed: pluginManager.ocInstalled,
-                    needsUpdate: pluginManager.ocNeedsUpdate, installFailed: $installFailed,
+                    needsUpdate: pluginManager.ocNeedsUpdate,
                     install: { pluginManager.installOpenCodePlugin() },
                     remove: { pluginManager.removeOpenCodePlugin() })
             }
             if pluginManager.piConfigExists {
                 PluginRowView(name: "pi", installed: pluginManager.piInstalled,
-                    installFailed: $installFailed, install: { pluginManager.installPiPlugin() },
+                    install: { pluginManager.installPiPlugin() },
                     remove: { pluginManager.removePiPlugin() })
             }
             if pluginManager.codexConfigExists {
-                CodexPluginRowView(pluginManager: pluginManager, installFailed: $installFailed)
+                CodexPluginRowView(pluginManager: pluginManager)
             }
         }
         .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
@@ -284,9 +279,9 @@ private struct MonitoredToolsView: View {
 private struct PluginRowView: View {
     let name: String; let installed: Bool; var needsUpdate: Bool = false
     var installLabel = "Install Plugin"; var updateLabel = "Update Plugin"
-    @Binding var installFailed: Bool
     let install: () -> Bool; let remove: () -> Bool
     @State private var justInstalled = false; @State private var removeHovered = false
+    @State private var installFailed = false
 
     var body: some View {
         VStack(spacing: 4) {
