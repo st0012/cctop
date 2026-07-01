@@ -78,9 +78,6 @@ struct WorktreeCleanupScanner {
     private func resolvedActiveProjectPaths(_ activeProjectPaths: Set<String>, candidatePaths: Set<String>) -> Set<String> {
         Set(activeProjectPaths.map { activePath in
             let standardizedPath = Self.standardizedPath(activePath)
-            if let candidatePath = plausibleProtectedActiveAliasTarget(standardizedPath, candidatePaths: candidatePaths) {
-                return candidatePath
-            }
             guard shouldResolveActiveProjectPath(standardizedPath, candidatePaths: candidatePaths) else {
                 return standardizedPath
             }
@@ -314,21 +311,6 @@ struct WorktreeCleanupScanner {
 }
 
 private extension WorktreeCleanupScanner {
-    func plausibleProtectedActiveAliasTarget(_ activePath: String, candidatePaths: Set<String>) -> String? {
-        guard Self.isLikelyPrivacyProtectedUserPath(activePath) else { return nil }
-        let activeName = URL(fileURLWithPath: activePath).lastPathComponent
-        return candidatePaths
-            .filter { candidatePath in
-                let candidateName = URL(fileURLWithPath: candidatePath).lastPathComponent
-                return !candidateName.isEmpty && activeName.contains(candidateName)
-            }
-            .max { lhs, rhs in
-                let lhsName = URL(fileURLWithPath: lhs).lastPathComponent
-                let rhsName = URL(fileURLWithPath: rhs).lastPathComponent
-                return lhsName.count < rhsName.count
-            }
-    }
-
     func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths: Set<String>) -> Bool {
         if candidatePaths.contains(where: { candidatePath in
             Self.isPath(activePath, sameAsOrDescendantOf: candidatePath)
