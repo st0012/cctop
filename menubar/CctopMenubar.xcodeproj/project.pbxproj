@@ -156,6 +156,13 @@
 			remoteGlobalIDString = A1000000B000000000000001;
 			remoteInfo = CctopMenubar;
 		};
+		T1000000F000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1000000E000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = P10000100000000000000001;
+			remoteInfo = "cctop-hook";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -581,6 +588,7 @@
 			);
 			dependencies = (
 				T1000000C000000000000001 /* PBXTargetDependency */,
+				T10000130000000000000001 /* PBXTargetDependency */,
 			);
 			name = CctopMenubarTests;
 			productName = CctopMenubarTests;
@@ -796,6 +804,11 @@
 			isa = PBXTargetDependency;
 			target = A1000000B000000000000001 /* CctopMenubar */;
 			targetProxy = T10000050000000000000001 /* PBXContainerItemProxy */;
+		};
+		T10000130000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = P10000100000000000000001 /* cctop-hook */;
+			targetProxy = T1000000F000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
