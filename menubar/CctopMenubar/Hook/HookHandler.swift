@@ -436,7 +436,12 @@ extension HookHandler {
                 session.disconnectedAt = session.disconnectedAt ?? endedAt
             }
             session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
-            try? session.writeToFile(path: path)
+            do {
+                try session.writeToFile(path: path)
+            } catch {
+                deps.logger.logError("\(hookName): \(error)")
+                return
+            }
             deps.logger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> ended")
         }
     }

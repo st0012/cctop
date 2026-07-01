@@ -423,6 +423,30 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertNotNil(try loadSession().endedAt)
     }
 
+    // A failed SessionEnd write must land in _errors.log and must NOT log "-> ended" —
+    // otherwise the per-session log claims the session ended while the file stayed stale,
+    // with no error trace anywhere.
+    func testSessionEndWriteFailureLogsErrorAndSkipsEndedTransition() throws {
+        try handleFixture("SessionStart")
+
+        // Pre-create the lock file so locking still succeeds once the directory is
+        // read-only; the session-file write (temp file creation) is what fails.
+        FileManager.default.createFile(atPath: sessionFilePath() + ".lock", contents: nil)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: sessionsDir)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sessionsDir) }
+
+        try handleFixture("SessionEnd")
+
+        let errorLogPath = (logsDir as NSString).appendingPathComponent("_errors.log")
+        let errors = (try? String(contentsOfFile: errorLogPath, encoding: .utf8)) ?? ""
+        XCTAssertTrue(errors.contains("SessionEnd"), "Write failure must be logged to _errors.log, got: \(errors)")
+
+        let sessionLogPath = (logsDir as NSString).appendingPathComponent("test-session-001.log")
+        let sessionLog = (try? String(contentsOfFile: sessionLogPath, encoding: .utf8)) ?? ""
+        XCTAssertTrue(sessionLog.contains("SessionStart"), "Per-session log must exist with the SessionStart entry")
+        XCTAssertFalse(sessionLog.contains("-> ended"), "Must not claim '-> ended' when the write failed")
+    }
+
     func testDesktopSessionEndStampsDisconnectedAt() throws {
         let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.claudeDesktop])
 
