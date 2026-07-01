@@ -63,4 +63,17 @@ final class FocusTerminalTests: XCTestCase {
         let session = Session.mock(terminal: nil)
         XCTAssertNil(session.terminal)
     }
+
+    // MARK: - Activation-name launch fallback
+
+    // When a .activateByName app isn't running, execution recovers its bundle ID
+    // via HostApp.from(editorName:) to launch it. Lock the round trip so every
+    // activation name maps back to its own HostApp (and thus a bundle ID).
+    func testActivationNamesRoundTripToHostAppWithBundleID() {
+        for app in HostApp.allCases {
+            guard let name = app.activationName else { continue }
+            XCTAssertEqual(HostApp.from(editorName: name), app, "activation name '\(name)' should map back to \(app)")
+            XCTAssertNotNil(app.bundleID, "\(app) has an activation name but no bundle ID to launch")
+        }
+    }
 }

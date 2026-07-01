@@ -8,7 +8,8 @@ func restoreAndActivate(_ app: NSRunningApplication) -> Bool {
     return app.activate(options: [.activateAllWindows])
 }
 
-private func restoreAppByBundleID(_ bundleID: String) {
+/// Launch (or bring forward) an app by bundle ID. No-ops if the app isn't installed.
+func restoreAppByBundleID(_ bundleID: String) {
     guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return }
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = true

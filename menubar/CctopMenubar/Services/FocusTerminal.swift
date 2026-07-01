@@ -155,7 +155,10 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
         runScriptOrActivate(.terminal) { executeAppleTerminalScript(tty: tty) }
 
     case .activateByName(let name):
-        activateAppByName(name)
+        // If no running app matches the name, recover the bundle ID and activate (or launch) by bundle ID.
+        if !activateAppByName(name), let bundleID = HostApp.from(editorName: name).bundleID {
+            activateAppByBundleID(bundleID)
+        }
 
     case .activateByBundleID(let bundleID):
         activateAppByBundleID(bundleID)
@@ -479,7 +482,9 @@ private func activateAppByBundleID(_ bundleID: String) -> Bool {
     guard let app = NSWorkspace.shared.runningApplications.first(where: {
         $0.bundleIdentifier == bundleID
     }) else {
-        return false
+        // App not running — launch it (optimistic true; restoreAppByBundleID no-ops if the app isn't installed).
+        restoreAppByBundleID(bundleID)
+        return true
     }
     return restoreAndActivate(app)
 }
