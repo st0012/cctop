@@ -1510,6 +1510,105 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(result, .removed(GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")))
     }
 
+    func testRemovalServiceNormalPreflightOnlyInspectsAndMeasuresTargetWorktree() {
+        let targetPath = "/Users/dev/.codex/worktrees/billing-api"
+        let otherPath = "/Users/dev/.codex/worktrees/reporting-api"
+        let cleanupSources = [
+            historySession(id: "target", path: targetPath),
+            historySession(id: "other", path: otherPath, name: "Reporting cleanup", branch: "feature/reports"),
+        ]
+        var inspectedPaths: [String] = []
+        var measuredPaths: [String] = []
+        let scanner = WorktreeCleanupScanner(
+            fileExists: { $0 == targetPath || $0 == otherPath },
+            resolveWorktreeRoot: { _ in nil },
+            inspectGit: { path in
+                inspectedPaths.append(path)
+                return self.cleanInspection()
+            },
+            measureSize: { path in
+                measuredPaths.append(path)
+                return 1_024
+            }
+        )
+        let service = WorktreeRemovalService(
+            scanner: scanner,
+            runGit: { _ in GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "") }
+        )
+
+        let result = service.remove(
+            cleanupCandidate(path: targetPath),
+            cleanupSources: cleanupSources,
+            activeProjectPaths: []
+        )
+
+        XCTAssertEqual(result, .removed(GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")))
+        XCTAssertEqual(inspectedPaths, [targetPath, targetPath])
+        XCTAssertEqual(measuredPaths, [targetPath])
+    }
+
+    func testRemovalServiceConfirmedForcePreflightOnlyInspectsAndMeasuresTargetWorktree() {
+        let targetPath = "/Users/dev/.codex/worktrees/billing-api"
+        let otherPath = "/Users/dev/.codex/worktrees/reporting-api"
+        let mainPath = "/Users/dev/projects/billing-api"
+        let cleanupSources = [
+            historySession(id: "target", path: targetPath),
+            historySession(id: "other", path: otherPath, name: "Reporting cleanup", branch: "feature/reports"),
+        ]
+        let confirmedCandidate = WorktreeCleanupCandidate(
+            id: targetPath,
+            sessionName: "Dirty branch review",
+            worktreePath: targetPath,
+            worktreeName: "billing-api",
+            mainWorktreePath: mainPath,
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.untrackedFilesReason]),
+            checks: [],
+            reviewEvidence: WorktreeCleanupReviewEvidence(
+                untrackedPreview: WorktreeCleanupUntrackedPreview(paths: ["scratch.txt"])
+            )
+        )
+        var inspectedPaths: [String] = []
+        var measuredPaths: [String] = []
+        let success = GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
+        var gitArguments: [[String]] = []
+        let scanner = WorktreeCleanupScanner(
+            fileExists: { $0 == targetPath || $0 == otherPath },
+            resolveWorktreeRoot: { _ in nil },
+            inspectGit: { path in
+                inspectedPaths.append(path)
+                if path == targetPath {
+                    return self.cleanInspection(statusEntries: ["?? scratch.txt"])
+                }
+                return self.cleanInspection()
+            },
+            measureSize: { path in
+                measuredPaths.append(path)
+                return 1_024
+            }
+        )
+        let service = WorktreeRemovalService(
+            scanner: scanner,
+            runGit: { arguments in
+                gitArguments.append(arguments)
+                return success
+            }
+        )
+
+        let result = service.executeConfirmed(
+            .forceRemove(confirmedCandidate),
+            cleanupSources: cleanupSources,
+            activeProjectPaths: []
+        )
+
+        XCTAssertEqual(result, .removed(success))
+        XCTAssertEqual(gitArguments, [["-C", mainPath, "worktree", "remove", "--force", targetPath]])
+        XCTAssertEqual(inspectedPaths, [targetPath, targetPath])
+        XCTAssertEqual(measuredPaths, [targetPath])
+    }
+
     func testRemovalServiceRunsGitWorktreeRemoveWithArgumentArrayForReviewCandidate() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let mainPath = "/Users/dev/projects/billing-api"

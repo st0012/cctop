@@ -346,6 +346,42 @@ struct WorktreeCleanupScanner {
     }
 }
 
+extension WorktreeCleanupScanner {
+    func candidate(
+        withID id: String,
+        from cleanupSources: [SessionCleanupSource],
+        activeProjectPaths: Set<String>
+    ) -> WorktreeCleanupCandidate? {
+        let id = Self.standardizedPath(id)
+        guard let context = candidateContext(withID: id, from: cleanupSources) else { return nil }
+        let activePaths = resolvedActiveProjectPaths(activeProjectPaths, candidatePaths: Set([id]))
+        return candidate(from: context, activeProjectPaths: activePaths)
+    }
+
+    private func candidateContext(withID id: String, from cleanupSources: [SessionCleanupSource]) -> CandidateContext? {
+        var result: CandidateContext?
+        var resolvedPaths: [String: String] = [:]
+        for source in cleanupSources {
+            let rawPath = Self.standardizedPath(source.projectPath)
+            guard shouldScanCleanupSourcePath(rawPath) else { continue }
+            let path = resolvedPaths[rawPath] ?? {
+                let path = resolvedCandidatePath(for: rawPath)
+                resolvedPaths[rawPath] = path
+                return path
+            }()
+            guard path == id else { continue }
+            guard let existing = result else {
+                result = CandidateContext(source: source, path: path)
+                continue
+            }
+            if source.lastActiveAt > existing.lastActiveAt {
+                result = CandidateContext(source: source, path: path)
+            }
+        }
+        return result
+    }
+}
+
 private extension WorktreeCleanupScanner {
     func shouldScanCleanupSourcePath(_ path: String) -> Bool {
         guard Self.isLikelyPrivacyProtectedUserPath(path) else { return true }

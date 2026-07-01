@@ -125,9 +125,11 @@ struct WorktreeRemovalService {
             return .refused(candidate)
         }
 
-        guard let preflightCandidate = scanner
-            .candidates(from: cleanupSources, activeProjectPaths: activeProjectPaths)
-            .first(where: { $0.id == candidate.id }) else {
+        guard let preflightCandidate = scanner.candidate(
+            withID: candidate.id,
+            from: cleanupSources,
+            activeProjectPaths: activeProjectPaths
+        ) else {
             return .refused(candidate)
         }
 
