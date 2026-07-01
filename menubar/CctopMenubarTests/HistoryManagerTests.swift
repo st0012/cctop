@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import CctopMenubar
 
@@ -323,5 +324,32 @@ final class HistoryManagerTests: XCTestCase {
             date.relativeDescription(asOf: date.addingTimeInterval(120)),
             "2m ago"
         )
+    }
+
+    @MainActor
+    func testHistoryManagerDoesNotPublishUnchangedRecentProjects() throws {
+        let root = NSTemporaryDirectory() + "cctop-history-publish-\(UUID().uuidString)"
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        var session = Session(
+            sessionId: "recent-session",
+            projectPath: "/tmp/recent",
+            branch: "main",
+            terminal: TerminalInfo()
+        )
+        session.endedAt = Date(timeIntervalSince1970: 1_000)
+        try session.writeToFile(path: (historyDir as NSString).appendingPathComponent("recent.json"))
+
+        let manager = HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
+        var publishCount = 0
+        let cancellable = manager.objectWillChange.sink { _ in publishCount += 1 }
+
+        let didRebuild = manager.rebuildRecentProjects()
+
+        XCTAssertFalse(didRebuild)
+        XCTAssertEqual(publishCount, 0)
+        _ = cancellable
     }
 }
