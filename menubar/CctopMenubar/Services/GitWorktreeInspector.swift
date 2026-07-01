@@ -343,16 +343,17 @@ enum GitCommand {
             worktreeInspectorLogger.debug("git failed to launch: \(error.localizedDescription, privacy: .public)")
             return GitCommandResult(exitCode: 127, stdout: "", stderr: error.localizedDescription)
         }
-        if let stdin {
-            inputPipe.fileHandleForWriting.write(Data(stdin.utf8))
-            inputPipe.fileHandleForWriting.closeFile()
-        }
-
+        // Drain stdout/stderr before writing stdin: if the child fills a pipe that
+        // nobody reads while it still waits for input, both processes block forever.
         let group = DispatchGroup()
         let stdoutReader = PipeOutputReader(fileHandle: stdout.fileHandleForReading)
         let stderrReader = PipeOutputReader(fileHandle: stderr.fileHandleForReading)
         stdoutReader.start(group: group)
         stderrReader.start(group: group)
+        if let stdin {
+            inputPipe.fileHandleForWriting.write(Data(stdin.utf8))
+            inputPipe.fileHandleForWriting.closeFile()
+        }
         process.waitUntilExit()
         group.wait()
 

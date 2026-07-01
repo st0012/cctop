@@ -884,6 +884,41 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(inspector.worktreeRoot(containing: symlinkedNestedPath), worktree.path)
     }
 
+    func testGitCommandWithLargeStdinAndLargeStdoutDoesNotDeadlock() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-git-command-pipe-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let initResult = GitCommand.run(cwd: root.path, arguments: ["init", "-q"])
+        try XCTSkipUnless(initResult.exitCode == 0, "git init failed: \(initResult.stderr)")
+
+        // cat-file --batch-check echoes one "<name> missing" line per stdin line, so both
+        // the stdin write and the stdout it produces exceed the ~64KB pipe buffers.
+        let lineCount = 20_000
+        let stdin = String(repeating: String(repeating: "0", count: 40) + "\n", count: lineCount)
+
+        addTeardownBlock {
+            // If the command deadlocked, kill the stuck git child so it does not leak.
+            let kill = Process()
+            kill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+            kill.arguments = ["-f", root.path]
+            try? kill.run()
+            kill.waitUntilExit()
+        }
+
+        var result: GitCommandResult?
+        let done = expectation(description: "git command returns")
+        DispatchQueue.global().async {
+            result = GitCommand.run(cwd: root.path, arguments: ["cat-file", "--batch-check"], stdin: stdin)
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 30)
+
+        XCTAssertEqual(result?.exitCode, 0)
+        XCTAssertEqual(result?.stdout.split(whereSeparator: \.isNewline).count, lineCount)
+    }
+
     func testRegisteredSiblingWithoutEndedSessionIsNotAdded() {
         let repo = "/Users/dev/projects/billing-api"
         let historyPath = "/Users/dev/projects/billing-api/.claude/worktrees/old-session"
