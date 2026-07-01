@@ -491,7 +491,6 @@ extension PopupView {
     }
 
     func openCleanupDetail(_ candidate: WorktreeCleanupCandidate) {
-        onCleanupTabVisible()
         selectedCleanupCandidate = candidate
     }
 

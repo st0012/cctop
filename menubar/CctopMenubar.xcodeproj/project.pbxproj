@@ -95,6 +95,7 @@
 		QSC000010000000000000001 /* QaShowcaseCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = QSC000020000000000000001 /* QaShowcaseCoverageTests.swift */; };
 		T10000030000000000000001 /* SessionStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000040000000000000001 /* SessionStatusTests.swift */; };
 		T10000050000000000000002 /* SnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000060000000000000002 /* SnapshotTests.swift */; };
+		WSS000010000000000000001 /* WorktreeCleanupSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WSS000020000000000000001 /* WorktreeCleanupSnapshotTests.swift */; };
 		T10000070000000000000002 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000080000000000000002 /* AppSettingsTests.swift */; };
 		PT0000010000000000000001 /* PanelToggleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PT0000020000000000000001 /* PanelToggleTests.swift */; };
 		PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PCT000020000000000000001 /* PanelCoordinatorTests.swift */; };
@@ -126,6 +127,7 @@
 		WRS000010000000000000001 /* WorktreeRemovalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = WRS000020000000000000001 /* WorktreeRemovalService.swift */; };
 		PNV000010000000000000001 /* PopupNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = PNV000020000000000000001 /* PopupNavigation.swift */; };
 		PES000010000000000000001 /* PopupView+EmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = PES000020000000000000001 /* PopupView+EmptyState.swift */; };
+		PCU000010000000000000001 /* PopupView+Cleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = PCU000020000000000000001 /* PopupView+Cleanup.swift */; };
 		WCV000010000000000000001 /* WorktreeCleanupCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WCV000020000000000000001 /* WorktreeCleanupCardView.swift */; };
 		WDV000010000000000000001 /* WorktreeCleanupDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WDV000020000000000000001 /* WorktreeCleanupDetailView.swift */; };
 		WTV000010000000000000001 /* WorktreeCleanupTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = WTV000020000000000000001 /* WorktreeCleanupTabView.swift */; };
@@ -247,6 +249,7 @@
 		T10000040000000000000001 /* SessionStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatusTests.swift; sourceTree = "<group>"; };
 		T10000060000000000000001 /* CctopMenubarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CctopMenubarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		T10000060000000000000002 /* SnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotTests.swift; sourceTree = "<group>"; };
+		WSS000020000000000000001 /* WorktreeCleanupSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupSnapshotTests.swift; sourceTree = "<group>"; };
 		T10000080000000000000002 /* AppSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsTests.swift; sourceTree = "<group>"; };
 		PT0000020000000000000001 /* PanelToggleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelToggleTests.swift; sourceTree = "<group>"; };
 		PCT000020000000000000001 /* PanelCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -280,6 +283,7 @@
 		WRS000020000000000000001 /* WorktreeRemovalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeRemovalService.swift; sourceTree = "<group>"; };
 		PNV000020000000000000001 /* PopupNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupNavigation.swift; sourceTree = "<group>"; };
 		PES000020000000000000001 /* PopupView+EmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PopupView+EmptyState.swift"; sourceTree = "<group>"; };
+		PCU000020000000000000001 /* PopupView+Cleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PopupView+Cleanup.swift"; sourceTree = "<group>"; };
 		WCV000020000000000000001 /* WorktreeCleanupCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupCardView.swift; sourceTree = "<group>"; };
 		WDV000020000000000000001 /* WorktreeCleanupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupDetailView.swift; sourceTree = "<group>"; };
 		WTV000020000000000000001 /* WorktreeCleanupTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupTabView.swift; sourceTree = "<group>"; };
@@ -435,6 +439,7 @@
 				D10000080000000000000001 /* PopupView.swift */,
 				PNV000020000000000000001 /* PopupNavigation.swift */,
 				PES000020000000000000001 /* PopupView+EmptyState.swift */,
+				PCU000020000000000000001 /* PopupView+Cleanup.swift */,
 				PVH000020000000000000001 /* PopupViewHelpers.swift */,
 				D1000000A000000000000001 /* QuitButton.swift */,
 				J10000020000000000000001 /* SettingsSection.swift */,
@@ -479,6 +484,7 @@
 				QSC000020000000000000001 /* QaShowcaseCoverageTests.swift */,
 				T10000040000000000000001 /* SessionStatusTests.swift */,
 				T10000060000000000000002 /* SnapshotTests.swift */,
+				WSS000020000000000000001 /* WorktreeCleanupSnapshotTests.swift */,
 				Q10000020000000000000001 /* QASnapshotTests.swift */,
 				T10000080000000000000002 /* AppSettingsTests.swift */,
 				HT0000020000000000000001 /* HookEventTests.swift */,
@@ -716,6 +722,7 @@
 				WRS000010000000000000001 /* WorktreeRemovalService.swift in Sources */,
 				PNV000010000000000000001 /* PopupNavigation.swift in Sources */,
 				PES000010000000000000001 /* PopupView+EmptyState.swift in Sources */,
+				PCU000010000000000000001 /* PopupView+Cleanup.swift in Sources */,
 				WCV000010000000000000001 /* WorktreeCleanupCardView.swift in Sources */,
 				WDV000010000000000000001 /* WorktreeCleanupDetailView.swift in Sources */,
 				WTV000010000000000000001 /* WorktreeCleanupTabView.swift in Sources */,
@@ -750,6 +757,7 @@
 				QSC000010000000000000001 /* QaShowcaseCoverageTests.swift in Sources */,
 				T10000030000000000000001 /* SessionStatusTests.swift in Sources */,
 				T10000050000000000000002 /* SnapshotTests.swift in Sources */,
+				WSS000010000000000000001 /* WorktreeCleanupSnapshotTests.swift in Sources */,
 				Q10000010000000000000001 /* QASnapshotTests.swift in Sources */,
 				T10000070000000000000002 /* AppSettingsTests.swift in Sources */,
 				HT0000010000000000000001 /* HookEventTests.swift in Sources */,

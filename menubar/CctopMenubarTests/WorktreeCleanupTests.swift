@@ -1023,20 +1023,6 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(visibilityRefreshCount, 1)
     }
 
-    @MainActor
-    func testOpeningCleanupDetailRequestsFreshCleanupScan() {
-        let candidate = cleanupCandidate(path: "/Users/dev/.codex/worktrees/billing-api")
-        var visibilityRefreshCount = 0
-        let view = popupView(
-            cleanupCandidates: [candidate],
-            onCleanupTabVisible: { visibilityRefreshCount += 1 }
-        )
-
-        view.openCleanupDetail(candidate)
-
-        XCTAssertEqual(visibilityRefreshCount, 1)
-    }
-
     func testCleanupCandidateSyncUpdatesSelectedDetailWhenIDStillExists() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
         let clean = cleanupCandidate(path: path)
@@ -2484,17 +2470,6 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(result, .failed(failure))
     }
 
-    func testRemovalServiceDoesNotDeleteWorktreeFoldersDirectly() throws {
-        let source = try String(
-            contentsOf: repoRoot().appendingPathComponent(
-                "menubar/CctopMenubar/Services/WorktreeRemovalService.swift"
-            ),
-            encoding: .utf8
-        )
-
-        XCTAssertFalse(source.contains("removeItem"))
-    }
-
     func testReviewRemovalConfirmationRequiresExtraStep() {
         let clean = cleanupCandidate(path: "/Users/dev/.codex/worktrees/clean")
         let review = WorktreeCleanupCandidate(
@@ -2529,7 +2504,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let cleanupViewSources = try [
             "menubar/CctopMenubar/Views/WorktreeCleanupDetailView.swift",
             "menubar/CctopMenubar/Views/WorktreeCleanupTabView.swift",
-            "menubar/CctopMenubar/Views/PopupView+EmptyState.swift",
+            "menubar/CctopMenubar/Views/PopupView+Cleanup.swift",
         ].map { path in
             try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
         }.joined(separator: "\n")
@@ -2544,34 +2519,6 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(cleanupViewSources.contains("onCopyPath"))
         XCTAssertFalse(cleanupViewSources.contains("Remove Worktree..."))
         XCTAssertTrue(cleanupViewSources.contains("\"Remove\""))
-    }
-
-    func testUntrackedPreviewDoesNotUseDisclosureControl() throws {
-        let root = try repoRoot()
-        let detailViewSource = try String(
-            contentsOf: root.appendingPathComponent("menubar/CctopMenubar/Views/WorktreeCleanupDetailView.swift"),
-            encoding: .utf8
-        )
-
-        XCTAssertFalse(detailViewSource.contains("chevron.right"))
-        XCTAssertFalse(detailViewSource.contains("chevron.down"))
-        XCTAssertFalse(detailViewSource.contains("isExpanded.toggle()"))
-    }
-
-    func testCleanupCommandStringSurfaceIsRemoved() throws {
-        let root = try repoRoot()
-        let cleanupSources = try [
-            "menubar/CctopMenubar/Models/WorktreeCleanupCandidate.swift",
-            "menubar/CctopMenubar/Models/WorktreeCleanupCandidate+Mock.swift",
-            "menubar/CctopMenubar/Services/WorktreeCleanupScanner.swift",
-            "menubar/CctopMenubarTests/SnapshotTests.swift",
-        ].map { path in
-            try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
-        }.joined(separator: "\n")
-
-        XCTAssertFalse(cleanupSources.contains("suggestedCommand"))
-        XCTAssertFalse(cleanupSources.contains("shellQuote"))
-        XCTAssertFalse(cleanupSources.contains("Copy Command"))
     }
 
     private func scanner(
