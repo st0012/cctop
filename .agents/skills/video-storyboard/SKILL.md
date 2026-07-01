@@ -13,6 +13,10 @@ For cctop launch videos, this is the first half of the workflow:
 2. Render through the repo video pipeline (`cd video && ./build.sh launch` for the launch cut).
 3. After the user approves the rendered video, switch to `$video-assets` and publish with its confirmation gate. That workflow uploads `cctop-launch.mp4`, `cctop-launch-720p.mp4`, and a freshly generated `cctop-launch-preview.avif` together to the non-latest `media-assets` release.
 
+For cctop product facts, audience, feature-fit judgment, and language choices,
+read `PRODUCT.md` before writing positioning or scripts. Use `README.md` for
+current public-facing claims and supported-tool lists.
+
 It has two modes:
 
 - **DESIGN** — build a video's story from scratch (product facts → approved storyboard).

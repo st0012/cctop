@@ -2,7 +2,15 @@
 
 ## Project Overview
 
-This file is the canonical guide for agents helping develop cctop. cctop itself is a macOS menubar app for monitoring AI coding sessions across workspaces; it tracks session status through client integrations and allows jumping to sessions.
+This file is the canonical development guide for agents helping develop cctop.
+cctop itself is a macOS menubar app for monitoring AI coding sessions across
+workspaces; it tracks session status through client integrations and allows
+jumping to sessions.
+
+For product intent, UX principles, feature-fit judgment, and user-facing language
+guidance, read [PRODUCT.md](PRODUCT.md). For visual design decisions, read
+[DESIGN.md](DESIGN.md). Keep this file focused on development workflow,
+architecture, testing, release, and repo-specific agent rules.
 
 ## MUST FOLLOW: Development Principles
 
@@ -29,6 +37,7 @@ This file is the canonical guide for agents helping develop cctop. cctop itself 
 - Never reply to GitHub PR comments or issues, and do not resolve GitHub review threads. Leave GitHub conversation actions to the developer.
 - Do not commit temporary explanation artifacts, local investigation HTML, screenshots, scratch scripts, or generated debugging files unless they are intentional product/docs assets.
 - Keep canonical agent guidance in this file. Pointer files such as `CLAUDE.md` should redirect here instead of duplicating instructions that will drift.
+- Keep product judgment in `PRODUCT.md` and visual design rules in `DESIGN.md` instead of mixing them into implementation workflow sections.
 
 ## Video Workflow
 
