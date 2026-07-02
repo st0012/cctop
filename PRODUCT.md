@@ -11,8 +11,12 @@ development workflow, architecture, release, and verification rules.
 
 cctop is a local-first macOS menubar app for developers running AI coding
 sessions across multiple tools. It helps them see which sessions need attention,
-jump back to the right workspace, and safely clean up completed work without
-losing local changes.
+jump back to the right workspace, and keep local agent work understandable
+without becoming another dashboard.
+
+Cleanup is a supporting workflow: when an ended agent session leaves a linked
+Git worktree behind, cctop should help the user inspect the evidence and remove
+it safely.
 
 The product should feel like a quiet instrument: always nearby, fast to scan,
 and careful with local state.
@@ -47,7 +51,8 @@ These flows should stay excellent as the product grows:
 1. Notice that a session needs attention, then jump to the right workspace.
 2. Glance at several sessions and understand which one matters next.
 3. Return to a recent project without rebuilding context manually.
-4. Inspect a completed worktree, understand the risk, and remove or keep it.
+4. Inspect an ended-session worktree that is still on disk, understand the
+   risk, and remove or keep it.
 5. Install or trust an integration and know whether it is actually connected.
 
 ## Product Principles
@@ -172,7 +177,11 @@ silent mutation.
 
 Cleanup is a decision-support workflow, not a blind deletion tool.
 
-- Show ended-session worktrees only when cctop can tie them to session data.
+- Favor CLI and manual-worktree workflows in the public story. These are the
+  cases where ended sessions most often leave linked Git worktrees behind for
+  the developer to clean up.
+- Show ended-session worktrees only when cctop can tie them to session data and
+  the worktree still exists on disk.
 - Use live Git and filesystem checks to classify candidates as clean, review, or
   ignored.
 - Keep concrete evidence visible for review cases, especially local files,
@@ -180,6 +189,8 @@ Cleanup is a decision-support workflow, not a blind deletion tool.
   status.
 - For clean candidates, offer a direct remove action.
 - For review candidates, require extra confirmation and explain why.
+- If a desktop client already removed a managed worktree during archive, cctop
+  should stay quiet rather than inventing a cleanup task.
 - Avoid broad protected-folder access. If a path is merely a historical project
   path and not plausibly a cctop-managed worktree, skip it before probing.
 
@@ -223,7 +234,7 @@ When cctop cannot prove something, it should say so plainly:
 When writing launch, website, README, or video copy, make the developer the
 hero and cctop the guide. Start from the user's problem, show the moment cctop
 helps, and include the payoff: the session is found, the right workspace opens,
-or risky cleanup becomes clear.
+or a leftover worktree becomes safe to remove.
 
 Avoid product-first feature montages. The strongest story is not "cctop has
 tabs, badges, themes, and integrations"; it is "you can keep multiple AI coding

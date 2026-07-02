@@ -32,6 +32,8 @@ project with a keystroke.
 - See at a glance which coding sessions are working, idle, or waiting on you.
 - Jump directly to the right editor window, terminal pane, desktop thread, or project.
 - Keep recent projects close without leaving a menubar app open all day.
+- Find leftover ended-session worktrees, check Git safety, and remove the ones
+  you are done with.
 - Store session state locally as plain JSON. No analytics, telemetry, or session upload.
 
 ## Works With Your Coding Tools
@@ -127,6 +129,15 @@ the most specific place it can.
     </td>
     <td align="center">
       <img src="docs/status-icon.png" alt="Status icon states: all healthy, needs attention, and notch pill" width="430">
+    </td>
+  </tr>
+  <tr>
+    <td width="42%">
+      <h3>Worktree cleanup</h3>
+      <p>Cleanup finds ended agent worktrees that still exist on disk, especially CLI or manual worktree runs. cctop checks Git state before offering the right remove action.</p>
+    </td>
+    <td align="center">
+      <img src="docs/menubar-cleanup.png" alt="cctop cleanup tab listing ended worktrees with Git safety state" width="300">
     </td>
   </tr>
   <tr>
@@ -277,6 +288,16 @@ ls ~/.cctop/sessions/
 If the directory is empty, the integration is not writing data yet. If files
 exist but the menubar shows nothing, check whether those JSON files have
 `"hidden": true`, then try restarting cctop.
+
+</details>
+
+<details>
+<summary>Why do some archived desktop sessions not appear in Cleanup?</summary>
+
+Some desktop clients remove their managed worktree when you archive a session.
+In that case, there is nothing left for cctop to remove, so Cleanup stays quiet.
+Cleanup is most useful for CLI and manual-worktree sessions where the linked Git
+worktree remains on disk after the session ends.
 
 </details>
 

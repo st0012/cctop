@@ -115,10 +115,32 @@
   .chip .tmark.wide{width:108px}
   #editors{position:absolute;font-family:var(--mono);font-size:25px;color:var(--t3);letter-spacing:.3px}
 
-  /* THEMES fan */
-  .thpanel{position:absolute;overflow:hidden;border-radius:16px;border:1px solid rgba(255,255,255,.08);
-    box-shadow:0 38px 80px -28px rgba(0,0,0,.82), 0 0 46px -34px rgba(192,202,245,.42);transform-origin:bottom center}
-  .thpanel img{display:block;width:100%}
+  /* CLEANUP card */
+  .cleanupCard{position:absolute;left:905px;top:238px;width:700px;height:604px;border-radius:20px;
+    background:#1c1d27;border:1px solid rgba(192,202,245,.11);overflow:hidden;
+    box-shadow:0 54px 120px -34px rgba(0,0,0,.82), 0 0 90px -34px rgba(158,206,106,.26)}
+  .cleanupTop{height:86px;display:flex;align-items:center;gap:16px;padding:0 28px;border-bottom:1px solid rgba(192,202,245,.08);
+    background:linear-gradient(180deg,rgba(192,202,245,.055),rgba(192,202,245,.02))}
+  .cleanupIcon{width:42px;height:42px;border-radius:13px;background:rgba(158,206,106,.14);border:1px solid rgba(158,206,106,.42);
+    display:flex;align-items:center;justify-content:center;color:var(--green);font-family:var(--mono);font-size:25px;font-weight:800}
+  .cleanupTitle{font-size:29px;font-weight:760;color:#E8ECFB;letter-spacing:-.3px}
+  .cleanupMeta{font-family:var(--mono);font-size:15px;color:var(--t3);margin-top:4px;letter-spacing:.4px}
+  .cleanupRows{padding:24px 26px 18px;display:grid;gap:14px}
+  .cleanupRow{height:104px;border-radius:15px;background:rgba(192,202,245,.045);border:1px solid rgba(192,202,245,.10);
+    display:grid;grid-template-columns:1fr 154px 118px;align-items:center;column-gap:16px;padding:0 18px}
+  .cleanupName{font-size:25px;font-weight:700;color:var(--t1);letter-spacing:-.2px}
+  .cleanupPath{font-family:var(--mono);font-size:14px;color:var(--t3);margin-top:7px}
+  .statePill,.actionPill{height:42px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:16px;font-weight:760;white-space:nowrap}
+  .statePill.safe{color:var(--green);background:rgba(158,206,106,.12);border:1px solid rgba(158,206,106,.36)}
+  .statePill.warn{color:var(--orange);background:rgba(255,158,100,.12);border:1px solid rgba(255,158,100,.36)}
+  .statePill.stop{color:var(--red);background:rgba(247,118,142,.12);border:1px solid rgba(247,118,142,.36)}
+  .actionPill.primary{color:#122015;background:var(--green);box-shadow:0 0 28px -12px rgba(158,206,106,.9)}
+  .actionPill.review{color:#22180c;background:var(--orange)}
+  .actionPill.blocked{color:var(--t3);background:rgba(192,202,245,.07);border:1px solid rgba(192,202,245,.11)}
+  .cleanupFoot{margin:2px 26px 0;padding:19px 22px;border-radius:15px;background:rgba(158,206,106,.08);
+    border:1px solid rgba(158,206,106,.22);font-family:var(--mono);font-size:18px;color:#c8e7ad;display:flex;gap:12px;align-items:center}
+  .cleanupFoot b{font-size:23px;color:var(--green)}
 
   /* CTA */
   #cta #icon{width:184px;height:184px;border-radius:42px;box-shadow:0 42px 95px -24px rgba(0,0,0,.86),0 0 86px -18px rgba(247,118,142,.46)}
@@ -221,13 +243,37 @@
     <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px"><img src=".video-build/assets/menubar-dark.png"></div>
   </div>
 
-  <!-- ============ FRAME 6 — THEMES ============ -->
+  <!-- ============ FRAME 6 — CLEANUP ============ -->
   <div class="sframe" data-i="6">
-    <div class="ctr head" style="top:250px;font-size:62px;font-weight:800;letter-spacing:-1.4px">…and it suits your setup.</div>
-    <div class="thpanel" style="left:300px;top:392px;width:480px;height:552px;transform:rotate(-6deg);z-index:1;background:#1c1d27"><img src=".video-build/assets/theme-tokyoNight-dark.png"></div>
-    <div class="thpanel" style="left:582px;top:368px;width:480px;height:552px;transform:rotate(-2deg);z-index:3;background:#282828"><img src=".video-build/assets/theme-gruvbox-dark.png"></div>
-    <div class="thpanel" style="left:858px;top:368px;width:480px;height:552px;transform:rotate(2deg);z-index:4;background:#e5e9f0"><img src=".video-build/assets/theme-nord-light.png"></div>
-    <div class="thpanel" style="left:1140px;top:392px;width:480px;height:552px;transform:rotate(6deg);z-index:2;background:#f3f1ea"><img src=".video-build/assets/theme-claude-light.png"></div>
+    <div style="position:absolute;left:251px;width:590px;text-align:right;top:344px;font-size:58px;font-weight:800;letter-spacing:-1.2px;line-height:1.08;color:#E8ECFB">Done work<br>shouldn't <span class="accent">linger.</span></div>
+    <div style="position:absolute;left:221px;width:620px;text-align:right;top:500px;font-size:27px;font-weight:500;line-height:1.38;color:var(--t2)">cctop checks Git, then gives you the right remove action.</div>
+    <div class="cleanupCard">
+      <div class="cleanupTop">
+        <div class="cleanupIcon">✓</div>
+        <div>
+          <div class="cleanupTitle">Worktree Cleanup</div>
+          <div class="cleanupMeta">Leftover ended agent worktrees</div>
+        </div>
+      </div>
+      <div class="cleanupRows">
+        <div class="cleanupRow">
+          <div><div class="cleanupName">billing-api-fix</div><div class="cleanupPath">~/worktrees/billing-api-fix</div></div>
+          <div class="statePill safe">Git clean</div>
+          <div class="actionPill primary">Remove</div>
+        </div>
+        <div class="cleanupRow">
+          <div><div class="cleanupName">reports-spike</div><div class="cleanupPath">~/worktrees/reports-spike</div></div>
+          <div class="statePill warn">Dirty</div>
+          <div class="actionPill review">Review</div>
+        </div>
+        <div class="cleanupRow">
+          <div><div class="cleanupName">release-check</div><div class="cleanupPath">~/worktrees/release-check</div></div>
+          <div class="statePill stop">Locked</div>
+          <div class="actionPill blocked">Blocked</div>
+        </div>
+      </div>
+      <div class="cleanupFoot"><b>✓</b> Safety checked before removal</div>
+    </div>
   </div>
 
   <!-- ============ FRAME 7 — CTA ============ -->
@@ -250,7 +296,7 @@
   <button data-frame="3">3 Jump</button>
   <button data-frame="4">4 Payoff</button>
   <button data-frame="5">5 Stack</button>
-  <button data-frame="6">6 Themes</button>
+  <button data-frame="6">6 Cleanup</button>
   <button data-frame="7">7 CTA</button>
 </div>
 

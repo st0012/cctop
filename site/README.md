@@ -30,6 +30,7 @@ they land on master — no site change required.
 | `releases/latest/download/cctop-macOS-{arm64,x86_64}.dmg` | All Download buttons | Auto via the `releases/latest/` redirect — no site edit needed. |
 | README "Supported tools" table | `#tools` Coding agents grid | Manual — keep names + URLs in sync with the README table. |
 | README "Supported Editors & Terminals" table | `#tools` Editors & terminals tiers | Manual — keep the three tiers (exact pane / opens project / activates app) in sync with the README. |
+| README feature table | `#features` feature rows | Manual — keep public feature names, screenshots, and short behavior summaries aligned. |
 | `Color+Theme.swift`, README themes table | `#themes` cards | Manual — name, accent swatch hex, and `docs/theme-*.png` filename. |
 | README FAQ | `#faq` `<details>` entries | Manual. |
 | Hero copy, install copy, privacy copy | Hero / install / tools sections | Manual — site has its own short-form copy that mirrors the README's tone. |
