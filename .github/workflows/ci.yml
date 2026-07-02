@@ -32,8 +32,8 @@ jobs:
             deriveddata-${{ runner.os }}-xcode16.3-
       - name: Build menubar app
         run: xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
-      - name: Build cctop-hook CLI
-        run: xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme cctop-hook -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+      - name: Test
+        run: xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/
       - name: Smoke test cctop-hook
         run: |
           SMOKE_DIR=$(mktemp -d)
@@ -44,5 +44,3 @@ jobs:
           grep -q '"idle"' "$SESSION_FILE"
           grep -q '"ci-test"' "$SESSION_FILE"
           rm -rf "$SMOKE_DIR"
-      - name: Test
-        run: xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/
