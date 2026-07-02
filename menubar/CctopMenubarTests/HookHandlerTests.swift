@@ -195,6 +195,30 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertNil(session.terminal?.multiplexer)
     }
 
+    func testSessionStartCapturesHerdrMultiplexerContext() throws {
+        let herdrPath = try makeExecutable(named: "herdr")
+        let env = [
+            "TERM_PROGRAM": "ghostty",
+            "__CFBundleIdentifier": "com.mitchellh.ghostty",
+            "HERDR_SOCKET_PATH": "/Users/me/.config/herdr/herdr.sock",
+            "HERDR_PANE_ID": "w1:p1",
+            "PATH": (herdrPath as NSString).deletingLastPathComponent
+        ]
+
+        try handleFixture("SessionStart", deps: makeDeps(env: env))
+        let session = try loadSession()
+
+        XCTAssertEqual(session.terminal?.program, "ghostty")
+        XCTAssertEqual(
+            session.terminal?.multiplexer,
+            .herdr(
+                socket: "/Users/me/.config/herdr/herdr.sock",
+                paneId: "w1:p1",
+                binaryPath: herdrPath
+            )
+        )
+    }
+
     func testCurrentHookUpdateDoesNotBackfillLegacyCreatedByVersion() throws {
         try handleFixture("SessionStart")
 

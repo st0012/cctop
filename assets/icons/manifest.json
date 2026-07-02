@@ -46,6 +46,14 @@
     "source_url": "https://cmux.com/cmux-icon.svg"
   },
   {
+    "id": "herdr",
+    "label": "Herdr",
+    "file": "herdr.svg",
+    "format": "svg",
+    "source": "Herdr logo from the upstream repository, background removed",
+    "source_url": "https://raw.githubusercontent.com/ogulcancelik/herdr/master/assets/logo.svg"
+  },
+  {
     "id": "iterm2",
     "label": "iTerm2",
     "file": "iterm2.png",

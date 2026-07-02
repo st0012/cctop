@@ -182,7 +182,7 @@ extension Session {
     /// Phase-1 host classification from file-local signals only.
     /// Precedence: a recognized bundle id (`__CFBundleIdentifier`, the same trusted signal
     /// `isHostedByDesktopApp` uses) classifies desktop vs terminal. Failing that, a terminal
-    /// multiplexer (cmux/tmux/zellij) is hard terminal evidence — desktop is already returned
+    /// multiplexer (cmux/herdr/zellij/tmux) is hard terminal evidence — desktop is already returned
     /// above, so a leaked `TMUX` env can't misclassify a desktop session here. Everything
     /// else (no/unknown bundle id, only env-copyable `tty` or program name) → ambiguous.
     var hostClass: SessionHostClass {

@@ -30,6 +30,15 @@ Supported shapes:
 
 ```json
 {
+  "name": "herdr",
+  "socket": "/Users/me/.config/herdr/herdr.sock",
+  "pane_id": "w1:p1",
+  "binary_path": "/opt/homebrew/bin/herdr"
+}
+```
+
+```json
+{
   "name": "zellij",
   "session_name": "dev",
   "pane_id": "terminal_3",

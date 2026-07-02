@@ -149,6 +149,43 @@ final class MultiplexerFocusTests: XCTestCase {
         XCTAssertEqual(env["CMUX_BUNDLED_CLI_PATH"], "/Applications/cmux.app/Contents/Resources/bin/cmux")
     }
 
+    func testHerdrReturnsStrategy() {
+        let session = Session.mock(
+            terminal: TerminalInfo(
+                program: "Ghostty",
+                multiplexer: .herdr(
+                    socket: "/Users/me/.config/herdr/herdr.sock",
+                    paneId: "w1:p1",
+                    binaryPath: "/opt/homebrew/bin/herdr"
+                )
+            )
+        )
+        let strategy = resolveMultiplexerFocus(session: session)
+        XCTAssertEqual(
+            strategy,
+            .herdr(
+                socket: "/Users/me/.config/herdr/herdr.sock",
+                paneId: "w1:p1",
+                binaryPath: "/opt/homebrew/bin/herdr"
+            )
+        )
+    }
+
+    func testHerdrNoBinaryPathReturnsNil() {
+        let session = Session.mock(
+            terminal: TerminalInfo(
+                program: "Ghostty",
+                multiplexer: .herdr(
+                    socket: "/Users/me/.config/herdr/herdr.sock",
+                    paneId: "w1:p1",
+                    binaryPath: nil
+                )
+            )
+        )
+        let strategy = resolveMultiplexerFocus(session: session)
+        XCTAssertNil(strategy)
+    }
+
     func testZellijReturnsStrategy() {
         let session = Session.mock(
             terminal: TerminalInfo(
@@ -261,6 +298,17 @@ final class MultiplexerFocusTests: XCTestCase {
         XCTAssertEqual(decoded, info)
     }
 
+    func testHerdrCodableRoundTrip() throws {
+        let info = MultiplexerInfo.herdr(
+            socket: "/Users/me/.config/herdr/herdr.sock",
+            paneId: "w1:p1",
+            binaryPath: "/opt/homebrew/bin/herdr"
+        )
+        let data = try JSONEncoder().encode(info)
+        let decoded = try JSONDecoder().decode(MultiplexerInfo.self, from: data)
+        XCTAssertEqual(decoded, info)
+    }
+
     func testZellijCodableRoundTrip() throws {
         let info = MultiplexerInfo.zellij(sessionName: "amzn", paneId: "42", binaryPath: "/usr/bin/zellij")
         let data = try JSONEncoder().encode(info)
@@ -288,6 +336,17 @@ final class MultiplexerFocusTests: XCTestCase {
         XCTAssertEqual(decoded, info)
     }
 
+    func testHerdrNilBinaryPathCodableRoundTrip() throws {
+        let info = MultiplexerInfo.herdr(
+            socket: "/Users/me/.config/herdr/herdr.sock",
+            paneId: "w1:p1",
+            binaryPath: nil
+        )
+        let data = try JSONEncoder().encode(info)
+        let decoded = try JSONDecoder().decode(MultiplexerInfo.self, from: data)
+        XCTAssertEqual(decoded, info)
+    }
+
     func testCmuxJSONShape() throws {
         let info = MultiplexerInfo.cmux(
             socket: "/tmp/cmux.sock",
@@ -305,6 +364,22 @@ final class MultiplexerFocusTests: XCTestCase {
         XCTAssertEqual(json?["pane_id"], "pane:3")
         XCTAssertEqual(json?["binary_path"], "/usr/local/bin/cmux")
         XCTAssertNil(json?["session_name"])
+    }
+
+    func testHerdrJSONShape() throws {
+        let info = MultiplexerInfo.herdr(
+            socket: "/Users/me/.config/herdr/herdr.sock",
+            paneId: "w1:p1",
+            binaryPath: "/opt/homebrew/bin/herdr"
+        )
+        let data = try JSONEncoder().encode(info)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: String]
+        XCTAssertEqual(json?["name"], "herdr")
+        XCTAssertEqual(json?["socket"], "/Users/me/.config/herdr/herdr.sock")
+        XCTAssertEqual(json?["pane_id"], "w1:p1")
+        XCTAssertEqual(json?["binary_path"], "/opt/homebrew/bin/herdr")
+        XCTAssertNil(json?["session_name"])
+        XCTAssertNil(json?["workspace_id"])
     }
 
     func testZellijJSONShape() throws {

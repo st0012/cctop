@@ -79,7 +79,7 @@ view and a reliable jump target.
 When you click a session card, or use Navigate mode, cctop tries to take you to
 the most specific place it can.
 
-- **Targets the exact session:** [iTerm2](https://iterm2.com/), [cmux](https://cmux.com/), [Kitty](https://sw.kovidgoyal.net/kitty/), [Ghostty](https://ghostty.org/), [Terminal](https://support.apple.com/guide/terminal/welcome/mac), [Codex Desktop](https://developers.openai.com/codex/app), [Zellij](https://zellij.dev/), [tmux](https://tmux.us/). cctop jumps to the right window, tab, pane, surface, or desktop thread.
+- **Targets the exact session:** [iTerm2](https://iterm2.com/), [cmux](https://cmux.com/), [Kitty](https://sw.kovidgoyal.net/kitty/), [Ghostty](https://ghostty.org/), [Terminal](https://support.apple.com/guide/terminal/welcome/mac), [Codex Desktop](https://developers.openai.com/codex/app), [Herdr](https://github.com/ogulcancelik/herdr), [Zellij](https://zellij.dev/), [tmux](https://tmux.us/). cctop jumps to the right window, tab, pane, surface, or desktop thread.
 - **Opens the project:** [VS Code](https://code.visualstudio.com/), [Cursor](https://cursor.com/), [Windsurf](https://windsurf.com/download), [Zed](https://zed.dev/). cctop focuses the editor window, using the workspace file if present.
 - **Activates the app:** [Claude Desktop](https://claude.com/download), [Warp](https://www.warp.dev/terminal). cctop raises the host app so you can find the tab manually.
 

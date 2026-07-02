@@ -90,11 +90,13 @@ struct TerminalInfo: Codable, Equatable {
     }
 }
 
-/// Identifies a terminal multiplexer (cmux, zellij, tmux) hosting the session.
+/// Identifies a terminal multiplexer (cmux, herdr, zellij, tmux) hosting the session.
 /// Each variant carries exactly the fields needed for its focus command.
 enum MultiplexerInfo: Codable, Equatable {
     /// cmux focus-surface --workspace $workspaceId --surface $surfaceId
     case cmux(socket: String, workspaceId: String, surfaceId: String?, paneId: String?, binaryPath: String?)
+    /// herdr agent focus $paneId (with HERDR_SOCKET_PATH=$socket)
+    case herdr(socket: String, paneId: String, binaryPath: String?)
     /// zellij --session $sessionName action focus-pane-id $paneId
     case zellij(sessionName: String, paneId: String, binaryPath: String?)
     /// tmux -S $socket select-window -t $paneId && tmux -S $socket select-pane -t $paneId
@@ -121,6 +123,12 @@ enum MultiplexerInfo: Codable, Equatable {
                 workspaceId: try container.decode(String.self, forKey: .workspaceId),
                 surfaceId: try container.decodeIfPresent(String.self, forKey: .surfaceId),
                 paneId: try container.decodeIfPresent(String.self, forKey: .paneId),
+                binaryPath: binaryPath
+            )
+        case "herdr":
+            self = .herdr(
+                socket: try container.decode(String.self, forKey: .socket),
+                paneId: try container.decode(String.self, forKey: .paneId),
                 binaryPath: binaryPath
             )
         case "zellij":
@@ -152,6 +160,11 @@ enum MultiplexerInfo: Codable, Equatable {
             try container.encode(workspaceId, forKey: .workspaceId)
             try container.encodeIfPresent(surfaceId, forKey: .surfaceId)
             try container.encodeIfPresent(paneId, forKey: .paneId)
+            try container.encodeIfPresent(binaryPath, forKey: .binaryPath)
+        case .herdr(let socket, let paneId, let binaryPath):
+            try container.encode("herdr", forKey: .name)
+            try container.encode(socket, forKey: .socket)
+            try container.encode(paneId, forKey: .paneId)
             try container.encodeIfPresent(binaryPath, forKey: .binaryPath)
         case .zellij(let sessionName, let paneId, let binaryPath):
             try container.encode("zellij", forKey: .name)

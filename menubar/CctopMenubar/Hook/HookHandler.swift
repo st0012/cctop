@@ -280,7 +280,7 @@ enum HookHandler {
         )
     }
 
-    /// Detect cmux, zellij, or tmux from env vars. Checks outer GUI multiplexers first.
+    /// Detect cmux, herdr, zellij, or tmux from env vars. Checks outer GUI multiplexers first.
     private static func captureMultiplexerInfo(env: [String: String]) -> MultiplexerInfo? {
         // cmux: CMUX_SOCKET_PATH + CMUX_WORKSPACE_ID + CMUX_SURFACE_ID.
         // CMUX_PANE_ID is accepted for same-session deep links when available, but
@@ -306,6 +306,12 @@ enum HookHandler {
                 surfaceId: nil, paneId: paneId, binaryPath: path
             )
         }
+        // herdr: HERDR_SOCKET_PATH + HERDR_PANE_ID
+        if let socket = env["HERDR_SOCKET_PATH"], !socket.isEmpty,
+           let paneId = sanitizeTerminalSessionId(env["HERDR_PANE_ID"]) {
+            let path = resolveBinaryPath(env: env, name: "herdr")
+            return .herdr(socket: socket, paneId: paneId, binaryPath: path)
+        }
         // zellij: ZELLIJ_SESSION_NAME + ZELLIJ_PANE_ID
         if let sessionName = sanitizeTerminalSessionId(env["ZELLIJ_SESSION_NAME"]),
            let paneId = sanitizeTerminalSessionId(env["ZELLIJ_PANE_ID"]) {
@@ -325,7 +331,7 @@ enum HookHandler {
 
     /// Validate terminal session IDs to prevent injection via env vars.
     /// Only allows alphanumeric, hyphens, colons, periods, at-signs, underscores, and percent
-    /// (covers iTerm2, Kitty, cmux, zellij, and tmux formats).
+    /// (covers iTerm2, Kitty, cmux, herdr, zellij, and tmux formats).
     private static func sanitizeTerminalSessionId(_ value: String?) -> String? {
         guard let value, !value.isEmpty,
               value.range(of: #"^[0-9a-zA-Z:.@_%-]+$"#, options: .regularExpression) != nil
