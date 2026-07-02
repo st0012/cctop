@@ -214,6 +214,21 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             view: listBlockedNotice, colorScheme: .dark, filename: "worktree-cleanup-list-blocked-notice.png"
         )
 
+        let emptyBlockedNotice = WorktreeCleanupTabView(
+            candidates: [],
+            selectedIndex: nil,
+            selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
+            onRemove: { _ in },
+            removalNotice: WorktreeRemovalNotice(
+                title: "Removal Blocked",
+                message: "Cleanup evidence changed. Review the updated worktree before removing.",
+                blocksRemoval: true
+            )
+        )
+        try renderScreenshot(
+            view: emptyBlockedNotice, colorScheme: .dark, filename: "worktree-cleanup-empty-blocked-notice.png"
+        )
+
         let emptyState = WorktreeCleanupTabView(
             candidates: [],
             selectedIndex: nil,

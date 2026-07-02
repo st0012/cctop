@@ -33,7 +33,17 @@ struct WorktreeCleanupTabView: View {
                 removalNotice: removalNotice,
                 isRemoving: removingCandidateID == candidate.id
             )
-        } else if candidates.isEmpty {
+        } else {
+            VStack(spacing: 0) {
+                listRemovalNotice
+                listOrEmptyContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var listOrEmptyContent: some View {
+        if candidates.isEmpty {
             VStack(spacing: 8) {
                 if isScanning {
                     ProgressView()
@@ -52,10 +62,7 @@ struct WorktreeCleanupTabView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
         } else {
-            VStack(spacing: 0) {
-                listRemovalNotice
-                cleanupList
-            }
+            cleanupList
         }
     }
 
