@@ -73,7 +73,7 @@ struct WorktreeCleanupScanner {
         var resolvedPaths: [String: String] = [:]
         for source in cleanupSources {
             let rawPath = Self.standardizedPath(source.projectPath)
-            guard shouldScanEndedSessionPath(rawPath) else { continue }
+            guard shouldScanCleanupSourcePath(rawPath) else { continue }
             let path = resolvedPaths[rawPath] ?? {
                 let path = resolvedCandidatePath(for: rawPath)
                 resolvedPaths[rawPath] = path
@@ -331,7 +331,7 @@ struct WorktreeCleanupScanner {
 }
 
 private extension WorktreeCleanupScanner {
-    func shouldScanEndedSessionPath(_ path: String) -> Bool {
+    func shouldScanCleanupSourcePath(_ path: String) -> Bool {
         guard Self.isLikelyPrivacyProtectedUserPath(path) else { return true }
         return Self.isPlausibleCleanupWorktreePath(path)
     }

@@ -3254,6 +3254,7 @@ final class SessionFileFormatTests: XCTestCase {
             ["maybe-archived", "maybe-orphaned", "maybe-startup-only"]
         )
         XCTAssertEqual(classification.codexSubagentCandidates.map(\.session.sessionId), [])
+        XCTAssertEqual(classification.cleanupSources.map(\.sessionId), [])
     }
 
     // MARK: - Lifecycle derivation via injected process liveness

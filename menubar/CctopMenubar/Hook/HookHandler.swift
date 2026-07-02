@@ -41,7 +41,7 @@ enum HookHandler {
                     path: sessionPath, event: event, startTime: startTime, fresh: freshSession
                 )
             } catch {
-                deps.logger.logError("\(hookName): preserving existing session file at \(sessionPath) after load failure: \(error)")
+                logSessionLoadFailureOnce(hookName: hookName, sessionPath: sessionPath, error: error, logger: deps.logger)
                 return
             }
             var session = loaded.session
@@ -551,7 +551,12 @@ private func loadOrCreateSession(
     guard FileManager.default.fileExists(atPath: path) else {
         return (fresh, true)
     }
-    let existing = try Session.fromFile(path: path)
+    let existing: Session
+    do {
+        existing = try decodeExistingSessionFile(path: path)
+    } catch SessionLoadError.undecodableExistingFile(_) where event == .sessionStart {
+        return (fresh, true)
+    }
     // PID reuse: different process start time means a new process reused this PID.
     if event == .sessionStart,
        let storedStart = existing.pidStartTime,
@@ -584,14 +589,47 @@ private func loadOrCreateSession(
 }
 
 private enum SessionLoadError: Error, CustomStringConvertible {
+    case unreadableExistingFile(Error)
+    case undecodableExistingFile(Error)
     case decodedReplacementRefused(existingSessionId: String, incomingSessionId: String)
 
     var description: String {
         switch self {
+        case let .unreadableExistingFile(error):
+            "existing session file could not be read: \(error)"
+        case let .undecodableExistingFile(error):
+            "existing session file could not be decoded: \(error)"
         case let .decodedReplacementRefused(existingSessionId, incomingSessionId):
             "decoded session mismatch refused (existing session_id \(existingSessionId), incoming \(incomingSessionId))"
         }
     }
+}
+
+private func decodeExistingSessionFile(path: String) throws -> Session {
+    let data: Data
+    do {
+        data = try Data(contentsOf: URL(fileURLWithPath: path))
+    } catch {
+        throw SessionLoadError.unreadableExistingFile(error)
+    }
+
+    do {
+        return try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+    } catch {
+        throw SessionLoadError.undecodableExistingFile(error)
+    }
+}
+
+private func logSessionLoadFailureOnce(hookName: String, sessionPath: String, error: Error, logger: HookLogger) {
+    let marker = "load-failure:\(hookName):\(sessionPath)"
+    let errorsPath = (logger.logsDir as NSString).appendingPathComponent("_errors.log")
+    if let existing = try? String(contentsOfFile: errorsPath, encoding: .utf8),
+       existing.contains(marker) {
+        return
+    }
+    logger.logError(
+        "\(hookName): preserving existing session file at \(sessionPath) after load failure: \(error) [\(marker)]"
+    )
 }
 
 private func canReplaceDecodedSessionFile(existing: Session, fresh: Session, event: HookEvent) -> Bool {

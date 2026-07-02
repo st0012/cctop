@@ -52,6 +52,9 @@ enum SessionHiddenReason: Equatable {
     case orphanedEndedClaudeDesktop
     case claudeDesktopStartupPlaceholder
 
+    /// Hidden helper/subagent records still represent live ownership of the path, so they
+    /// protect cleanup. Archived/deleted desktop records are hidden UI state instead; only
+    /// explicitly emitted cleanup sources can make those paths cleanup candidates.
     var protectsCleanupPath: Bool {
         switch self {
         case .persistedHidden, .autoHidden, .codexSubagent, .codexExecHelper:
@@ -124,10 +127,12 @@ struct SessionClassificationSnapshot {
     /// Cleanup sources are only emitted from cctop JSON records classified in this pass.
     /// External host metadata may hide or enrich those records, but it never creates cleanup rows
     /// without a session file because the scanner needs cctop's project path and recency context.
+    /// Missing/deleted desktop conversations stay hidden and preserved, but do not become cleanup
+    /// sources unless the host metadata explicitly marks the conversation archived.
     var cleanupSources: [SessionCleanupSource] {
         records.compactMap { record in
             guard case .hidden(let reason) = record.disposition,
-                  reason == .archivedCodexDesktop || reason == .archivedClaudeDesktop,
+                  Self.emitsCleanupSource(for: reason),
                   Self.hasKnownCleanupPath(record.candidate.session.projectPath) else {
                 return nil
             }
@@ -137,6 +142,10 @@ struct SessionClassificationSnapshot {
 
     private static func hasKnownCleanupPath(_ path: String) -> Bool {
         !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && path != "/"
+    }
+
+    private static func emitsCleanupSource(for reason: SessionHiddenReason) -> Bool {
+        reason == .archivedCodexDesktop || reason == .archivedClaudeDesktop
     }
 
     var archivedCodexThreadIDs: Set<String> { evidence.archivedCodexThreadIDs }
@@ -293,6 +302,8 @@ extension SessionManager {
         evidence: SessionClassificationEvidence,
         claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?
     ) -> SessionDisposition {
+        // Priority is behavior-bearing: durable local hides win first, then host archive/missing
+        // decisions, then helper/subagent filters, then Claude Desktop placeholder/orphan filters.
         if session.hidden {
             return .hidden(.persistedHidden)
         }

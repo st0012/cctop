@@ -45,7 +45,6 @@ class WorktreeCleanupManager: ObservableObject {
             }
         }
     }
-
 }
 
 @MainActor
@@ -112,5 +111,4 @@ struct WorktreeCleanupRefreshSignature: Equatable {
             .map(WorktreeCleanupScanner.standardizedPath)
             .sorted()
     }
-
 }

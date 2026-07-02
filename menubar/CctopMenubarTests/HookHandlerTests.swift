@@ -223,9 +223,12 @@ final class HookHandlerTests: XCTestCase {
         let errors = try String(contentsOfFile: errorsPath, encoding: .utf8)
         XCTAssertTrue(errors.contains("UserPromptSubmit"), "Decode failure must be logged, got: \(errors)")
         XCTAssertTrue(errors.contains("preserving existing session file"), "Decode failure should explain preservation, got: \(errors)")
+        try handleFixture("UserPromptSubmit")
+        let updatedErrors = try String(contentsOfFile: errorsPath, encoding: .utf8)
+        XCTAssertEqual(updatedErrors.components(separatedBy: "preserving existing session file").count - 1, 1)
     }
 
-    func testExistingTrustedDesktopSessionWithDifferentIdIsNotReplaced() throws {
+    func testExistingTrustedDesktopSessionWithDifferentIdIsNotReplacedAtSessionStart() throws {
         let path = sessionFilePath()
         var existing = Session(
             sessionId: "desktop-existing",
@@ -248,14 +251,46 @@ final class HookHandlerTests: XCTestCase {
         try existing.writeToFile(path: path)
 
         try handleHook("""
-        {"session_id":"desktop-incoming","cwd":"/tmp/desktop-incoming","hook_event_name":"UserPromptSubmit","prompt":"new prompt","harness_name":"cc"}
-        """, hookName: "UserPromptSubmit")
+        {"session_id":"desktop-incoming","cwd":"/tmp/desktop-incoming","hook_event_name":"SessionStart","harness_name":"cc"}
+        """, hookName: "SessionStart", deps: makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.claudeDesktop]))
 
         let preserved = try loadSession()
         XCTAssertEqual(preserved.sessionId, "desktop-existing")
         XCTAssertEqual(preserved.projectPath, "/tmp/desktop-existing")
         XCTAssertEqual(preserved.sessionName, "Existing desktop conversation")
         XCTAssertNil(preserved.lastPrompt)
+    }
+
+    func testTrustedDesktopPidReuseMismatchIsNotReplacedAtSessionStart() throws {
+        let path = sessionFilePath()
+        var existing = Session(
+            sessionId: "desktop-existing",
+            projectPath: "/tmp/desktop-existing",
+            projectName: "desktop-existing",
+            branch: "main",
+            status: .idle,
+            lastPrompt: nil,
+            lastActivity: Date(),
+            startedAt: Date(),
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            pid: 4242,
+            pidStartTime: 1000,
+            lastTool: nil,
+            lastToolDetail: nil,
+            notificationMessage: nil
+        )
+        existing.source = "cc"
+        existing.sessionName = "Existing desktop conversation"
+        try existing.writeToFile(path: path)
+
+        try handleHook("""
+        {"session_id":"desktop-existing","cwd":"/tmp/desktop-incoming","hook_event_name":"SessionStart","harness_name":"cc"}
+        """, hookName: "SessionStart", deps: makeDeps(startTime: 2005, env: ["__CFBundleIdentifier": HostAppBundleID.claudeDesktop]))
+
+        let preserved = try loadSession()
+        XCTAssertEqual(preserved.sessionId, "desktop-existing")
+        XCTAssertEqual(preserved.projectPath, "/tmp/desktop-existing")
+        XCTAssertEqual(preserved.sessionName, "Existing desktop conversation")
     }
 
     func testCodexSessionIdKeyedMismatchIsNotReplaced() throws {
@@ -291,7 +326,7 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertNil(preserved.lastPrompt)
     }
 
-    func testSessionStartWithUndecodableExistingFilePreservesFileAndSkipsProjectCleanup() throws {
+    func testSessionStartWithUndecodableExistingFileReplacesFileAndRunsProjectCleanup() throws {
         let primaryPath = sessionFilePath()
         let corrupt = Data("{\"session_id\":\"test-session-001\"".utf8)
         try corrupt.write(to: URL(fileURLWithPath: primaryPath))
@@ -317,8 +352,10 @@ final class HookHandlerTests: XCTestCase {
 
         try handleFixture("SessionStart", deps: makeDeps(alive: false))
 
-        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: primaryPath)), corrupt)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: stalePath), "Project cleanup must not run when SessionStart load is skipped")
+        let recovered = try loadSession()
+        XCTAssertEqual(recovered.sessionId, "test-session-001")
+        XCTAssertEqual(recovered.projectPath, "/tmp/test-project")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stalePath), "Project cleanup should run after SessionStart recovers the primary file")
     }
 
     func testSessionEndRefreshesLastWrittenByHookVersion() throws {
