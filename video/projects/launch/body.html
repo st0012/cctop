@@ -103,10 +103,34 @@
   .chip .tmark.wide{width:108px}   /* opencode is a wordmark, not a glyph */
   #editors{position:absolute;left:201px;width:640px;text-align:right;top:680px;font-family:var(--mono);font-size:24px;color:#7d83a0;letter-spacing:.3px;line-height:1.5;opacity:0;will-change:transform,opacity}
 
-  /* THEMES fan */
-  .thpanel{position:absolute;overflow:hidden;border-radius:16px;border:1px solid rgba(255,255,255,.08);opacity:0;will-change:transform,opacity;
-    box-shadow:0 38px 80px -28px rgba(0,0,0,.82), 0 0 46px -34px rgba(192,202,245,.42);transform-origin:bottom center}
-  .thpanel img{display:block;width:100%}
+  /* CLEANUP card */
+  #cleanupHead,#cleanupSub{opacity:0;will-change:transform,opacity}
+  #cleanupCard{position:absolute;left:905px;top:238px;width:700px;height:604px;border-radius:20px;
+    background:#1c1d27;border:1px solid rgba(192,202,245,.11);overflow:hidden;opacity:0;will-change:transform,opacity;
+    box-shadow:0 54px 120px -34px rgba(0,0,0,.82), 0 0 90px -34px rgba(158,206,106,.26)}
+  .cleanupTop{height:86px;display:flex;align-items:center;gap:16px;padding:0 28px;border-bottom:1px solid rgba(192,202,245,.08);
+    background:linear-gradient(180deg,rgba(192,202,245,.055),rgba(192,202,245,.02))}
+  .cleanupIcon{width:42px;height:42px;border-radius:13px;background:rgba(158,206,106,.14);border:1px solid rgba(158,206,106,.42);
+    display:flex;align-items:center;justify-content:center;color:var(--green);font-family:var(--mono);font-size:25px;font-weight:800}
+  .cleanupTitle{font-size:29px;font-weight:760;color:#E8ECFB;letter-spacing:-.3px}
+  .cleanupMeta{font-family:var(--mono);font-size:15px;color:var(--t3);margin-top:4px;letter-spacing:.4px}
+  .cleanupRows{padding:24px 26px 18px;display:grid;gap:14px}
+  .cleanupRow{height:104px;border-radius:15px;background:rgba(192,202,245,.045);border:1px solid rgba(192,202,245,.10);
+    display:grid;grid-template-columns:1fr 154px 118px;align-items:center;column-gap:16px;padding:0 18px;opacity:0;will-change:transform,opacity}
+  .cleanupName{font-size:25px;font-weight:700;color:var(--t1);letter-spacing:-.2px}
+  .cleanupPath{font-family:var(--mono);font-size:14px;color:var(--t3);margin-top:7px}
+  .statePill,.actionPill{height:42px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:16px;font-weight:760;white-space:nowrap}
+  .statePill.safe{color:var(--green);background:rgba(158,206,106,.12);border:1px solid rgba(158,206,106,.36)}
+  .statePill.warn{color:var(--orange);background:rgba(255,158,100,.12);border:1px solid rgba(255,158,100,.36)}
+  .statePill.stop{color:var(--red);background:rgba(247,118,142,.12);border:1px solid rgba(247,118,142,.36)}
+  .actionPill.primary{color:#122015;background:var(--green);box-shadow:0 0 28px -12px rgba(158,206,106,.9);will-change:box-shadow,transform}
+  .actionPill.review{color:#22180c;background:var(--orange)}
+  .actionPill.blocked{color:var(--t3);background:rgba(192,202,245,.07);border:1px solid rgba(192,202,245,.11)}
+  .cleanupFoot{margin:2px 26px 0;padding:19px 22px;border-radius:15px;background:rgba(158,206,106,.08);
+    border:1px solid rgba(158,206,106,.22);font-family:var(--mono);font-size:18px;color:#c8e7ad;display:flex;gap:12px;align-items:center;
+    opacity:0;will-change:transform,opacity}
+  .cleanupFoot b{font-size:23px;color:var(--green)}
 
   /* CTA */
   #cta{position:absolute;inset:0;opacity:0}
@@ -190,13 +214,35 @@
   </div>
   <div id="editors">VS Code · Cursor · Zed<br>iTerm2 · Ghostty · Warp · Kitty · cmux</div>
 
-  <!-- THEMES -->
-  <div class="ctr head" id="themesHead" style="top:250px;font-size:62px;font-weight:800;letter-spacing:-1.4px">…and it suits your setup.</div>
-  <div id="thfan">
-    <div class="thpanel" style="left:300px;top:392px;width:480px;height:552px;z-index:1;background:#1c1d27"><img src=".video-build/assets/theme-tokyoNight-dark.png"></div>
-    <div class="thpanel" style="left:582px;top:368px;width:480px;height:552px;z-index:3;background:#282828"><img src=".video-build/assets/theme-gruvbox-dark.png"></div>
-    <div class="thpanel" style="left:858px;top:368px;width:480px;height:552px;z-index:4;background:#e5e9f0"><img src=".video-build/assets/theme-nord-light.png"></div>
-    <div class="thpanel" style="left:1140px;top:392px;width:480px;height:552px;z-index:2;background:#f3f1ea"><img src=".video-build/assets/theme-claude-light.png"></div>
+  <!-- CLEANUP -->
+  <div class="word" id="cleanupHead" style="left:251px;width:590px;text-align:right;top:344px;font-size:58px;font-weight:800;letter-spacing:-1.2px;line-height:1.08;color:#E8ECFB">Done work<br>shouldn't <span class="accent">linger.</span></div>
+  <div class="word" id="cleanupSub" style="left:221px;width:620px;text-align:right;top:500px;font-size:27px;font-weight:500;line-height:1.38;color:var(--t2)">cctop checks Git, then gives you the right remove action.</div>
+  <div id="cleanupCard">
+    <div class="cleanupTop">
+      <div class="cleanupIcon">✓</div>
+      <div>
+        <div class="cleanupTitle">Worktree Cleanup</div>
+        <div class="cleanupMeta">Leftover ended agent worktrees</div>
+      </div>
+    </div>
+    <div class="cleanupRows">
+      <div class="cleanupRow">
+        <div><div class="cleanupName">billing-api-fix</div><div class="cleanupPath">~/worktrees/billing-api-fix</div></div>
+        <div class="statePill safe">Git clean</div>
+        <div class="actionPill primary" id="removeAction">Remove</div>
+      </div>
+      <div class="cleanupRow">
+        <div><div class="cleanupName">reports-spike</div><div class="cleanupPath">~/worktrees/reports-spike</div></div>
+        <div class="statePill warn">Dirty</div>
+        <div class="actionPill review">Review</div>
+      </div>
+      <div class="cleanupRow">
+        <div><div class="cleanupName">release-check</div><div class="cleanupPath">~/worktrees/release-check</div></div>
+        <div class="statePill stop">Locked</div>
+        <div class="actionPill blocked">Blocked</div>
+      </div>
+    </div>
+    <div class="cleanupFoot"><b>✓</b> Safety checked before removal</div>
   </div>
 
   <!-- CTA -->
@@ -214,13 +260,12 @@
 <script>
 const TL={
   hook:[0.0,3.0], morph:[2.9,4.0], reveal:[3.8,7.2], scan:[7.1,10.7],
-  jump:[10.6,13.8], payoff:[13.7,17.4], stack:[17.3,20.5], themes:[20.4,23.2], cta:[23.0,27.8]
+  jump:[10.6,13.8], payoff:[13.7,17.4], stack:[17.3,20.5], cleanup:[20.4,23.2], cta:[23.0,27.8]
 };
 const TOTAL=27.8;
 const PANEL={x:905,y:176,w:680,h:781};
 const PILL={x:1630,y:30};                       // pill centre — bloom origin + dot convergence
 const DOTC=[868,914,960,1006,1052], DOTY=538;   // hook dot centres at rest
-const THEME_ROT=[-6,-2,2,6];
 
 function seek(t){
   drawHook(t);
@@ -230,7 +275,7 @@ function seek(t){
   drawScanJump(t);
   drawPayoff(t);
   drawStack(t);
-  drawThemes(t);
+  drawCleanup(t);
   drawCTA(t);
 }
 
@@ -259,7 +304,7 @@ function drawBand(t){
   const [m0,m1]=TL.morph;
   let o=mix(t, m0+0.05, m0+0.5);
   if(t>=TL.payoff[0]-0.1 && t<TL.stack[0]-0.1) o*=0.70;                 // recede during payoff
-  if(t>=TL.themes[0]-0.1) o*=(1-mix(t, TL.themes[0]-0.1, TL.themes[0]+0.3)); // suppress for themes+cta
+  if(t>=TL.cleanup[0]-0.1) o*=(1-mix(t, TL.cleanup[0]-0.1, TL.cleanup[0]+0.3)); // suppress for cleanup+cta
   $('#band').style.opacity=o;
   const seg=mix(t, m0+0.55, m0+0.82);
   $('#pill .grid').style.opacity=seg; $('#pill .sbar').style.opacity=seg;
@@ -279,7 +324,7 @@ function drawReveal(t){
   set($('#markSub'), rev(t, a+0.95, a+1.55, b-0.45, b-0.05, 30));
 }
 
-/* PANEL: bloom from pill -> hold -> hard-cut -> fade for payoff -> return for stack -> gone at themes */
+/* PANEL: bloom from pill -> hold -> hard-cut -> fade for payoff -> return for stack -> gone at cleanup */
 function drawPanel(t){
   const p=$('#panel');
   const appear=3.9;   // bloom starts as the dots merge into the pill (no empty beat before the panel)
@@ -289,7 +334,7 @@ function drawPanel(t){
     op = mix(t, appear, appear+0.55) * (1 - mix(t, TL.payoff[0]-0.15, TL.payoff[0]+0.3));
     bloom = eOut(mix(t, appear, appear+0.95));
   } else {
-    op = mix(t, TL.stack[0]-0.05, TL.stack[0]+0.4) * (1 - mix(t, TL.themes[0]-0.15, TL.themes[0]+0.3));
+    op = mix(t, TL.stack[0]-0.05, TL.stack[0]+0.4) * (1 - mix(t, TL.cleanup[0]-0.15, TL.cleanup[0]+0.3));
     bloom = 1;
   }
   let bx,by,bw,bh;
@@ -354,16 +399,28 @@ function drawStack(t){
   set($('#editors'), rev(t, a+1.45, a+1.95, b-0.45, b-0.15, 20));
 }
 
-/* THEMES */
-function drawThemes(t){
-  const [a,b]=TL.themes;
-  set($('#themesHead'), rev(t, a+0.15, a+0.72, b-0.4, b-0.05, 30));
-  $$('#thfan .thpanel').forEach((c,i)=>{
-    const p=eBack(clamp(mix(t, a+0.4+i*0.1, a+1.0+i*0.1)));
-    const o=clamp(mix(t, a+0.4+i*0.1, a+0.82+i*0.1))*(1-mix(t,b-0.38,b-0.02));
-    c.style.opacity=o;
-    c.style.transform=`translateY(${lerp(60,0,p).toFixed(1)}px) rotate(${lerp(0,THEME_ROT[i],p).toFixed(2)}deg) scale(${lerp(.85,1,p).toFixed(3)})`;
+/* CLEANUP */
+function drawCleanup(t){
+  const [a,b]=TL.cleanup;
+  set($('#cleanupHead'), rev(t, a+0.15, a+0.72, b-0.42, b-0.08, 30));
+  set($('#cleanupSub'), rev(t, a+0.45, a+0.98, b-0.42, b-0.08, 22));
+  const card=$('#cleanupCard');
+  const cp=eOut(mix(t, a+0.25, a+0.9));
+  const co=mix(t, a+0.25, a+0.72)*(1-mix(t,b-0.38,b-0.04));
+  card.style.opacity=co;
+  card.style.transform=`translateY(${lerp(54,0,cp).toFixed(1)}px) scale(${lerp(.965,1,cp).toFixed(3)})`;
+  $$('#cleanupCard .cleanupRow').forEach((row,i)=>{
+    const p=eBack(clamp(mix(t, a+0.62+i*0.13, a+1.1+i*0.13)));
+    const o=clamp(mix(t, a+0.62+i*0.13, a+0.95+i*0.13))*(1-mix(t,b-0.35,b-0.04));
+    row.style.opacity=o;
+    row.style.transform=`translateY(${lerp(24,0,p).toFixed(1)}px)`;
   });
+  const fp=rev(t, a+1.28, a+1.76, b-0.35, b-0.04, 14);
+  $('.cleanupFoot').style.opacity=fp.o;
+  $('.cleanupFoot').style.transform=`translateY(${fp.y}px)`;
+  const glow=mix(t, a+1.15, a+1.9)*(1-mix(t,b-0.5,b-0.1));
+  $('#removeAction').style.boxShadow=`0 0 ${(28+32*glow).toFixed(0)}px -${(12-5*glow).toFixed(0)}px rgba(158,206,106,${(0.9*glow).toFixed(2)})`;
+  $('#removeAction').style.transform=`scale(${lerp(1,1.04,glow).toFixed(3)})`;
 }
 
 /* CTA */
