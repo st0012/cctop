@@ -52,7 +52,39 @@ struct WorktreeCleanupTabView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
         } else {
-            cleanupList
+            VStack(spacing: 0) {
+                listRemovalNotice
+                cleanupList
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var listRemovalNotice: some View {
+        if let removalNotice {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(removalNotice.title)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(removalNotice.blocksRemoval ? Color.statusAttention : Color.textPrimary)
+                Text(removalNotice.message)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background {
+                RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
+                    .fill(Color.statusAttention.opacity(removalNotice.blocksRemoval ? 0.08 : 0.04))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
+                    .stroke(Color.statusAttention.opacity(removalNotice.blocksRemoval ? 0.22 : 0.12), lineWidth: 1)
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
         }
     }
 

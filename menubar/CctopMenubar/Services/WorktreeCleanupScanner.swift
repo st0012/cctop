@@ -223,7 +223,7 @@ struct WorktreeCleanupScanner {
             reasons.appendUnique("Main checkout path could not be verified")
         }
         if inspection.isLocked {
-            reasons.appendUnique("Worktree is locked")
+            reasons.appendUnique(WorktreeCleanupCandidate.lockedReason)
         }
         if let statusEntries = inspection.statusEntries {
             if !Self.untrackedPaths(fromStatusEntries: statusEntries).isEmpty {

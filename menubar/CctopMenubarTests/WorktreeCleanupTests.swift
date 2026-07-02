@@ -1612,6 +1612,48 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertTrue(selectedCandidate.state.reasons.contains("Branch has 1 unique local commit"))
     }
 
+    func testRemovalServiceSelectsBlockedActionForLockedDirtyWorktree() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let candidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Locked dirty review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([
+                WorktreeCleanupCandidate.lockedReason,
+                WorktreeCleanupCandidate.untrackedFilesReason,
+            ]),
+            checks: [],
+            reviewEvidence: WorktreeCleanupReviewEvidence(
+                untrackedPreview: WorktreeCleanupUntrackedPreview(paths: ["scratch.txt"])
+            )
+        )
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [worktreePath: cleanInspection(statusEntries: ["?? scratch.txt"], isLocked: true)]
+            ),
+            runGit: { _ in
+                XCTFail("Blocked action selection should not run Git removal")
+                return GitCommandResult(exitCode: 1, stdout: "", stderr: "")
+            }
+        )
+
+        let action = service.selectedAction(for: candidate, cleanupSources: [session], activeProjectPaths: [])
+
+        guard case .blocked(let blockedCandidate, let reason) = action else {
+            return XCTFail("Expected locked dirty worktree to be blocked, got \(action)")
+        }
+        XCTAssertTrue(blockedCandidate.state.reasons.contains(WorktreeCleanupCandidate.lockedReason))
+        XCTAssertTrue(blockedCandidate.state.reasons.contains(WorktreeCleanupCandidate.untrackedFilesReason))
+        XCTAssertEqual(reason, "This worktree is locked. Unlock it before removing.")
+    }
+
     func testRemovalServiceExecutesSelectedForceActionDirectly() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let mainPath = "/Users/dev/projects/billing-api"
@@ -3038,6 +3080,10 @@ final class WorktreeCleanupTests: XCTestCase {
             contentsOf: root.appendingPathComponent("menubar/CctopMenubar/Views/PopupView.swift"),
             encoding: .utf8
         )
+        let tabViewSource = try String(
+            contentsOf: root.appendingPathComponent("menubar/CctopMenubar/Views/WorktreeCleanupTabView.swift"),
+            encoding: .utf8
+        )
         let cleanupSource = try String(
             contentsOf: root.appendingPathComponent("menubar/CctopMenubar/Views/PopupView+Cleanup.swift"),
             encoding: .utf8
@@ -3051,6 +3097,8 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertTrue(cleanupSource.contains("if selectsCandidateOnResult {\n                selectedCleanupCandidate = originalCandidate"))
         XCTAssertFalse(popupViewSource.contains(".onChange(of: selectedCleanupCandidate?.id) { _ in\n            cleanupRemovalNotice = nil"))
         XCTAssertTrue(popupViewSource.contains("func openCleanupDetail(_ candidate: WorktreeCleanupCandidate) {\n        cleanupRemovalNotice = nil"))
+        XCTAssertTrue(tabViewSource.contains("listRemovalNotice"))
+        XCTAssertTrue(tabViewSource.contains("if let removalNotice"))
     }
 
     private func scanner(

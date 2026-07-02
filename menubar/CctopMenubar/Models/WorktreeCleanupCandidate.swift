@@ -4,6 +4,7 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
     static let untrackedFilesReason = "Worktree has untracked files"
     static let ignoredFilesReason = "Worktree has ignored files"
     static let trackedChangesReason = "Worktree has uncommitted tracked changes"
+    static let lockedReason = "Worktree is locked"
     static let initializedSubmodulesReason = "Worktree contains initialized submodules"
     static let indexHiddenTrackedFilesReason = "Worktree has tracked files hidden by Git index flags"
     static let statusUnreadableReason = "Git status could not be read"

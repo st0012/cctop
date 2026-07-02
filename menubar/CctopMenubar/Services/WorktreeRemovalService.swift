@@ -35,6 +35,9 @@ struct WorktreeRemovalService {
     ) -> RemovalAction {
         switch readyCandidate(candidate, cleanupSources: cleanupSources, activeProjectPaths: activeProjectPaths) {
         case .ready(let readiness):
+            if readiness.candidate.state.reasons.contains(WorktreeCleanupCandidate.lockedReason) {
+                return .blocked(readiness.candidate, readiness.candidate.blockedRemovalReason)
+            }
             if readiness.candidate.requiresForceWorktreeRemoval {
                 return .forceRemove(readiness.candidate)
             }
@@ -264,7 +267,7 @@ private extension WorktreeCleanupCandidate {
         if state.reasons.contains(Self.indexHiddenTrackedFilesReason) {
             return "This worktree has tracked files hidden by Git index flags, so cctop cannot verify local changes safely."
         }
-        if state.reasons.contains("Worktree is locked") {
+        if state.reasons.contains(Self.lockedReason) {
             return "This worktree is locked. Unlock it before removing."
         }
         if state.reasons.contains("Branch is unknown or detached") {

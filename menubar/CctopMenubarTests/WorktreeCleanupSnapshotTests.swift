@@ -199,6 +199,21 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             view: selectedRow, colorScheme: .dark, filename: "worktree-cleanup-list-keyboard-selected.png"
         )
 
+        let listBlockedNotice = WorktreeCleanupTabView(
+            candidates: Array(overflow.prefix(3)),
+            selectedIndex: nil,
+            selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
+            onRemove: { _ in },
+            removalNotice: WorktreeRemovalNotice(
+                title: "Removal Blocked",
+                message: "This worktree is locked. Unlock it before removing.",
+                blocksRemoval: true
+            )
+        )
+        try renderScreenshot(
+            view: listBlockedNotice, colorScheme: .dark, filename: "worktree-cleanup-list-blocked-notice.png"
+        )
+
         let emptyState = WorktreeCleanupTabView(
             candidates: [],
             selectedIndex: nil,
