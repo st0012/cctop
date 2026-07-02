@@ -105,6 +105,28 @@
   .pill.primary { background: var(--accent); border-color: transparent; color: #14151d; }
   .pill.large { min-height: 42px; padding: 10px 16px; font-size: 14px; }
   .pill svg { width: 14px; height: 14px; }
+  .pill .star-count {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    margin-left: 2px;
+    padding-left: 8px;
+    border-left: 1px solid color-mix(in oklab, var(--text) 18%, transparent);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1;
+    letter-spacing: 0;
+  }
+  .pill[data-stars-visible] .star-count { display: inline-flex; }
+  .pill .star-count svg {
+    width: 11px;
+    height: 11px;
+    display: block;
+    flex: 0 0 11px;
+  }
+  .pill[data-stars-visible]:hover .star-count { color: var(--text); border-left-color: color-mix(in oklab, var(--text) 28%, transparent); }
 
   .hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(300px, 430px); gap: 56px; align-items: center; padding: 54px 0 70px; }
   .status-pill {
@@ -296,6 +318,9 @@
   <symbol id="i-github" viewBox="0 0 16 16">
     <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
   </symbol>
+  <symbol id="i-star" viewBox="0 0 16 16">
+    <path fill="currentColor" d="m8 1.25 2.05 4.15 4.58.67-3.32 3.24.79 4.56L8 11.71l-4.1 2.16.79-4.56-3.32-3.24 4.58-.67L8 1.25z"/>
+  </symbol>
   <symbol id="i-download" viewBox="0 0 16 16">
     <path fill="none" stroke="currentColor" stroke-width="1.6" d="M8 2v8m0 0 3-3m-3 3-3-3"/>
     <path fill="none" stroke="currentColor" stroke-width="1.6" d="M3 12v1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-1"/>
@@ -320,7 +345,7 @@
       <a href="#faq">FAQ</a>
     </nav>
     <div class="nav-actions">
-      <a class="pill" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer"><svg aria-hidden="true"><use href="#i-github"/></svg>GitHub</a>
+      <a class="pill" href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer" data-stars-link><svg aria-hidden="true"><use href="#i-github"/></svg><span>GitHub</span><span class="star-count" aria-hidden="true"><svg aria-hidden="true" focusable="false"><use href="#i-star"/></svg><span data-stars></span></span></a>
       <a class="pill primary" href="#install"><svg aria-hidden="true"><use href="#i-download"/></svg>Download</a>
     </div>
   </header>
@@ -453,6 +478,37 @@
       document.querySelectorAll('[data-version]').forEach((el) => { el.textContent = d.tag_name; });
     })
     .catch(() => {});
+
+  const resetStars = () => {
+    document.querySelectorAll('[data-stars-link]').forEach((link) => {
+      link.removeAttribute('data-stars-visible');
+      link.removeAttribute('aria-label');
+      const count = link.querySelector('[data-stars]');
+      if (count) count.textContent = '';
+    });
+  };
+
+  resetStars();
+
+  fetch('https://api.github.com/repos/st0012/cctop', {
+    headers: { 'Accept': 'application/vnd.github+json' }
+  })
+    .then((r) => r.ok ? r.json() : null)
+    .then((d) => {
+      if (!d || typeof d.stargazers_count !== 'number') {
+        resetStars();
+        return;
+      }
+      const label = new Intl.NumberFormat('en').format(d.stargazers_count);
+      document.querySelectorAll('[data-stars-link]').forEach((link) => {
+        const count = link.querySelector('[data-stars]');
+        if (!count) return;
+        count.textContent = label;
+        link.setAttribute('data-stars-visible', '');
+        link.setAttribute('aria-label', `GitHub, ${label} stars`);
+      });
+    })
+    .catch(resetStars);
 </script>
 </body>
 </html>
