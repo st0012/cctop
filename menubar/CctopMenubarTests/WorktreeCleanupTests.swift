@@ -1116,6 +1116,31 @@ final class WorktreeCleanupTests: XCTestCase {
     }
 
     @MainActor
+    func testCleanupCandidateChangePreservesBlockingRemovalNotice() {
+        let notice = WorktreeRemovalNotice(
+            title: "Removal Blocked",
+            message: "Cleanup evidence changed. Review the updated worktree before removing.",
+            blocksRemoval: true
+        )
+
+        let result = PopupView.noticeAfterCleanupCandidatesChanged(notice)
+
+        XCTAssertEqual(result, notice)
+    }
+
+    @MainActor
+    func testCleanupCandidateChangeClearsNonBlockingRemovalNotice() {
+        let notice = WorktreeRemovalNotice(
+            title: "Remove Failed",
+            message: "fatal: could not remove worktree"
+        )
+
+        let result = PopupView.noticeAfterCleanupCandidatesChanged(notice)
+
+        XCTAssertNil(result)
+    }
+
+    @MainActor
     func testCleanupScanningChangeNotifiesLayout() async throws {
         let layoutChanged = expectation(description: "cleanup scanning change notifies layout")
         let view = popupView(

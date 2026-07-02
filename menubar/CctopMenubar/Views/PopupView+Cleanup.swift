@@ -1,6 +1,10 @@
 import SwiftUI
 
 extension PopupView {
+    static func noticeAfterCleanupCandidatesChanged(_ notice: WorktreeRemovalNotice?) -> WorktreeRemovalNotice? {
+        notice?.blocksRemoval == true ? notice : nil
+    }
+
     static func syncedCleanupCandidate(
         _ selectedCandidate: WorktreeCleanupCandidate?,
         in candidates: [WorktreeCleanupCandidate]

@@ -488,7 +488,7 @@ extension PopupView {
     func handleCleanupCandidatesChanged() {
         ensureSelectedTabAvailable()
         syncSelectedCleanupCandidate()
-        cleanupRemovalNotice = nil
+        cleanupRemovalNotice = Self.noticeAfterCleanupCandidatesChanged(cleanupRemovalNotice)
         notifyLayoutChanged()
     }
 
