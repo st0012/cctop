@@ -99,6 +99,7 @@
 		T10000070000000000000002 /* AppSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = T10000080000000000000002 /* AppSettingsTests.swift */; };
 		PT0000010000000000000001 /* PanelToggleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PT0000020000000000000001 /* PanelToggleTests.swift */; };
 		PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PCT000020000000000000001 /* PanelCoordinatorTests.swift */; };
+		PHV000010000000000000001 /* FloatingPanelMouseEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PHV000020000000000000001 /* FloatingPanelMouseEventTests.swift */; };
 		NSN000010000000000000001 /* NSScreen+Notch.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSN000020000000000000001 /* NSScreen+Notch.swift */; };
 		NPB000010000000000000001 /* NSPasteboard+Copy.swift in Sources */ = {isa = PBXBuildFile; fileRef = NPB000020000000000000001 /* NSPasteboard+Copy.swift */; };
 		NSP000010000000000000001 /* NotchStatusPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSP000020000000000000001 /* NotchStatusPanel.swift */; };
@@ -253,6 +254,7 @@
 		T10000080000000000000002 /* AppSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettingsTests.swift; sourceTree = "<group>"; };
 		PT0000020000000000000001 /* PanelToggleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelToggleTests.swift; sourceTree = "<group>"; };
 		PCT000020000000000000001 /* PanelCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinatorTests.swift; sourceTree = "<group>"; };
+		PHV000020000000000000001 /* FloatingPanelMouseEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelMouseEventTests.swift; sourceTree = "<group>"; };
 		NSN000020000000000000001 /* NSScreen+Notch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSScreen+Notch.swift"; sourceTree = "<group>"; };
 		NPB000020000000000000001 /* NSPasteboard+Copy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSPasteboard+Copy.swift"; sourceTree = "<group>"; };
 		NSP000020000000000000001 /* NotchStatusPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchStatusPanel.swift; sourceTree = "<group>"; };
@@ -502,6 +504,7 @@
 				HMT000020000000000000001 /* HistoryManagerTests.swift */,
 				PT0000020000000000000001 /* PanelToggleTests.swift */,
 				PCT000020000000000000001 /* PanelCoordinatorTests.swift */,
+				PHV000020000000000000001 /* FloatingPanelMouseEventTests.swift */,
 				MRT000020000000000000001 /* MenubarIconRendererTests.swift */,
 				SCT000020000000000000001 /* StatusCountsTests.swift */,
 				HVT000020000000000000001 /* StatusCountsSessionInitTests.swift */,
@@ -775,6 +778,7 @@
 				HMT000010000000000000001 /* HistoryManagerTests.swift in Sources */,
 				PT0000010000000000000001 /* PanelToggleTests.swift in Sources */,
 				PCT000010000000000000001 /* PanelCoordinatorTests.swift in Sources */,
+				PHV000010000000000000001 /* FloatingPanelMouseEventTests.swift in Sources */,
 				MRT000010000000000000001 /* MenubarIconRendererTests.swift in Sources */,
 				SCT000010000000000000001 /* StatusCountsTests.swift in Sources */,
 				HVT000010000000000000001 /* StatusCountsSessionInitTests.swift in Sources */,

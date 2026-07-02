@@ -33,6 +33,10 @@ class FloatingPanel: NSPanel {
         sawDragEvents && originMoved
     }
 
+    static func shouldPrimeKeyWindowBeforeMouseDown(isKeyWindow: Bool, isHeaderClick: Bool) -> Bool {
+        !isKeyWindow && !isHeaderClick
+    }
+
     override init(
         contentRect: NSRect,
         styleMask: NSWindow.StyleMask,
@@ -68,14 +72,20 @@ class FloatingPanel: NSPanel {
     // MARK: - Header drag via tight event-tracking loop
 
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .leftMouseDown && isInHeaderArea(event) {
-            switch Self.headerClickAction(forClickCount: event.clickCount) {
-            case .resetPosition:
-                panelDelegate?.panelDidRequestReset()
-            case .drag:
-                handleHeaderDrag()
+        if event.type == .leftMouseDown {
+            let headerClick = isInHeaderArea(event)
+            if Self.shouldPrimeKeyWindowBeforeMouseDown(isKeyWindow: isKeyWindow, isHeaderClick: headerClick) {
+                makeKey()
             }
-            return
+            if headerClick {
+                switch Self.headerClickAction(forClickCount: event.clickCount) {
+                case .resetPosition:
+                    panelDelegate?.panelDidRequestReset()
+                case .drag:
+                    handleHeaderDrag()
+                }
+                return
+            }
         }
         super.sendEvent(event)
     }
