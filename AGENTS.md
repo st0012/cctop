@@ -361,7 +361,7 @@ The pi extension (`plugins/pi/cctop.ts`) has an equivalent `node:test` suite und
 node --test plugins/pi/test/*.test.mjs
 ```
 
-`make test` runs the opencode and pi plugin tests before the Swift test suite. For hook event mapping changes, also run `make contract`; it verifies the hook schema, fixtures, Swift parser, and plugin hook calls stay in sync.
+`make test` runs the opencode and pi plugin tests before the Swift test suite; on Node older than 23.6 it skips the pi suite with a warning instead of failing. For hook event mapping changes, also run `make contract`; it verifies the hook schema, fixtures, Swift parser, and plugin hook calls stay in sync.
 
 For local development, you can manually copy your modified plugin to override the installed version:
 
