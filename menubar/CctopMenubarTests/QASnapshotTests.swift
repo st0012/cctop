@@ -223,12 +223,6 @@ final class QASnapshotTests: XCTestCase {
             .environment(\.colorScheme, .light)
     }
 
-    /// Inert manager: no home-dir IO, every flag starts deterministically
-    /// false, so snapshots never carry the developer's machine state.
-    private func inertPluginManager() -> PluginManager {
-        PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
-    }
-
     // MARK: - Rendering
 
     private func renderSnapshot(

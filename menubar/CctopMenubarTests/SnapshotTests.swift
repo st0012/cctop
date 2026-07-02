@@ -10,6 +10,114 @@ func snapshotOutputDirectory(named directoryName: String) -> String {
             .path
 }
 
+/// Inert manager: no home-dir IO, every flag starts deterministically
+/// false, so screenshots are reproducible across machines.
+@MainActor
+func inertPluginManager() -> PluginManager {
+    PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
+}
+
+/// Shared snapshot render pipeline: hosts the view in a borderless window,
+/// sizes it to fit, and writes a PNG into the named snapshot output directory.
+@MainActor
+@discardableResult
+func renderPanelScreenshot(
+    view: some View, colorScheme: ColorScheme, directoryName: String, filename: String, width: CGFloat = 320
+) throws -> NSSize {
+    let docsDir = snapshotOutputDirectory(named: directoryName)
+    let outputPath = "\(docsDir)/\(filename)"
+    try FileManager.default.createDirectory(
+        at: URL(fileURLWithPath: docsDir), withIntermediateDirectories: true
+    )
+
+    let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
+    let styled = view
+        .frame(width: width)
+        .background {
+            PanelSurfaceBackground(usesMaterial: false)
+        }
+        .overlay {
+            PanelAccentHairline(cornerRadius: AppChrome.panelCornerRadius)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous))
+        .environment(\.colorScheme, colorScheme)
+
+    let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: width, height: 500),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.appearance = NSAppearance(named: appearance)
+
+    let hostingView = NSHostingView(rootView: styled)
+    window.contentView = hostingView
+
+    let fittingSize = hostingView.fittingSize
+    window.setContentSize(fittingSize)
+    hostingView.frame = NSRect(origin: .zero, size: fittingSize)
+    hostingView.layoutSubtreeIfNeeded()
+
+    let bitmapRep = try XCTUnwrap(
+        hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds),
+        "Failed to create bitmap for \(filename)"
+    )
+    hostingView.cacheDisplay(in: hostingView.bounds, to: bitmapRep)
+
+    let pngData = try XCTUnwrap(
+        bitmapRep.representation(using: .png, properties: [:]),
+        "Failed to generate PNG for \(filename)"
+    )
+
+    try pngData.write(to: URL(fileURLWithPath: outputPath))
+    print("Screenshot saved to: \(outputPath)")
+    return fittingSize
+}
+
+func worstCaseReviewCleanupCandidate(now: Date = Date()) -> WorktreeCleanupCandidate {
+    let path = "/Users/st0012/projects/cctop/.claude/worktrees/very-long-review-worktree-name-for-layout"
+    let state = WorktreeCleanupCandidate.State.review([
+        "Worktree has uncommitted tracked changes",
+        WorktreeCleanupCandidate.untrackedFilesReason,
+        "No upstream branch",
+        "Worktree is locked",
+    ])
+    return WorktreeCleanupCandidate(
+        id: path,
+        sessionName: "Investigate cleanup tab layout with very long session naming",
+        worktreePath: path,
+        worktreeName: URL(fileURLWithPath: path).lastPathComponent,
+        branchName: "claude/review-layout-with-long-branch-name-and-no-upstream",
+        lastActiveAt: now.addingTimeInterval(-86_400 * 16),
+        storageBytes: 426 * 1_024 * 1_024,
+        state: state,
+        checks: [
+            WorktreeCleanupCheck(label: "No active cctop sessions here", status: .ok),
+            WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: .ok),
+            WorktreeCleanupCheck(label: "No uncommitted tracked changes", status: .review),
+            WorktreeCleanupCheck(label: "No untracked files", status: .review),
+            WorktreeCleanupCheck(label: "No ignored files", status: .ok),
+            WorktreeCleanupCheck(label: "Branch has no unique local commits", status: .review),
+            WorktreeCleanupCheck(label: "Main checkout path is known", status: .ok),
+            WorktreeCleanupCheck(label: "Worktree is not locked", status: .ok),
+            WorktreeCleanupCheck(label: "Storage size scan completed", status: .ok),
+        ],
+        reviewEvidence: WorktreeCleanupCandidate.mockReviewEvidence(for: state)
+    )
+}
+
+func repoRoot() throws -> URL {
+    var url = URL(fileURLWithPath: #filePath)
+    while url.path != "/" {
+        let candidate = url.appendingPathComponent("menubar/CctopMenubar.xcodeproj")
+        if FileManager.default.fileExists(atPath: candidate.path) {
+            return url
+        }
+        url.deleteLastPathComponent()
+    }
+    throw XCTSkip("Could not locate repository root")
+}
+
 @MainActor
 final class SnapshotTests: XCTestCase {
     /// Renders the PopupView with showcase sessions and saves light + dark screenshots.
@@ -184,107 +292,13 @@ final class SnapshotTests: XCTestCase {
         ThemeManager.shared.setTheme(.claude)
     }
 
-    /// Inert manager: no home-dir IO, every flag starts deterministically
-    /// false, so screenshots are reproducible across machines.
-    private func inertPluginManager() -> PluginManager {
-        PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
-    }
-
     @discardableResult
     private func renderScreenshot(
         view: some View, colorScheme: ColorScheme, filename: String, width: CGFloat = 320
     ) throws -> NSSize {
-        let docsDir = snapshotOutputDirectory(named: "cctop-screenshots")
-        let outputPath = "\(docsDir)/\(filename)"
-        try FileManager.default.createDirectory(
-            at: URL(fileURLWithPath: docsDir), withIntermediateDirectories: true
+        try renderPanelScreenshot(
+            view: view, colorScheme: colorScheme,
+            directoryName: "cctop-screenshots", filename: filename, width: width
         )
-
-        let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
-        let styled = view
-            .frame(width: width)
-            .background {
-                PanelSurfaceBackground(usesMaterial: false)
-            }
-            .overlay {
-                PanelAccentHairline(cornerRadius: AppChrome.panelCornerRadius)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: AppChrome.panelCornerRadius, style: .continuous))
-            .environment(\.colorScheme, colorScheme)
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: width, height: 500),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.appearance = NSAppearance(named: appearance)
-
-        let hostingView = NSHostingView(rootView: styled)
-        window.contentView = hostingView
-
-        let fittingSize = hostingView.fittingSize
-        window.setContentSize(fittingSize)
-        hostingView.frame = NSRect(origin: .zero, size: fittingSize)
-        hostingView.layoutSubtreeIfNeeded()
-
-        let bitmapRep = try XCTUnwrap(
-            hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds),
-            "Failed to create bitmap for \(filename)"
-        )
-        hostingView.cacheDisplay(in: hostingView.bounds, to: bitmapRep)
-
-        let pngData = try XCTUnwrap(
-            bitmapRep.representation(using: .png, properties: [:]),
-            "Failed to generate PNG for \(filename)"
-        )
-
-        try pngData.write(to: URL(fileURLWithPath: outputPath))
-        print("Screenshot saved to: \(outputPath)")
-        return fittingSize
-    }
-
-    private func worstCaseReviewCleanupCandidate() -> WorktreeCleanupCandidate {
-        let path = "/Users/st0012/projects/cctop/.claude/worktrees/very-long-review-worktree-name-for-layout"
-        let state = WorktreeCleanupCandidate.State.review([
-            "Worktree has uncommitted tracked changes",
-            WorktreeCleanupCandidate.untrackedFilesReason,
-            "No upstream branch",
-            "Worktree is locked",
-        ])
-        return WorktreeCleanupCandidate(
-            id: path,
-            sessionName: "Investigate cleanup tab layout with very long session naming",
-            worktreePath: path,
-            worktreeName: URL(fileURLWithPath: path).lastPathComponent,
-            branchName: "claude/review-layout-with-long-branch-name-and-no-upstream",
-            lastActiveAt: Date().addingTimeInterval(-86_400 * 16),
-            storageBytes: 426 * 1_024 * 1_024,
-            state: state,
-            checks: [
-                WorktreeCleanupCheck(label: "No active cctop sessions here", status: .ok),
-                WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: .ok),
-                WorktreeCleanupCheck(label: "No uncommitted tracked changes", status: .review),
-                WorktreeCleanupCheck(label: "No untracked files", status: .review),
-                WorktreeCleanupCheck(label: "No ignored files", status: .ok),
-                WorktreeCleanupCheck(label: "Branch has no unique local commits", status: .review),
-                WorktreeCleanupCheck(label: "Main checkout path is known", status: .ok),
-                WorktreeCleanupCheck(label: "Worktree is not locked", status: .ok),
-                WorktreeCleanupCheck(label: "Storage size scan completed", status: .ok),
-            ],
-            reviewEvidence: WorktreeCleanupCandidate.mockReviewEvidence(for: state)
-        )
-    }
-
-    private func repoRoot() throws -> URL {
-        var url = URL(fileURLWithPath: #filePath)
-        while url.path != "/" {
-            let candidate = url.appendingPathComponent("menubar/CctopMenubar.xcodeproj")
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                return url
-            }
-            url.deleteLastPathComponent()
-        }
-        throw XCTSkip("Could not locate repository root")
     }
 }

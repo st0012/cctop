@@ -3552,21 +3552,4 @@ final class WorktreeCleanupTests: XCTestCase {
             onLayoutChanged: onLayoutChanged
         )
     }
-
-    @MainActor
-    private func inertPluginManager() -> PluginManager {
-        PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
-    }
-
-    private func repoRoot() throws -> URL {
-        var url = URL(fileURLWithPath: #filePath)
-        while url.path != "/" {
-            let candidate = url.appendingPathComponent("menubar/CctopMenubar.xcodeproj")
-            if FileManager.default.fileExists(atPath: candidate.path) {
-                return url
-            }
-            url.deleteLastPathComponent()
-        }
-        throw XCTSkip("Could not locate repository root")
-    }
 }
