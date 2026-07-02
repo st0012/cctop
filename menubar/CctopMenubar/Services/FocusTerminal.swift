@@ -113,11 +113,11 @@ func resolveFocusStrategy(session: Session, multiplexerOverride: MultiplexerInfo
 
 // MARK: - Execution (AppKit side effects)
 
-/// Cmux env probing spawns `ps`, focus scripts block on Apple events, and the
-/// kitty/multiplexer CLIs wait on subprocesses — so the whole jump runs on a
-/// background queue. AppKit calls hop back to the main thread.
+private let focusQueue = DispatchQueue(label: "cctop.focus-terminal", qos: .userInitiated)
+/// Cmux `ps` probing, focus scripts, and kitty/multiplexer CLIs all block — so the whole jump runs on `focusQueue`, serial so a
+/// slow jump can't finish after (and steal focus from) a later one. AppKit calls hop back to the main thread.
 func focusTerminal(session: Session) {
-    DispatchQueue.global(qos: .userInitiated).async {
+    focusQueue.async {
         let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride)
         let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride)
