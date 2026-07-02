@@ -149,7 +149,7 @@ struct WorktreeCleanupDetailView: View {
 
     @ViewBuilder
     private var actionSection: some View {
-        if candidate.state.isActionable {
+        if candidate.state.isActionable && removalNotice?.blocksRemoval != true {
             actionRow
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -329,17 +329,14 @@ struct WorktreeCleanupDetailView: View {
 
 private extension WorktreeCleanupDetailView {
     var removeHelp: String {
-        if removalNotice?.forceOffer != nil {
-            return "Run git worktree remove --force after confirming; local changes in the worktree can be deleted"
-        }
         if candidate.state.isClean {
-            return "Run git worktree remove after confirming"
+            return "Run git worktree remove"
         }
-        return "Run git worktree remove after an extra confirmation; Git may refuse unsafe worktrees"
+        return "Review the cleanup evidence before removing this worktree"
     }
 
     var actionTitle: String {
-        isRemoving ? "Removing..." : (removalNotice?.forceOffer == nil ? "Remove" : "Force Remove...")
+        isRemoving ? "Removing..." : "Remove"
     }
 
     var showsNoticeLocalFileEvidence: Bool {
@@ -463,7 +460,7 @@ private struct CleanupDetailActionButton: View {
 struct WorktreeRemovalNotice: Equatable {
     let title: String
     let message: String
-    var forceOffer: WorktreeForceRemovalOffer?
+    var blocksRemoval = false
 }
 
 #Preview("Clean detail") {

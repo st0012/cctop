@@ -9,6 +9,7 @@ struct SettingsSection: View {
     @StateObject private var notificationPermission: NotificationPermissionController
     @AppStorage("appearanceMode") private var appearanceMode = "system"
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var showFileAccessHelp = false
 
     init(
         updater: UpdaterBase,
@@ -79,14 +80,7 @@ struct SettingsSection: View {
                 groupedDivider
                 NotificationSettingsRow(notificationPermission: notificationPermission)
                 groupedDivider
-                settingsRow("File Access") {
-                    Button("Open Settings") {
-                        openFileAccessSettings()
-                    }
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.segmentActiveText)
-                    .buttonStyle(.plain)
-                }
+                fileAccessRow
             }
         }
         .padding(AppChrome.settingsContentPadding)
@@ -149,6 +143,46 @@ struct SettingsSection: View {
             }
             Spacer()
             ShortcutBadge(name: .navigate)
+        }
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+        .padding(.vertical, 8)
+    }
+
+    private var fileAccessRow: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("File Access")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.textPrimary)
+                    .lineLimit(1)
+                Text("Required only for Cleanup in protected folders.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textMuted)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Button {
+                showFileAccessHelp.toggle()
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.textMuted)
+            }
+            .buttonStyle(.plain)
+            .help("File Access help")
+            .popover(isPresented: $showFileAccessHelp) {
+                Text("Used only for Cleanup. macOS may require access when worktrees live in protected folders.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.textPrimary)
+                    .frame(width: 220, alignment: .leading)
+                    .padding(10)
+            }
+            Button("Open Settings") {
+                openFileAccessSettings()
+            }
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(Color.segmentActiveText)
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
         .padding(.vertical, 8)

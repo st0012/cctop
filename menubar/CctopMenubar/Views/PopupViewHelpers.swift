@@ -229,8 +229,8 @@ struct PanelContentView: View {
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @ObservedObject var navigate: NavigateController
-    var onRemoveCleanupCandidate: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalResult)?
-    var onForceRemoveCleanupCandidate: ((WorktreeForceRemovalOffer) async -> WorktreeRemovalService.RemovalResult)?
+    var onSelectCleanupRemovalAction: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalAction)?
+    var onExecuteCleanupRemovalAction: ((WorktreeRemovalService.RemovalAction) async -> WorktreeRemovalService.RemovalResult)?
     var onCleanupTabVisible: () -> Void = {}
     var onCleanupTabHidden: () -> Void = {}
     /// Called (async on main) whenever content layout changes so the host can resize the panel.
@@ -248,8 +248,8 @@ struct PanelContentView: View {
             pluginManager: pluginManager,
             navigate: navigate,
             overlayController: overlayController,
-            onRemoveCleanupCandidate: onRemoveCleanupCandidate,
-            onForceRemoveCleanupCandidate: onForceRemoveCleanupCandidate,
+            onSelectCleanupRemovalAction: onSelectCleanupRemovalAction,
+            onExecuteCleanupRemovalAction: onExecuteCleanupRemovalAction,
             onCleanupTabVisible: onCleanupTabVisible,
             onCleanupTabHidden: onCleanupTabHidden,
             onLayoutChanged: onLayoutChanged

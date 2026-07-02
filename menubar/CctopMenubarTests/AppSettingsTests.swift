@@ -29,6 +29,31 @@ final class AppSettingsTests: XCTestCase {
             "x-apple.systempreferences:com.apple.preference.security"
         )
     }
+
+    func testFileAccessSettingsCopyIsCleanupScopedAndHasHelpPopover() throws {
+        let root = try repoRoot()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("menubar/CctopMenubar/Views/SettingsSection.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("Required only for Cleanup in protected folders."))
+        XCTAssertTrue(source.contains("worktrees live in protected folders"))
+        XCTAssertTrue(source.contains("Used only for Cleanup."))
+        XCTAssertTrue(source.contains("questionmark.circle"))
+        XCTAssertTrue(source.contains(".popover(isPresented: $showFileAccessHelp)"))
+    }
+
+    private func repoRoot() throws -> URL {
+        var url = URL(fileURLWithPath: #filePath)
+        while url.path != "/" {
+            url.deleteLastPathComponent()
+            if FileManager.default.fileExists(atPath: url.appendingPathComponent("menubar").path) {
+                return url
+            }
+        }
+        throw NSError(domain: "AppSettingsTests", code: 1)
+    }
 }
 
 @MainActor

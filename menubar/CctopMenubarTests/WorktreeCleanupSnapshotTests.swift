@@ -117,18 +117,17 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             colorScheme: .dark,
             filename: "worktree-cleanup-detail-unknown-safety.png"
         )
-        let forceOffer = forceRemovalOffer(for: scenario.untrackedOnly)
-        let forceOfferSize = try renderScreenshot(
+        let blockedSize = try renderScreenshot(
             view: cleanupDetail(
                 candidate: scenario.untrackedOnly,
                 notice: WorktreeRemovalNotice(
-                    title: "Remove Failed",
-                    message: cleanupForceOfferNoticeMessage(),
-                    forceOffer: forceOffer
+                    title: "Removal Blocked",
+                    message: "Cleanup evidence changed. Review the updated worktree before removing.",
+                    blocksRemoval: true
                 )
             ),
             colorScheme: .dark,
-            filename: "worktree-cleanup-force-offer.png"
+            filename: "worktree-cleanup-blocked-removal.png"
         )
         let forceFailureSize = try renderScreenshot(
             view: cleanupDetail(
@@ -147,40 +146,42 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         XCTAssertLessThanOrEqual(longSize.width, 320)
         XCTAssertLessThanOrEqual(untrackedOnlySize.width, 320)
         XCTAssertLessThanOrEqual(unknownSize.width, 320)
-        XCTAssertLessThanOrEqual(forceOfferSize.width, 320)
+        XCTAssertLessThanOrEqual(blockedSize.width, 320)
         XCTAssertLessThanOrEqual(forceFailureSize.width, 320)
         XCTAssertLessThanOrEqual(cleanSize.height, 430)
         XCTAssertLessThanOrEqual(reviewSize.height, 430)
         XCTAssertLessThanOrEqual(longSize.height, 430)
         XCTAssertLessThanOrEqual(untrackedOnlySize.height, 430)
         XCTAssertLessThanOrEqual(unknownSize.height, 430)
-        XCTAssertLessThanOrEqual(forceOfferSize.height, 430)
+        XCTAssertLessThanOrEqual(blockedSize.height, 430)
         XCTAssertLessThanOrEqual(forceFailureSize.height, 430)
         XCTAssertEqual(scenario.unknownSafety.formattedStorage, "Unknown")
     }
 
     private func renderConfirmationScreenshots(for scenario: Scenario) throws {
+        XCTAssertFalse(
+            scenario.secondaryReview.requiresForceWorktreeRemoval,
+            "Normal-review confirmation proof must use a review candidate that does not require --force."
+        )
+        XCTAssertTrue(
+            scenario.untrackedOnly.requiresForceWorktreeRemoval,
+            "Force confirmation proof must use a review candidate with local file loss evidence."
+        )
+
         let reviewSize = try renderScreenshot(
-            view: CleanupConfirmationProofView(confirmation: .reviewWarning(scenario.review)),
+            view: CleanupConfirmationProofView(confirmation: .review(.normalRemove(scenario.secondaryReview))),
             colorScheme: .dark,
             filename: "worktree-cleanup-confirmation-review.png"
         )
-        let finalSize = try renderScreenshot(
-            view: CleanupConfirmationProofView(confirmation: .final(scenario.clean)),
-            colorScheme: .dark,
-            filename: "worktree-cleanup-confirmation-final.png"
-        )
         let forceSize = try renderScreenshot(
-            view: CleanupConfirmationProofView(confirmation: .force(forceRemovalOffer(for: scenario.review))),
+            view: CleanupConfirmationProofView(confirmation: .review(.forceRemove(scenario.untrackedOnly))),
             colorScheme: .dark,
             filename: "worktree-cleanup-confirmation-force.png"
         )
 
         XCTAssertLessThanOrEqual(reviewSize.width, 320)
-        XCTAssertLessThanOrEqual(finalSize.width, 320)
         XCTAssertLessThanOrEqual(forceSize.width, 320)
         XCTAssertLessThanOrEqual(reviewSize.height, 430)
-        XCTAssertLessThanOrEqual(finalSize.height, 430)
         XCTAssertLessThanOrEqual(forceSize.height, 430)
     }
 
@@ -192,7 +193,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             candidates: overflow,
             selectedIndex: 1,
             selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
-            onRemove: { _, _ in }
+            onRemove: { _ in }
         )
         try renderScreenshot(
             view: selectedRow, colorScheme: .dark, filename: "worktree-cleanup-list-keyboard-selected.png"
@@ -203,7 +204,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             selectedIndex: nil,
             selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
             isScanning: false,
-            onRemove: { _, _ in }
+            onRemove: { _ in }
         )
         try renderScreenshot(view: emptyState, colorScheme: .dark, filename: "worktree-cleanup-empty.png")
 
@@ -212,7 +213,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             selectedIndex: nil,
             selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
             isScanning: true,
-            onRemove: { _, _ in }
+            onRemove: { _ in }
         )
         try renderScreenshot(
             view: scanningEmptyState,
@@ -225,7 +226,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             selectedIndex: nil,
             selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
             isScanning: true,
-            onRemove: { _, _ in }
+            onRemove: { _ in }
         )
         try renderScreenshot(
             view: scanningPreviousCandidates,
@@ -313,25 +314,6 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         WorktreeCleanupDetailView(candidate: candidate, onBack: {}, removalNotice: notice)
     }
 
-    private func forceRemovalOffer(for candidate: WorktreeCleanupCandidate) -> WorktreeForceRemovalOffer {
-        WorktreeForceRemovalOffer(
-            candidate: candidate,
-            failure: GitCommandResult(
-                exitCode: 128,
-                stdout: "",
-                stderr: cleanupForceEligibleFailureMessage(for: candidate)
-            )
-        )
-    }
-
-    private func cleanupForceEligibleFailureMessage(for candidate: WorktreeCleanupCandidate) -> String {
-        "fatal: '\(candidate.worktreePath)' contains modified or untracked files; use --force to delete it"
-    }
-
-    private func cleanupForceOfferNoticeMessage() -> String {
-        "Plain removal failed; Git suggested --force for local files."
-    }
-
     private func cleanupScenario(now: Date = Date()) -> Scenario {
         let clean = cleanupScenarioCandidate(
             CandidateSeed(
@@ -395,7 +377,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
                 storageBytes: 16 * 1_024 * 1_024,
                 state: .review([
                     "No upstream branch",
-                    "Branch commit safety could not be verified",
+                    "Branch has 2 unique local commits",
                 ])
             )
         )

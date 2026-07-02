@@ -7,7 +7,7 @@ struct WorktreeCleanupTabView: View {
     var isScanning = false
     var relativeTimeNow = Date()
     var onSelect: (WorktreeCleanupCandidate) -> Void = { _ in }
-    var onRemove: (WorktreeCleanupCandidate, WorktreeForceRemovalOffer?) -> Void = { _, _ in }
+    var onRemove: (WorktreeCleanupCandidate) -> Void = { _ in }
     var removalNotice: WorktreeRemovalNotice?
     var removingCandidateID: String?
 
@@ -29,7 +29,7 @@ struct WorktreeCleanupTabView: View {
                 candidate: candidate,
                 relativeTimeNow: relativeTimeNow,
                 onBack: { selectedCandidate = nil },
-                onRemove: { onRemove(candidate, removalNotice?.forceOffer) },
+                onRemove: { onRemove(candidate) },
                 removalNotice: removalNotice,
                 isRemoving: removingCandidateID == candidate.id
             )
@@ -105,13 +105,17 @@ struct WorktreeCleanupTabView: View {
     }
 
     private func cleanupCard(_ candidate: WorktreeCleanupCandidate, isSelected: Bool = false) -> some View {
-        WorktreeCleanupCardView(candidate: candidate, isSelected: isSelected, relativeTimeNow: relativeTimeNow)
-            .contentShape(Rectangle())
-            .onTapGesture {
+        WorktreeCleanupCardView(
+            candidate: candidate,
+            isSelected: isSelected,
+            relativeTimeNow: relativeTimeNow,
+            isRemoving: removingCandidateID == candidate.id,
+            onSelect: {
                 selectedCandidate = candidate
                 onSelect(candidate)
-            }
-            .help("Click to review cleanup details")
+            },
+            onRemove: { onRemove(candidate) }
+        )
     }
 }
 
@@ -120,7 +124,7 @@ struct WorktreeCleanupTabView: View {
         candidates: WorktreeCleanupCandidate.mockCandidates,
         selectedIndex: nil,
         selectedCandidate: .constant(nil),
-        onRemove: { _, _ in }
+        onRemove: { _ in }
     )
     .frame(width: 320)
 }

@@ -86,6 +86,12 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
         Self.formatStorage(bytes: storageBytes)
     }
 
+    var requiresForceWorktreeRemoval: Bool {
+        state.reasons.contains(Self.untrackedFilesReason)
+            || state.reasons.contains(Self.ignoredFilesReason)
+            || state.reasons.contains(Self.trackedChangesReason)
+    }
+
     func visibleReviewReasons(limit: Int = 3) -> [String] {
         let reasons = state.reasons
         guard limit > 0 else { return [] }
@@ -214,77 +220,97 @@ struct WorktreeCleanupCheck: Equatable {
     let status: Status
 }
 
-struct WorktreeForceRemovalOffer: Equatable {
-    let candidate: WorktreeCleanupCandidate
-    let failure: GitCommandResult
-}
-
 enum WorktreeRemovalConfirmation: Identifiable, Equatable {
-    case reviewWarning(WorktreeCleanupCandidate)
-    case final(WorktreeCleanupCandidate)
-    case force(WorktreeForceRemovalOffer)
+    case review(WorktreeRemovalService.RemovalAction)
+
+    private static let branchRetentionCopy = "Removing the worktree does not delete the branch."
 
     var id: String {
         switch self {
-        case .reviewWarning(let candidate):
-            return "review-warning-\(candidate.id)"
-        case .final(let candidate):
-            return "final-\(candidate.id)"
-        case .force(let offer):
-            return "force-\(offer.candidate.id)"
+        case .review(let action):
+            return "review-\(action.candidate.id)-\(action.isForce ? "force" : "normal")"
         }
     }
 
     var candidate: WorktreeCleanupCandidate {
         switch self {
-        case .reviewWarning(let candidate), .final(let candidate):
-            return candidate
-        case .force(let offer):
-            return offer.candidate
+        case .review(let action):
+            return action.candidate
         }
     }
 
     var title: String {
         switch self {
-        case .reviewWarning:
-            return "Review Worktree?"
-        case .final:
-            return "Remove Worktree?"
-        case .force:
-            return "Force Remove Worktree?"
+        case .review(let action):
+            return action.isForce ? "Force Remove Worktree?" : "Remove Review Worktree?"
         }
     }
 
     var message: String {
         switch self {
-        case .reviewWarning:
-            return "This worktree needs review. Removal uses plain git worktree remove, and Git may refuse it."
-        case .final(let candidate):
-            return "Runs git worktree remove for \(candidate.worktreeName). The branch is left intact."
-        case .force(let offer):
-            let candidate = offer.candidate
-            return "Runs git worktree remove --force for \(candidate.worktreeName) at \(candidate.worktreePath) on \(candidate.branchName). "
-                + "This can delete uncommitted tracked changes plus untracked or ignored files in that worktree. The branch is left intact."
+        case .review(.normalRemove(let candidate)):
+            return "Runs git worktree remove for \(candidate.worktreeName). "
+                + "\(Self.reviewEvidenceCopy(for: candidate)) \(Self.branchRetentionCopy)"
+        case .review(.forceRemove(let candidate)):
+            return "Runs git worktree remove --force for \(candidate.worktreeName). "
+                + "\(Self.reviewEvidenceCopy(for: candidate)) "
+                + "This removes local file changes and files in that worktree. \(Self.branchRetentionCopy)"
+        case .review(.blocked(_, let reason)):
+            return reason
         }
     }
 
     var primaryButtonTitle: String {
         switch self {
-        case .reviewWarning:
-            return "Continue"
-        case .final:
-            return "Remove"
-        case .force:
-            return "Force Remove"
+        case .review(let action):
+            return action.isForce ? "Force Remove" : "Remove"
         }
     }
 
-    var confirmedReviewWarning: WorktreeRemovalConfirmation? {
-        guard case .reviewWarning(let candidate) = self else { return nil }
-        return .final(candidate)
+    static func review(for action: WorktreeRemovalService.RemovalAction) -> WorktreeRemovalConfirmation? {
+        switch action {
+        case .normalRemove(let candidate) where candidate.state.isClean:
+            return nil
+        case .normalRemove, .forceRemove:
+            return .review(action)
+        case .blocked:
+            return nil
+        }
     }
 
-    static func initial(for candidate: WorktreeCleanupCandidate) -> WorktreeRemovalConfirmation {
-        candidate.state.isClean ? .final(candidate) : .reviewWarning(candidate)
+    private static func reviewEvidenceCopy(for candidate: WorktreeCleanupCandidate) -> String {
+        var parts: [String] = []
+        let reasons = candidate.visibleReviewReasons()
+        if !reasons.isEmpty {
+            var reasonCopy = "Reasons: " + reasons.joined(separator: "; ")
+            let remainingCount = candidate.remainingReviewReasonCount()
+            if remainingCount > 0 {
+                reasonCopy += "; and \(remainingCount) more"
+            }
+            parts.append(reasonCopy + ".")
+        }
+
+        if let preview = candidate.reviewEvidence.untrackedPreview {
+            parts.append("Untracked files: \(preview.decisionEvidenceText).")
+        }
+        if let preview = candidate.reviewEvidence.ignoredPreview {
+            parts.append("Ignored files: \(preview.decisionEvidenceText).")
+        }
+
+        return parts.joined(separator: " ")
+    }
+}
+
+extension WorktreeRemovalService.RemovalAction {
+    var candidate: WorktreeCleanupCandidate {
+        switch self {
+        case .normalRemove(let candidate), .forceRemove(let candidate), .blocked(let candidate, _):
+            return candidate
+        }
+    }
+
+    var isForce: Bool {
+        if case .forceRemove = self { return true }
+        return false
     }
 }

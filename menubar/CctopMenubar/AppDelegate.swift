@@ -98,11 +98,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             updater: updater,
             pluginManager: pluginManager,
             navigate: navigateController,
-            onRemoveCleanupCandidate: { [weak self] candidate in
-                await self?.removeCleanupCandidate(candidate) ?? .refused(candidate)
+            onSelectCleanupRemovalAction: { [weak self] candidate in
+                await self?.selectCleanupRemovalAction(candidate) ?? .blocked(candidate, "Cleanup is unavailable right now.")
             },
-            onForceRemoveCleanupCandidate: { [weak self] offer in
-                await self?.forceRemoveCleanupCandidate(offer) ?? .refused(offer.candidate)
+            onExecuteCleanupRemovalAction: { [weak self] action in
+                await self?.executeCleanupRemovalAction(action) ?? .refused(action.candidate)
             },
             onCleanupTabVisible: { [weak self] in
                 Task { @MainActor in self?.setCleanupVisible(true) }
@@ -116,35 +116,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         )
     }
 
-    @MainActor private func removeCleanupCandidate(
+    @MainActor private func selectCleanupRemovalAction(
         _ candidate: WorktreeCleanupCandidate
-    ) async -> WorktreeRemovalService.RemovalResult {
+    ) async -> WorktreeRemovalService.RemovalAction {
         let cleanupSnapshot = sessionManager.cleanupSnapshotForRemoval()
         let removalService = cleanupRemovalService
-        let result = await Task.detached(priority: .utility) {
-            removalService.remove(
-                candidate,
+        return await Task.detached(priority: .utility) {
+            removalService.selectedAction(
+                for: candidate,
                 cleanupSources: cleanupSnapshot.cleanupSources,
                 activeProjectPaths: cleanupSnapshot.activeProjectPaths
             )
         }.value
-
-        if case .removed = result {
-            await MainActor.run {
-                cleanupRefreshGate.refreshIfVisible(force: true)
-            }
-        }
-        return result
     }
 
-    @MainActor private func forceRemoveCleanupCandidate(
-        _ offer: WorktreeForceRemovalOffer
+    @MainActor private func executeCleanupRemovalAction(
+        _ action: WorktreeRemovalService.RemovalAction
     ) async -> WorktreeRemovalService.RemovalResult {
         let cleanupSnapshot = sessionManager.cleanupSnapshotForRemoval()
         let removalService = cleanupRemovalService
         let result = await Task.detached(priority: .utility) {
-            removalService.forceRemove(
-                offer,
+            removalService.executeConfirmed(
+                action,
                 cleanupSources: cleanupSnapshot.cleanupSources,
                 activeProjectPaths: cleanupSnapshot.activeProjectPaths
             )
