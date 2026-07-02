@@ -113,31 +113,40 @@ func resolveFocusStrategy(session: Session, multiplexerOverride: MultiplexerInfo
 
 // MARK: - Execution (AppKit side effects)
 
+private let focusQueue = DispatchQueue(label: "cctop.focus-terminal", qos: .userInitiated)
+/// Cmux `ps` probing, focus scripts, and kitty/multiplexer CLIs all block — so the whole jump runs on `focusQueue`, serial so a
+/// slow jump can't finish after (and steal focus from) a later one. AppKit calls hop back to the main thread.
 func focusTerminal(session: Session) {
-    let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
-    let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride)
-    let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride)
-    executeFocusStrategy(strategy)
-    if let mux = muxStrategy {
-        DispatchQueue.global(qos: .userInitiated).async {
+    focusQueue.async {
+        let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride)
+        let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride)
+        executeFocusStrategy(strategy)
+        if let mux = muxStrategy {
             executeMultiplexerFocus(mux)
         }
+        DispatchQueue.main.async {
+            NSApp.deactivate()
+        }
     }
-    NSApp.deactivate()
 }
 
+/// Runs on a background queue: script/subprocess strategies block until done,
+/// while pure-AppKit strategies dispatch to the main thread.
 private func executeFocusStrategy(_ strategy: FocusStrategy) {
     switch strategy {
     case .openWithApp(let bundleID, let target):
-        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            NSWorkspace.shared.open(
-                [URL(fileURLWithPath: target)],
-                withApplicationAt: appURL,
-                configuration: NSWorkspace.OpenConfiguration()
-            )
-        } else {
-            // App not installed — open in Finder
-            NSWorkspace.shared.open(URL(fileURLWithPath: target))
+        DispatchQueue.main.async {
+            if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+                NSWorkspace.shared.open(
+                    [URL(fileURLWithPath: target)],
+                    withApplicationAt: appURL,
+                    configuration: NSWorkspace.OpenConfiguration()
+                )
+            } else {
+                // App not installed — open in Finder
+                NSWorkspace.shared.open(URL(fileURLWithPath: target))
+            }
         }
 
     case .iTerm2(let guid):
@@ -155,30 +164,41 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
         runScriptOrActivate(.terminal) { executeAppleTerminalScript(tty: tty) }
 
     case .activateByName(let name):
-        // If no running app matches the name, recover the bundle ID and activate (or launch) by bundle ID.
-        if !activateAppByName(name), let bundleID = HostApp.from(editorName: name).bundleID {
-            activateAppByBundleID(bundleID)
+        DispatchQueue.main.async {
+            // If no running app matches the name, recover the bundle ID and activate (or launch) by bundle ID.
+            if !activateAppByName(name), let bundleID = HostApp.from(editorName: name).bundleID {
+                activateAppByBundleID(bundleID)
+            }
         }
 
     case .activateByBundleID(let bundleID):
-        activateAppByBundleID(bundleID)
+        DispatchQueue.main.async {
+            activateAppByBundleID(bundleID)
+        }
 
     case .openURL(let url, let restoreBundleID):
-        if let restoreBundleID {
-            restoreAppAndOpenURL(bundleID: restoreBundleID, url: url)
-        } else {
-            NSWorkspace.shared.open(url)
+        DispatchQueue.main.async {
+            if let restoreBundleID {
+                restoreAppAndOpenURL(bundleID: restoreBundleID, url: url)
+            } else {
+                NSWorkspace.shared.open(url)
+            }
         }
 
     case .openInFinder(let path):
-        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        DispatchQueue.main.async {
+            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        }
     }
 }
 
-/// Run a focus script for `host`; if it fails, fall back to activating the host by bundle ID.
+/// Run a focus script for `host` (blocking, on the calling background queue);
+/// if it fails, fall back to activating the host by bundle ID on the main thread.
 private func runScriptOrActivate(_ host: HostApp, script: () -> Bool) {
     if !script(), let bundleID = host.bundleID {
-        activateAppByBundleID(bundleID)
+        DispatchQueue.main.async {
+            activateAppByBundleID(bundleID)
+        }
     }
 }
 
@@ -190,6 +210,10 @@ func extractITermGUID(from sessionId: String?) -> String? {
     return String(id[id.index(after: colonIndex)...])
 }
 
+// Called on a background queue. Per the AppleScript 10.6 release notes, OSA,
+// AppleScript, and NSAppleScript are thread-safe; each call here uses a fresh
+// instance confined to one thread anyway. OSA still executes scripting-addition
+// commands (e.g. `delay`) on the main thread for compatibility.
 private func runAppleScript(_ source: String) -> Bool {
     var error: NSDictionary?
     NSAppleScript(source: source)?.executeAndReturnError(&error)
@@ -473,28 +497,4 @@ func openInEditor(project: RecentProject) {
 
     // Final fallback: open in Finder
     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.projectPath)
-}
-
-// MARK: - App activation helpers
-
-@discardableResult
-private func activateAppByBundleID(_ bundleID: String) -> Bool {
-    guard let app = NSWorkspace.shared.runningApplications.first(where: {
-        $0.bundleIdentifier == bundleID
-    }) else {
-        // App not running — launch it (optimistic true; restoreAppByBundleID no-ops if the app isn't installed).
-        restoreAppByBundleID(bundleID)
-        return true
-    }
-    return restoreAndActivate(app)
-}
-
-@discardableResult
-private func activateAppByName(_ program: String) -> Bool {
-    guard let app = NSWorkspace.shared.runningApplications.first(where: {
-        $0.localizedName?.lowercased().contains(program) == true
-    }) else {
-        return false
-    }
-    return restoreAndActivate(app)
 }
