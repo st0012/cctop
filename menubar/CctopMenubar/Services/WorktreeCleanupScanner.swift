@@ -217,10 +217,10 @@ struct WorktreeCleanupScanner {
     private static func reviewReasons(for inspection: GitWorktreeInspection, storageBytes: Int64?) -> [String] {
         var reasons = inspection.failureReasons
         if inspection.branchName?.isEmpty ?? true {
-            reasons.appendUnique("Branch is unknown or detached")
+            reasons.appendUnique(WorktreeCleanupCandidate.branchUnknownReason)
         }
         if inspection.mainWorktreePath == nil {
-            reasons.appendUnique("Main checkout path could not be verified")
+            reasons.appendUnique(WorktreeCleanupCandidate.mainWorktreePathUnverifiedReason)
         }
         if inspection.isLocked {
             reasons.appendUnique(WorktreeCleanupCandidate.lockedReason)
@@ -243,7 +243,7 @@ struct WorktreeCleanupScanner {
                 reasons.appendUnique("Branch has \(count) unique local commit\(count == 1 ? "" : "s")")
             }
         } else if !reasons.contains(where: Self.isCommitSafetyReason) {
-            reasons.appendUnique("Branch upstream or commit safety could not be verified")
+            reasons.appendUnique(WorktreeCleanupCandidate.commitSafetyUnknownReason)
         }
         return reasons
     }
@@ -275,6 +275,20 @@ struct WorktreeCleanupScanner {
         }
     }
 
+    static func trackedPaths(fromStatusEntries entries: [String]) -> [String] {
+        Array(Set(entries.compactMap { entry in
+            guard entry.count >= 3,
+                  entry[entry.index(entry.startIndex, offsetBy: 2)] == " ",
+                  !entry.hasPrefix("?? "),
+                  !entry.hasPrefix("!! "),
+                  entry.prefix(2).contains(where: { $0 != " " }) else {
+                return nil
+            }
+            let pathStart = entry.index(entry.startIndex, offsetBy: 3)
+            return String(entry[pathStart...])
+        })).sorted()
+    }
+
     private static func paths(fromStatusEntries entries: [String], prefix: String) -> [String] {
         entries.compactMap { entry in
             guard entry.hasPrefix(prefix) else { return nil }
@@ -288,12 +302,14 @@ struct WorktreeCleanupScanner {
         }
         let untrackedPreview = WorktreeCleanupUntrackedPreview(paths: untrackedPaths(fromStatusEntries: statusEntries))
         let ignoredPreview = WorktreeCleanupUntrackedPreview(paths: ignoredPaths(fromStatusEntries: statusEntries))
-        guard untrackedPreview != nil || ignoredPreview != nil else {
+        let trackedPathSignature = trackedPaths(fromStatusEntries: statusEntries)
+        guard untrackedPreview != nil || ignoredPreview != nil || !trackedPathSignature.isEmpty else {
             return .empty
         }
         return WorktreeCleanupReviewEvidence(
             untrackedPreview: untrackedPreview,
-            ignoredPreview: ignoredPreview
+            ignoredPreview: ignoredPreview,
+            trackedPathSignature: trackedPathSignature
         )
     }
 

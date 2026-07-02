@@ -8,6 +8,9 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
     static let initializedSubmodulesReason = "Worktree contains initialized submodules"
     static let indexHiddenTrackedFilesReason = "Worktree has tracked files hidden by Git index flags"
     static let statusUnreadableReason = "Git status could not be read"
+    static let branchUnknownReason = "Branch is unknown or detached"
+    static let mainWorktreePathUnverifiedReason = "Main checkout path could not be verified"
+    static let commitSafetyUnknownReason = "Branch upstream or commit safety could not be verified"
     private static let localFileReasons = [untrackedFilesReason, ignoredFilesReason]
 
     enum State: Equatable {
@@ -89,7 +92,6 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
 
     var requiresForceWorktreeRemoval: Bool {
         state.reasons.contains(Self.untrackedFilesReason)
-            || state.reasons.contains(Self.ignoredFilesReason)
             || state.reasons.contains(Self.trackedChangesReason)
     }
 
@@ -134,13 +136,16 @@ struct WorktreeCleanupReviewEvidence: Equatable {
 
     let untrackedPreview: WorktreeCleanupUntrackedPreview?
     let ignoredPreview: WorktreeCleanupUntrackedPreview?
+    let trackedPathSignature: [String]
 
     init(
         untrackedPreview: WorktreeCleanupUntrackedPreview? = nil,
-        ignoredPreview: WorktreeCleanupUntrackedPreview? = nil
+        ignoredPreview: WorktreeCleanupUntrackedPreview? = nil,
+        trackedPathSignature: [String] = []
     ) {
         self.untrackedPreview = untrackedPreview
         self.ignoredPreview = ignoredPreview
+        self.trackedPathSignature = trackedPathSignature
     }
 
     var hasLocalFilePreview: Bool {
@@ -296,6 +301,9 @@ enum WorktreeRemovalConfirmation: Identifiable, Equatable {
         }
         if let preview = candidate.reviewEvidence.ignoredPreview {
             parts.append("Ignored files: \(preview.decisionEvidenceText).")
+            if !candidate.requiresForceWorktreeRemoval {
+                parts.append("Ignored files will be removed with this worktree.")
+            }
         }
 
         return parts.joined(separator: " ")

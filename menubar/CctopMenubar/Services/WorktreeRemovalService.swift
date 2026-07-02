@@ -71,6 +71,10 @@ struct WorktreeRemovalService {
         cleanupSources: [SessionCleanupSource],
         activeProjectPaths: Set<String>
     ) -> RemovalResult {
+        if case .blocked(let candidate, _) = action {
+            return .refused(candidate)
+        }
+
         let refreshedAction = selectedAction(
             for: action.candidate,
             cleanupSources: cleanupSources,
@@ -236,25 +240,17 @@ private extension WorktreeCleanupCandidate {
                 confirmedPreview: candidate.reviewEvidence.ignoredPreview
             ),
         ]
-        return localFileEvidencePairs.contains { pair in
+        let changedPreview = localFileEvidencePairs.contains { pair in
             let addedReason = state.reasons.contains(pair.reason) && !confirmedReasons.contains(pair.reason)
             return pair.preflightPreview != pair.confirmedPreview || addedReason
         }
+        return changedPreview || reviewEvidence.trackedPathSignature != candidate.reviewEvidence.trackedPathSignature
     }
 
     func matchesConfirmedRemovalEvidence(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
         !changesWorktreeIdentity(comparedTo: candidate)
             && !changesLocalFileReviewEvidence(comparedTo: candidate)
             && Set(state.reasons) == Set(candidate.state.reasons)
-            && localFileReasonSet == candidate.localFileReasonSet
-    }
-
-    private var localFileReasonSet: Set<String> {
-        Set(state.reasons.filter { reason in
-            reason == WorktreeCleanupCandidate.untrackedFilesReason
-                || reason == WorktreeCleanupCandidate.ignoredFilesReason
-                || reason == WorktreeCleanupCandidate.trackedChangesReason
-        })
     }
 
     var blockedRemovalReason: String {
@@ -270,10 +266,10 @@ private extension WorktreeCleanupCandidate {
         if state.reasons.contains(Self.lockedReason) {
             return "This worktree is locked. Unlock it before removing."
         }
-        if state.reasons.contains("Branch is unknown or detached") {
+        if state.reasons.contains(Self.branchUnknownReason) {
             return "The branch is unknown or detached, so cctop cannot verify branch safety."
         }
-        if state.reasons.contains("Main checkout path could not be verified") {
+        if state.reasons.contains(Self.mainWorktreePathUnverifiedReason) {
             return "The main checkout path could not be verified, so cctop cannot run worktree removal safely."
         }
         return state.reasons.first ?? "Cleanup evidence changed. Review the updated worktree before removing."

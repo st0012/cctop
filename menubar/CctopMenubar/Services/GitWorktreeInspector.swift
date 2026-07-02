@@ -84,14 +84,14 @@ struct GitWorktreeInspector {
         if let fallback, !fallback.isEmpty {
             return fallback
         }
-        failures.append("Branch is unknown or detached")
+        failures.append(WorktreeCleanupCandidate.branchUnknownReason)
         return nil
     }
 
     private func statusEntries(path: String, failures: inout [String]) -> [String]? {
         let result = runGit(path, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=traditional"])
         guard result.exitCode == 0 else {
-            failures.append("Git status could not be read")
+            failures.append(WorktreeCleanupCandidate.statusUnreadableReason)
             return nil
         }
         return Self.parseStatusEntries(result.stdout)

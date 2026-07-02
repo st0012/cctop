@@ -1612,6 +1612,43 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertTrue(selectedCandidate.state.reasons.contains("Branch has 1 unique local commit"))
     }
 
+    func testRemovalServiceSelectsNormalActionForIgnoredFilesOnly() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let candidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Ignored files review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.ignoredFilesReason]),
+            checks: [],
+            reviewEvidence: WorktreeCleanupReviewEvidence(
+                ignoredPreview: WorktreeCleanupUntrackedPreview(paths: [".env.local"])
+            )
+        )
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [worktreePath: cleanInspection(statusEntries: ["!! .env.local"])]
+            ),
+            runGit: { _ in
+                XCTFail("Selecting a removal action should not run Git removal")
+                return GitCommandResult(exitCode: 1, stdout: "", stderr: "")
+            }
+        )
+
+        let action = service.selectedAction(for: candidate, cleanupSources: [session], activeProjectPaths: [])
+
+        guard case .normalRemove(let selectedCandidate) = action else {
+            return XCTFail("Expected normal removal for ignored-only worktree, got \(action)")
+        }
+        XCTAssertEqual(selectedCandidate.state, .review([WorktreeCleanupCandidate.ignoredFilesReason]))
+    }
+
     func testRemovalServiceSelectsBlockedActionForLockedDirtyWorktree() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)
@@ -1729,6 +1766,49 @@ final class WorktreeCleanupTests: XCTestCase {
             return XCTFail("Expected changed force evidence to refuse removal, got \(result)")
         }
         XCTAssertEqual(latestCandidate.reviewEvidence.untrackedPreview?.items, ["other.txt"])
+    }
+
+    func testRemovalServiceRefusesConfirmedForceWhenTrackedEvidenceChangesBeforeExecute() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let confirmedCandidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Tracked changes review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.trackedChangesReason]),
+            checks: [],
+            reviewEvidence: WorktreeCleanupReviewEvidence(
+                trackedPathSignature: ["Sources/Billing.swift"]
+            )
+        )
+        var gitArguments: [[String]] = []
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [worktreePath: cleanInspection(statusEntries: [" M Sources/Invoice.swift"])]
+            ),
+            runGit: { arguments in
+                gitArguments.append(arguments)
+                return GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
+            }
+        )
+
+        let result = service.executeConfirmed(
+            .forceRemove(confirmedCandidate),
+            cleanupSources: [session],
+            activeProjectPaths: []
+        )
+
+        XCTAssertTrue(gitArguments.isEmpty)
+        guard case .refused(let latestCandidate) = result else {
+            return XCTFail("Expected changed tracked evidence to refuse removal, got \(result)")
+        }
+        XCTAssertEqual(latestCandidate.reviewEvidence.trackedPathSignature, ["Sources/Invoice.swift"])
     }
 
     func testRemovalServiceRefusesConfirmedForceWhenPathBecomesActiveBeforeExecute() {
@@ -1894,6 +1974,84 @@ final class WorktreeCleanupTests: XCTestCase {
             return XCTFail("Expected changed normal-review evidence to refuse removal, got \(result)")
         }
         XCTAssertEqual(latestCandidate.state, .review(["Branch has 2 unique local commits"]))
+    }
+
+    func testRemovalServiceRefusesConfirmedForceWhenFreshEvidenceNoLongerRequiresForce() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let confirmedCandidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Dirty branch review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.untrackedFilesReason]),
+            checks: [],
+            reviewEvidence: WorktreeCleanupReviewEvidence(
+                untrackedPreview: WorktreeCleanupUntrackedPreview(paths: ["scratch.txt"])
+            )
+        )
+        var gitArguments: [[String]] = []
+        let service = WorktreeRemovalService(
+            scanner: scanner(
+                existingPaths: [worktreePath],
+                inspections: [worktreePath: cleanInspection()]
+            ),
+            runGit: { arguments in
+                gitArguments.append(arguments)
+                return GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
+            }
+        )
+
+        let result = service.executeConfirmed(
+            .forceRemove(confirmedCandidate),
+            cleanupSources: [session],
+            activeProjectPaths: []
+        )
+
+        XCTAssertTrue(gitArguments.isEmpty)
+        guard case .refused(let latestCandidate) = result else {
+            return XCTFail("Expected force-to-normal evidence change to refuse removal, got \(result)")
+        }
+        XCTAssertEqual(latestCandidate.state, .clean)
+    }
+
+    func testRemovalServiceRefusesBlockedConfirmedActionWithoutInvokingGit() {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let candidate = WorktreeCleanupCandidate(
+            id: worktreePath,
+            sessionName: "Blocked review",
+            worktreePath: worktreePath,
+            worktreeName: "billing-api",
+            mainWorktreePath: "/Users/dev/projects/billing-api",
+            branchName: "feature/invoices",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.statusUnreadableReason]),
+            checks: []
+        )
+        let service = WorktreeRemovalService(
+            scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: cleanInspection()]),
+            runGit: { _ in
+                XCTFail("Blocked confirmed action should not run Git removal")
+                return GitCommandResult(exitCode: 1, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.executeConfirmed(
+            .blocked(candidate, "Git status could not be read, so cctop cannot verify what removal would delete."),
+            cleanupSources: [session],
+            activeProjectPaths: []
+        )
+
+        guard case .refused(let refusedCandidate) = result else {
+            return XCTFail("Expected blocked confirmed action to refuse removal, got \(result)")
+        }
+        XCTAssertEqual(refusedCandidate, candidate)
     }
 
     func testRemovalServiceSelectsBlockedActionWhenFreshStatusCannotBeRead() {
@@ -2979,6 +3137,31 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertTrue(confirmation.message.contains("does not delete the branch"))
     }
 
+    func testReviewRemovalConfirmationExplainsNormalIgnoredRemovalDeletesIgnoredFiles() {
+        let review = WorktreeCleanupCandidate(
+            id: "/Users/dev/.codex/worktrees/review",
+            sessionName: "Needs review",
+            worktreePath: "/Users/dev/.codex/worktrees/review",
+            worktreeName: "review",
+            mainWorktreePath: "/Users/dev/projects/app",
+            branchName: "feature/review",
+            lastActiveAt: now,
+            storageBytes: 1_024,
+            state: .review([WorktreeCleanupCandidate.ignoredFilesReason]),
+            checks: [],
+            reviewEvidence: WorktreeCleanupReviewEvidence(
+                ignoredPreview: WorktreeCleanupUntrackedPreview(paths: [".env.local"])
+            )
+        )
+        let confirmation = WorktreeRemovalConfirmation.review(.normalRemove(review))
+
+        XCTAssertEqual(confirmation.primaryButtonTitle, "Remove")
+        XCTAssertTrue(confirmation.message.contains("git worktree remove"))
+        XCTAssertFalse(confirmation.message.contains("--force"))
+        XCTAssertTrue(confirmation.message.contains("Ignored files will be removed"))
+        XCTAssertTrue(confirmation.message.contains(".env.local"))
+    }
+
     func testReviewRemovalConfirmationExplainsForceRemovalAndBranchRetention() {
         let review = WorktreeCleanupCandidate(
             id: "/Users/dev/.codex/worktrees/review",
@@ -3099,6 +3282,17 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertTrue(popupViewSource.contains("func openCleanupDetail(_ candidate: WorktreeCleanupCandidate) {\n        cleanupRemovalNotice = nil"))
         XCTAssertTrue(tabViewSource.contains("listRemovalNotice"))
         XCTAssertTrue(tabViewSource.contains("if let removalNotice"))
+    }
+
+    func testCleanupRemovalRefreshesAfterRefusedOrBlockedEvidence() throws {
+        let root = try repoRoot()
+        let appDelegateSource = try String(
+            contentsOf: root.appendingPathComponent("menubar/CctopMenubar/AppDelegate.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(appDelegateSource.contains("case .blocked = action"))
+        XCTAssertTrue(appDelegateSource.contains("case .removed, .refused"))
     }
 
     private func scanner(

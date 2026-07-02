@@ -121,13 +121,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     ) async -> WorktreeRemovalService.RemovalAction {
         let cleanupSnapshot = sessionManager.cleanupSnapshotForRemoval()
         let removalService = cleanupRemovalService
-        return await Task.detached(priority: .utility) {
+        let action = await Task.detached(priority: .utility) {
             removalService.selectedAction(
                 for: candidate,
                 cleanupSources: cleanupSnapshot.cleanupSources,
                 activeProjectPaths: cleanupSnapshot.activeProjectPaths
             )
         }.value
+        if case .blocked = action {
+            cleanupRefreshGate.refreshIfVisible(force: true)
+        }
+        return action
     }
 
     @MainActor private func executeCleanupRemovalAction(
@@ -143,10 +147,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             )
         }.value
 
-        if case .removed = result {
+        switch result {
+        case .removed, .refused:
             await MainActor.run {
                 cleanupRefreshGate.refreshIfVisible(force: true)
             }
+        case .failed:
+            break
         }
         return result
     }
