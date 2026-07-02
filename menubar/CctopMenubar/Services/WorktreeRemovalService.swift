@@ -25,10 +25,10 @@ struct WorktreeRemovalService {
 
     func remove(
         _ candidate: WorktreeCleanupCandidate,
-        sourceSessions: [Session],
+        cleanupSources: [SessionCleanupSource],
         activeProjectPaths: Set<String>
     ) -> RemovalResult {
-        switch readyCandidate(candidate, sourceSessions: sourceSessions, activeProjectPaths: activeProjectPaths) {
+        switch readyCandidate(candidate, cleanupSources: cleanupSources, activeProjectPaths: activeProjectPaths) {
         case .ready(let readiness):
             let result = runGit(removeArguments(for: readiness, force: false))
             guard result.exitCode == 0 else {
@@ -45,10 +45,10 @@ struct WorktreeRemovalService {
 
     func forceRemove(
         _ offer: WorktreeForceRemovalOffer,
-        sourceSessions: [Session],
+        cleanupSources: [SessionCleanupSource],
         activeProjectPaths: Set<String>
     ) -> RemovalResult {
-        switch readyCandidate(offer.candidate, sourceSessions: sourceSessions, activeProjectPaths: activeProjectPaths) {
+        switch readyCandidate(offer.candidate, cleanupSources: cleanupSources, activeProjectPaths: activeProjectPaths) {
         case .ready(let readiness):
             guard readiness.candidate.hasSameForceRemovalReasons(as: offer.candidate) else {
                 return .refused(readiness.candidate)
@@ -70,7 +70,7 @@ struct WorktreeRemovalService {
 
     private func readyCandidate(
         _ candidate: WorktreeCleanupCandidate,
-        sourceSessions: [Session],
+        cleanupSources: [SessionCleanupSource],
         activeProjectPaths: Set<String>
     ) -> ReadinessResult {
         guard candidate.state.isActionable else {
@@ -78,7 +78,7 @@ struct WorktreeRemovalService {
         }
 
         guard let preflightCandidate = scanner
-            .candidates(from: sourceSessions, activeProjectPaths: activeProjectPaths)
+            .candidates(from: cleanupSources, activeProjectPaths: activeProjectPaths)
             .first(where: { $0.id == candidate.id }) else {
             return .refused(candidate)
         }

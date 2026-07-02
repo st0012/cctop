@@ -849,6 +849,68 @@ final class SessionFileFormatTests: XCTestCase {
     }
 
     @MainActor
+    func testGarbageCollectRefreshPreservesHiddenCleanupProtection() throws {
+        let root = NSTemporaryDirectory() + "cctop-gc-hidden-cleanup-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let protectedPath = (root as NSString).appendingPathComponent(".codex/worktrees/hidden-live")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        var hidden = Session(
+            sessionId: "hidden-live",
+            projectPath: protectedPath,
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        hidden.hidden = true
+        hidden.pid = 999_996
+        try hidden.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("999996.json"))
+
+        let old = Date(timeIntervalSinceNow: -SessionManager.lifecycleWindows.retention - 86_400)
+        let finishedDesktopPath = (sessionsDir as NSString).appendingPathComponent("codex-finished-desktop.json")
+        var finishedDesktop = codexDesktopSession(sessionId: "finished-desktop", projectPath: "/tmp/finished-desktop")
+        finishedDesktop.lastActivity = old
+        finishedDesktop.disconnectedAt = old
+        try finishedDesktop.writeToFile(path: finishedDesktopPath)
+
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.codexThreads = StubCodexThreadState(existing: ["finished-desktop"], archived: [])
+        sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot())
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
+        sources.processAlive = { $0.sessionId == "hidden-live" }
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [protectedPath])
+
+        var history = Session(
+            sessionId: "history",
+            projectPath: "/tmp/history",
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        history.endedAt = Date()
+        try history.writeToFile(path: (historyDir as NSString).appendingPathComponent("history.json"))
+
+        var refreshedActivePaths: Set<String>?
+        manager.cleanupRefreshHandler = { _, activePaths in
+            refreshedActivePaths = activePaths
+        }
+
+        manager.garbageCollectFinished()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: finishedDesktopPath))
+        XCTAssertEqual(refreshedActivePaths, [protectedPath])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [protectedPath])
+    }
+
+    @MainActor
     func testSessionManagerHidesGenericSubagentSessionFilesWithoutArchivingOrRemovingThem() throws {
         let root = NSTemporaryDirectory() + "cctop-generic-subagent-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
@@ -1363,7 +1425,7 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
-        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-thread"])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
@@ -1373,7 +1435,7 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-thread"])
-        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
     }
@@ -1404,7 +1466,7 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
-        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-without-source"])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-without-source"])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
@@ -1414,7 +1476,7 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-without-source"])
-        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-without-source"])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
     }
@@ -1448,7 +1510,7 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
-        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-claude-session"])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-claude-session"])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
@@ -1463,7 +1525,7 @@ final class SessionFileFormatTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-claude-session"])
-        XCTAssertEqual(manager.cleanupSourceSessions.map(\.sessionId), ["archived-claude-session"])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
     }
@@ -2908,9 +2970,9 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertEqual(life(recent, .desktop, alive: false), .active)
     }
 
-    // MARK: - Visibility filtering with stub providers (no SQLite or metadata files on disk)
+    // MARK: - Classification filtering with stub providers (no SQLite or metadata files on disk)
 
-    func testVisibilitySnapshotFiltersArchivedSubagentExecHelperAndOrphanedSessions() {
+    func testClassificationSnapshotFiltersArchivedSubagentExecHelperAndOrphanedSessions() {
         let archived = candidate(sessionId: "archived-thread", pid: 1, bundleId: HostAppBundleID.codexDesktop,
                                  lifecycleRank: 0, source: Session.codexSource, path: "/archived.json")
         let subagent = candidate(sessionId: "subagent-thread", pid: 2, bundleId: HostAppBundleID.codexDesktop,
@@ -2944,24 +3006,191 @@ final class SessionFileFormatTests: XCTestCase {
             isAuthoritative: true
         )
 
-        let visibility = SessionManager.visibilitySnapshot(
+        let classification = SessionManager.sessionClassificationSnapshot(
             in: [archived, subagent, execHelper, archivedClaude, orphanClaude, visibleCodex, visibleClaude, matchedEndedClaude],
             claudeMetadata: claudeMetadata,
             codexThreads: codexThreads
         )
 
         XCTAssertEqual(
-            visibility.liveCandidates.map(\.session.sessionId).sorted(),
+            classification.displayCandidates.map(\.session.sessionId).sorted(),
             ["matched-ended-claude", "visible-claude", "visible-thread"]
         )
-        XCTAssertEqual(visibility.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
-        XCTAssertEqual(visibility.archivedCodexThreadIDs, ["archived-thread"])
-        XCTAssertEqual(visibility.codexSubagentThreadIDs, ["subagent-thread"])
-        XCTAssertEqual(visibility.codexExecHelperThreadIDs, ["exec-helper-thread"])
-        XCTAssertEqual(visibility.archivedClaudeSessionIDs, ["archived-claude"])
+        XCTAssertEqual(classification.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
+        XCTAssertEqual(classification.archivedCodexThreadIDs, ["archived-thread"])
+        XCTAssertEqual(classification.codexSubagentThreadIDs, ["subagent-thread"])
+        XCTAssertEqual(classification.codexExecHelperThreadIDs, ["exec-helper-thread"])
+        XCTAssertEqual(classification.archivedClaudeSessionIDs, ["archived-claude"])
     }
 
-    func testVisibilitySnapshotFiltersActiveNamelessIdleClaudeDesktopStartupSession() {
+    func testClassificationSnapshotUsesSameClassificationForDisplayAndCleanupSources() {
+        let archived = candidate(sessionId: "archived-thread", pid: 1, bundleId: HostAppBundleID.codexDesktop,
+                                 lifecycleRank: 0, source: Session.codexSource, path: "/archived.json") { session in
+            session.sessionName = "Archived desktop work"
+        }
+        let visible = candidate(sessionId: "visible-thread", pid: 2, bundleId: HostAppBundleID.codexDesktop,
+                                lifecycleRank: 0, source: Session.codexSource, path: "/visible.json")
+        let subagent = candidate(sessionId: "subagent-thread", pid: 3, bundleId: HostAppBundleID.codexDesktop,
+                                 lifecycleRank: 0, source: Session.codexSource, path: "/subagent.json")
+
+        let state = SessionManager.sessionClassificationSnapshot(
+            in: [archived, visible, subagent],
+            claudeMetadata: nil,
+            codexThreads: StubCodexThreadState(
+                archived: ["archived-thread"],
+                subagents: ["subagent-thread"]
+            )
+        )
+
+        XCTAssertEqual(state.displayCandidates.map(\.session.sessionId), ["visible-thread"])
+        XCTAssertEqual(state.cleanupSources.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(state.cleanupSources.map(\.projectPath), ["/tmp/p"])
+        XCTAssertEqual(state.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
+    }
+
+    func testClassificationSnapshotMapsDispositionsToAllowedActions() {
+        let archivedCodex = candidate(sessionId: "archived-thread", pid: 1, bundleId: HostAppBundleID.codexDesktop,
+                                      lifecycleRank: 0, source: Session.codexSource, path: "/archived.json")
+        let archivedClaude = candidate(sessionId: "archived-claude", pid: 2, bundleId: HostAppBundleID.claudeDesktop,
+                                       lifecycleRank: 0, source: "cc", path: "/archived-claude.json")
+        let codexSubagent = candidate(sessionId: "subagent-thread", pid: 3, bundleId: HostAppBundleID.codexDesktop,
+                                      lifecycleRank: 0, source: Session.codexSource, path: "/subagent.json")
+        let codexExecHelper = candidate(sessionId: "exec-helper-thread", pid: 4, bundleId: HostAppBundleID.codexDesktop,
+                                        lifecycleRank: 0, source: Session.codexSource, path: "/exec-helper.json")
+        let autoHidden = candidate(sessionId: "auto-hidden", pid: 5, bundleId: HostAppBundleID.codexDesktop,
+                                   lifecycleRank: 0, source: Session.codexSource, path: "/auto-hidden.json") { session in
+            session.isSubagentSession = true
+        }
+        let persistedHidden = candidate(sessionId: "persisted-hidden", pid: 6, bundleId: "com.googlecode.iterm2",
+                                        lifecycleRank: 0, source: "cc", path: "/persisted-hidden.json") { session in
+            session.hidden = true
+        }
+        let terminalFinished = candidate(sessionId: "terminal-finished", pid: 7, bundleId: "com.googlecode.iterm2",
+                                         lifecycleRank: 2, source: "cc", path: "/terminal-finished.json")
+        let visible = candidate(sessionId: "visible-thread", pid: 8, bundleId: HostAppBundleID.codexDesktop,
+                                lifecycleRank: 0, source: Session.codexSource, path: "/visible.json")
+
+        let state = SessionManager.sessionClassificationSnapshot(
+            in: [
+                archivedCodex,
+                archivedClaude,
+                codexSubagent,
+                codexExecHelper,
+                autoHidden,
+                persistedHidden,
+                terminalFinished,
+                visible,
+            ],
+            claudeMetadata: ClaudeDesktopSessionMetadataSnapshot(
+                matchedSessionIDs: ["archived-claude"],
+                archivedSessionIDs: ["archived-claude"],
+                isAuthoritative: true
+            ),
+            codexThreads: StubCodexThreadState(
+                archived: ["archived-thread"],
+                subagents: ["subagent-thread"],
+                execHelpers: ["exec-helper-thread"]
+            )
+        )
+
+        XCTAssertEqual(
+            state.displayCandidates.map(\.session.sessionId).sorted(),
+            ["terminal-finished", "visible-thread"]
+        )
+        XCTAssertEqual(state.finishedNonDesktopCandidates.map(\.session.sessionId), ["terminal-finished"])
+        XCTAssertEqual(state.cleanupSources.map(\.sessionId).sorted(), ["archived-claude", "archived-thread"])
+        XCTAssertEqual(state.autoHiddenSessions.map(\.1.sessionId), ["auto-hidden"])
+        XCTAssertEqual(state.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
+        XCTAssertEqual(state.protectedProjectPathsForCleanup, ["/tmp/p"])
+    }
+
+    func testClassificationSnapshotDoesNotEmitCleanupSourceForArchivedDesktopWithoutKnownPath() {
+        var session = Session(
+            sessionId: "archived-root",
+            projectPath: "/",
+            branch: "main",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        )
+        session.source = Session.codexSource
+        let archived = DedupCandidate(
+            session: session,
+            lifecycleRank: SessionLifecycle.active.rawValue,
+            mtime: .distantPast,
+            path: "/archived-root.json"
+        )
+
+        let state = SessionManager.sessionClassificationSnapshot(
+            in: [archived],
+            codexThreads: StubCodexThreadState(archived: ["archived-root"])
+        )
+
+        XCTAssertEqual(state.displayCandidates.map(\.session.sessionId), [])
+        XCTAssertEqual(state.cleanupSources.map(\.sessionId), [])
+    }
+
+    func testClassificationSnapshotDoesNotEmitCleanupSourcesForNonArchivedHiddenDesktopReasons() {
+        var missingCodexSession = Session(
+            sessionId: "missing-codex",
+            projectPath: "/Users/dev/.codex/worktrees/missing-codex",
+            branch: "main",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        )
+        missingCodexSession.pid = 1
+        missingCodexSession.source = Session.codexSource
+        missingCodexSession.lastActivity = Date(timeIntervalSinceNow: -86_400)
+        let missingCodex = DedupCandidate(
+            session: missingCodexSession,
+            lifecycleRank: SessionLifecycle.active.rawValue,
+            mtime: .distantPast,
+            path: "/missing-codex.json"
+        )
+
+        var orphanClaudeSession = Session(
+            sessionId: "orphan-claude",
+            projectPath: "/Users/dev/.codex/worktrees/orphan-claude",
+            branch: "main",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop)
+        )
+        orphanClaudeSession.pid = 2
+        orphanClaudeSession.source = "cc"
+        orphanClaudeSession.endedAt = Date(timeIntervalSince1970: 2000)
+        let orphanClaude = DedupCandidate(
+            session: orphanClaudeSession,
+            lifecycleRank: SessionLifecycle.active.rawValue,
+            mtime: .distantPast,
+            path: "/orphan-claude.json"
+        )
+
+        var startupPlaceholderSession = Session(
+            sessionId: "startup-placeholder",
+            projectPath: "/Users/dev/.codex/worktrees/startup-placeholder",
+            branch: "main",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop)
+        )
+        startupPlaceholderSession.pid = 3
+        startupPlaceholderSession.source = "cc"
+        let startupPlaceholder = DedupCandidate(
+            session: startupPlaceholderSession,
+            lifecycleRank: SessionLifecycle.active.rawValue,
+            mtime: .distantPast,
+            path: "/startup-placeholder.json"
+        )
+
+        let state = SessionManager.sessionClassificationSnapshot(
+            in: [missingCodex, orphanClaude, startupPlaceholder],
+            claudeMetadata: ClaudeDesktopSessionMetadataSnapshot(
+                matchedSessionIDs: [],
+                archivedSessionIDs: [],
+                isAuthoritative: true
+            ),
+            codexThreads: StubCodexThreadState(existing: [])
+        )
+
+        XCTAssertEqual(state.displayCandidates.map(\.session.sessionId), [String]())
+        XCTAssertEqual(state.cleanupSources.map(\.sessionId), [String]())
+    }
+
+    func testClassificationSnapshotFiltersActiveNamelessIdleClaudeDesktopStartupSession() {
         let startupOnly = candidate(sessionId: "startup-only", pid: 1, bundleId: HostAppBundleID.claudeDesktop,
                                     lifecycleRank: 0, source: "cc", path: "/startup-only.json")
         let namedIdle = candidate(sessionId: "named-idle", pid: 2, bundleId: HostAppBundleID.claudeDesktop,
@@ -2991,21 +3220,21 @@ final class SessionFileFormatTests: XCTestCase {
             ]
         }
 
-        let visibility = SessionManager.visibilitySnapshot(
+        let classification = SessionManager.sessionClassificationSnapshot(
             in: [startupOnly, namedIdle, promptedIdle, toolIdle, toolDetailIdle, notificationIdle, subagentIdle],
             codexThreads: StubCodexThreadState(),
             claudeDesktopSessions: StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot())
         )
 
         XCTAssertEqual(
-            visibility.liveCandidates.map(\.session.sessionId).sorted(),
+            classification.displayCandidates.map(\.session.sessionId).sorted(),
             ["named-idle", "notification-idle", "prompted-idle", "subagent-idle", "tool-detail-idle", "tool-idle"]
         )
     }
 
     // The display path never deletes files, so unreadable external stores must fail OPEN: the
     // sessions stay visible for the pass rather than vanishing on lookup uncertainty.
-    func testVisibilitySnapshotFailsOpenWhenExternalStoresAreUnreadable() {
+    func testClassificationSnapshotFailsOpenWhenExternalStoresAreUnreadable() {
         let codexThread = candidate(sessionId: "maybe-archived", pid: 1, bundleId: HostAppBundleID.codexDesktop,
                                     lifecycleRank: 0, source: Session.codexSource, path: "/maybe.json")
         let claudeSession = candidate(sessionId: "maybe-orphaned", pid: 2, bundleId: HostAppBundleID.claudeDesktop,
@@ -3014,17 +3243,17 @@ final class SessionFileFormatTests: XCTestCase {
         let claudeStartupOnly = candidate(sessionId: "maybe-startup-only", pid: 3, bundleId: HostAppBundleID.claudeDesktop,
                                           lifecycleRank: 0, source: "cc", path: "/claude-startup-maybe.json")
 
-        let visibility = SessionManager.visibilitySnapshot(
+        let classification = SessionManager.sessionClassificationSnapshot(
             in: [codexThread, claudeSession, claudeStartupOnly],
             codexThreads: StubCodexThreadState(archived: nil, subagents: nil, execHelpers: nil),
             claudeDesktopSessions: StubClaudeDesktopState(snapshot: nil)
         )
 
         XCTAssertEqual(
-            visibility.liveCandidates.map(\.session.sessionId).sorted(),
+            classification.displayCandidates.map(\.session.sessionId).sorted(),
             ["maybe-archived", "maybe-orphaned", "maybe-startup-only"]
         )
-        XCTAssertEqual(visibility.codexSubagentCandidates.map(\.session.sessionId), [])
+        XCTAssertEqual(classification.codexSubagentCandidates.map(\.session.sessionId), [])
     }
 
     // MARK: - Lifecycle derivation via injected process liveness
@@ -3081,7 +3310,7 @@ final class SessionFileFormatTests: XCTestCase {
     }
 }
 
-/// In-memory stand-in for Codex's thread state database, so visibility and archive logic can be
+/// In-memory stand-in for Codex's thread state database, so classification and archive logic can be
 /// exercised without SQLite fixtures on disk. Set a field to `nil` to simulate an unreadable store.
 private struct StubCodexThreadState: CodexThreadStateProviding {
     var existing: Set<String>? = nil

@@ -53,11 +53,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         sessionManager = SessionManager(historyManager: historyManager)
         cleanupManager = WorktreeCleanupManager()
         cleanupRefreshGate = WorktreeCleanupRefreshGate(manager: cleanupManager)
-        sessionManager.cleanupRefreshHandler = { [weak self] historySessions, activePaths in
-            self?.cleanupRefreshGate.updateSources(historySessions, activeProjectPaths: activePaths)
+        sessionManager.cleanupRefreshHandler = { [weak self] cleanupSources, activePaths in
+            self?.cleanupRefreshGate.updateSources(cleanupSources, activeProjectPaths: activePaths)
         }
         cleanupRefreshGate.updateSources(
-            sessionManager.cleanupSourceSessions,
+            sessionManager.cleanupSources,
             activeProjectPaths: sessionManager.cleanupActiveProjectPaths
         )
         updater = makeUpdater()
@@ -124,7 +124,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let result = await Task.detached(priority: .utility) {
             removalService.remove(
                 candidate,
-                sourceSessions: cleanupSnapshot.sourceSessions,
+                cleanupSources: cleanupSnapshot.cleanupSources,
                 activeProjectPaths: cleanupSnapshot.activeProjectPaths
             )
         }.value
@@ -145,7 +145,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let result = await Task.detached(priority: .utility) {
             removalService.forceRemove(
                 offer,
-                sourceSessions: cleanupSnapshot.sourceSessions,
+                cleanupSources: cleanupSnapshot.cleanupSources,
                 activeProjectPaths: cleanupSnapshot.activeProjectPaths
             )
         }.value

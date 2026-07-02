@@ -55,6 +55,7 @@ final class HookHandlerTests: XCTestCase {
     private func makeDeps(
         pid: UInt32 = 4242,
         startTime: TimeInterval? = 1000,
+        alive: Bool = true,
         env: [String: String] = [:],
         branch: String = "main",
         names: any SessionNameResolving = StubNameResolver()
@@ -63,7 +64,7 @@ final class HookHandlerTests: XCTestCase {
             sessionsDir: { self.sessionsDir },
             environment: { env },
             currentBranch: { _ in branch },
-            process: FakeProcessProber(pid: pid, start: startTime),
+            process: FakeProcessProber(pid: pid, start: startTime, alive: alive),
             names: names,
             logger: HookLogger(logsDir: logsDir)
         )
@@ -208,6 +209,116 @@ final class HookHandlerTests: XCTestCase {
 
         XCTAssertNil(session.createdByHookVersion)
         XCTAssertEqual(session.lastWrittenByHookVersion, Config.hookVersion)
+    }
+
+    func testExistingUndecodableSessionFileIsNotOverwrittenByNormalHook() throws {
+        let path = sessionFilePath()
+        let original = Data("{\"session_id\":\"test-session-001\"".utf8)
+        try original.write(to: URL(fileURLWithPath: path))
+
+        try handleFixture("UserPromptSubmit")
+
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: path)), original)
+        let errorsPath = (logsDir as NSString).appendingPathComponent("_errors.log")
+        let errors = try String(contentsOfFile: errorsPath, encoding: .utf8)
+        XCTAssertTrue(errors.contains("UserPromptSubmit"), "Decode failure must be logged, got: \(errors)")
+        XCTAssertTrue(errors.contains("preserving existing session file"), "Decode failure should explain preservation, got: \(errors)")
+    }
+
+    func testExistingTrustedDesktopSessionWithDifferentIdIsNotReplaced() throws {
+        let path = sessionFilePath()
+        var existing = Session(
+            sessionId: "desktop-existing",
+            projectPath: "/tmp/desktop-existing",
+            projectName: "desktop-existing",
+            branch: "main",
+            status: .idle,
+            lastPrompt: nil,
+            lastActivity: Date(),
+            startedAt: Date(),
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            pid: 4242,
+            pidStartTime: 1000,
+            lastTool: nil,
+            lastToolDetail: nil,
+            notificationMessage: nil
+        )
+        existing.source = "cc"
+        existing.sessionName = "Existing desktop conversation"
+        try existing.writeToFile(path: path)
+
+        try handleHook("""
+        {"session_id":"desktop-incoming","cwd":"/tmp/desktop-incoming","hook_event_name":"UserPromptSubmit","prompt":"new prompt","harness_name":"cc"}
+        """, hookName: "UserPromptSubmit")
+
+        let preserved = try loadSession()
+        XCTAssertEqual(preserved.sessionId, "desktop-existing")
+        XCTAssertEqual(preserved.projectPath, "/tmp/desktop-existing")
+        XCTAssertEqual(preserved.sessionName, "Existing desktop conversation")
+        XCTAssertNil(preserved.lastPrompt)
+    }
+
+    func testCodexSessionIdKeyedMismatchIsNotReplaced() throws {
+        let path = sessionFilePath("codex-incoming-thread.json")
+        var existing = Session(
+            sessionId: "existing-thread",
+            projectPath: "/tmp/existing-thread",
+            projectName: "existing-thread",
+            branch: "main",
+            status: .idle,
+            lastPrompt: nil,
+            lastActivity: Date(),
+            startedAt: Date(),
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop),
+            pid: 4242,
+            pidStartTime: 1000,
+            lastTool: nil,
+            lastToolDetail: nil,
+            notificationMessage: nil
+        )
+        existing.source = Session.codexSource
+        existing.sessionName = "Existing Codex thread"
+        try existing.writeToFile(path: path)
+
+        try handleHook("""
+        {"session_id":"incoming-thread","cwd":"/tmp/incoming-thread","hook_event_name":"SessionStart","harness_name":"codex"}
+        """, hookName: "SessionStart")
+
+        let preserved = try loadSession("codex-incoming-thread.json")
+        XCTAssertEqual(preserved.sessionId, "existing-thread")
+        XCTAssertEqual(preserved.projectPath, "/tmp/existing-thread")
+        XCTAssertEqual(preserved.sessionName, "Existing Codex thread")
+        XCTAssertNil(preserved.lastPrompt)
+    }
+
+    func testSessionStartWithUndecodableExistingFilePreservesFileAndSkipsProjectCleanup() throws {
+        let primaryPath = sessionFilePath()
+        let corrupt = Data("{\"session_id\":\"test-session-001\"".utf8)
+        try corrupt.write(to: URL(fileURLWithPath: primaryPath))
+
+        let stalePath = sessionFilePath("7777.json")
+        let stale = Session(
+            sessionId: "stale-same-project",
+            projectPath: "/tmp/test-project",
+            projectName: "test-project",
+            branch: "main",
+            status: .idle,
+            lastPrompt: nil,
+            lastActivity: Date(timeIntervalSince1970: 900),
+            startedAt: Date(timeIntervalSince1970: 800),
+            terminal: TerminalInfo(program: "Code"),
+            pid: 7777,
+            pidStartTime: 900,
+            lastTool: nil,
+            lastToolDetail: nil,
+            notificationMessage: nil
+        )
+        try stale.writeToFile(path: stalePath)
+
+        try handleFixture("SessionStart", deps: makeDeps(alive: false))
+
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: primaryPath)), corrupt)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stalePath), "Project cleanup must not run when SessionStart load is skipped")
     }
 
     func testSessionEndRefreshesLastWrittenByHookVersion() throws {

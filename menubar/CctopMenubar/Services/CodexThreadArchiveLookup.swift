@@ -3,7 +3,7 @@ import Foundation
 import SQLite3
 
 /// Read-side seam over Codex's local thread state. `CodexThreadArchiveLookup` is the live
-/// SQLite-backed implementation; tests substitute in-memory stubs so visibility and archive
+/// SQLite-backed implementation; tests substitute in-memory stubs so classification and archive
 /// logic can run without a database on disk. `nil` means the lookup could not prove an answer,
 /// either because the store was unreadable or because absence is intentionally treated as unknown.
 protocol CodexThreadStateProviding {

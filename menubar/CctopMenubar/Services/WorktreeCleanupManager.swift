@@ -19,9 +19,9 @@ class WorktreeCleanupManager: ObservableObject {
         self.scanner = scanner
     }
 
-    func refresh(from sourceSessions: [Session], activeProjectPaths: Set<String>, force: Bool = false) {
+    func refresh(from cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>, force: Bool = false) {
         let signature = WorktreeCleanupRefreshSignature(
-            sourceSessions: sourceSessions,
+            cleanupSources: cleanupSources,
             activeProjectPaths: activeProjectPaths
         )
         guard force || signature != lastRefreshSignature else { return }
@@ -33,7 +33,7 @@ class WorktreeCleanupManager: ObservableObject {
         isScanning = true
         DispatchQueue.global(qos: .utility).async {
             let next = scanner
-                .candidates(from: sourceSessions, activeProjectPaths: activeProjectPaths)
+                .candidates(from: cleanupSources, activeProjectPaths: activeProjectPaths)
                 .filter(\.state.isActionable)
             DispatchQueue.main.async {
                 guard generation == self.refreshGeneration else { return }
@@ -45,12 +45,13 @@ class WorktreeCleanupManager: ObservableObject {
             }
         }
     }
+
 }
 
 @MainActor
 final class WorktreeCleanupRefreshGate {
     private let manager: WorktreeCleanupManager
-    private var sourceSessions: [Session] = []
+    private var cleanupSources: [SessionCleanupSource] = []
     private var activeProjectPaths: Set<String> = []
     private var isCleanupVisible = false
 
@@ -58,8 +59,8 @@ final class WorktreeCleanupRefreshGate {
         self.manager = manager
     }
 
-    func updateSources(_ sourceSessions: [Session], activeProjectPaths: Set<String>) {
-        self.sourceSessions = sourceSessions
+    func updateSources(_ cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
+        self.cleanupSources = cleanupSources
         self.activeProjectPaths = activeProjectPaths
         refreshIfVisible()
     }
@@ -73,37 +74,36 @@ final class WorktreeCleanupRefreshGate {
 
     func refreshIfVisible(force: Bool = false) {
         guard isCleanupVisible else { return }
-        manager.refresh(from: sourceSessions, activeProjectPaths: activeProjectPaths, force: force)
+        manager.refresh(from: cleanupSources, activeProjectPaths: activeProjectPaths, force: force)
     }
 }
 
 struct WorktreeCleanupRefreshSignature: Equatable {
-    private struct EndedSessionFingerprint: Equatable {
+    private struct CleanupSourceFingerprint: Equatable {
         let path: String
         let sessionId: String
-        let effectiveEndDate: Date
+        let lastActiveAt: Date
         let displayName: String
         let branch: String
     }
 
-    private let endedSessions: [EndedSessionFingerprint]
+    private let cleanupSources: [CleanupSourceFingerprint]
     private let activeProjectPaths: [String]
 
-    init(sourceSessions: [Session], activeProjectPaths: Set<String>) {
-        self.endedSessions = sourceSessions
-            .filter { $0.endedAt != nil }
+    init(cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
+        self.cleanupSources = cleanupSources
             .map {
-                EndedSessionFingerprint(
+                CleanupSourceFingerprint(
                     path: WorktreeCleanupScanner.standardizedPath($0.projectPath),
                     sessionId: $0.sessionId,
-                    effectiveEndDate: $0.effectiveEndDate,
-                    displayName: $0.displayName,
+                    lastActiveAt: $0.lastActiveAt,
+                    displayName: $0.sessionName,
                     branch: $0.branch
                 )
             }
             .sorted { lhs, rhs in
                 if lhs.path != rhs.path { return lhs.path < rhs.path }
-                if lhs.effectiveEndDate != rhs.effectiveEndDate { return lhs.effectiveEndDate < rhs.effectiveEndDate }
+                if lhs.lastActiveAt != rhs.lastActiveAt { return lhs.lastActiveAt < rhs.lastActiveAt }
                 if lhs.sessionId != rhs.sessionId { return lhs.sessionId < rhs.sessionId }
                 if lhs.displayName != rhs.displayName { return lhs.displayName < rhs.displayName }
                 return lhs.branch < rhs.branch
@@ -112,4 +112,5 @@ struct WorktreeCleanupRefreshSignature: Equatable {
             .map(WorktreeCleanupScanner.standardizedPath)
             .sorted()
     }
+
 }

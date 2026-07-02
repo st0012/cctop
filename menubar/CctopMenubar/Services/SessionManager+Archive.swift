@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 
 /// The external inputs SessionManager consults while deriving session state: the sessions
@@ -32,14 +33,117 @@ struct SessionDataSources {
     }
 }
 
-struct SessionVisibilitySnapshot {
+struct SessionClassificationEvidence {
     let archivedCodexThreadIDs: Set<String>
     let missingCodexDesktopThreadIDs: Set<String>
     let codexSubagentThreadIDs: Set<String>
     let codexExecHelperThreadIDs: Set<String>
     let archivedClaudeSessionIDs: Set<String>
-    let codexSubagentCandidates: [DedupCandidate]
-    let liveCandidates: [DedupCandidate]
+}
+
+enum SessionHiddenReason: Equatable {
+    case persistedHidden
+    case autoHidden
+    case archivedCodexDesktop
+    case missingCodexDesktopThread
+    case codexSubagent
+    case codexExecHelper
+    case archivedClaudeDesktop
+    case orphanedEndedClaudeDesktop
+    case claudeDesktopStartupPlaceholder
+
+    var protectsCleanupPath: Bool {
+        switch self {
+        case .persistedHidden, .autoHidden, .codexSubagent, .codexExecHelper:
+            return true
+        case .archivedCodexDesktop, .missingCodexDesktopThread, .archivedClaudeDesktop,
+             .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
+            return false
+        }
+    }
+}
+
+enum SessionDisposition: Equatable {
+    case display
+    case hidden(SessionHiddenReason)
+}
+
+struct ClassifiedSessionRecord {
+    let url: URL
+    let candidate: DedupCandidate
+    let disposition: SessionDisposition
+}
+
+struct SessionClassificationSnapshot {
+    let records: [ClassifiedSessionRecord]
+    let evidence: SessionClassificationEvidence
+
+    var displayCandidates: [DedupCandidate] {
+        records.compactMap { record in
+            guard record.disposition == .display else { return nil }
+            return record.candidate
+        }
+    }
+
+    var autoHiddenSessions: [(URL, Session)] {
+        records.compactMap { record in
+            guard case .hidden(.autoHidden) = record.disposition else { return nil }
+            return (record.url, record.candidate.session)
+        }
+    }
+
+    var codexSubagentCandidates: [DedupCandidate] {
+        records.compactMap { record in
+            guard case .hidden(.codexSubagent) = record.disposition else { return nil }
+            return record.candidate
+        }
+    }
+
+    var protectedProjectPathsForCleanup: Set<String> {
+        let displayProtected = SessionIdentityPolicy
+            .dedupedCandidatesByStableKey(displayCandidates)
+            .filter { $0.lifecycleRank != SessionLifecycle.finished.rawValue }
+            .map(\.session.projectPath)
+        let hiddenProtected = records.compactMap { record -> String? in
+            guard case .hidden(let reason) = record.disposition,
+                  reason.protectsCleanupPath,
+                  record.candidate.lifecycleRank != SessionLifecycle.finished.rawValue else {
+                return nil
+            }
+            return record.candidate.session.projectPath
+        }
+        return Set(displayProtected).union(hiddenProtected)
+    }
+
+    var finishedNonDesktopCandidates: [DedupCandidate] {
+        displayCandidates.filter {
+            $0.lifecycleRank == SessionLifecycle.finished.rawValue && $0.session.hostClass != .desktop
+        }
+    }
+
+    /// Cleanup sources are only emitted from cctop JSON records classified in this pass.
+    /// External host metadata may hide or enrich those records, but it never creates cleanup rows
+    /// without a session file because the scanner needs cctop's project path and recency context.
+    var cleanupSources: [SessionCleanupSource] {
+        records.compactMap { record in
+            guard case .hidden(let reason) = record.disposition,
+                  reason == .archivedCodexDesktop || reason == .archivedClaudeDesktop,
+                  Self.hasKnownCleanupPath(record.candidate.session.projectPath) else {
+                return nil
+            }
+            return SessionCleanupSource(session: record.candidate.session)
+        }
+    }
+
+    private static func hasKnownCleanupPath(_ path: String) -> Bool {
+        !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && path != "/"
+    }
+
+    var archivedCodexThreadIDs: Set<String> { evidence.archivedCodexThreadIDs }
+    var missingCodexDesktopThreadIDs: Set<String> { evidence.missingCodexDesktopThreadIDs }
+    var codexSubagentThreadIDs: Set<String> { evidence.codexSubagentThreadIDs }
+    var codexExecHelperThreadIDs: Set<String> { evidence.codexExecHelperThreadIDs }
+    var archivedClaudeSessionIDs: Set<String> { evidence.archivedClaudeSessionIDs }
 }
 
 extension SessionManager {
@@ -113,24 +217,30 @@ extension SessionManager {
         }
     }
 
-    nonisolated static func visibilitySnapshot(
+    nonisolated static func sessionClassificationSnapshot(
         in candidates: [DedupCandidate],
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
         claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup(),
         now: Date = Date()
-    ) -> SessionVisibilitySnapshot {
+    ) -> SessionClassificationSnapshot {
         let sessions = candidates.map(\.session)
         let claudeMetadata = claudeDesktopMetadataSnapshot(in: sessions, claudeDesktopSessions: claudeDesktopSessions)
-        return visibilitySnapshot(in: candidates, sessions: sessions, claudeMetadata: claudeMetadata, codexThreads: codexThreads, now: now)
+        return sessionClassificationSnapshot(
+            in: candidates,
+            sessions: sessions,
+            claudeMetadata: claudeMetadata,
+            codexThreads: codexThreads,
+            now: now
+        )
     }
 
-    nonisolated static func visibilitySnapshot(
+    nonisolated static func sessionClassificationSnapshot(
         in candidates: [DedupCandidate],
         claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?,
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
         now: Date = Date()
-    ) -> SessionVisibilitySnapshot {
-        visibilitySnapshot(
+    ) -> SessionClassificationSnapshot {
+        sessionClassificationSnapshot(
             in: candidates,
             sessions: candidates.map(\.session),
             claudeMetadata: claudeMetadata,
@@ -139,39 +249,104 @@ extension SessionManager {
         )
     }
 
-    private nonisolated static func visibilitySnapshot(
+    private nonisolated static func sessionClassificationSnapshot(
         in candidates: [DedupCandidate],
         sessions: [Session],
         claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?,
         codexThreads: any CodexThreadStateProviding,
         now: Date
-    ) -> SessionVisibilitySnapshot {
-        let archivedCodexThreadIDs = archivedCodexDesktopThreadIDs(in: sessions, codexThreads: codexThreads)
-        let missingCodexDesktopThreadIDs = missingCodexDesktopThreadIDs(in: sessions, codexThreads: codexThreads, now: now)
-        let codexSubagentThreadIDs = codexSubagentThreadIDs(in: sessions, codexThreads: codexThreads)
-        let codexExecHelperThreadIDs = codexExecHelperThreadIDs(in: sessions, codexThreads: codexThreads)
+    ) -> SessionClassificationSnapshot {
+        let externallyClassifiableSessions = sessions.filter { !$0.hidden && !$0.shouldAutoHide }
+        let archivedCodexThreadIDs = archivedCodexDesktopThreadIDs(in: externallyClassifiableSessions, codexThreads: codexThreads)
+        let missingCodexDesktopThreadIDs = missingCodexDesktopThreadIDs(
+            in: externallyClassifiableSessions,
+            codexThreads: codexThreads,
+            now: now
+        )
+        let codexSubagentThreadIDs = codexSubagentThreadIDs(in: externallyClassifiableSessions, codexThreads: codexThreads)
+        let codexExecHelperThreadIDs = codexExecHelperThreadIDs(in: externallyClassifiableSessions, codexThreads: codexThreads)
         let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
-        let codexSubagentCandidates = candidates.filter {
-            isCodexSubagentSession($0.session, subagentThreadIDs: codexSubagentThreadIDs)
-        }
-        let liveCandidates = candidates.filter {
-            !isArchivedCodexDesktopSession($0.session, archivedThreadIDs: archivedCodexThreadIDs)
-                && !isMissingCodexDesktopSession($0.session, missingThreadIDs: missingCodexDesktopThreadIDs)
-                && !isCodexSubagentSession($0.session, subagentThreadIDs: codexSubagentThreadIDs)
-                && !isCodexExecHelperSession($0.session, execHelperThreadIDs: codexExecHelperThreadIDs)
-                && !isArchivedClaudeDesktopSession($0.session, archivedSessionIDs: archivedClaudeSessionIDs)
-                // Claude Desktop `SessionEnd` is worker/session termination, not archive; matched metadata stays resumable.
-                && !isOrphanedEndedClaudeDesktopSession($0.session, metadataSnapshot: claudeMetadata)
-                && !isClaudeDesktopStartupPlaceholder($0.session, metadataSnapshot: claudeMetadata)
-        }
-        return SessionVisibilitySnapshot(
+
+        let evidence = SessionClassificationEvidence(
             archivedCodexThreadIDs: archivedCodexThreadIDs,
             missingCodexDesktopThreadIDs: missingCodexDesktopThreadIDs,
             codexSubagentThreadIDs: codexSubagentThreadIDs,
             codexExecHelperThreadIDs: codexExecHelperThreadIDs,
-            archivedClaudeSessionIDs: archivedClaudeSessionIDs,
-            codexSubagentCandidates: codexSubagentCandidates,
-            liveCandidates: liveCandidates
+            archivedClaudeSessionIDs: archivedClaudeSessionIDs
+        )
+        let records = candidates.map { candidate in
+            ClassifiedSessionRecord(
+                url: URL(fileURLWithPath: candidate.path),
+                candidate: candidate,
+                disposition: disposition(
+                    for: candidate.session,
+                    evidence: evidence,
+                    claudeMetadata: claudeMetadata
+                )
+            )
+        }
+        return SessionClassificationSnapshot(records: records, evidence: evidence)
+    }
+
+    private nonisolated static func disposition(
+        for session: Session,
+        evidence: SessionClassificationEvidence,
+        claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?
+    ) -> SessionDisposition {
+        if session.hidden {
+            return .hidden(.persistedHidden)
+        }
+        if session.shouldAutoHide {
+            return .hidden(.autoHidden)
+        }
+        if isArchivedCodexDesktopSession(session, archivedThreadIDs: evidence.archivedCodexThreadIDs) {
+            return .hidden(.archivedCodexDesktop)
+        }
+        if isMissingCodexDesktopSession(session, missingThreadIDs: evidence.missingCodexDesktopThreadIDs) {
+            return .hidden(.missingCodexDesktopThread)
+        }
+        if isCodexSubagentSession(session, subagentThreadIDs: evidence.codexSubagentThreadIDs) {
+            return .hidden(.codexSubagent)
+        }
+        if isCodexExecHelperSession(session, execHelperThreadIDs: evidence.codexExecHelperThreadIDs) {
+            return .hidden(.codexExecHelper)
+        }
+        if isArchivedClaudeDesktopSession(session, archivedSessionIDs: evidence.archivedClaudeSessionIDs) {
+            return .hidden(.archivedClaudeDesktop)
+        }
+        // Claude Desktop `SessionEnd` is worker/session termination, not archive; matched metadata stays resumable.
+        if isOrphanedEndedClaudeDesktopSession(session, metadataSnapshot: claudeMetadata) {
+            return .hidden(.orphanedEndedClaudeDesktop)
+        }
+        if isClaudeDesktopStartupPlaceholder(session, metadataSnapshot: claudeMetadata) {
+            return .hidden(.claudeDesktopStartupPlaceholder)
+        }
+        return .display
+    }
+
+    func deriveSessionClassification(from decoded: [(url: URL, session: Session)]) -> SessionClassificationSnapshot {
+        let now = dataSources.now()
+        let classifiableSessions = decoded
+            .map(\.session)
+            .filter { !$0.hidden && !$0.shouldAutoHide }
+        let claudeMetadata = Self.claudeDesktopMetadataSnapshot(
+            in: classifiableSessions,
+            claudeDesktopSessions: dataSources.claudeDesktopSessions
+        )
+        let candidates = Self.buildCandidates(
+            decoded,
+            now: now,
+            desktopAppConnectionLookup: dataSources.desktopAppConnection,
+            claudeMetadata: claudeMetadata,
+            codexThreads: dataSources.codexThreads,
+            processAlive: dataSources.processAlive
+        )
+        return Self.sessionClassificationSnapshot(
+            in: candidates,
+            sessions: decoded.map(\.session),
+            claudeMetadata: claudeMetadata,
+            codexThreads: dataSources.codexThreads,
+            now: now
         )
     }
 

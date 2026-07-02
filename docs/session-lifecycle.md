@@ -1,12 +1,12 @@
 # Session Lifecycle
 
-This flow documents how cctop turns a session file into one display-time lifecycle:
-`active`, `dormant`, or `finished`. The desktop path applies to both Claude Desktop and Codex Desktop.
+This flow documents how cctop turns a session file into one internal classification, including the display-time
+lifecycle: `active`, `dormant`, or `finished`. The desktop path applies to both Claude Desktop and Codex Desktop.
 
 The key split is intentional:
 
 - File presence means cctop has a record to evaluate. It is not itself proof that the session is live.
-- Visibility filters decide whether a decoded record can be displayed at all.
+- Classification decides whether a decoded record can be displayed, hidden, archived to Recent, or used as a cleanup source.
 - Connection evidence decides whether the host is connected right now.
 - Lifecycle decides how cctop should treat a visible record.
 - Persistence actions update `disconnected_at`, remove stale files, or archive finished CLI work.
@@ -17,14 +17,15 @@ The key split is intentional:
 
 ```mermaid
 flowchart TD
-    A["Session .json files"] --> B["Decode non-hidden records"]
-    B --> C["Derive lifecycle<br/>active / dormant / finished"]
-    C --> D{"Visibility filter"}
+    A["Session .json files"] --> B["Decode records"]
+    B --> C["Build SessionClassificationSnapshot<br/>lifecycle + host metadata"]
+    C --> D{"Disposition"}
 
-    D -->|"archived desktop session"| E["Hide for this pass<br/>preserve .json"]
+    D -->|"archived desktop session"| E["Hide for display<br/>preserve .json"]
+    D -->|"archived desktop + known project path"| L["Emit cleanup source<br/>preserve .json"]
     D -->|"subagent-owned session"| K["Mark hidden<br/>preserve .json"]
     D -->|"Claude orphan startup record"| E
-    D -->|"visible record"| F["Deduplicate by stable key"]
+    D -->|"display record"| F["Deduplicate by stable key"]
 
     F --> G{"Winner lifecycle"}
     G -->|active| H["Publish active session"]
@@ -97,7 +98,9 @@ CLI sessions do not need `disconnected_at` because disconnected CLI sessions bec
 
 Session files are deduplicated by a stable identity key before publishing. `SessionIdentityPolicy` owns that grouping rule. Codex sessions use `session_id` across both old PID-keyed files and newer `codex-<session_id>` files. Known desktop sessions also use `session_id`; other terminal or ambiguous sessions keep PID identity.
 
-Archived desktop sessions are filtered from the active/dormant list before dedup and cleanup. cctop does not persist `hidden = true` for this case and does not remove the `.json`, so a later app-level unarchive can make the same session file visible again. The slow GC re-reads desktop archive state at the per-file deletion decision rather than from the pass-level snapshot, so a session archived mid-pass is never reaped out from under a pending unarchive.
+Archived desktop sessions are filtered from the active/dormant list before display dedup. cctop does not persist `hidden = true` for this case and does not remove the `.json`, so a later app-level unarchive can make the same session file visible again. Archived desktop sessions are not archived into Recent Projects. If the same classified cctop JSON record has a known project path, the classification snapshot can emit an explicit worktree cleanup source for that path; this does not delete the session JSON. If host metadata is missing, unreadable, or lacks enough path evidence, cleanup fails safe by emitting no source.
+
+Worktree cleanup consumes `SessionClassificationSnapshot.cleanupSources` plus already-ended history records. The scanner only validates filesystem and Git/worktree state from those sources; it does not rediscover lifecycle, archive state, desktop hosting, or process liveness. Active display paths and auto-hidden, persisted-hidden, subagent, and helper paths are protected by the same classification pass that feeds display. Archived desktop records are not protected by being hidden; when the classifier has safe project/worktree path evidence, they become explicit cleanup sources while their session JSON is preserved.
 
 Subagent-owned sessions are filtered before dedup and cleanup, then persisted as `hidden = true`. Any client can mark a session file with `is_subagent = true`; Codex sessions also inherit that marker from Codex's local thread database when `thread_source = 'subagent'`. The parent session's `active_subagents` list remains visible, because it describes delegated work owned by the user-facing session rather than making the parent itself a subagent.
 

@@ -29,6 +29,60 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(candidates[0].lastActiveAt, now)
     }
 
+    func testClassifiedCleanupSourceWithoutEndedAtIsScanned() {
+        let path = "/Users/dev/.codex/worktrees/archived-desktop"
+        let session = activeSession(
+            id: "archived-desktop",
+            path: path,
+            name: "Archived desktop work",
+            branch: "codex/archived-desktop"
+        )
+
+        let candidates = scanner(
+            existingPaths: [path],
+            inspections: [path: cleanInspection(branch: "codex/archived-desktop")]
+        ).candidates(
+            from: [SessionCleanupSource(session: session)],
+            activeProjectPaths: []
+        )
+
+        XCTAssertEqual(candidates.map(\.id), [path])
+        XCTAssertEqual(candidates[0].sessionName, "Archived desktop work")
+        XCTAssertEqual(candidates[0].branchName, "codex/archived-desktop")
+        XCTAssertEqual(candidates[0].lastActiveAt, now)
+    }
+
+    func testRemovalServiceRefusesClassifiedCleanupSourceWhenActivePathAppearsBeforePreflight() {
+        let worktreePath = "/Users/dev/.codex/worktrees/archived-desktop"
+        let session = activeSession(
+            id: "archived-desktop",
+            path: worktreePath,
+            name: "Archived desktop work",
+            branch: "codex/archived-desktop"
+        )
+        let staleCleanCandidate = cleanupCandidate(path: worktreePath)
+        var didRunGit = false
+        let service = WorktreeRemovalService(
+            scanner: scanner(existingPaths: [worktreePath], inspections: [worktreePath: cleanInspection()]),
+            runGit: { _ in
+                didRunGit = true
+                return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+            }
+        )
+
+        let result = service.remove(
+            staleCleanCandidate,
+            cleanupSources: [SessionCleanupSource(session: session)],
+            activeProjectPaths: [worktreePath]
+        )
+
+        XCTAssertFalse(didRunGit)
+        guard case .refused(let preflightCandidate) = result else {
+            return XCTFail("Expected removal to be refused once the path became active, got \(result)")
+        }
+        XCTAssertEqual(preflightCandidate.state, .ignored(["Active cctop session is using this path"]))
+    }
+
     func testActiveProjectPathIsIgnored() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
 
@@ -997,17 +1051,6 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(candidates.contains { $0.id == linkedPath })
     }
 
-    func testNonEndedSessionPathIsNotCleanupCandidate() {
-        let activePath = "/Users/dev/projects/billing-api/.claude/worktrees/active-feature"
-
-        let candidates = scanner(
-            existingPaths: [activePath],
-            inspections: [activePath: cleanInspection(branch: "claude/active-feature")]
-        ).candidates(from: [activeSession(path: activePath)], activeProjectPaths: [])
-
-        XCTAssertTrue(candidates.isEmpty)
-    }
-
     func testSizeFormatterUsesReadableUnits() {
         XCTAssertEqual(WorktreeCleanupCandidate.formatStorage(bytes: nil), "Unknown")
         XCTAssertEqual(WorktreeCleanupCandidate.formatStorage(bytes: 900), "900 B")
@@ -1139,11 +1182,11 @@ final class WorktreeCleanupTests: XCTestCase {
     func testRefreshSignatureIsStableForIdenticalInputs() {
         let session = historySession(path: "/Users/dev/.codex/worktrees/billing-api")
         let lhs = WorktreeCleanupRefreshSignature(
-            sourceSessions: [session],
+            cleanupSources: [session],
             activeProjectPaths: ["/Users/dev/projects/app"]
         )
         let rhs = WorktreeCleanupRefreshSignature(
-            sourceSessions: [session],
+            cleanupSources: [session],
             activeProjectPaths: ["/Users/dev/projects/app"]
         )
 
@@ -1153,11 +1196,11 @@ final class WorktreeCleanupTests: XCTestCase {
     func testRefreshSignatureChangesWhenActivePathsChange() {
         let session = historySession(path: "/Users/dev/.codex/worktrees/billing-api")
         let lhs = WorktreeCleanupRefreshSignature(
-            sourceSessions: [session],
+            cleanupSources: [session],
             activeProjectPaths: ["/Users/dev/projects/app"]
         )
         let rhs = WorktreeCleanupRefreshSignature(
-            sourceSessions: [session],
+            cleanupSources: [session],
             activeProjectPaths: ["/Users/dev/projects/other"]
         )
 
@@ -1180,8 +1223,8 @@ final class WorktreeCleanupTests: XCTestCase {
             branch: "feature/invoices",
             endedAt: now
         )
-        let lhs = WorktreeCleanupRefreshSignature(sourceSessions: [old], activeProjectPaths: [])
-        let rhs = WorktreeCleanupRefreshSignature(sourceSessions: [newer], activeProjectPaths: [])
+        let lhs = WorktreeCleanupRefreshSignature(cleanupSources: [old], activeProjectPaths: [])
+        let rhs = WorktreeCleanupRefreshSignature(cleanupSources: [newer], activeProjectPaths: [])
 
         XCTAssertNotEqual(lhs, rhs)
     }
@@ -1436,7 +1479,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(candidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertEqual(gitArguments, [["-C", mainPath, "worktree", "remove", worktreePath]])
         XCTAssertEqual(result, .removed(GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")))
@@ -1467,7 +1510,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(candidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertEqual(gitArguments, [["-C", mainPath, "worktree", "remove", worktreePath]])
         XCTAssertEqual(result, .removed(GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")))
@@ -1496,7 +1539,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(staleCleanCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -1539,7 +1582,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(candidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -1583,7 +1626,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertTrue(didRunGit)
         XCTAssertEqual(result, .failed(failure))
@@ -1625,7 +1668,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertEqual(gitArguments, [["-C", mainPath, "worktree", "remove", worktreePath]])
         guard case .forceRequired(let offer) = result else {
@@ -1672,12 +1715,12 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let plainResult = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let plainResult = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
         guard case .forceRequired(let offer) = plainResult else {
             return XCTFail("Expected dirty remove failure to offer force, got \(plainResult)")
         }
 
-        let forceResult = service.forceRemove(offer, sourceSessions: [session], activeProjectPaths: [])
+        let forceResult = service.forceRemove(offer, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertEqual(gitArguments, [
             ["-C", mainPath, "worktree", "remove", worktreePath],
@@ -1713,7 +1756,7 @@ final class WorktreeCleanupTests: XCTestCase {
             runGit: { _ in failure }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertEqual(result, .failed(failure))
     }
@@ -1746,7 +1789,7 @@ final class WorktreeCleanupTests: XCTestCase {
             runGit: { _ in failure }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertEqual(result, .failed(failure))
     }
@@ -1788,7 +1831,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -1835,7 +1878,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.forceRemove(offer, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.forceRemove(offer, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertTrue(gitArguments.isEmpty)
         guard case .refused(let latestCandidate) = result else {
@@ -1882,7 +1925,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.forceRemove(offer, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.forceRemove(offer, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertTrue(gitArguments.isEmpty)
         guard case .refused(let latestCandidate) = result else {
@@ -1907,7 +1950,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(staleCleanCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -1932,7 +1975,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(staleCleanCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -1960,7 +2003,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(staleCleanCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -1996,7 +2039,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2044,7 +2087,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2085,7 +2128,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2123,7 +2166,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2158,7 +2201,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(staleCleanCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         XCTAssertEqual(inspectionCount, 2)
@@ -2196,7 +2239,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2242,7 +2285,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2287,7 +2330,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2331,7 +2374,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2371,7 +2414,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2411,7 +2454,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2447,7 +2490,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(reviewCandidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(reviewCandidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2470,7 +2513,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(staleCleanCandidate, sourceSessions: [session], activeProjectPaths: [worktreePath])
+        let result = service.remove(staleCleanCandidate, cleanupSources: [session], activeProjectPaths: [worktreePath])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2494,7 +2537,7 @@ final class WorktreeCleanupTests: XCTestCase {
 
         let result = service.remove(
             staleCleanCandidate,
-            sourceSessions: [session],
+            cleanupSources: [session],
             activeProjectPaths: ["/Users/dev/.codex/worktrees/billing-api/pkg"]
         )
 
@@ -2525,7 +2568,7 @@ final class WorktreeCleanupTests: XCTestCase {
 
         let result = service.remove(
             staleCleanCandidate,
-            sourceSessions: [session],
+            cleanupSources: [session],
             activeProjectPaths: [aliasPath]
         )
 
@@ -2569,7 +2612,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(candidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         guard case .refused(let preflightCandidate) = result else {
@@ -2601,7 +2644,7 @@ final class WorktreeCleanupTests: XCTestCase {
             }
         )
 
-        let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(candidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertFalse(didRunGit)
         XCTAssertEqual(result, .refused(candidate))
@@ -2621,7 +2664,7 @@ final class WorktreeCleanupTests: XCTestCase {
             runGit: { _ in failure }
         )
 
-        let result = service.remove(candidate, sourceSessions: [session], activeProjectPaths: [])
+        let result = service.remove(candidate, cleanupSources: [session], activeProjectPaths: [])
 
         XCTAssertEqual(result, .failed(failure))
     }
@@ -2809,9 +2852,9 @@ final class WorktreeCleanupTests: XCTestCase {
         name: String = "Generate invoice retry path",
         branch: String = "feature/invoices",
         endedAt: Date? = nil
-    ) -> Session {
+    ) -> SessionCleanupSource {
         let lastActivity = endedAt ?? now
-        return Session(
+        let session = Session(
             sessionId: id,
             projectPath: path,
             projectName: URL(fileURLWithPath: path).lastPathComponent,
@@ -2828,6 +2871,11 @@ final class WorktreeCleanupTests: XCTestCase {
             sessionName: name,
             endedAt: endedAt ?? lastActivity
         )
+        guard let source = SessionCleanupSource(endedSession: session) else {
+            XCTFail("historySession helper must create an ended cleanup source")
+            return SessionCleanupSource(session: session)
+        }
+        return source
     }
 
     private func activeSession(

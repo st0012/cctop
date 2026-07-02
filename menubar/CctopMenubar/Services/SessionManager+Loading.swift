@@ -73,46 +73,6 @@ extension SessionManager {
         )
     }
 
-    /// Derives lifecycle-stamped candidates and the visibility classification for one load pass,
-    /// reading desktop archive state and process liveness through the injected data sources.
-    func deriveVisibility(from visibleDecoded: [(url: URL, session: Session)]) -> SessionVisibilitySnapshot {
-        let now = dataSources.now()
-        let claudeMetadata = Self.claudeDesktopMetadataSnapshot(
-            in: visibleDecoded.map(\.session),
-            claudeDesktopSessions: dataSources.claudeDesktopSessions
-        )
-        let candidates = Self.buildCandidates(
-            visibleDecoded,
-            now: now,
-            desktopAppConnectionLookup: dataSources.desktopAppConnection,
-            claudeMetadata: claudeMetadata,
-            codexThreads: dataSources.codexThreads,
-            processAlive: dataSources.processAlive
-        )
-        return Self.visibilitySnapshot(
-            in: candidates,
-            claudeMetadata: claudeMetadata,
-            codexThreads: dataSources.codexThreads,
-            now: now
-        )
-    }
-
-    func activeProjectPaths(in decoded: [(url: URL, session: Session)]) -> Set<String> {
-        let now = dataSources.now()
-        let candidates = Self.buildCandidates(
-            decoded,
-            now: now,
-            desktopAppConnectionLookup: dataSources.desktopAppConnection,
-            claudeMetadata: Self.claudeDesktopMetadataSnapshot(
-                in: decoded.map(\.session),
-                claudeDesktopSessions: dataSources.claudeDesktopSessions
-            ),
-            codexThreads: dataSources.codexThreads,
-            processAlive: dataSources.processAlive
-        )
-        return Set(candidates.filter { $0.session.lifecycle != .finished }.map(\.session.projectPath))
-    }
-
     func currentStatusesByStableKey() -> [String: SessionStatus] {
         Dictionary(
             sessions.map { (SessionIdentityPolicy.stableKey(for: $0), $0.status) },
@@ -124,14 +84,14 @@ extension SessionManager {
         files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
     }
 
-    func logLoadSummary(_ summary: SessionLoadSummary, visibility: SessionVisibilitySnapshot) {
+    func logLoadSummary(_ summary: SessionLoadSummary, classification: SessionClassificationSnapshot) {
         let signature = SessionLoadLogSignature(
             summary: summary,
-            archivedCodexThreadIDs: visibility.archivedCodexThreadIDs.count,
-            missingCodexDesktopThreadIDs: visibility.missingCodexDesktopThreadIDs.count,
-            codexSubagentThreadIDs: visibility.codexSubagentThreadIDs.count,
-            codexExecHelperThreadIDs: visibility.codexExecHelperThreadIDs.count,
-            archivedClaudeSessionIDs: visibility.archivedClaudeSessionIDs.count
+            archivedCodexThreadIDs: classification.archivedCodexThreadIDs.count,
+            missingCodexDesktopThreadIDs: classification.missingCodexDesktopThreadIDs.count,
+            codexSubagentThreadIDs: classification.codexSubagentThreadIDs.count,
+            codexExecHelperThreadIDs: classification.codexExecHelperThreadIDs.count,
+            archivedClaudeSessionIDs: classification.archivedClaudeSessionIDs.count
         )
         guard signature != lastLoadLogSignature else { return }
         lastLoadLogSignature = signature
@@ -140,10 +100,10 @@ extension SessionManager {
         sessionManagerLogger.info(
             "loadSessions: \(summary.live) visible candidates, \(summary.hidden) hidden, \(summary.autoHidden) auto-hidden"
         )
-        sessionManagerLogger.info("loadSessions: \(visibility.archivedCodexThreadIDs.count) codex-archived")
-        sessionManagerLogger.info("loadSessions: \(visibility.missingCodexDesktopThreadIDs.count) codex-missing-state")
-        sessionManagerLogger.info("loadSessions: \(visibility.codexSubagentThreadIDs.count) codex-subagent")
-        sessionManagerLogger.info("loadSessions: \(visibility.codexExecHelperThreadIDs.count) codex-exec-helper")
-        sessionManagerLogger.info("loadSessions: \(visibility.archivedClaudeSessionIDs.count) claude-archived")
+        sessionManagerLogger.info("loadSessions: \(classification.archivedCodexThreadIDs.count) codex-archived")
+        sessionManagerLogger.info("loadSessions: \(classification.missingCodexDesktopThreadIDs.count) codex-missing-state")
+        sessionManagerLogger.info("loadSessions: \(classification.codexSubagentThreadIDs.count) codex-subagent")
+        sessionManagerLogger.info("loadSessions: \(classification.codexExecHelperThreadIDs.count) codex-exec-helper")
+        sessionManagerLogger.info("loadSessions: \(classification.archivedClaudeSessionIDs.count) claude-archived")
     }
 }

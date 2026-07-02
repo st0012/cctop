@@ -7,7 +7,7 @@ import os.log
 let sessionManagerLogger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
 
 struct WorktreeCleanupSessionSnapshot {
-    let sourceSessions: [Session]
+    let cleanupSources: [SessionCleanupSource]
     let activeProjectPaths: Set<String>
 }
 
@@ -18,9 +18,10 @@ class SessionManager: ObservableObject {
 
     let historyManager: HistoryManager
     let dataSources: SessionDataSources
-    var cleanupRefreshHandler: (([Session], Set<String>) -> Void)?
-    private(set) var cleanupSourceSessions: [Session] = []
+    var cleanupRefreshHandler: (([SessionCleanupSource], Set<String>) -> Void)?
+    private(set) var cleanupSources: [SessionCleanupSource] = []
     private(set) var cleanupActiveProjectPaths: Set<String> = []
+    private var currentClassificationCleanupSources: [SessionCleanupSource] = []
 
     private let sessionsDir: URL
     private var source: DispatchSourceFileSystemObject?
@@ -75,22 +76,21 @@ class SessionManager: ObservableObject {
 
         let jsonFiles = sessionJSONFiles(in: files)
         let allDecoded = decodedSessions(from: jsonFiles)
-        let hidden = allDecoded.filter { $0.session.hidden }
-        let autoHidden = allDecoded.filter { !$0.session.hidden && $0.session.shouldAutoHide }
-        let visibleDecoded = allDecoded.filter { !$0.session.hidden && !$0.session.shouldAutoHide }
-        let visibility = deriveVisibility(from: visibleDecoded)
-        let liveCandidates = visibility.liveCandidates
+        let classification = deriveSessionClassification(from: allDecoded)
+        let hidden = classification.records.filter { $0.disposition == .hidden(.persistedHidden) }
+        let autoHidden = classification.autoHiddenSessions
+        let displayCandidates = classification.displayCandidates
         let summary = SessionLoadSummary(
             files: jsonFiles.count,
             decoded: allDecoded.count,
-            live: liveCandidates.count,
+            live: displayCandidates.count,
             hidden: hidden.count,
             autoHidden: autoHidden.count
         )
-        logLoadSummary(summary, visibility: visibility)
+        logLoadSummary(summary, classification: classification)
 
         // Publish active + dormant; finished are hidden (swept below / by GC).
-        let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(liveCandidates)
+        let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(displayCandidates)
         let now = dataSources.now()
         let newSessions = winners
             .filter { $0.session.lifecycle != .finished }
@@ -108,24 +108,23 @@ class SessionManager: ObservableObject {
         }
 
         hideAutoHiddenSessions(autoHidden)
-        hideCodexSubagentSessions(visibility.codexSubagentCandidates)
-        clearReconnectedDesktopSessions(liveCandidates, now: now)
-        stampDisconnectedDesktopSessions(liveCandidates, now: now)
+        hideCodexSubagentSessions(classification.codexSubagentCandidates)
+        clearReconnectedDesktopSessions(displayCandidates, now: now)
+        stampDisconnectedDesktopSessions(displayCandidates, now: now)
 
         // Non-desktop finished sessions keep today's behavior: archive to Recent Projects and
         // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped
         // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
-        archiveAndRemoveFinishedNonDesktop(liveCandidates, winners: winners)
-        let hiddenActiveProjectPaths = activeProjectPaths(in: hidden + autoHidden)
-        let activeProjectPaths = Set(newSessions.map(\.projectPath)).union(hiddenActiveProjectPaths)
+        archiveAndRemoveFinishedNonDesktop(classification.finishedNonDesktopCandidates, winners: winners)
+        let activeProjectPaths = classification.protectedProjectPathsForCleanup
         _ = historyManager.rebuildRecentProjects(excludingActive: activeProjectPaths)
-        refreshCleanupSources(from: visibleDecoded.map(\.session), activeProjectPaths: activeProjectPaths)
+        refreshCleanupSources(from: classification.cleanupSources, activeProjectPaths: activeProjectPaths)
     }
 
     func cleanupSnapshotForRemoval() -> WorktreeCleanupSessionSnapshot {
         loadSessions()
         return WorktreeCleanupSessionSnapshot(
-            sourceSessions: cleanupSourceSessions,
+            cleanupSources: cleanupSources,
             activeProjectPaths: cleanupActiveProjectPaths
         )
     }
@@ -157,8 +156,7 @@ class SessionManager: ObservableObject {
 
     private func archiveAndRemoveFinishedNonDesktop(_ candidates: [DedupCandidate], winners: [DedupCandidate]) {
         let winnerPaths = Set(winners.map(\.path))
-        for candidate in candidates where candidate.session.lifecycle == .finished
-                                    && candidate.session.hostClass != .desktop {
+        for candidate in candidates {
             // A finished dedup winner is a real completed non-desktop session, so keep today's
             // Recent Projects behavior. A finished duplicate loser is stale migration debris;
             // remove it without archiving so it cannot later surface as a separate session.
@@ -283,17 +281,18 @@ class SessionManager: ObservableObject {
             }
         }
         if removedAny {
-            let activeProjectPaths = Set(sessions.map(\.projectPath))
-            if historyManager.rebuildRecentProjects(excludingActive: activeProjectPaths) {
-                refreshCleanupSources(from: [], activeProjectPaths: activeProjectPaths)
+            if historyManager.rebuildRecentProjects(excludingActive: cleanupActiveProjectPaths) {
+                refreshCleanupSources(from: currentClassificationCleanupSources, activeProjectPaths: cleanupActiveProjectPaths)
             }
         }
     }
 
-    private func refreshCleanupSources(from currentSessions: [Session], activeProjectPaths: Set<String>) {
-        cleanupSourceSessions = historyManager.lastDecodedHistorySessions + currentSessions
+    private func refreshCleanupSources(from currentSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
+        currentClassificationCleanupSources = currentSources
+        cleanupSources = historyManager.lastDecodedHistorySessions
+            .compactMap { SessionCleanupSource(endedSession: $0) } + currentSources
         cleanupActiveProjectPaths = activeProjectPaths
-        cleanupRefreshHandler?(cleanupSourceSessions, activeProjectPaths)
+        cleanupRefreshHandler?(cleanupSources, activeProjectPaths)
     }
 
     /// Apply display-side status adjustments. The session file on disk is NOT modified.

@@ -25,26 +25,25 @@ enum HookHandler {
         let terminal = captureTerminalInfo(env: deps.environment(), process: deps.process)
         let startTime = deps.process.startTime(pid: pid)
 
-        // Capture-side diagnostic (issue #155 P5): the parent walk should land on this
-        // harness's own process. A foreign-harness PID means liveness for this file will
-        // track the wrong process — log it so the adoption path can be confirmed in the field.
-        if let parentComm = deps.process.commandName(pid: pid),
-           Session.isForeignHarnessComm(parentComm, source: input.resolvedHarnessName) {
-            deps.logger.appendHookLog(
-                sessionId: safeId, event: hookName, label: label,
-                transition: "warning: parent pid \(pid) is '\(parentComm)', a foreign harness"
-            )
-        }
+        logForeignHarnessWarning(pid: pid, input: input, hookName: hookName, label: label, deps: deps)
 
         // Lock the session file for the entire read-modify-write cycle.
         // Without this, concurrent hook processes (e.g. SubagentStart + PreToolUse
         // firing simultaneously) race: both read the old file, apply changes
         // independently, and the last writer wins — clobbering the first writer's changes.
+        var didApplyHook = false
         try withSessionLock(sessionPath: sessionPath, onError: deps.logger.logError) {
-            let freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
-            let loaded = loadOrCreateSession(
-                path: sessionPath, event: event, startTime: startTime, fresh: freshSession
-            )
+            var freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
+            freshSession.source = input.resolvedHarnessName
+            let loaded: (session: Session, isNewSessionFile: Bool)
+            do {
+                loaded = try loadOrCreateSession(
+                    path: sessionPath, event: event, startTime: startTime, fresh: freshSession
+                )
+            } catch {
+                deps.logger.logError("\(hookName): preserving existing session file at \(sessionPath) after load failure: \(error)")
+                return
+            }
             var session = loaded.session
             let isNewSessionFile = loaded.isNewSessionFile
 
@@ -64,15 +63,11 @@ enum HookHandler {
                 transition: "\(oldStatus) -> \(session.status.rawValue)\(suffix)"
             )
             try session.writeToFile(path: sessionPath)
+            didApplyHook = true
         }
 
-        // Cleanup runs outside the lock — it scans all session files and makes
-        // sysctl calls per file, which would unnecessarily hold the lock.
-        if event == .sessionStart {
-            cleanupSessionsForProject(
-                sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: pid,
-                process: deps.process, logger: deps.logger
-            )
+        if didApplyHook {
+            runProjectCleanupIfNeeded(event: event, sessionsDir: sessionsDir, input: input, pid: pid, deps: deps)
         }
     }
 
@@ -217,35 +212,6 @@ enum HookHandler {
         } else if let message = input.message {
             session.notificationMessage = message
         }
-    }
-
-    // MARK: - Session Loading
-
-    private static func loadOrCreateSession(
-        path: String, event: HookEvent, startTime: TimeInterval?, fresh: Session
-    ) -> (session: Session, isNewSessionFile: Bool) {
-        guard FileManager.default.fileExists(atPath: path),
-              let existing = try? Session.fromFile(path: path) else {
-            return (fresh, true)
-        }
-        // PID reuse: different process start time means a new process reused this PID
-        if event == .sessionStart,
-           let storedStart = existing.pidStartTime,
-           let currentStart = startTime,
-           abs(storedStart - currentStart) > 1.0 {
-            return (fresh, true)
-        }
-        // Same PID, different session_id — a PID-keyed source (opencode/pi) reused the
-        // process for a new conversation. Drop conversation-specific state (project, name,
-        // prompt, tools, etc.) and carry over only PID liveness metadata. (Codex no longer
-        // reaches this: it is keyed by session_id, so each conversation has its own file.)
-        guard existing.sessionId == fresh.sessionId else {
-            var carried = fresh
-            carried.pid = existing.pid
-            carried.pidStartTime = existing.pidStartTime
-            return (carried, true)
-        }
-        return (existing, false)
     }
 
     // MARK: - Helpers
@@ -542,6 +508,100 @@ extension HookHandler {
     static func isPIDAlive(_ pid: UInt32) -> Bool {
         kill(Int32(pid), 0) == 0 || errno == EPERM
     }
+}
+
+private func logForeignHarnessWarning(
+    pid: UInt32,
+    input: HookInput,
+    hookName: String,
+    label: String,
+    deps: HookDependencies
+) {
+    // Capture-side diagnostic (issue #155 P5): the parent walk should land on this
+    // harness's own process. A foreign-harness PID means liveness for this file will
+    // track the wrong process — log it so the adoption path can be confirmed in the field.
+    guard let parentComm = deps.process.commandName(pid: pid),
+          Session.isForeignHarnessComm(parentComm, source: input.resolvedHarnessName) else {
+        return
+    }
+    deps.logger.appendHookLog(
+        sessionId: Session.sanitizeSessionId(raw: input.sessionId), event: hookName, label: label,
+        transition: "warning: parent pid \(pid) is '\(parentComm)', a foreign harness"
+    )
+}
+
+private func runProjectCleanupIfNeeded(
+    event: HookEvent,
+    sessionsDir: String,
+    input: HookInput,
+    pid: UInt32,
+    deps: HookDependencies
+) {
+    // Cleanup runs outside the lock: it scans all session files and makes sysctl calls per file.
+    guard event == .sessionStart else { return }
+    HookHandler.cleanupSessionsForProject(
+        sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: pid,
+        process: deps.process, logger: deps.logger
+    )
+}
+
+private func loadOrCreateSession(
+    path: String, event: HookEvent, startTime: TimeInterval?, fresh: Session
+) throws -> (session: Session, isNewSessionFile: Bool) {
+    guard FileManager.default.fileExists(atPath: path) else {
+        return (fresh, true)
+    }
+    let existing = try Session.fromFile(path: path)
+    // PID reuse: different process start time means a new process reused this PID.
+    if event == .sessionStart,
+       let storedStart = existing.pidStartTime,
+       let currentStart = startTime,
+       abs(storedStart - currentStart) > 1.0 {
+        guard canReplaceDecodedSessionFile(existing: existing, fresh: fresh, event: event) else {
+            throw SessionLoadError.decodedReplacementRefused(
+                existingSessionId: existing.sessionId,
+                incomingSessionId: fresh.sessionId
+            )
+        }
+        return (fresh, true)
+    }
+    // Same PID, different session_id — a PID-keyed source (opencode/pi) reused the
+    // process for a new conversation. Drop conversation-specific state (project, name,
+    // prompt, tools, etc.) and carry over only PID liveness metadata.
+    guard existing.sessionId == fresh.sessionId else {
+        guard canReplaceDecodedSessionFile(existing: existing, fresh: fresh, event: event) else {
+            throw SessionLoadError.decodedReplacementRefused(
+                existingSessionId: existing.sessionId,
+                incomingSessionId: fresh.sessionId
+            )
+        }
+        var carried = fresh
+        carried.pid = existing.pid
+        carried.pidStartTime = existing.pidStartTime
+        return (carried, true)
+    }
+    return (existing, false)
+}
+
+private enum SessionLoadError: Error, CustomStringConvertible {
+    case decodedReplacementRefused(existingSessionId: String, incomingSessionId: String)
+
+    var description: String {
+        switch self {
+        case let .decodedReplacementRefused(existingSessionId, incomingSessionId):
+            "decoded session mismatch refused (existing session_id \(existingSessionId), incoming \(incomingSessionId))"
+        }
+    }
+}
+
+private func canReplaceDecodedSessionFile(existing: Session, fresh: Session, event: HookEvent) -> Bool {
+    guard event == .sessionStart else { return false }
+    guard existing.source != Session.codexSource, fresh.source != Session.codexSource else { return false }
+    guard !Session.trustsDesktopBundle(source: existing.source, bundleId: existing.terminal?.bundleId),
+          !Session.trustsDesktopBundle(source: fresh.source, bundleId: fresh.terminal?.bundleId) else {
+        return false
+    }
+    return true
 }
 
 // MARK: - Session File Naming
