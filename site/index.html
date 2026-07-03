@@ -203,6 +203,7 @@
 
   .feature-stack { display: grid; gap: 44px; }
   .feature-row { display: grid; grid-template-columns: minmax(0, .88fr) minmax(280px, .74fr); gap: 48px; align-items: center; }
+  .feature-row.status-feature { grid-template-columns: minmax(0, .78fr) minmax(320px, 1fr); }
   .feature-row.reverse { grid-template-columns: minmax(280px, .74fr) minmax(0, .88fr); }
   .feature-row.reverse .feature-copy { order: 2; }
   .feature-copy h3 { margin: 0 0 12px; color: var(--text); font-size: 26px; line-height: 1.15; letter-spacing: -0.025em; }
@@ -261,7 +262,7 @@
     .hero { grid-template-columns: 1fr; gap: 32px; }
     .section-header { grid-template-columns: 1fr; gap: 14px; align-items: start; }
     .tool-grid, .theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .feature-row, .feature-row.reverse { grid-template-columns: 1fr; gap: 24px; }
+    .feature-row, .feature-row.reverse, .feature-row.status-feature { grid-template-columns: 1fr; gap: 24px; }
     .feature-row.reverse .feature-copy { order: 0; }
     .install-card { grid-template-columns: 1fr; }
     .footer-grid { grid-template-columns: 1fr; }
@@ -397,11 +398,11 @@
 
     <section id="features" class="section">
       <div class="wrap">
-        <div class="section-header"><div><div class="eyebrow">Features</div><h2>Designed for scanning, then jumping.</h2></div><p class="section-sub">The app stays compact in the menubar, but keeps enough context visible that you can decide where to go next.</p></div>
+        <div class="section-header"><div><div class="eyebrow">Features</div><h2>Glance at the menubar. Jump back when a session needs you.</h2></div><p class="section-sub">cctop turns every AI coding session into a menubar signal: green means work is moving, orange or red means one session needs attention.</p></div>
         <div class="feature-stack">
+          <div class="feature-row status-feature"><div class="feature-copy"><h3>Menubar status</h3><p>The icon stays visible while you work, including a compact pill for notched MacBooks. When the color changes, you know when to open cctop and jump back.</p></div><div><div class="shot-frame"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/status-icon.png" alt="cctop status icons in the macOS menubar" loading="lazy" width="1000" height="391" decoding="async" /></div><div class="shot-caption">Healthy / needs attention / notch pill</div></div></div>
           <div class="feature-row"><div class="feature-copy"><h3>Navigate mode</h3><p>Hit a global hotkey to overlay numbered badges on every session card, then press the number to jump instantly.</p><div class="kbd-row"><span class="kbd">1</span><span>to</span><span class="kbd">9</span><span>jump to session</span></div></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-navigate.png" alt="cctop navigate mode with numbered badges" loading="lazy" width="640" height="820" decoding="async" /></div><div class="shot-caption">Press 1-9 to jump</div></div></div>
           <div class="feature-row reverse"><div class="feature-copy"><h3>Draggable panel</h3><p>Drag the header to reposition the panel anywhere on screen. Position persists across launches, and double-click snaps it back to the menubar anchor.</p></div><div><div class="shot-frame"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/draggable-panel-demo.gif" alt="cctop panel being dragged on screen" loading="lazy" width="680" height="442" decoding="async" /></div><div class="shot-caption">Panel position persists</div></div></div>
-          <div class="feature-row"><div class="feature-copy"><h3>Smart status icon</h3><p>Lives in your macOS menubar in three states: healthy, needs attention, and a slim pill for laptops with a camera notch.</p></div><div><div class="shot-frame"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/status-icon.png" alt="cctop status icons in the macOS menubar" loading="lazy" width="1000" height="391" decoding="async" /></div><div class="shot-caption">All healthy / needs attention / notch pill</div></div></div>
           <div class="feature-row reverse"><div class="feature-copy"><h3>Worktree cleanup</h3><p>Cleanup finds ended agent worktrees that still exist on disk, especially CLI or manual worktree runs. cctop checks Git state before offering the right remove action.</p></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-cleanup.png" alt="cctop cleanup tab listing ended worktrees with Git safety state" loading="lazy" width="640" height="582" decoding="async" /></div><div class="shot-caption">Ended worktrees with Git safety checks</div></div></div>
           <div class="feature-row"><div class="feature-copy"><h3>Recent projects</h3><p>A second tab keeps session history so you can reopen past projects easily.</p></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-recent.png" alt="cctop recent projects tab" loading="lazy" width="640" height="754" decoding="async" /></div><div class="shot-caption">Recent sessions stay close by</div></div></div>
         </div>
