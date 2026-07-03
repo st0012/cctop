@@ -17,6 +17,11 @@ build:
 
 test:
 	npm --prefix plugins/opencode test
+	if node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 23 || (major === 23 && minor >= 6) ? 0 : 1)'; then \
+		node --test plugins/pi/test/*.test.mjs; \
+	else \
+		echo "WARNING: skipping pi extension tests: Node >= 23.6 required for TypeScript type stripping, found $$(node --version)"; \
+	fi
 	xcodebuild test -project $(PROJECT) -scheme CctopMenubar -configuration Debug -derivedDataPath $(DERIVED) $(SIGN)
 
 lint:
