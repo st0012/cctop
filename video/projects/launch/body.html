@@ -333,6 +333,9 @@ function drawBand(t){
   if(t>=TL.cleanup[0]-0.1 && t<TL.stack[0]-0.1) {
     o*=(1-mix(t, TL.cleanup[0]-0.1, TL.cleanup[0]+0.3)); // suppress for standalone cleanup beat
   }
+  if(t>=TL.cta[0]-0.1) {
+    o*=(1-mix(t, TL.cta[0]-0.1, TL.cta[0]+0.3)); // suppress for final CTA card
+  }
   $('#band').style.opacity=o;
   const seg=mix(t, m0+0.55, m0+0.82);
   $('#pill .grid').style.opacity=seg; $('#pill .sbar').style.opacity=seg;
