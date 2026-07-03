@@ -4,7 +4,7 @@
 # touches (staged screenshots, frames, mp4, poster) lives in projects/<project>/.video-build/ (gitignored).
 set -euo pipefail
 cd "$(dirname "$0")"
-PROJECT="${1:-launch}"; PORT="${PORT:-8123}"; SCALE="${SCALE:-2}"; FPS=30; DUR="${DUR:-27.8}"; W="${W:-1920}"; H="${H:-1080}"
+PROJECT="${1:-launch}"; PORT="${PORT:-8123}"; SCALE="${SCALE:-2}"; FPS=30; DUR="${DUR:-30.0}"; W="${W:-1920}"; H="${H:-1080}"
 REPO="$(cd .. && pwd)"                 # <repo> root: needs <repo>/docs/*.png (relocate-friendly: override REPO=)
 PDIR="projects/$PROJECT"
 [ -f "$PDIR/body.html" ] || { echo "no such project: $PDIR/body.html"; exit 1; }
