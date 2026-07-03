@@ -301,4 +301,24 @@ final class SnapshotTests: XCTestCase {
             directoryName: "cctop-screenshots", filename: filename, width: width
         )
     }
+
+    func testSessionRowsAvoidPerRowTimelineAndInfiniteAnimations() throws {
+        let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let viewsDirectory = testsDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("CctopMenubar/Views")
+        let viewSources = try FileManager.default.contentsOfDirectory(
+            at: viewsDirectory,
+            includingPropertiesForKeys: nil
+        )
+        .filter { $0.pathExtension == "swift" }
+        let source = try viewSources
+            .map { try String(contentsOf: $0) }
+            .joined(separator: "\n")
+
+        XCTAssertFalse(source.contains("TimelineView("))
+        XCTAssertFalse(source.contains("repeatForever"))
+        XCTAssertFalse(source.contains("BlinkingCaret("))
+        XCTAssertFalse(viewSources.contains { $0.lastPathComponent == "BlinkingCaret.swift" })
+    }
 }
