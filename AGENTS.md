@@ -324,6 +324,7 @@ The project uses [SwiftLint](https://github.com/realm/SwiftLint) in strict mode.
 ### Visual Changes
 - Use Xcode Previews (Canvas) for instant visual feedback on any SwiftUI view
 - All views have `#Preview` blocks with mock data for different states
+- Before pushing UI changes that affect public screenshots or video proof, regenerate the snapshot-backed `docs/*.png` files and verify prominent current tabs/actions are visible, including the Cleanup tab/button when the panel screenshots show the tab row.
 
 ## Testing the Hooks
 
@@ -648,27 +649,29 @@ If notarization fails, the script automatically fetches the notarization log via
 Most static panel screenshots under `docs/` are generated from `CctopMenubarTests/SnapshotTests.swift`. The test suite renders `PopupView`, navigate mode, recent projects, empty state, onboarding settings, and every theme with deterministic mock data:
 
 ```bash
-# Regenerate all snapshot-backed PNGs under /tmp
+# Regenerate all snapshot-backed PNGs under the macOS temp directory
 xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
   -only-testing:CctopMenubarTests/SnapshotTests \
   -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
 
 # Copy the public documentation screenshots into docs/
-cp /tmp/menubar-light.png docs/menubar-light.png
-cp /tmp/menubar-dark.png docs/menubar-dark.png
-cp /tmp/menubar-navigate.png docs/menubar-navigate.png
-cp /tmp/menubar-recent.png docs/menubar-recent.png
-cp /tmp/empty-state-light.png docs/empty-state-light.png
-cp /tmp/empty-state-dark.png docs/empty-state-dark.png
-cp /tmp/theme-claude-dark.png docs/theme-claude-dark.png
-cp /tmp/theme-claude-light.png docs/theme-claude-light.png
-cp /tmp/theme-tokyoNight-dark.png docs/theme-tokyoNight-dark.png
-cp /tmp/theme-tokyoNight-light.png docs/theme-tokyoNight-light.png
-cp /tmp/theme-gruvbox-dark.png docs/theme-gruvbox-dark.png
-cp /tmp/theme-gruvbox-light.png docs/theme-gruvbox-light.png
-cp /tmp/theme-nord-dark.png docs/theme-nord-dark.png
-cp /tmp/theme-nord-light.png docs/theme-nord-light.png
-cp /tmp/theme-tokyoNight-dark.png docs/menubar-tokyonight-dark.png
+snapshot_dir="$(getconf DARWIN_USER_TEMP_DIR)cctop-screenshots"
+cp "$snapshot_dir"/menubar-light.png docs/menubar-light.png
+cp "$snapshot_dir"/menubar-dark.png docs/menubar-dark.png
+cp "$snapshot_dir"/menubar-navigate.png docs/menubar-navigate.png
+cp "$snapshot_dir"/menubar-recent.png docs/menubar-recent.png
+cp "$snapshot_dir"/menubar-cleanup.png docs/menubar-cleanup.png
+cp "$snapshot_dir"/empty-state-light.png docs/empty-state-light.png
+cp "$snapshot_dir"/empty-state-dark.png docs/empty-state-dark.png
+cp "$snapshot_dir"/theme-claude-dark.png docs/theme-claude-dark.png
+cp "$snapshot_dir"/theme-claude-light.png docs/theme-claude-light.png
+cp "$snapshot_dir"/theme-tokyoNight-dark.png docs/theme-tokyoNight-dark.png
+cp "$snapshot_dir"/theme-tokyoNight-light.png docs/theme-tokyoNight-light.png
+cp "$snapshot_dir"/theme-gruvbox-dark.png docs/theme-gruvbox-dark.png
+cp "$snapshot_dir"/theme-gruvbox-light.png docs/theme-gruvbox-light.png
+cp "$snapshot_dir"/theme-nord-dark.png docs/theme-nord-dark.png
+cp "$snapshot_dir"/theme-nord-light.png docs/theme-nord-light.png
+cp "$snapshot_dir"/theme-tokyoNight-dark.png docs/menubar-tokyonight-dark.png
 ```
 
 The showcase sessions are defined in `Session+Mock.swift` (`qaShowcase`). Edit that array to change what appears in the screenshots. GIF demos and `docs/status-icon.png` have separate capture sources and should only be replaced when those flows change.
