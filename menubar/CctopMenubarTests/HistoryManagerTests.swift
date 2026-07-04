@@ -516,6 +516,35 @@ final class HistoryManagerTests: XCTestCase {
         XCTAssertEqual(sut.lastDecodedHistorySessions.map(\.projectName), ["cached-app"])
     }
 
+    func testRebuildRecentProjectsRefreshesWhenProjectPathExistenceChanges() throws {
+        let projectDir = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".cctop-history-path-state-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: projectDir) }
+
+        let endedAt = Date(timeIntervalSince1970: 1_000)
+        let session = mockSession(
+            project: "path-state-app",
+            projectPath: projectDir.path,
+            endedAt: endedAt,
+            lastActivity: endedAt
+        )
+        try session.writeToFile(path: historyDir.appendingPathComponent("path-state.json").path)
+
+        XCTAssertTrue(sut.rebuildRecentProjects())
+        XCTAssertEqual(sut.recentProjects.map(\.projectName), ["path-state-app"])
+
+        try FileManager.default.removeItem(at: projectDir)
+
+        XCTAssertTrue(sut.rebuildRecentProjects())
+        XCTAssertTrue(sut.recentProjects.isEmpty)
+
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        XCTAssertTrue(sut.rebuildRecentProjects())
+        XCTAssertEqual(sut.recentProjects.map(\.projectName), ["path-state-app"])
+    }
+
     // MARK: - relativeDescription tests
 
     func testRelativeTimeJustNow() {

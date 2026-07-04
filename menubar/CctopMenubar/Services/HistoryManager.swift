@@ -63,12 +63,13 @@ class HistoryManager: ObservableObject {
     func rebuildRecentProjects(
         excludingActive activePaths: Set<String> = []
     ) -> Bool {
-        let fingerprint = historyFingerprint(excludingActive: activePaths)
+        let decoded = loadDecodedHistoryFiles()
+        let fingerprint = historyFingerprint(from: decoded, excludingActive: activePaths)
         if let fingerprint, fingerprint == lastRebuildFingerprint {
             return false
         }
 
-        let sessions = loadDecodedHistoryFiles().map(\.session)
+        let sessions = decoded.map(\.session)
         lastDecodedHistorySessions = sessions
         let nextRecentProjects = Self.buildRecentProjects(
             from: sessions, excludingActive: activePaths
@@ -250,7 +251,10 @@ class HistoryManager: ObservableObject {
         }
     }
 
-    private func historyFingerprint(excludingActive activePaths: Set<String>) -> HistoryRebuildFingerprint? {
+    private func historyFingerprint(
+        from decoded: [(url: URL, session: Session)],
+        excludingActive activePaths: Set<String>
+    ) -> HistoryRebuildFingerprint? {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
             at: historyDir,
@@ -271,7 +275,24 @@ class HistoryManager: ObservableObject {
             ))
         }
         files.sort { $0.path < $1.path }
-        return HistoryRebuildFingerprint(files: files, activePaths: activePaths)
+        return HistoryRebuildFingerprint(
+            files: files,
+            activePaths: activePaths,
+            projectPaths: recentProjectPathFingerprints(from: decoded.map(\.session))
+        )
+    }
+
+    private func recentProjectPathFingerprints(from sessions: [Session]) -> [HistoryProjectPathFingerprint] {
+        var states: [String: Bool] = [:]
+        for session in sessions where !session.isHostedByDesktopApp {
+            let canonicalPath = Self.canonicalRecentProjectPath(session.projectPath)
+            if states[canonicalPath] == nil {
+                states[canonicalPath] = Self.isDurableRecentProjectPath(canonicalPath)
+            }
+        }
+        return states
+            .map { HistoryProjectPathFingerprint(path: $0.key, isDurable: $0.value) }
+            .sorted { $0.path < $1.path }
     }
 
     private func sanitizeFilenameComponent(_ name: String) -> String {
@@ -298,10 +319,16 @@ private extension ISO8601DateFormatter {
 private struct HistoryRebuildFingerprint: Equatable {
     let files: [HistoryFileFingerprint]
     let activePaths: Set<String>
+    let projectPaths: [HistoryProjectPathFingerprint]
 }
 
 private struct HistoryFileFingerprint: Equatable {
     let path: String
     let modificationDate: Date
     let fileSize: Int
+}
+
+private struct HistoryProjectPathFingerprint: Equatable {
+    let path: String
+    let isDurable: Bool
 }
