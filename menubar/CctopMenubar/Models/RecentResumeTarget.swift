@@ -144,6 +144,9 @@ enum RecentResumeTarget: Identifiable, Equatable {
                   let thread = DesktopThread(session: record.candidate.session, sourceApp: sourceApp) else {
                 continue
             }
+            if shouldSkipArchivedCodexDesktopThread(thread.sessionId, sourceApp: sourceApp, evidence: classification.evidence) {
+                continue
+            }
             let target = RecentResumeTarget.desktopThread(thread)
             if let existing = targetsByID[target.id],
                existing.lastSessionAt >= target.lastSessionAt {
@@ -165,6 +168,15 @@ enum RecentResumeTarget: Identifiable, Equatable {
              .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
             return nil
         }
+    }
+
+    private static func shouldSkipArchivedCodexDesktopThread(
+        _ sessionId: String,
+        sourceApp: HostApp,
+        evidence: SessionClassificationEvidence
+    ) -> Bool {
+        guard sourceApp == .codexDesktop else { return false }
+        return evidence.codexSubagentThreadIDs.contains(sessionId) || evidence.codexExecHelperThreadIDs.contains(sessionId)
     }
 
     private static func joinedMetadata(_ parts: [String]) -> String {

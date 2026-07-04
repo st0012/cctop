@@ -670,6 +670,51 @@ final class SessionLifecycleTests: XCTestCase {
         XCTAssertTrue(RecentResumeTarget.build(projects: [], classification: classification).isEmpty)
     }
 
+    func testRecentResumeTargetsExcludeArchivedCodexHelperThreads() {
+        let visibleArchived = candidate(
+            sessionId: "archived-visible",
+            pid: 1,
+            bundleId: HostAppBundleID.codexDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.codexSource,
+            path: "/archived-visible.json"
+        ) { session in
+            session.sessionName = "Visible archived thread"
+        }
+        let archivedSubagent = candidate(
+            sessionId: "archived-subagent",
+            pid: 2,
+            bundleId: HostAppBundleID.codexDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.codexSource,
+            path: "/archived-subagent.json"
+        ) { session in
+            session.sessionName = "Archived subagent helper"
+        }
+        let archivedExecHelper = candidate(
+            sessionId: "archived-exec-helper",
+            pid: 3,
+            bundleId: HostAppBundleID.codexDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.codexSource,
+            path: "/archived-exec-helper.json"
+        ) { session in
+            session.sessionName = "Archived exec helper"
+        }
+        let classification = SessionManager.sessionClassificationSnapshot(
+            in: [visibleArchived, archivedSubagent, archivedExecHelper],
+            codexThreads: StubCodexThreadState(
+                archived: ["archived-visible", "archived-subagent", "archived-exec-helper"],
+                subagents: ["archived-subagent"],
+                execHelpers: ["archived-exec-helper"]
+            )
+        )
+
+        let targets = RecentResumeTarget.build(projects: [], classification: classification)
+
+        XCTAssertEqual(targets.map(\.title), ["Visible archived thread"])
+    }
+
     @MainActor
     func testSessionManagerPublishesArchivedDesktopThreadsAsRecentTargets() throws {
         let root = NSTemporaryDirectory() + "cctop-recent-desktop-targets-\(UUID().uuidString)"
