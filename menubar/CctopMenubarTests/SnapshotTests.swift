@@ -226,68 +226,89 @@ final class SnapshotTests: XCTestCase {
         let durableTerminalPath = "\(home)/projects/irb"
         let durableFallbackPath = "\(home)/projects/rdoc"
         let missingPath = "\(home)/projects/missing-recent-proof"
+        let projectContainerPath = "\(home)/projects"
         let cachePath = "\(home)/Library/Caches/cctop-recent-noise"
 
         let sessions = [
             recentProofSession(
-                projectPath: "/tmp/cctop-noise", projectName: "cctop-noise",
-                branch: "main", source: Session.codexSource,
-                terminal: TerminalInfo(program: "Cursor"),
+                projectPath: "/", projectName: "root",
+                branch: "main", source: Session.ccSource,
+                terminal: TerminalInfo(program: "Terminal", bundleId: "com.apple.Terminal"),
                 endedAt: now
             ),
             recentProofSession(
-                projectPath: "/private/tmp/cctop-noise", projectName: "private-noise",
+                projectPath: home, projectName: URL(fileURLWithPath: home).lastPathComponent,
                 branch: "main", source: Session.ccSource,
                 terminal: TerminalInfo(program: "ghostty", bundleId: "com.mitchellh.ghostty"),
                 endedAt: now.addingTimeInterval(-30)
             ),
             recentProofSession(
+                projectPath: projectContainerPath, projectName: "projects",
+                branch: "main", source: Session.codexSource,
+                terminal: TerminalInfo(program: "Cursor"),
+                endedAt: now.addingTimeInterval(-60)
+            ),
+            recentProofSession(
+                projectPath: "/tmp/cctop-noise", projectName: "cctop-noise",
+                branch: "main", source: Session.codexSource,
+                terminal: TerminalInfo(program: "Cursor"),
+                endedAt: now.addingTimeInterval(-90)
+            ),
+            recentProofSession(
+                projectPath: "/private/tmp/cctop-noise", projectName: "private-noise",
+                branch: "main", source: Session.ccSource,
+                terminal: TerminalInfo(program: "ghostty", bundleId: "com.mitchellh.ghostty"),
+                endedAt: now.addingTimeInterval(-120)
+            ),
+            recentProofSession(
                 projectPath: "/var/folders/zz/cctop-noise", projectName: "var-noise",
                 branch: "main", source: Session.opencodeSource,
                 terminal: TerminalInfo(program: "Terminal", bundleId: "com.apple.Terminal"),
-                endedAt: now.addingTimeInterval(-60)
+                endedAt: now.addingTimeInterval(-150)
             ),
             recentProofSession(
                 projectPath: cachePath, projectName: "cache-noise",
                 branch: "main", source: Session.piSource,
                 terminal: TerminalInfo(program: "Zed"),
-                endedAt: now.addingTimeInterval(-90)
+                endedAt: now.addingTimeInterval(-180)
             ),
             recentProofSession(
                 projectPath: missingPath, projectName: "missing-noise",
                 branch: "main", source: Session.codexSource,
                 terminal: TerminalInfo(program: "Code"),
-                endedAt: now.addingTimeInterval(-120)
+                endedAt: now.addingTimeInterval(-210)
             ),
             recentProofSession(
                 projectPath: durableEditorPath, projectName: "cctop",
                 branch: "codex/recent-projects-open-project", source: Session.codexSource,
                 terminal: TerminalInfo(program: "Cursor", bundleId: "com.todesktop.230313mzl4w4u92"),
-                endedAt: now.addingTimeInterval(-180)
+                endedAt: now.addingTimeInterval(-240)
             ),
             recentProofSession(
                 projectPath: durableEditorPath, projectName: "cctop",
                 branch: "codex/recent-projects-open-project", source: Session.ccSource,
                 terminal: TerminalInfo(program: "Cursor"),
-                endedAt: now.addingTimeInterval(-240)
+                endedAt: now.addingTimeInterval(-300)
             ),
             recentProofSession(
                 projectPath: durableTerminalPath, projectName: "irb",
                 branch: "master", source: Session.ccSource,
                 terminal: TerminalInfo(program: "ghostty", bundleId: "com.mitchellh.ghostty"),
-                endedAt: now.addingTimeInterval(-300)
+                endedAt: now.addingTimeInterval(-360)
             ),
             recentProofSession(
                 projectPath: durableFallbackPath, projectName: "rdoc",
                 branch: "unknown", source: Session.codexSource,
                 terminal: TerminalInfo(program: "Codex"),
-                endedAt: now.addingTimeInterval(-360)
+                endedAt: now.addingTimeInterval(-420)
             ),
         ]
 
         let recentProjects = HistoryManager.buildRecentProjects(
             from: sessions,
-            projectPathExists: { [durableEditorPath, durableTerminalPath, durableFallbackPath, cachePath].contains($0) }
+            projectPathExists: {
+                ["/", home, projectContainerPath, durableEditorPath, durableTerminalPath, durableFallbackPath, cachePath].contains($0)
+            }
         )
 
         XCTAssertEqual(recentProjects.map(\.projectName), ["cctop", "irb", "rdoc"])

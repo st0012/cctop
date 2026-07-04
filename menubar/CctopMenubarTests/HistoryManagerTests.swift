@@ -259,6 +259,21 @@ final class HistoryManagerTests: XCTestCase {
         }
     }
 
+    func testRecentProjectDurabilityRejectsObviousNonProjectRoots() {
+        let nonProjectRoots = [
+            "/",
+            NSHomeDirectory(),
+            NSHomeDirectory() + "/projects",
+        ]
+
+        for path in nonProjectRoots {
+            XCTAssertFalse(
+                HistoryManager.isDurableRecentProjectPath(path, projectPathExists: { _ in true }),
+                path
+            )
+        }
+    }
+
     func testRecentProjectDurabilityKeepsExistingDurablePath() {
         XCTAssertTrue(
             HistoryManager.isDurableRecentProjectPath(
@@ -266,6 +281,20 @@ final class HistoryManagerTests: XCTestCase {
                 projectPathExists: { _ in true }
             )
         )
+    }
+
+    func testRecentProjectDurabilityKeepsChildProjectPaths() {
+        let childProjects = [
+            NSHomeDirectory() + "/projects/rdoc",
+            NSHomeDirectory() + "/work/client-app",
+        ]
+
+        for path in childProjects {
+            XCTAssertTrue(
+                HistoryManager.isDurableRecentProjectPath(path, projectPathExists: { _ in true }),
+                path
+            )
+        }
     }
 
     func testBuildRecentProjectsFiltersNonDurablePathsBeforeRankingAndCounting() {

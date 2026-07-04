@@ -131,6 +131,7 @@ class HistoryManager: ObservableObject {
     ) -> Bool {
         let canonicalPath = canonicalRecentProjectPath(path)
         guard projectPathExists(canonicalPath) else { return false }
+        if nonProjectRecentProjectPaths.contains(canonicalPath) { return false }
         return !nonDurableRecentProjectRootPaths.contains { root in
             canonicalPath == root || canonicalPath.hasPrefix(root + "/")
         }
@@ -151,8 +152,16 @@ class HistoryManager: ObservableObject {
         ].flatMap(comparableRecentProjectPaths)
     }
 
+    private static var nonProjectRecentProjectPaths: Set<String> {
+        Set([
+            "/",
+            NSHomeDirectory(),
+            NSHomeDirectory() + "/projects",
+        ].flatMap(comparableRecentProjectPaths))
+    }
+
     private static func comparableRecentProjectPaths(_ path: String) -> [String] {
-        let trimmed = path.hasSuffix("/") ? String(path.dropLast()) : path
+        let trimmed = path == "/" ? path : (path.hasSuffix("/") ? String(path.dropLast()) : path)
         return Array(Set([trimmed, canonicalRecentProjectPath(trimmed)]))
     }
 
