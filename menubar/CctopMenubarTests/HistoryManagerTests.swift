@@ -27,13 +27,15 @@ final class HistoryManagerTests: XCTestCase {
 
     private func mockSession(
         project: String,
+        projectPath: String? = nil,
         endedAt: Date? = nil,
         lastActivity: Date = Date(),
-        terminal: TerminalInfo? = TerminalInfo(program: "Code")
+        terminal: TerminalInfo? = TerminalInfo(program: "Code"),
+        source: String? = nil
     ) -> Session {
         Session(
             sessionId: UUID().uuidString,
-            projectPath: "/Users/test/\(project)",
+            projectPath: projectPath ?? "/Users/test/\(project)",
             projectName: project,
             branch: "main",
             status: .idle,
@@ -45,26 +47,53 @@ final class HistoryManagerTests: XCTestCase {
             lastTool: nil,
             lastToolDetail: nil,
             notificationMessage: nil,
+            source: source,
             endedAt: endedAt
         )
     }
 
     private func mockEntry(
         project: String,
+        projectPath: String? = nil,
         endedAt: Date? = nil,
         lastActivity: Date = Date()
     ) -> (url: URL, session: Session) {
         let session = mockSession(
-            project: project, endedAt: endedAt, lastActivity: lastActivity
+            project: project,
+            projectPath: projectPath,
+            endedAt: endedAt,
+            lastActivity: lastActivity
         )
         let url = historyDir.appendingPathComponent("\(UUID().uuidString).json")
         return (url, session)
     }
 
+    private func filesToPrune(
+        from entries: [(url: URL, session: Session)],
+        existingPaths: Set<String>? = nil
+    ) -> [URL] {
+        sut.filesToPrune(
+            from: entries,
+            projectPathExists: { existingPaths?.contains($0) ?? true }
+        )
+    }
+
+    private func recentProjects(
+        from sessions: [Session],
+        excludingActive activePaths: Set<String> = [],
+        existingPaths: Set<String>? = nil
+    ) -> [RecentProject] {
+        HistoryManager.buildRecentProjects(
+            from: sessions,
+            excludingActive: activePaths,
+            projectPathExists: { existingPaths?.contains($0) ?? true }
+        )
+    }
+
     // MARK: - filesToPrune tests
 
     func testFilesToPruneEmptyInput() {
-        let result = sut.filesToPrune(from: [])
+        let result = filesToPrune(from: [])
         XCTAssertTrue(result.isEmpty)
     }
 
@@ -75,7 +104,7 @@ final class HistoryManagerTests: XCTestCase {
             mockEntry(project: "app", endedAt: now.addingTimeInterval(-3600)),
             mockEntry(project: "app", endedAt: now.addingTimeInterval(-7200)),
         ]
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertEqual(result.count, 2, "Should prune 2 older duplicates")
         XCTAssertTrue(result.contains(entries[1].url))
         XCTAssertTrue(result.contains(entries[2].url))
@@ -89,7 +118,7 @@ final class HistoryManagerTests: XCTestCase {
             mockEntry(project: "recent-proj", endedAt: recent),
             mockEntry(project: "old-proj", endedAt: old),
         ]
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertEqual(result.count, 1)
         XCTAssertTrue(result.contains(entries[1].url))
     }
@@ -97,7 +126,7 @@ final class HistoryManagerTests: XCTestCase {
     func testFilesToPruneKeepsRecentEntries() {
         let recent = Date().addingTimeInterval(-86400) // 1 day ago
         let entries = [mockEntry(project: "proj", endedAt: recent)]
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertTrue(result.isEmpty)
     }
 
@@ -110,7 +139,7 @@ final class HistoryManagerTests: XCTestCase {
                 endedAt: now.addingTimeInterval(TimeInterval(-i * 3600))
             ))
         }
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertEqual(result.count, 5, "Should prune 5 excess entries beyond maxFiles=50")
     }
 
@@ -126,10 +155,70 @@ final class HistoryManagerTests: XCTestCase {
             // Recent entry for proj-c (keep)
             mockEntry(project: "proj-c", endedAt: now.addingTimeInterval(-7200)),
         ]
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertEqual(result.count, 2)
         XCTAssertTrue(result.contains(entries[1].url), "Duplicate should be pruned")
         XCTAssertTrue(result.contains(entries[2].url), "Old entry should be pruned")
+    }
+
+    func testFilesToPruneDoesNotLetNonDurableRowsEvictDurableProjects() {
+        let now = Date()
+        let durableRoot = "/Users/test/projects"
+        var entries: [(url: URL, session: Session)] = []
+        for i in 0..<HistoryManager.maxFiles {
+            entries.append(mockEntry(
+                project: "durable-\(i)",
+                projectPath: "\(durableRoot)/durable-\(i)",
+                endedAt: now.addingTimeInterval(TimeInterval(-(i + 3) * 60))
+            ))
+        }
+
+        let tempEntry = mockEntry(
+            project: "tmp-noise",
+            projectPath: "/tmp/cctop-noise",
+            endedAt: now
+        )
+        let cacheEntry = mockEntry(
+            project: "cache-noise",
+            projectPath: NSHomeDirectory() + "/Library/Caches/cctop-noise",
+            endedAt: now.addingTimeInterval(-60)
+        )
+        let missingEntry = mockEntry(
+            project: "missing-restorable",
+            projectPath: "\(durableRoot)/missing-restorable",
+            endedAt: now.addingTimeInterval(-120)
+        )
+        let allEntries = [tempEntry, cacheEntry, missingEntry] + entries
+        let existingPaths = Set(entries.map { HistoryManager.canonicalRecentProjectPath($0.session.projectPath) })
+
+        let result = filesToPrune(from: allEntries, existingPaths: existingPaths)
+
+        XCTAssertTrue(result.contains(tempEntry.url))
+        XCTAssertTrue(result.contains(cacheEntry.url))
+        XCTAssertFalse(result.contains(missingEntry.url))
+        XCTAssertFalse(entries.contains { result.contains($0.url) })
+    }
+
+    func testFilesToPruneDeduplicatesByCanonicalProjectPath() {
+        let now = Date()
+        let newest = mockEntry(
+            project: "rdoc",
+            projectPath: "/Users/test/projects/rdoc",
+            endedAt: now
+        )
+        let older = mockEntry(
+            project: "rdoc",
+            projectPath: "/Users/test/projects/../projects/rdoc",
+            endedAt: now.addingTimeInterval(-60)
+        )
+
+        let result = filesToPrune(
+            from: [newest, older],
+            existingPaths: ["/Users/test/projects/rdoc"]
+        )
+
+        XCTAssertFalse(result.contains(newest.url))
+        XCTAssertTrue(result.contains(older.url))
     }
 
     // MARK: - buildRecentProjects tests
@@ -141,7 +230,7 @@ final class HistoryManagerTests: XCTestCase {
             mockSession(project: "app", endedAt: now.addingTimeInterval(-3600)),
             mockSession(project: "app", endedAt: now.addingTimeInterval(-7200)),
         ]
-        let result = HistoryManager.buildRecentProjects(from: sessions)
+        let result = recentProjects(from: sessions)
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result[0].sessionCount, 3)
         XCTAssertEqual(result[0].projectName, "app")
@@ -153,7 +242,7 @@ final class HistoryManagerTests: XCTestCase {
             mockSession(project: "active", endedAt: now),
             mockSession(project: "inactive", endedAt: now),
         ]
-        let result = HistoryManager.buildRecentProjects(
+        let result = recentProjects(
             from: sessions,
             excludingActive: ["/Users/test/active"]
         )
@@ -168,7 +257,7 @@ final class HistoryManagerTests: XCTestCase {
             mockSession(project: "new", endedAt: now),
             mockSession(project: "mid", endedAt: now.addingTimeInterval(-3600)),
         ]
-        let result = HistoryManager.buildRecentProjects(from: sessions)
+        let result = recentProjects(from: sessions)
         XCTAssertEqual(result.map(\.projectName), ["new", "mid", "old"])
     }
 
@@ -181,7 +270,7 @@ final class HistoryManagerTests: XCTestCase {
                 endedAt: now.addingTimeInterval(TimeInterval(-i * 3600))
             ))
         }
-        let result = HistoryManager.buildRecentProjects(from: sessions)
+        let result = recentProjects(from: sessions)
         XCTAssertEqual(result.count, 10)
     }
 
@@ -192,7 +281,7 @@ final class HistoryManagerTests: XCTestCase {
             endedAt: now.addingTimeInterval(-60),
             lastActivity: now.addingTimeInterval(-7200)
         )
-        let result = HistoryManager.buildRecentProjects(from: [session])
+        let result = recentProjects(from: [session])
         XCTAssertEqual(result.count, 1)
         // lastSessionAt should use endedAt (60s ago), not lastActivity (2h ago)
         let elapsed = Int(-result[0].lastSessionAt.timeIntervalSinceNow)
@@ -212,9 +301,142 @@ final class HistoryManagerTests: XCTestCase {
                 mockSession(project: app.project, endedAt: Date(), terminal: terminal),
                 mockSession(project: "vscode-thing", endedAt: Date()),
             ]
-            let result = HistoryManager.buildRecentProjects(from: sessions)
+            let result = recentProjects(from: sessions)
             XCTAssertEqual(result.map(\.projectName), ["vscode-thing"], "for \(app.bundleId)")
         }
+    }
+
+    func testRecentProjectDurabilityRejectsMissingPath() {
+        XCTAssertFalse(
+            HistoryManager.isDurableRecentProjectPath(
+                "/Users/test/missing-project",
+                projectPathExists: { _ in false }
+            )
+        )
+    }
+
+    func testRecentProjectDurabilityRejectsTemporaryAndCachePaths() {
+        let tempPaths = [
+            "/tmp/cctop-noise",
+            "/private/tmp/cctop-noise",
+            NSTemporaryDirectory() + "cctop-noise",
+            "/var/folders/zz/cctop-noise",
+            NSHomeDirectory() + "/Library/Caches/cctop-noise",
+            NSHomeDirectory() + "/.cache/cctop-noise",
+        ]
+
+        for path in tempPaths {
+            XCTAssertFalse(
+                HistoryManager.isDurableRecentProjectPath(path, projectPathExists: { _ in true }),
+                path
+            )
+        }
+    }
+
+    func testRecentProjectDurabilityRejectsObviousNonProjectRoots() {
+        let nonProjectRoots = [
+            "/",
+            NSHomeDirectory(),
+            NSHomeDirectory() + "/projects",
+        ]
+
+        for path in nonProjectRoots {
+            XCTAssertFalse(
+                HistoryManager.isDurableRecentProjectPath(path, projectPathExists: { _ in true }),
+                path
+            )
+        }
+    }
+
+    func testRecentProjectDurabilityKeepsExistingDurablePath() {
+        XCTAssertTrue(
+            HistoryManager.isDurableRecentProjectPath(
+                "/Users/test/projects/rdoc",
+                projectPathExists: { _ in true }
+            )
+        )
+    }
+
+    func testRecentProjectDurabilityKeepsChildProjectPaths() {
+        let childProjects = [
+            NSHomeDirectory() + "/projects/rdoc",
+            NSHomeDirectory() + "/work/client-app",
+        ]
+
+        for path in childProjects {
+            XCTAssertTrue(
+                HistoryManager.isDurableRecentProjectPath(path, projectPathExists: { _ in true }),
+                path
+            )
+        }
+    }
+
+    func testBuildRecentProjectsFiltersNonDurablePathsBeforeRankingAndCounting() {
+        let now = Date()
+        let realPath = "/Users/test/projects/rdoc"
+        let sessions = [
+            mockSession(
+                project: "tmp-newest",
+                projectPath: "/tmp/cctop-noise",
+                endedAt: now
+            ),
+            mockSession(
+                project: "missing-newer",
+                projectPath: "/Users/test/projects/missing",
+                endedAt: now.addingTimeInterval(-60)
+            ),
+            mockSession(
+                project: "cache-newer",
+                projectPath: NSHomeDirectory() + "/Library/Caches/cctop-noise",
+                endedAt: now.addingTimeInterval(-120)
+            ),
+            mockSession(
+                project: "rdoc",
+                projectPath: realPath,
+                endedAt: now.addingTimeInterval(-180)
+            ),
+            mockSession(
+                project: "rdoc",
+                projectPath: realPath,
+                endedAt: now.addingTimeInterval(-240)
+            ),
+        ]
+
+        let result = recentProjects(
+            from: sessions,
+            existingPaths: [
+                "/tmp/cctop-noise",
+                NSHomeDirectory() + "/Library/Caches/cctop-noise",
+                realPath,
+            ]
+        )
+
+        XCTAssertEqual(result.map(\.projectName), ["rdoc"])
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].sessionCount, 2)
+    }
+
+    func testBuildRecentProjectsGroupsByCanonicalProjectPath() {
+        let now = Date()
+        let canonicalPath = "/Users/test/projects/rdoc"
+        let sessions = [
+            mockSession(
+                project: "rdoc",
+                projectPath: "/Users/test/projects/../projects/rdoc",
+                endedAt: now
+            ),
+            mockSession(
+                project: "rdoc",
+                projectPath: canonicalPath,
+                endedAt: now.addingTimeInterval(-60)
+            ),
+        ]
+
+        let result = recentProjects(from: sessions, existingPaths: [canonicalPath])
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].projectPath, canonicalPath)
+        XCTAssertEqual(result[0].sessionCount, 2)
     }
 
     func testArchiveSessionSkipsDesktopAppSessions() {
@@ -250,8 +472,110 @@ final class HistoryManagerTests: XCTestCase {
             notificationMessage: nil,
             endedAt: Date()
         )
-        let result = HistoryManager.buildRecentProjects(from: [session])
+        let result = recentProjects(from: [session])
         XCTAssertEqual(result[0].lastEditor, "Cursor")
+    }
+
+    func testBuildRecentProjectsIgnoresUnknownProgramAsProjectOpener() {
+        let session = mockSession(
+            project: "agent-created",
+            terminal: TerminalInfo(program: "codex")
+        )
+        let result = recentProjects(from: [session])
+        XCTAssertEqual(result[0].projectName, "agent-created")
+        XCTAssertNil(result[0].lastEditor)
+    }
+
+    func testBuildRecentProjectsKeepsAgentMetadataSeparateFromProjectOpener() {
+        let session = mockSession(
+            project: "agent-created",
+            terminal: TerminalInfo(program: "Claude Code"),
+            source: Session.ccSource
+        )
+        let result = recentProjects(from: [session])
+        XCTAssertNil(result[0].lastEditor)
+        XCTAssertEqual(result[0].lastAgent, "Claude Code")
+    }
+
+    func testBuildRecentProjectsKeepsKnownTerminalProgramAsProjectOpener() {
+        let session = mockSession(
+            project: "terminal-created",
+            terminal: TerminalInfo(
+                program: "ghostty",
+                sessionId: nil,
+                tty: nil,
+                bundleId: "com.mitchellh.ghostty"
+            )
+        )
+        let result = recentProjects(from: [session])
+        XCTAssertEqual(result[0].projectName, "terminal-created")
+        XCTAssertEqual(result[0].lastEditor, "Ghostty")
+    }
+
+    func testRecentProjectMetadataSkipsUnknownBranch() {
+        let project = RecentProject(
+            projectPath: NSHomeDirectory() + "/projects/cctop",
+            projectName: "cctop",
+            lastBranch: "unknown",
+            lastSessionAt: Date(),
+            sessionCount: 4,
+            lastEditor: nil,
+            lastAgent: "Codex",
+            workspaceFile: nil
+        )
+        XCTAssertEqual(project.pathContext, "~/projects/cctop")
+        XCTAssertEqual(project.metadataEvidenceText, "Codex \u{00B7} 4 sessions")
+        XCTAssertEqual(project.metadataText, "~/projects/cctop \u{00B7} Codex \u{00B7} 4 sessions")
+    }
+
+    func testRecentProjectMetadataIncludesMeaningfulBranch() {
+        let project = RecentProject(
+            projectPath: NSHomeDirectory() + "/projects/cctop",
+            projectName: "cctop",
+            lastBranch: "master",
+            lastSessionAt: Date(),
+            sessionCount: 1,
+            lastEditor: "Cursor",
+            lastAgent: "Claude Code",
+            workspaceFile: nil
+        )
+        XCTAssertEqual(project.pathContext, "~/projects/cctop")
+        XCTAssertEqual(project.metadataEvidenceText, "master \u{00B7} Claude Code \u{00B7} 1 session")
+        XCTAssertEqual(project.metadataText, "~/projects/cctop \u{00B7} master \u{00B7} Claude Code \u{00B7} 1 session")
+    }
+
+    func testRecentProjectKnownTerminalOpenerUsesTerminalActionCopy() {
+        let project = RecentProject(
+            projectPath: NSHomeDirectory() + "/projects/irb",
+            projectName: "irb",
+            lastBranch: "master",
+            lastSessionAt: Date(),
+            sessionCount: 2,
+            lastEditor: "Ghostty",
+            lastAgent: "Claude Code",
+            workspaceFile: nil
+        )
+
+        XCTAssertTrue(project.opensWithProjectApp)
+        XCTAssertEqual(project.editorIcon, "terminal")
+        XCTAssertEqual(project.openActionLabel, "Open in Ghostty")
+    }
+
+    func testRecentProjectAgentOpenerUsesFolderActionCopy() {
+        let project = RecentProject(
+            projectPath: NSHomeDirectory() + "/projects/cctop",
+            projectName: "cctop",
+            lastBranch: "master",
+            lastSessionAt: Date(),
+            sessionCount: 1,
+            lastEditor: "Codex",
+            lastAgent: "Codex",
+            workspaceFile: nil
+        )
+
+        XCTAssertFalse(project.opensWithProjectApp)
+        XCTAssertEqual(project.editorIcon, "folder")
+        XCTAssertEqual(project.openActionLabel, "Open Project Folder")
     }
 
     func testRebuildCachesDecodedHistorySessionsAndKeepsCacheOnNoopRebuild() throws {
@@ -264,6 +588,35 @@ final class HistoryManagerTests: XCTestCase {
 
         XCTAssertFalse(sut.rebuildRecentProjects())
         XCTAssertEqual(sut.lastDecodedHistorySessions.map(\.projectName), ["cached-app"])
+    }
+
+    func testRebuildRecentProjectsRefreshesWhenProjectPathExistenceChanges() throws {
+        let projectDir = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".cctop-history-path-state-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: projectDir) }
+
+        let endedAt = Date(timeIntervalSince1970: 1_000)
+        let session = mockSession(
+            project: "path-state-app",
+            projectPath: projectDir.path,
+            endedAt: endedAt,
+            lastActivity: endedAt
+        )
+        try session.writeToFile(path: historyDir.appendingPathComponent("path-state.json").path)
+
+        XCTAssertTrue(sut.rebuildRecentProjects())
+        XCTAssertEqual(sut.recentProjects.map(\.projectName), ["path-state-app"])
+
+        try FileManager.default.removeItem(at: projectDir)
+
+        XCTAssertTrue(sut.rebuildRecentProjects())
+        XCTAssertTrue(sut.recentProjects.isEmpty)
+
+        try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
+
+        XCTAssertTrue(sut.rebuildRecentProjects())
+        XCTAssertEqual(sut.recentProjects.map(\.projectName), ["path-state-app"])
     }
 
     // MARK: - relativeDescription tests

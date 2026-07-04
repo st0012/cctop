@@ -63,12 +63,13 @@ class HistoryManager: ObservableObject {
     func rebuildRecentProjects(
         excludingActive activePaths: Set<String> = []
     ) -> Bool {
-        let fingerprint = historyFingerprint(excludingActive: activePaths)
+        let decoded = loadDecodedHistoryFiles()
+        let fingerprint = historyFingerprint(from: decoded, excludingActive: activePaths)
         if let fingerprint, fingerprint == lastRebuildFingerprint {
             return false
         }
 
-        let sessions = loadDecodedHistoryFiles().map(\.session)
+        let sessions = decoded.map(\.session)
         lastDecodedHistorySessions = sessions
         let nextRecentProjects = Self.buildRecentProjects(
             from: sessions, excludingActive: activePaths
@@ -84,37 +85,89 @@ class HistoryManager: ObservableObject {
     /// filter active, sort by date, cap at 10.
     static func buildRecentProjects(
         from sessions: [Session],
-        excludingActive activePaths: Set<String> = []
+        excludingActive activePaths: Set<String> = [],
+        projectPathExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> [RecentProject] {
-        var grouped: [String: (latest: Session, count: Int)] = [:]
+        let activeProjectPaths = Set(activePaths.map(canonicalRecentProjectPath))
+        var grouped: [String: (latest: Session, count: Int, projectPath: String)] = [:]
         for session in sessions {
             if session.isHostedByDesktopApp { continue }
-            if let existing = grouped[session.projectPath] {
+            let canonicalProjectPath = canonicalRecentProjectPath(session.projectPath)
+            guard isDurableRecentProjectPath(canonicalProjectPath, projectPathExists: projectPathExists) else {
+                continue
+            }
+            if activeProjectPaths.contains(canonicalProjectPath) { continue }
+            if let existing = grouped[canonicalProjectPath] {
                 let newer = session.effectiveEndDate > existing.latest.effectiveEndDate
-                grouped[session.projectPath] = (
+                grouped[canonicalProjectPath] = (
                     latest: newer ? session : existing.latest,
-                    count: existing.count + 1
+                    count: existing.count + 1,
+                    projectPath: canonicalProjectPath
                 )
             } else {
-                grouped[session.projectPath] = (latest: session, count: 1)
+                grouped[canonicalProjectPath] = (latest: session, count: 1, projectPath: canonicalProjectPath)
             }
         }
 
         return grouped.values
-            .filter { !activePaths.contains($0.latest.projectPath) }
             .sorted { $0.latest.effectiveEndDate > $1.latest.effectiveEndDate }
             .prefix(10)
             .map { entry in
                 RecentProject(
-                    projectPath: entry.latest.projectPath,
+                    projectPath: entry.projectPath,
                     projectName: entry.latest.projectName,
                     lastBranch: entry.latest.branch,
                     lastSessionAt: entry.latest.effectiveEndDate,
                     sessionCount: entry.count,
-                    lastEditor: entry.latest.terminal?.program,
+                    lastEditor: RecentProject.projectOpenerName(from: entry.latest.terminal),
+                    lastAgent: RecentProject.agentName(from: entry.latest),
                     workspaceFile: entry.latest.workspaceFile
                 )
             }
+    }
+
+    static func isDurableRecentProjectPath(
+        _ path: String,
+        projectPathExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> Bool {
+        let canonicalPath = canonicalRecentProjectPath(path)
+        guard projectPathExists(canonicalPath) else { return false }
+        return !isExcludedRecentProjectPath(canonicalPath)
+    }
+
+    private static func isExcludedRecentProjectPath(_ canonicalPath: String) -> Bool {
+        if nonProjectRecentProjectPaths.contains(canonicalPath) { return true }
+        return nonDurableRecentProjectRootPaths.contains { root in
+            canonicalPath == root || canonicalPath.hasPrefix(root + "/")
+        }
+    }
+
+    static func canonicalRecentProjectPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    private static var nonDurableRecentProjectRootPaths: [String] {
+        [
+            "/tmp",
+            "/private/tmp",
+            NSTemporaryDirectory(),
+            "/var/folders",
+            NSHomeDirectory() + "/Library/Caches",
+            NSHomeDirectory() + "/.cache",
+        ].flatMap(comparableRecentProjectPaths)
+    }
+
+    private static var nonProjectRecentProjectPaths: Set<String> {
+        Set([
+            "/",
+            NSHomeDirectory(),
+            NSHomeDirectory() + "/projects",
+        ].flatMap(comparableRecentProjectPaths))
+    }
+
+    private static func comparableRecentProjectPaths(_ path: String) -> [String] {
+        let trimmed = path == "/" ? path : (path.hasSuffix("/") ? String(path.dropLast()) : path)
+        return Array(Set([trimmed, canonicalRecentProjectPath(trimmed)]))
     }
 
     // MARK: - Internal (testable)
@@ -154,38 +207,38 @@ class HistoryManager: ObservableObject {
     }
 
     func filesToPrune(
-        from decoded: [(url: URL, session: Session)]
+        from decoded: [(url: URL, session: Session)],
+        projectPathExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> [URL] {
         var seenProjects: Set<String> = []
-        var toKeep: [(url: URL, session: Session)] = []
+        var capEligibleKeep: [(url: URL, session: Session)] = []
         var toRemove: [URL] = []
-
-        // Keep only the most recent entry per project
-        for entry in decoded {
-            if seenProjects.contains(entry.session.projectPath) {
-                toRemove.append(entry.url)
-            } else {
-                seenProjects.insert(entry.session.projectPath)
-                toKeep.append(entry)
-            }
-        }
-
-        // Remove entries older than maxAgeDays
         let cutoff = Date().addingTimeInterval(
             TimeInterval(-Self.maxAgeDays * 86400)
         )
-        var finalKeep: [(url: URL, session: Session)] = []
-        for entry in toKeep {
-            if entry.session.effectiveEndDate < cutoff {
+
+        // Keep only the most recent entry per canonical project path. Paths that
+        // can never become Recent rows are pruned; currently missing project paths
+        // are preserved for restore, but do not count against the durable-project cap.
+        for entry in decoded {
+            let canonicalPath = Self.canonicalRecentProjectPath(entry.session.projectPath)
+            if entry.session.isHostedByDesktopApp || Self.isExcludedRecentProjectPath(canonicalPath) {
+                toRemove.append(entry.url)
+            } else if seenProjects.contains(canonicalPath) {
+                toRemove.append(entry.url)
+            } else if entry.session.effectiveEndDate < cutoff {
                 toRemove.append(entry.url)
             } else {
-                finalKeep.append(entry)
+                seenProjects.insert(canonicalPath)
+                if projectPathExists(canonicalPath) {
+                    capEligibleKeep.append(entry)
+                }
             }
         }
 
-        // If still over maxFiles, remove oldest
-        if finalKeep.count > Self.maxFiles {
-            toRemove.append(contentsOf: finalKeep[Self.maxFiles...].map(\.url))
+        // If still over maxFiles, remove oldest durable project entries.
+        if capEligibleKeep.count > Self.maxFiles {
+            toRemove.append(contentsOf: capEligibleKeep[Self.maxFiles...].map(\.url))
         }
         return toRemove
     }
@@ -202,7 +255,10 @@ class HistoryManager: ObservableObject {
         }
     }
 
-    private func historyFingerprint(excludingActive activePaths: Set<String>) -> HistoryRebuildFingerprint? {
+    private func historyFingerprint(
+        from decoded: [(url: URL, session: Session)],
+        excludingActive activePaths: Set<String>
+    ) -> HistoryRebuildFingerprint? {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
             at: historyDir,
@@ -223,7 +279,24 @@ class HistoryManager: ObservableObject {
             ))
         }
         files.sort { $0.path < $1.path }
-        return HistoryRebuildFingerprint(files: files, activePaths: activePaths)
+        return HistoryRebuildFingerprint(
+            files: files,
+            activePaths: activePaths,
+            projectPaths: recentProjectPathFingerprints(from: decoded.map(\.session))
+        )
+    }
+
+    private func recentProjectPathFingerprints(from sessions: [Session]) -> [HistoryProjectPathFingerprint] {
+        var states: [String: Bool] = [:]
+        for session in sessions where !session.isHostedByDesktopApp {
+            let canonicalPath = Self.canonicalRecentProjectPath(session.projectPath)
+            if states[canonicalPath] == nil {
+                states[canonicalPath] = Self.isDurableRecentProjectPath(canonicalPath)
+            }
+        }
+        return states
+            .map { HistoryProjectPathFingerprint(path: $0.key, isDurable: $0.value) }
+            .sorted { $0.path < $1.path }
     }
 
     private func sanitizeFilenameComponent(_ name: String) -> String {
@@ -250,10 +323,16 @@ private extension ISO8601DateFormatter {
 private struct HistoryRebuildFingerprint: Equatable {
     let files: [HistoryFileFingerprint]
     let activePaths: Set<String>
+    let projectPaths: [HistoryProjectPathFingerprint]
 }
 
 private struct HistoryFileFingerprint: Equatable {
     let path: String
     let modificationDate: Date
     let fileSize: Int
+}
+
+private struct HistoryProjectPathFingerprint: Equatable {
+    let path: String
+    let isDurable: Bool
 }

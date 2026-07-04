@@ -460,15 +460,13 @@ private func executeKittyFocusWindow(binaryPath: String, socket: String, windowI
 
 // MARK: - Open recent project in editor
 
-func openInEditor(project: RecentProject) {
-    guard let editor = project.lastEditor, !editor.isEmpty else {
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.projectPath)
-        return
+func resolveRecentProjectOpenStrategy(project: RecentProject) -> FocusStrategy {
+    guard let opener = project.lastEditor,
+          let hostApp = HostApp.projectOpener(fromProgramName: opener),
+          let bundleID = hostApp.bundleID else {
+        return .openInFinder(project.projectPath)
     }
 
-    let hostApp = HostApp.from(editorName: editor)
-
-    // For code editors, prefer stored workspace file, fallback to dynamic lookup
     let target: String
     if hostApp.usesWorkspaceFile {
         target = project.workspaceFile
@@ -477,24 +475,13 @@ func openInEditor(project: RecentProject) {
     } else {
         target = project.projectPath
     }
+    return .openWithApp(bundleID: bundleID, target: target)
+}
 
-    // Try bundle ID launch first
-    if let bundleID = hostApp.bundleID,
-       let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-        NSWorkspace.shared.open(
-            [URL(fileURLWithPath: target)],
-            withApplicationAt: appURL,
-            configuration: NSWorkspace.OpenConfiguration()
-        )
-        return
-    }
+func openInEditor(project: RecentProject) {
+    executeFocusStrategy(resolveRecentProjectOpenStrategy(project: project))
+}
 
-    // Fallback: try `open -a <editor> <path>`
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-    process.arguments = ["-a", editor, target]
-    if (try? process.run()) != nil { return }
-
-    // Final fallback: open in Finder
-    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.projectPath)
+func openRecentResumeTarget(_ target: RecentResumeTarget) {
+    executeFocusStrategy(resolveRecentResumeTargetOpenStrategy(target: target))
 }
