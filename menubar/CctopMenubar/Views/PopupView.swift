@@ -8,6 +8,7 @@ private let relativeTimeRefresh = Timer.publish(every: 10, on: .main, in: .commo
 struct PopupView: View {
     let sessions: [Session]
     var recentProjects: [RecentProject] = []
+    var recentResumeTargets: [RecentResumeTarget]?
     var cleanupCandidates: [WorktreeCleanupCandidate] = []
     var cleanupIsScanning = false
     @ObservedObject var updater: UpdaterBase
@@ -102,7 +103,7 @@ struct PopupView: View {
         .onReceive(relativeTimeRefresh) { relativeTimeNow = $0 }
         .onChange(of: selectedTab) { handleSelectedTabChanged($0) }
         .onChange(of: sessions) { _ in ensureSelectedTabAvailable() }
-        .onChange(of: recentProjects.map(\.id)) { _ in ensureSelectedTabAvailable() }
+        .onChange(of: recentTargets.map(\.id)) { _ in ensureSelectedTabAvailable() }
         .onChange(of: actionableCleanupCandidates) { _ in handleCleanupCandidatesChanged() }
         .onChange(of: cleanupIsScanning) { _ in handleCleanupScanningChanged() }
         .onChange(of: selectedCleanupCandidate?.id) { _ in
@@ -140,7 +141,7 @@ struct PopupView: View {
             if !sortedIdleSessions.isEmpty {
                 tabButton("Idle", count: sortedIdleSessions.count, tab: .idle)
             }
-            tabButton("Recent", count: recentProjects.count, tab: .recent)
+            tabButton("Recent", count: recentTargets.count, tab: .recent)
             tabButton("Cleanup", count: actionableCleanupCandidates.count, tab: .cleanup, isScanning: cleanupIsScanning)
             Spacer()
         }
@@ -190,36 +191,6 @@ struct PopupView: View {
             sessionList(sortedIdleSessions, tab: .idle)
         }
     }
-    // MARK: - Recent tab
-    @ViewBuilder
-    private var recentContent: some View {
-        if recentProjects.isEmpty {
-            emptyPlaceholder(systemImage: "clock", title: "No resumable recent projects yet\nFinished projects appear here when folders exist")
-        } else {
-            panelList(recentProjects, tab: .recent) { _, project, isSelected in
-                recentCard(project, isSelected: isSelected)
-            }
-        }
-    }
-
-    private func recentCard(_ project: RecentProject, isSelected: Bool = false) -> some View {
-        RecentProjectCardView(project: project, isSelected: isSelected, relativeTimeNow: relativeTimeNow)
-            .contentShape(Rectangle())
-            .onTapGesture { openInEditor(project: project); NSApp.deactivate() }
-            .contextMenu {
-                Button { openInEditor(project: project); NSApp.deactivate() } label: {
-                    Label(project.openActionLabel, systemImage: project.editorIcon)
-                }
-                if project.opensWithProjectApp {
-                    Button { openInFinder(path: project.projectPath) } label: { Label("Open in Finder", systemImage: "folder") }
-                }
-                Button { copyPath(project.projectPath) } label: {
-                    Label("Copy Project Path", systemImage: "doc.on.doc")
-                }
-            }
-            .help(project.openHelpText)
-    }
-
     private func sessionList(_ list: [Session], tab: PopupTab, showNavigateNumbers: Bool = false) -> some View {
         panelList(list, tab: tab) { index, session, isSelected in
             SessionCardView(
@@ -245,7 +216,7 @@ struct PopupView: View {
         }
     }
 
-    private func panelList<Item: Identifiable, Row: View>(
+    func panelList<Item: Identifiable, Row: View>(
         _ list: [Item],
         tab: PopupTab,
         @ViewBuilder row: @escaping (Int, Item, Bool) -> Row
@@ -384,7 +355,7 @@ extension PopupView {
     private var availableTabs: [PopupTab] {
         PopupTab.availableTabs(
             hasIdleSessions: !sortedIdleSessions.isEmpty,
-            hasRecentProjects: !recentProjects.isEmpty,
+            hasRecentProjects: !recentTargets.isEmpty,
             hasCleanupCandidates: !actionableCleanupCandidates.isEmpty
         )
     }
@@ -430,7 +401,7 @@ extension PopupView {
         switch selectedTab {
         case .active: count = sortedActiveSessions.count
         case .idle: count = sortedIdleSessions.count
-        case .recent: count = recentProjects.count
+        case .recent: count = recentTargets.count
         case .cleanup: count = actionableCleanupCandidates.count
         }
         guard count > 0 else { return }
@@ -446,6 +417,7 @@ extension PopupView {
                 activeSessions: sortedActiveSessions,
                 idleSessions: sortedIdleSessions,
                 recentProjects: recentProjects,
+                recentResumeTargets: recentTargets,
                 cleanupCandidates: actionableCleanupCandidates
             )
         ) else {
@@ -454,8 +426,8 @@ extension PopupView {
         switch target {
         case .activeSession(let session), .idleSession(let session):
             focusSession(session)
-        case .recentProject(let project):
-            openInEditor(project: project)
+        case .recentTarget(let target):
+            openRecentResumeTarget(target)
             NSApp.deactivate()
         case .cleanupCandidate(let candidate):
             openCleanupDetail(candidate)

@@ -242,6 +242,7 @@ struct PanelContentView: View {
         PopupView(
             sessions: sessionManager.sessions,
             recentProjects: historyManager.recentProjects,
+            recentResumeTargets: sessionManager.recentResumeTargets,
             cleanupCandidates: cleanupManager.candidates,
             cleanupIsScanning: cleanupManager.isScanning,
             updater: updater,

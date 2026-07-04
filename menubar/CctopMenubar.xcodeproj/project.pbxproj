@@ -23,11 +23,13 @@
 		SBV000010000000000000001 /* SourceBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SBV000020000000000000001 /* SourceBadgeView.swift */; };
 		D10000070000000000000001 /* PopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000080000000000000001 /* PopupView.swift */; };
 		PVH000010000000000000001 /* PopupViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = PVH000020000000000000001 /* PopupViewHelpers.swift */; };
+		PVR000010000000000000001 /* PopupView+Recent.swift in Sources */ = {isa = PBXBuildFile; fileRef = PVR000020000000000000001 /* PopupView+Recent.swift */; };
 		D10000090000000000000001 /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000A000000000000001 /* QuitButton.swift */; };
 		E10000010000000000000001 /* FocusTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000001 /* FocusTerminal.swift */; };
 		EAPPRESTORE0010000000001 /* FocusTerminal+AppRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */; };
 		ECMUX001000000000000001 /* FocusTerminal+Cmux.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECMUX002000000000000001 /* FocusTerminal+Cmux.swift */; };
 		EMUX0010000000000000001 /* FocusTerminal+Multiplexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EMUX0020000000000000001 /* FocusTerminal+Multiplexer.swift */; };
+		ERCT00010000000000000001 /* FocusTerminal+Recent.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERCT00020000000000000001 /* FocusTerminal+Recent.swift */; };
 		EK0000010000000000000001 /* HostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EK0000020000000000000001 /* HostApp.swift */; };
 		F10000010000000000000001 /* Session+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000020000000000000001 /* Session+Mock.swift */; };
 		FK0000010000000000000001 /* ForkSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FK0000020000000000000001 /* ForkSessionTests.swift */; };
@@ -63,6 +65,7 @@
 		MIR000010000000000000001 /* MenubarIconRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = MIR000020000000000000001 /* MenubarIconRenderer.swift */; };
 		OB0000010000000000000001 /* OpenCodeBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = OB0000020000000000000001 /* OpenCodeBanner.swift */; };
 		RP0000010000000000000001 /* RecentProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = RP0000020000000000000001 /* RecentProject.swift */; };
+		RRT000010000000000000001 /* RecentResumeTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = RRT000020000000000000001 /* RecentResumeTarget.swift */; };
 		RPM000010000000000000001 /* RecentProject+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = RPM000020000000000000001 /* RecentProject+Mock.swift */; };
 		RV0000010000000000000001 /* RecentProjectCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = RV0000020000000000000001 /* RecentProjectCardView.swift */; };
 		N10000030000000000000001 /* HookEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = N10000040000000000000001 /* HookEvent.swift */; };
@@ -203,6 +206,7 @@
 		EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+AppRestore.swift"; sourceTree = "<group>"; };
 		ECMUX002000000000000001 /* FocusTerminal+Cmux.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+Cmux.swift"; sourceTree = "<group>"; };
 		EMUX0020000000000000001 /* FocusTerminal+Multiplexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+Multiplexer.swift"; sourceTree = "<group>"; };
+		ERCT00020000000000000001 /* FocusTerminal+Recent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+Recent.swift"; sourceTree = "<group>"; };
 		EK0000020000000000000001 /* HostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostApp.swift; sourceTree = "<group>"; };
 		F10000020000000000000001 /* Session+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Session+Mock.swift"; sourceTree = "<group>"; };
 		FK0000020000000000000001 /* ForkSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForkSessionTests.swift; sourceTree = "<group>"; };
@@ -234,6 +238,7 @@
 		MIR000020000000000000001 /* MenubarIconRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarIconRenderer.swift; sourceTree = "<group>"; };
 		OB0000020000000000000001 /* OpenCodeBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeBanner.swift; sourceTree = "<group>"; };
 		RP0000020000000000000001 /* RecentProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentProject.swift; sourceTree = "<group>"; };
+		RRT000020000000000000001 /* RecentResumeTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentResumeTarget.swift; sourceTree = "<group>"; };
 		RPM000020000000000000001 /* RecentProject+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RecentProject+Mock.swift"; sourceTree = "<group>"; };
 		RV0000020000000000000001 /* RecentProjectCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentProjectCardView.swift; sourceTree = "<group>"; };
 		N10000040000000000000001 /* HookEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEvent.swift; sourceTree = "<group>"; };
@@ -305,6 +310,7 @@
 		PNV000020000000000000001 /* PopupNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupNavigation.swift; sourceTree = "<group>"; };
 		PES000020000000000000001 /* PopupView+EmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PopupView+EmptyState.swift"; sourceTree = "<group>"; };
 		PCU000020000000000000001 /* PopupView+Cleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PopupView+Cleanup.swift"; sourceTree = "<group>"; };
+		PVR000020000000000000001 /* PopupView+Recent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PopupView+Recent.swift"; sourceTree = "<group>"; };
 		WCV000020000000000000001 /* WorktreeCleanupCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupCardView.swift; sourceTree = "<group>"; };
 		WDV000020000000000000001 /* WorktreeCleanupDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupDetailView.swift; sourceTree = "<group>"; };
 		WTV000020000000000000001 /* WorktreeCleanupTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeCleanupTabView.swift; sourceTree = "<group>"; };
@@ -368,6 +374,7 @@
 				EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */,
 				ECMUX002000000000000001 /* FocusTerminal+Cmux.swift */,
 				EMUX0020000000000000001 /* FocusTerminal+Multiplexer.swift */,
+				ERCT00020000000000000001 /* FocusTerminal+Recent.swift */,
 				SP0000020000000000000001 /* SparkleUpdater.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
 				CIM000020000000000000001 /* CodexIntegrationManager.swift */,
@@ -438,6 +445,7 @@
 				TMG000020000000000000001 /* ThemeManager.swift */,
 				K10000020000000000000001 /* Color+Theme.swift */,
 				RP0000020000000000000001 /* RecentProject.swift */,
+				RRT000020000000000000001 /* RecentResumeTarget.swift */,
 				RPM000020000000000000001 /* RecentProject+Mock.swift */,
 				EK0000020000000000000001 /* HostApp.swift */,
 				STC000020000000000000001 /* StatusColors.swift */,
@@ -461,6 +469,7 @@
 				PNV000020000000000000001 /* PopupNavigation.swift */,
 				PES000020000000000000001 /* PopupView+EmptyState.swift */,
 				PCU000020000000000000001 /* PopupView+Cleanup.swift */,
+				PVR000020000000000000001 /* PopupView+Recent.swift */,
 				PVH000020000000000000001 /* PopupViewHelpers.swift */,
 				D1000000A000000000000001 /* QuitButton.swift */,
 				J10000020000000000000001 /* SettingsSection.swift */,
@@ -695,6 +704,7 @@
 				EAPPRESTORE0010000000001 /* FocusTerminal+AppRestore.swift in Sources */,
 				ECMUX001000000000000001 /* FocusTerminal+Cmux.swift in Sources */,
 				EMUX0010000000000000001 /* FocusTerminal+Multiplexer.swift in Sources */,
+				ERCT00010000000000000001 /* FocusTerminal+Recent.swift in Sources */,
 				F10000010000000000000001 /* Session+Mock.swift in Sources */,
 				G10000010000000000000001 /* FloatingPanel.swift in Sources */,
 				G10000030000000000000001 /* AppDelegate.swift in Sources */,
@@ -725,6 +735,7 @@
 				N10000050000000000000001 /* Config.swift in Sources */,
 				SN0000050000000000000001 /* SessionNameLookup.swift in Sources */,
 				RP0000010000000000000001 /* RecentProject.swift in Sources */,
+				RRT000010000000000000001 /* RecentResumeTarget.swift in Sources */,
 				RV0000010000000000000001 /* RecentProjectCardView.swift in Sources */,
 				OB0000010000000000000001 /* OpenCodeBanner.swift in Sources */,
 				AB0000010000000000000001 /* AboutView.swift in Sources */,
@@ -752,6 +763,7 @@
 				PNV000010000000000000001 /* PopupNavigation.swift in Sources */,
 				PES000010000000000000001 /* PopupView+EmptyState.swift in Sources */,
 				PCU000010000000000000001 /* PopupView+Cleanup.swift in Sources */,
+				PVR000010000000000000001 /* PopupView+Recent.swift in Sources */,
 				WCV000010000000000000001 /* WorktreeCleanupCardView.swift in Sources */,
 				WDV000010000000000000001 /* WorktreeCleanupDetailView.swift in Sources */,
 				WTV000010000000000000001 /* WorktreeCleanupTabView.swift in Sources */,

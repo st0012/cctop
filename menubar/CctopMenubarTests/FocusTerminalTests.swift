@@ -140,4 +140,48 @@ final class FocusTerminalTests: XCTestCase {
             .openWithApp(bundleID: "com.microsoft.VSCode", target: project.projectPath)
         )
     }
+
+    func testRecentResumeTargetProjectDelegatesToProjectOpenStrategy() {
+        let project = RecentProject.mock(editor: "Ghostty")
+        let target = RecentResumeTarget.project(project)
+
+        XCTAssertEqual(
+            resolveRecentResumeTargetOpenStrategy(target: target),
+            .openWithApp(bundleID: "com.mitchellh.ghostty", target: project.projectPath)
+        )
+    }
+
+    func testRecentResumeTargetCodexDesktopActivatesAppOnly() {
+        let uuid = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        let target = RecentResumeTarget.desktopThread(.init(
+            sessionId: uuid,
+            title: "Can you use product design skills for the cctop logo",
+            projectPath: "/Users/dev/projects/cctop",
+            projectName: "cctop",
+            sourceApp: .codexDesktop,
+            lastActiveAt: Date()
+        ))
+
+        XCTAssertEqual(
+            resolveRecentResumeTargetOpenStrategy(target: target),
+            .activateByBundleID(HostApp.codexDesktop.bundleID!)
+        )
+    }
+
+    func testRecentResumeTargetClaudeDesktopActivatesAppOnly() {
+        let uuid = "39253133-4a65-48fb-af2b-844463d3b5bb"
+        let target = RecentResumeTarget.desktopThread(.init(
+            sessionId: uuid,
+            title: "Run plugin node:test suites in CI",
+            projectPath: "/Users/dev/projects/cctop",
+            projectName: "cctop",
+            sourceApp: .claudeDesktop,
+            lastActiveAt: Date()
+        ))
+
+        XCTAssertEqual(
+            resolveRecentResumeTargetOpenStrategy(target: target),
+            .activateByBundleID(HostApp.claudeDesktop.bundleID!)
+        )
+    }
 }

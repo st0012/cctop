@@ -15,6 +15,7 @@ struct WorktreeCleanupSessionSnapshot {
 // swiftlint:disable:next type_body_length
 class SessionManager: ObservableObject {
     @Published var sessions: [Session] = []
+    @Published var recentResumeTargets: [RecentResumeTarget] = []
 
     let historyManager: HistoryManager
     let dataSources: SessionDataSources
@@ -69,6 +70,7 @@ class SessionManager: ObservableObject {
             lastLoadLogSignature = nil
             sessionFileCache.removeAll()
             sessions = []
+            publishRecentResumeTargets(historyManager.recentProjects.map(RecentResumeTarget.project))
             return
         }
 
@@ -118,7 +120,14 @@ class SessionManager: ObservableObject {
         archiveAndRemoveFinishedNonDesktop(classification.finishedNonDesktopCandidates, winners: winners)
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         _ = historyManager.rebuildRecentProjects(excludingActive: activeProjectPaths)
+        publishRecentResumeTargets(RecentResumeTarget.build(projects: historyManager.recentProjects, classification: classification))
         refreshCleanupSources(from: classification.cleanupSources, activeProjectPaths: activeProjectPaths)
+    }
+
+    private func publishRecentResumeTargets(_ targets: [RecentResumeTarget]) {
+        if targets != recentResumeTargets {
+            recentResumeTargets = targets
+        }
     }
 
     func cleanupSnapshotForRemoval() -> WorktreeCleanupSessionSnapshot {

@@ -378,6 +378,83 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
+    func testGenerateRecentDesktopResumePrototypeProof() throws {
+        let home = NSHomeDirectory()
+        let now = Date()
+        let targets: [RecentResumeTarget] = [
+            .desktopThread(.init(
+                sessionId: "019ee566-93a1-7d00-8384-822ae67c77de",
+                title: "Can you use product design skills for cctop logo redesign",
+                projectPath: "\(home)/projects/cctop",
+                projectName: "cctop",
+                sourceApp: .codexDesktop,
+                lastActiveAt: now.addingTimeInterval(-120)
+            )),
+            .project(RecentProject(
+                projectPath: "\(home)/projects/irb",
+                projectName: "irb",
+                lastBranch: "master",
+                lastSessionAt: now.addingTimeInterval(-480),
+                sessionCount: 3,
+                lastEditor: "Ghostty",
+                lastAgent: "Claude Code",
+                workspaceFile: nil
+            )),
+            .desktopThread(.init(
+                sessionId: "9f4a3d84-6360-4fb3-8fa7-656d283babac",
+                title: "Test case refactor",
+                projectPath: "\(home)/projects/cctop",
+                projectName: "cctop",
+                sourceApp: .claudeDesktop,
+                lastActiveAt: now.addingTimeInterval(-900)
+            )),
+            .project(RecentProject(
+                projectPath: "\(home)/projects/rdoc",
+                projectName: "rdoc",
+                lastBranch: "unknown",
+                lastSessionAt: now.addingTimeInterval(-1_200),
+                sessionCount: 1,
+                lastEditor: "Codex",
+                lastAgent: "Codex",
+                workspaceFile: nil
+            )),
+            .project(RecentProject(
+                projectPath: "\(home)/projects/memories",
+                projectName: "memories",
+                lastBranch: "main",
+                lastSessionAt: now.addingTimeInterval(-1_800),
+                sessionCount: 2,
+                lastEditor: "Cursor",
+                lastAgent: "Codex",
+                workspaceFile: "\(home)/projects/memories/memories.code-workspace"
+            )),
+        ]
+
+        XCTAssertEqual(targets.map(\.openActionLabel), [
+            "Open Codex Desktop",
+            "Open in Ghostty",
+            "Open Claude Desktop",
+            "Open Project Folder",
+            "Open in Cursor",
+        ])
+        XCTAssertFalse(targets.contains { $0.openActionLabel.contains("Thread") || ($0.inlineActionLabel?.contains("Thread") ?? false) })
+
+        let view = PopupView(
+            sessions: [],
+            recentResumeTargets: targets,
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(),
+            initialTab: .recent
+        )
+        let size = try renderPanelScreenshot(
+            view: view,
+            colorScheme: .dark,
+            directoryName: "cctop-recent-desktop-resume-proof",
+            filename: "recent-desktop-resume-prototype.png"
+        )
+        XCTAssertLessThanOrEqual(size.width, 320)
+    }
+
     func testGenerateCleanupScreenshot() throws {
         let view = PopupView(
             sessions: Session.qaShowcase,

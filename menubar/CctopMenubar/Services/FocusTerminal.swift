@@ -481,3 +481,7 @@ func resolveRecentProjectOpenStrategy(project: RecentProject) -> FocusStrategy {
 func openInEditor(project: RecentProject) {
     executeFocusStrategy(resolveRecentProjectOpenStrategy(project: project))
 }
+
+func openRecentResumeTarget(_ target: RecentResumeTarget) {
+    executeFocusStrategy(resolveRecentResumeTargetOpenStrategy(target: target))
+}

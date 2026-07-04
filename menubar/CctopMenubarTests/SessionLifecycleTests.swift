@@ -593,6 +593,150 @@ final class SessionLifecycleTests: XCTestCase {
         XCTAssertEqual(state.protectedProjectPathsForCleanup, ["/tmp/p"])
     }
 
+    func testRecentResumeTargetsIncludeArchivedDesktopThreadsFromClassificationSnapshot() {
+        let codexID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        let claudeID = "39253133-4a65-48fb-af2b-844463d3b5bb"
+        let codex = candidate(
+            sessionId: codexID,
+            pid: 1,
+            bundleId: HostAppBundleID.codexDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.codexSource,
+            lastActivity: Date(timeIntervalSince1970: 3000),
+            path: "/codex.json"
+        ) { session in
+            session.sessionName = "Can you use product design skills for the cctop logo"
+            session.desktopProjectName = "cctop"
+        }
+        let claude = candidate(
+            sessionId: claudeID,
+            pid: 2,
+            bundleId: HostAppBundleID.claudeDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.ccSource,
+            lastActivity: Date(timeIntervalSince1970: 2000),
+            path: "/claude.json"
+        ) { session in
+            session.sessionName = "Run plugin node:test suites in CI"
+        }
+        let classification = SessionManager.sessionClassificationSnapshot(
+            in: [claude, codex],
+            claudeMetadata: ClaudeDesktopSessionMetadataSnapshot(
+                matchedSessionIDs: [claudeID],
+                archivedSessionIDs: [claudeID],
+                isAuthoritative: true
+            ),
+            codexThreads: StubCodexThreadState(archived: [codexID])
+        )
+
+        let targets = RecentResumeTarget.build(projects: [], classification: classification)
+
+        XCTAssertEqual(targets.map(\.title), [
+            "Can you use product design skills for the cctop logo",
+            "Run plugin node:test suites in CI",
+        ])
+        XCTAssertEqual(targets.map(\.openActionLabel), [
+            "Open Codex Desktop",
+            "Open Claude Desktop",
+        ])
+        XCTAssertEqual(targets.map(\.inlineActionLabel), [
+            "Open Codex",
+            "Open Claude",
+        ])
+        XCTAssertEqual(targets.map(\.metadataText), [
+            "Archived \u{00B7} Codex \u{00B7} /tmp/p",
+            "Archived \u{00B7} Claude \u{00B7} /tmp/p",
+        ])
+        XCTAssertFalse(targets.contains { $0.openActionLabel.contains("Thread") || ($0.inlineActionLabel?.contains("Thread") ?? false) })
+        XCTAssertFalse(targets.contains { $0.showsFinderAction })
+        XCTAssertFalse(targets.contains { $0.showsCopyPathAction })
+    }
+
+    func testRecentResumeTargetsExcludeNonArchivedDesktopHiddenReasons() {
+        let missing = candidate(
+            sessionId: "missing-thread",
+            pid: 1,
+            bundleId: HostAppBundleID.codexDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.codexSource,
+            path: "/missing.json"
+        )
+        let classification = SessionManager.sessionClassificationSnapshot(
+            in: [missing],
+            claudeMetadata: nil,
+            codexThreads: StubCodexThreadState(existing: [], archived: [])
+        )
+
+        XCTAssertTrue(RecentResumeTarget.build(projects: [], classification: classification).isEmpty)
+    }
+
+    @MainActor
+    func testSessionManagerPublishesArchivedDesktopThreadsAsRecentTargets() throws {
+        let root = NSTemporaryDirectory() + "cctop-recent-desktop-targets-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let codexID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        var codex = codexDesktopSession(sessionId: codexID, projectPath: "\(NSHomeDirectory())/projects/cctop")
+        codex.sessionName = "Can you use product design skills for the cctop logo"
+        codex.lastActivity = Date(timeIntervalSince1970: 3000)
+        try codex.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("codex-\(codexID).json"))
+
+        let claudeID = "39253133-4a65-48fb-af2b-844463d3b5bb"
+        var claude = claudeDesktopSession(sessionId: claudeID, projectPath: "\(NSHomeDirectory())/projects/cctop")
+        claude.sessionName = "Run plugin node:test suites in CI"
+        claude.lastActivity = Date(timeIntervalSince1970: 2000)
+        try claude.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("\(claudeID).json"))
+
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.codexThreads = StubCodexThreadState(archived: [codexID])
+        sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
+            matchedSessionIDs: [claudeID],
+            archivedSessionIDs: [claudeID],
+            isAuthoritative: true
+        ))
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
+        sources.processAlive = { _ in false }
+
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertEqual(manager.recentResumeTargets.map(\.title), [
+            "Can you use product design skills for the cctop logo",
+            "Run plugin node:test suites in CI",
+        ])
+        XCTAssertEqual(manager.recentResumeTargets.map(\.openActionLabel), [
+            "Open Codex Desktop",
+            "Open Claude Desktop",
+        ])
+    }
+
+    func testRecentResumeTargetProjectMetadataKeepsEvidenceBeforePath() {
+        let project = RecentProject(
+            projectPath: "/Users/dev/projects/a-very-long-parent-path/billing-api",
+            projectName: "billing-api",
+            lastBranch: "unknown",
+            lastSessionAt: Date(),
+            sessionCount: 2,
+            lastEditor: "Cursor",
+            lastAgent: "Codex",
+            workspaceFile: nil
+        )
+
+        XCTAssertEqual(
+            RecentResumeTarget.project(project).metadataText,
+            "Codex \u{00B7} 2 sessions \u{00B7} /Users/dev/projects/a-very-long-parent-path/billing-api"
+        )
+    }
+
     func testClassificationSnapshotDoesNotEmitCleanupSourceForArchivedDesktopWithoutKnownPath() {
         var session = Session(
             sessionId: "archived-root",

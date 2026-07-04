@@ -256,7 +256,8 @@ extension HostApp {
     /// Returns nil when the app has no session-jump scheme, or `sessionId` isn't a
     /// canonical UUID — the URL handler rejects non-UUID values, so we mirror its
     /// validation client-side and fall back to plain app activation upstream.
-    /// - Codex Desktop: `codex://threads/<uuid>` — navigates to a local conversation.
+    /// - Codex Desktop: `codex://threads/<uuid>` — used for non-archived
+    ///   local conversations. Archived Recent rows intentionally activate only.
     /// - Claude Desktop: no deep link. `claude://resume?session=<uuid>` exists but
     ///   forks the conversation rather than focusing the existing one, which would
     ///   silently pollute the user's history. We just activate the app instead.

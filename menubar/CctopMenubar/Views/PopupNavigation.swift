@@ -37,19 +37,32 @@ enum PopupTab {
 struct PopupSelectionContext {
     let activeSessions: [Session]
     let idleSessions: [Session]
-    let recentProjects: [RecentProject]
+    let recentTargets: [RecentResumeTarget]
     let cleanupCandidates: [WorktreeCleanupCandidate]
+
+    init(
+        activeSessions: [Session],
+        idleSessions: [Session],
+        recentProjects: [RecentProject] = [],
+        recentResumeTargets: [RecentResumeTarget]? = nil,
+        cleanupCandidates: [WorktreeCleanupCandidate]
+    ) {
+        self.activeSessions = activeSessions
+        self.idleSessions = idleSessions
+        self.recentTargets = recentResumeTargets ?? recentProjects.map(RecentResumeTarget.project)
+        self.cleanupCandidates = cleanupCandidates
+    }
 }
 
 enum PopupSelectionTarget: Equatable {
     case activeSession(Session)
     case idleSession(Session)
-    case recentProject(RecentProject)
+    case recentTarget(RecentResumeTarget)
     case cleanupCandidate(WorktreeCleanupCandidate)
 
     var confirmsNavigate: Bool {
         switch self {
-        case .activeSession, .idleSession, .recentProject:
+        case .activeSession, .idleSession, .recentTarget:
             return true
         case .cleanupCandidate:
             return false
@@ -69,8 +82,8 @@ enum PopupSelectionTarget: Equatable {
             guard index < context.idleSessions.count else { return nil }
             return .idleSession(context.idleSessions[index])
         case .recent:
-            guard index < context.recentProjects.count else { return nil }
-            return .recentProject(context.recentProjects[index])
+            guard index < context.recentTargets.count else { return nil }
+            return .recentTarget(context.recentTargets[index])
         case .cleanup:
             guard index < context.cleanupCandidates.count else { return nil }
             return .cleanupCandidate(context.cleanupCandidates[index])
