@@ -77,6 +77,27 @@ final class FocusTerminalTests: XCTestCase {
         }
     }
 
+    // MARK: - Recent project opener matching
+
+    func testRecentProjectProgramNameRecognizesWarpTerminal() {
+        XCTAssertEqual(HostApp.projectOpener(fromProgramName: "WarpTerminal"), .warp)
+        XCTAssertEqual(HostApp.projectOpener(fromProgramName: "warpterminal"), .warp)
+    }
+
+    func testRecentProjectProgramNameRejectsAgentLikeStrings() {
+        let agentLikeNames = [
+            "Codex",
+            "Claude Code",
+            "OpenAI Codex",
+            "opencode",
+            "Codex WarpTerminal",
+        ]
+
+        for name in agentLikeNames {
+            XCTAssertNil(HostApp.projectOpener(fromProgramName: name), name)
+        }
+    }
+
     // MARK: - Recent project open strategy
 
     func testRecentProjectWithoutEditorOpensProjectInFinder() {

@@ -62,7 +62,7 @@ enum HostApp: CaseIterable {
         if tokens.contains("vscode") { return .vscode }
         if tokens.contains("code") { return .vscode }
         if tokens.contains("iterm") || tokens.contains("iterm2") { return .iterm2 }
-        if tokens.contains("warp") { return .warp }
+        if tokens.contains("warp") || tokens.contains("warpterminal") { return .warp }
         if tokens.contains("terminal") { return .terminal }
         if tokens.contains("ghostty") { return .ghostty }
         if tokens.contains("kitty") { return .kitty }
