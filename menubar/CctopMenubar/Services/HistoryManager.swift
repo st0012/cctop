@@ -132,8 +132,12 @@ class HistoryManager: ObservableObject {
     ) -> Bool {
         let canonicalPath = canonicalRecentProjectPath(path)
         guard projectPathExists(canonicalPath) else { return false }
-        if nonProjectRecentProjectPaths.contains(canonicalPath) { return false }
-        return !nonDurableRecentProjectRootPaths.contains { root in
+        return !isExcludedRecentProjectPath(canonicalPath)
+    }
+
+    private static func isExcludedRecentProjectPath(_ canonicalPath: String) -> Bool {
+        if nonProjectRecentProjectPaths.contains(canonicalPath) { return true }
+        return nonDurableRecentProjectRootPaths.contains { root in
             canonicalPath == root || canonicalPath.hasPrefix(root + "/")
         }
     }
@@ -203,38 +207,38 @@ class HistoryManager: ObservableObject {
     }
 
     func filesToPrune(
-        from decoded: [(url: URL, session: Session)]
+        from decoded: [(url: URL, session: Session)],
+        projectPathExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> [URL] {
         var seenProjects: Set<String> = []
-        var toKeep: [(url: URL, session: Session)] = []
+        var capEligibleKeep: [(url: URL, session: Session)] = []
         var toRemove: [URL] = []
-
-        // Keep only the most recent entry per project
-        for entry in decoded {
-            if seenProjects.contains(entry.session.projectPath) {
-                toRemove.append(entry.url)
-            } else {
-                seenProjects.insert(entry.session.projectPath)
-                toKeep.append(entry)
-            }
-        }
-
-        // Remove entries older than maxAgeDays
         let cutoff = Date().addingTimeInterval(
             TimeInterval(-Self.maxAgeDays * 86400)
         )
-        var finalKeep: [(url: URL, session: Session)] = []
-        for entry in toKeep {
-            if entry.session.effectiveEndDate < cutoff {
+
+        // Keep only the most recent entry per canonical project path. Paths that
+        // can never become Recent rows are pruned; currently missing project paths
+        // are preserved for restore, but do not count against the durable-project cap.
+        for entry in decoded {
+            let canonicalPath = Self.canonicalRecentProjectPath(entry.session.projectPath)
+            if entry.session.isHostedByDesktopApp || Self.isExcludedRecentProjectPath(canonicalPath) {
+                toRemove.append(entry.url)
+            } else if seenProjects.contains(canonicalPath) {
+                toRemove.append(entry.url)
+            } else if entry.session.effectiveEndDate < cutoff {
                 toRemove.append(entry.url)
             } else {
-                finalKeep.append(entry)
+                seenProjects.insert(canonicalPath)
+                if projectPathExists(canonicalPath) {
+                    capEligibleKeep.append(entry)
+                }
             }
         }
 
-        // If still over maxFiles, remove oldest
-        if finalKeep.count > Self.maxFiles {
-            toRemove.append(contentsOf: finalKeep[Self.maxFiles...].map(\.url))
+        // If still over maxFiles, remove oldest durable project entries.
+        if capEligibleKeep.count > Self.maxFiles {
+            toRemove.append(contentsOf: capEligibleKeep[Self.maxFiles...].map(\.url))
         }
         return toRemove
     }

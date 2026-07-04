@@ -54,14 +54,28 @@ final class HistoryManagerTests: XCTestCase {
 
     private func mockEntry(
         project: String,
+        projectPath: String? = nil,
         endedAt: Date? = nil,
         lastActivity: Date = Date()
     ) -> (url: URL, session: Session) {
         let session = mockSession(
-            project: project, endedAt: endedAt, lastActivity: lastActivity
+            project: project,
+            projectPath: projectPath,
+            endedAt: endedAt,
+            lastActivity: lastActivity
         )
         let url = historyDir.appendingPathComponent("\(UUID().uuidString).json")
         return (url, session)
+    }
+
+    private func filesToPrune(
+        from entries: [(url: URL, session: Session)],
+        existingPaths: Set<String>? = nil
+    ) -> [URL] {
+        sut.filesToPrune(
+            from: entries,
+            projectPathExists: { existingPaths?.contains($0) ?? true }
+        )
     }
 
     private func recentProjects(
@@ -79,7 +93,7 @@ final class HistoryManagerTests: XCTestCase {
     // MARK: - filesToPrune tests
 
     func testFilesToPruneEmptyInput() {
-        let result = sut.filesToPrune(from: [])
+        let result = filesToPrune(from: [])
         XCTAssertTrue(result.isEmpty)
     }
 
@@ -90,7 +104,7 @@ final class HistoryManagerTests: XCTestCase {
             mockEntry(project: "app", endedAt: now.addingTimeInterval(-3600)),
             mockEntry(project: "app", endedAt: now.addingTimeInterval(-7200)),
         ]
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertEqual(result.count, 2, "Should prune 2 older duplicates")
         XCTAssertTrue(result.contains(entries[1].url))
         XCTAssertTrue(result.contains(entries[2].url))
@@ -104,7 +118,7 @@ final class HistoryManagerTests: XCTestCase {
             mockEntry(project: "recent-proj", endedAt: recent),
             mockEntry(project: "old-proj", endedAt: old),
         ]
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertEqual(result.count, 1)
         XCTAssertTrue(result.contains(entries[1].url))
     }
@@ -112,7 +126,7 @@ final class HistoryManagerTests: XCTestCase {
     func testFilesToPruneKeepsRecentEntries() {
         let recent = Date().addingTimeInterval(-86400) // 1 day ago
         let entries = [mockEntry(project: "proj", endedAt: recent)]
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertTrue(result.isEmpty)
     }
 
@@ -125,7 +139,7 @@ final class HistoryManagerTests: XCTestCase {
                 endedAt: now.addingTimeInterval(TimeInterval(-i * 3600))
             ))
         }
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertEqual(result.count, 5, "Should prune 5 excess entries beyond maxFiles=50")
     }
 
@@ -141,10 +155,70 @@ final class HistoryManagerTests: XCTestCase {
             // Recent entry for proj-c (keep)
             mockEntry(project: "proj-c", endedAt: now.addingTimeInterval(-7200)),
         ]
-        let result = sut.filesToPrune(from: entries)
+        let result = filesToPrune(from: entries)
         XCTAssertEqual(result.count, 2)
         XCTAssertTrue(result.contains(entries[1].url), "Duplicate should be pruned")
         XCTAssertTrue(result.contains(entries[2].url), "Old entry should be pruned")
+    }
+
+    func testFilesToPruneDoesNotLetNonDurableRowsEvictDurableProjects() {
+        let now = Date()
+        let durableRoot = "/Users/test/projects"
+        var entries: [(url: URL, session: Session)] = []
+        for i in 0..<HistoryManager.maxFiles {
+            entries.append(mockEntry(
+                project: "durable-\(i)",
+                projectPath: "\(durableRoot)/durable-\(i)",
+                endedAt: now.addingTimeInterval(TimeInterval(-(i + 3) * 60))
+            ))
+        }
+
+        let tempEntry = mockEntry(
+            project: "tmp-noise",
+            projectPath: "/tmp/cctop-noise",
+            endedAt: now
+        )
+        let cacheEntry = mockEntry(
+            project: "cache-noise",
+            projectPath: NSHomeDirectory() + "/Library/Caches/cctop-noise",
+            endedAt: now.addingTimeInterval(-60)
+        )
+        let missingEntry = mockEntry(
+            project: "missing-restorable",
+            projectPath: "\(durableRoot)/missing-restorable",
+            endedAt: now.addingTimeInterval(-120)
+        )
+        let allEntries = [tempEntry, cacheEntry, missingEntry] + entries
+        let existingPaths = Set(entries.map { HistoryManager.canonicalRecentProjectPath($0.session.projectPath) })
+
+        let result = filesToPrune(from: allEntries, existingPaths: existingPaths)
+
+        XCTAssertTrue(result.contains(tempEntry.url))
+        XCTAssertTrue(result.contains(cacheEntry.url))
+        XCTAssertFalse(result.contains(missingEntry.url))
+        XCTAssertFalse(entries.contains { result.contains($0.url) })
+    }
+
+    func testFilesToPruneDeduplicatesByCanonicalProjectPath() {
+        let now = Date()
+        let newest = mockEntry(
+            project: "rdoc",
+            projectPath: "/Users/test/projects/rdoc",
+            endedAt: now
+        )
+        let older = mockEntry(
+            project: "rdoc",
+            projectPath: "/Users/test/projects/../projects/rdoc",
+            endedAt: now.addingTimeInterval(-60)
+        )
+
+        let result = filesToPrune(
+            from: [newest, older],
+            existingPaths: ["/Users/test/projects/rdoc"]
+        )
+
+        XCTAssertFalse(result.contains(newest.url))
+        XCTAssertTrue(result.contains(older.url))
     }
 
     // MARK: - buildRecentProjects tests
