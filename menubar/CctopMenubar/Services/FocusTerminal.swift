@@ -461,15 +461,20 @@ private func executeKittyFocusWindow(binaryPath: String, socket: String, windowI
 // MARK: - Open recent project in editor
 
 func resolveRecentProjectOpenStrategy(project: RecentProject) -> FocusStrategy {
-    guard let editor = project.lastEditor,
-          let hostApp = HostApp.projectEditor(fromProgramName: editor),
+    guard let opener = project.lastEditor,
+          let hostApp = HostApp.projectOpener(fromProgramName: opener),
           let bundleID = hostApp.bundleID else {
         return .openInFinder(project.projectPath)
     }
 
-    let target = project.workspaceFile
-        ?? Session.findWorkspaceFile(in: project.projectPath)
-        ?? project.projectPath
+    let target: String
+    if hostApp.usesWorkspaceFile {
+        target = project.workspaceFile
+            ?? Session.findWorkspaceFile(in: project.projectPath)
+            ?? project.projectPath
+    } else {
+        target = project.projectPath
+    }
     return .openWithApp(bundleID: bundleID, target: target)
 }
 

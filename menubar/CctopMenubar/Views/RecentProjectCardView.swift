@@ -18,20 +18,11 @@ struct RecentProjectCardView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Color.textPrimary)
 
-                HStack(spacing: 5) {
-                    Text(project.pathContext)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .layoutPriority(0)
-
-                    Text("\u{00B7}")
-
-                    Text(project.metadataEvidenceText)
-                        .lineLimit(1)
-                        .layoutPriority(1)
-                }
-                .font(.system(size: 9))
-                .foregroundStyle(Color.textMuted)
+                Text(project.metadataText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .font(.system(size: 9))
+                    .foregroundStyle(Color.textMuted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

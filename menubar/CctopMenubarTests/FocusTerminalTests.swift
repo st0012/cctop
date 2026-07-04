@@ -95,11 +95,11 @@ final class FocusTerminalTests: XCTestCase {
         )
     }
 
-    func testRecentProjectTerminalProgramOpensProjectInFinder() {
-        let project = RecentProject.mock(editor: "iTerm2")
+    func testRecentProjectKnownTerminalOpensProjectPathWithApp() {
+        let project = RecentProject.mock(editor: "Ghostty")
         XCTAssertEqual(
             resolveRecentProjectOpenStrategy(project: project),
-            .openInFinder(project.projectPath)
+            .openWithApp(bundleID: "com.mitchellh.ghostty", target: project.projectPath)
         )
     }
 

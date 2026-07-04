@@ -219,6 +219,144 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-recent.png")
     }
 
+    func testGenerateRecentProjectsReworkProof() throws {
+        let home = NSHomeDirectory()
+        let now = Date()
+        let durableEditorPath = "\(home)/projects/cctop"
+        let durableTerminalPath = "\(home)/projects/irb"
+        let durableFallbackPath = "\(home)/projects/rdoc"
+        let missingPath = "\(home)/projects/missing-recent-proof"
+        let cachePath = "\(home)/Library/Caches/cctop-recent-noise"
+
+        let sessions = [
+            recentProofSession(
+                projectPath: "/tmp/cctop-noise", projectName: "cctop-noise",
+                branch: "main", source: Session.codexSource,
+                terminal: TerminalInfo(program: "Cursor"),
+                endedAt: now
+            ),
+            recentProofSession(
+                projectPath: "/private/tmp/cctop-noise", projectName: "private-noise",
+                branch: "main", source: Session.ccSource,
+                terminal: TerminalInfo(program: "ghostty", bundleId: "com.mitchellh.ghostty"),
+                endedAt: now.addingTimeInterval(-30)
+            ),
+            recentProofSession(
+                projectPath: "/var/folders/zz/cctop-noise", projectName: "var-noise",
+                branch: "main", source: Session.opencodeSource,
+                terminal: TerminalInfo(program: "Terminal", bundleId: "com.apple.Terminal"),
+                endedAt: now.addingTimeInterval(-60)
+            ),
+            recentProofSession(
+                projectPath: cachePath, projectName: "cache-noise",
+                branch: "main", source: Session.piSource,
+                terminal: TerminalInfo(program: "Zed"),
+                endedAt: now.addingTimeInterval(-90)
+            ),
+            recentProofSession(
+                projectPath: missingPath, projectName: "missing-noise",
+                branch: "main", source: Session.codexSource,
+                terminal: TerminalInfo(program: "Code"),
+                endedAt: now.addingTimeInterval(-120)
+            ),
+            recentProofSession(
+                projectPath: durableEditorPath, projectName: "cctop",
+                branch: "codex/recent-projects-open-project", source: Session.codexSource,
+                terminal: TerminalInfo(program: "Cursor", bundleId: "com.todesktop.230313mzl4w4u92"),
+                endedAt: now.addingTimeInterval(-180)
+            ),
+            recentProofSession(
+                projectPath: durableEditorPath, projectName: "cctop",
+                branch: "codex/recent-projects-open-project", source: Session.ccSource,
+                terminal: TerminalInfo(program: "Cursor"),
+                endedAt: now.addingTimeInterval(-240)
+            ),
+            recentProofSession(
+                projectPath: durableTerminalPath, projectName: "irb",
+                branch: "master", source: Session.ccSource,
+                terminal: TerminalInfo(program: "ghostty", bundleId: "com.mitchellh.ghostty"),
+                endedAt: now.addingTimeInterval(-300)
+            ),
+            recentProofSession(
+                projectPath: durableFallbackPath, projectName: "rdoc",
+                branch: "unknown", source: Session.codexSource,
+                terminal: TerminalInfo(program: "Codex"),
+                endedAt: now.addingTimeInterval(-360)
+            ),
+        ]
+
+        let recentProjects = HistoryManager.buildRecentProjects(
+            from: sessions,
+            projectPathExists: { [durableEditorPath, durableTerminalPath, durableFallbackPath, cachePath].contains($0) }
+        )
+
+        XCTAssertEqual(recentProjects.map(\.projectName), ["cctop", "irb", "rdoc"])
+        XCTAssertEqual(recentProjects.count, 3)
+        XCTAssertEqual(recentProjects[0].sessionCount, 2)
+        XCTAssertEqual(recentProjects[0].editorIcon, "chevron.left.forwardslash.chevron.right")
+        XCTAssertEqual(recentProjects[0].openActionLabel, "Open in Cursor")
+        XCTAssertEqual(recentProjects[1].editorIcon, "terminal")
+        XCTAssertEqual(recentProjects[1].openActionLabel, "Open in Ghostty")
+        XCTAssertEqual(recentProjects[2].editorIcon, "folder")
+        XCTAssertEqual(recentProjects[2].openActionLabel, "Open Project Folder")
+        XCTAssertEqual(recentProjects[2].metadataEvidenceText, "Codex \u{00B7} 1 session")
+
+        let view = PopupView(
+            sessions: [],
+            recentProjects: recentProjects,
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(),
+            initialTab: .recent
+        )
+        try renderPanelScreenshot(
+            view: view,
+            colorScheme: .dark,
+            directoryName: "cctop-recent-rework-proof",
+            filename: "recent-projects-rework.png"
+        )
+    }
+
+    func testGenerateRecentProjectsFilteredEmptyProof() throws {
+        let home = NSHomeDirectory()
+        let sessions = [
+            recentProofSession(
+                projectPath: "/tmp/cctop-noise", projectName: "tmp-noise",
+                branch: "main", source: Session.codexSource,
+                terminal: TerminalInfo(program: "Cursor"),
+                endedAt: Date()
+            ),
+            recentProofSession(
+                projectPath: "\(home)/Library/Caches/cctop-noise", projectName: "cache-noise",
+                branch: "main", source: Session.ccSource,
+                terminal: TerminalInfo(program: "Ghostty"),
+                endedAt: Date().addingTimeInterval(-60)
+            ),
+            recentProofSession(
+                projectPath: "\(home)/projects/missing-recent-proof", projectName: "missing-noise",
+                branch: "main", source: Session.codexSource,
+                terminal: TerminalInfo(program: "Code"),
+                endedAt: Date().addingTimeInterval(-120)
+            ),
+        ]
+        let recentProjects = HistoryManager.buildRecentProjects(from: sessions, projectPathExists: { _ in false })
+
+        XCTAssertTrue(recentProjects.isEmpty)
+
+        let view = PopupView(
+            sessions: [],
+            recentProjects: recentProjects,
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(),
+            initialTab: .recent
+        )
+        try renderPanelScreenshot(
+            view: view,
+            colorScheme: .dark,
+            directoryName: "cctop-recent-rework-proof",
+            filename: "recent-projects-all-filtered.png"
+        )
+    }
+
     func testGenerateCleanupScreenshot() throws {
         let view = PopupView(
             sessions: Session.qaShowcase,
@@ -320,5 +458,32 @@ final class SnapshotTests: XCTestCase {
         XCTAssertFalse(source.contains("repeatForever"))
         XCTAssertFalse(source.contains("BlinkingCaret("))
         XCTAssertFalse(viewSources.contains { $0.lastPathComponent == "BlinkingCaret.swift" })
+    }
+
+    private func recentProofSession(
+        projectPath: String,
+        projectName: String,
+        branch: String,
+        source: String?,
+        terminal: TerminalInfo?,
+        endedAt: Date
+    ) -> Session {
+        Session(
+            sessionId: UUID().uuidString,
+            projectPath: projectPath,
+            projectName: projectName,
+            branch: branch,
+            status: .idle,
+            lastPrompt: nil,
+            lastActivity: endedAt,
+            startedAt: endedAt.addingTimeInterval(-600),
+            terminal: terminal,
+            pid: nil,
+            lastTool: nil,
+            lastToolDetail: nil,
+            notificationMessage: nil,
+            source: source,
+            endedAt: endedAt
+        )
     }
 }

@@ -1065,10 +1065,10 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(WorktreeCleanupCandidate.State.ignored(["main checkout"]).isActionable)
     }
 
-    func testPopupTabAvailabilityAlwaysIncludesCleanupForExplicitScan() {
+    func testPopupTabAvailabilityAlwaysIncludesRecentAndCleanupForExplicitScan() {
         XCTAssertEqual(
             PopupTab.availableTabs(hasIdleSessions: false, hasRecentProjects: false, hasCleanupCandidates: false),
-            [.active, .cleanup]
+            [.active, .recent, .cleanup]
         )
         XCTAssertEqual(
             PopupTab.availableTabs(hasIdleSessions: true, hasRecentProjects: true, hasCleanupCandidates: true),

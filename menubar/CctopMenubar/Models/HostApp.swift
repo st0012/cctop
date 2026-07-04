@@ -49,20 +49,60 @@ enum HostApp: CaseIterable {
     }
 
     /// Stricter program-name match for Recent Projects open targets.
-    static func projectEditor(fromProgramName name: String?) -> HostApp? {
+    static func projectOpener(fromProgramName name: String?) -> HostApp? {
         guard let name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
         let tokens = Set(name.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
+        guard tokens.isDisjoint(with: ["claude", "codex", "opencode", "openai"]) else { return nil }
+
         if tokens.contains("cursor") { return .cursor }
         if tokens.contains("windsurf") { return .windsurf }
         if tokens.contains("zed") { return .zed }
         if tokens.contains("vscode") { return .vscode }
-        if tokens.contains("code")
-            && tokens.isDisjoint(with: ["claude", "codex", "opencode", "openai"]) {
-            return .vscode
-        }
+        if tokens.contains("code") { return .vscode }
+        if tokens.contains("iterm") || tokens.contains("iterm2") { return .iterm2 }
+        if tokens.contains("warp") { return .warp }
+        if tokens.contains("terminal") { return .terminal }
+        if tokens.contains("ghostty") { return .ghostty }
+        if tokens.contains("kitty") { return .kitty }
         return nil
+    }
+
+    static func projectOpener(fromBundleIdentifier bundleIdentifier: String?) -> HostApp? {
+        guard let hostApp = from(bundleIdentifier: bundleIdentifier),
+              hostApp.canOpenRecentProject else {
+            return nil
+        }
+        return hostApp
+    }
+
+    var canOpenRecentProject: Bool {
+        switch self {
+        case .vscode, .cursor, .windsurf, .zed,
+             .iterm2, .warp, .terminal, .ghostty, .kitty:
+            return true
+        case .cmux, .claudeDesktop, .codexDesktop, .unknown:
+            return false
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .vscode: return "VS Code"
+        case .cursor: return "Cursor"
+        case .windsurf: return "Windsurf"
+        case .zed: return "Zed"
+        case .iterm2: return "iTerm2"
+        case .warp: return "Warp"
+        case .terminal: return "Terminal"
+        case .ghostty: return "Ghostty"
+        case .kitty: return "Kitty"
+        case .cmux: return "cmux"
+        case .claudeDesktop: return "Claude Desktop"
+        case .codexDesktop: return "Codex Desktop"
+        case .unknown: return "Unknown"
+        }
     }
 
     var bundleID: String? {

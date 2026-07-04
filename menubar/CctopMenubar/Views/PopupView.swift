@@ -140,9 +140,7 @@ struct PopupView: View {
             if !sortedIdleSessions.isEmpty {
                 tabButton("Idle", count: sortedIdleSessions.count, tab: .idle)
             }
-            if !recentProjects.isEmpty {
-                tabButton("Recent", count: recentProjects.count, tab: .recent)
-            }
+            tabButton("Recent", count: recentProjects.count, tab: .recent)
             tabButton("Cleanup", count: actionableCleanupCandidates.count, tab: .cleanup, isScanning: cleanupIsScanning)
             Spacer()
         }
@@ -196,7 +194,7 @@ struct PopupView: View {
     @ViewBuilder
     private var recentContent: some View {
         if recentProjects.isEmpty {
-            emptyPlaceholder(systemImage: "clock", title: "Recent projects will appear here\nafter sessions end")
+            emptyPlaceholder(systemImage: "clock", title: "No resumable recent projects yet\nFinished projects appear here when folders exist")
         } else {
             panelList(recentProjects, tab: .recent) { _, project, isSelected in
                 recentCard(project, isSelected: isSelected)
@@ -212,7 +210,7 @@ struct PopupView: View {
                 Button { openInEditor(project: project); NSApp.deactivate() } label: {
                     Label(project.openActionLabel, systemImage: project.editorIcon)
                 }
-                if project.opensWithProjectEditor {
+                if project.opensWithProjectApp {
                     Button { openInFinder(path: project.projectPath) } label: { Label("Open in Finder", systemImage: "folder") }
                 }
                 Button { copyPath(project.projectPath) } label: {

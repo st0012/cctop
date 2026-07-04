@@ -84,38 +84,76 @@ class HistoryManager: ObservableObject {
     /// filter active, sort by date, cap at 10.
     static func buildRecentProjects(
         from sessions: [Session],
-        excludingActive activePaths: Set<String> = []
+        excludingActive activePaths: Set<String> = [],
+        projectPathExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> [RecentProject] {
-        var grouped: [String: (latest: Session, count: Int)] = [:]
+        let activeProjectPaths = Set(activePaths.map(canonicalRecentProjectPath))
+        var grouped: [String: (latest: Session, count: Int, projectPath: String)] = [:]
         for session in sessions {
             if session.isHostedByDesktopApp { continue }
-            if let existing = grouped[session.projectPath] {
+            let canonicalProjectPath = canonicalRecentProjectPath(session.projectPath)
+            guard isDurableRecentProjectPath(canonicalProjectPath, projectPathExists: projectPathExists) else {
+                continue
+            }
+            if activeProjectPaths.contains(canonicalProjectPath) { continue }
+            if let existing = grouped[canonicalProjectPath] {
                 let newer = session.effectiveEndDate > existing.latest.effectiveEndDate
-                grouped[session.projectPath] = (
+                grouped[canonicalProjectPath] = (
                     latest: newer ? session : existing.latest,
-                    count: existing.count + 1
+                    count: existing.count + 1,
+                    projectPath: canonicalProjectPath
                 )
             } else {
-                grouped[session.projectPath] = (latest: session, count: 1)
+                grouped[canonicalProjectPath] = (latest: session, count: 1, projectPath: canonicalProjectPath)
             }
         }
 
         return grouped.values
-            .filter { !activePaths.contains($0.latest.projectPath) }
             .sorted { $0.latest.effectiveEndDate > $1.latest.effectiveEndDate }
             .prefix(10)
             .map { entry in
                 RecentProject(
-                    projectPath: entry.latest.projectPath,
+                    projectPath: entry.projectPath,
                     projectName: entry.latest.projectName,
                     lastBranch: entry.latest.branch,
                     lastSessionAt: entry.latest.effectiveEndDate,
                     sessionCount: entry.count,
-                    lastEditor: RecentProject.projectEditorName(from: entry.latest.terminal),
+                    lastEditor: RecentProject.projectOpenerName(from: entry.latest.terminal),
                     lastAgent: RecentProject.agentName(from: entry.latest),
                     workspaceFile: entry.latest.workspaceFile
                 )
             }
+    }
+
+    static func isDurableRecentProjectPath(
+        _ path: String,
+        projectPathExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> Bool {
+        let canonicalPath = canonicalRecentProjectPath(path)
+        guard projectPathExists(canonicalPath) else { return false }
+        return !nonDurableRecentProjectRootPaths.contains { root in
+            canonicalPath == root || canonicalPath.hasPrefix(root + "/")
+        }
+    }
+
+    static func canonicalRecentProjectPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    private static var nonDurableRecentProjectRootPaths: [String] {
+        [
+            "/tmp",
+            "/private/tmp",
+            NSTemporaryDirectory(),
+            "/var/folders",
+            NSHomeDirectory() + "/Library/Caches",
+            NSHomeDirectory() + "/.cache",
+        ].flatMap(comparableRecentProjectPaths)
+    }
+
+    private static func comparableRecentProjectPaths(_ path: String) -> [String] {
+        let trimmed = path.hasSuffix("/") ? String(path.dropLast()) : path
+        return Array(Set([trimmed, canonicalRecentProjectPath(trimmed)]))
     }
 
     // MARK: - Internal (testable)

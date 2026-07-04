@@ -5,12 +5,12 @@ enum PopupTab {
 
     static func availableTabs(
         hasIdleSessions: Bool,
-        hasRecentProjects: Bool,
+        hasRecentProjects _: Bool,
         hasCleanupCandidates: Bool
     ) -> [PopupTab] {
         var tabs: [PopupTab] = [.active]
         if hasIdleSessions { tabs.append(.idle) }
-        if hasRecentProjects { tabs.append(.recent) }
+        tabs.append(.recent)
         tabs.append(.cleanup)
         return tabs
     }

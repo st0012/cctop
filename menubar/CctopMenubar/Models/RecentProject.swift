@@ -17,12 +17,12 @@ struct RecentProject: Identifiable, Equatable {
     }
 
     var editorIcon: String {
-        guard let editorHostApp else { return "folder" }
-        return editorHostApp.sfSymbol
+        guard let openerHostApp else { return "folder" }
+        return openerHostApp.sfSymbol
     }
 
-    var opensWithProjectEditor: Bool {
-        editorHostApp != nil
+    var opensWithProjectApp: Bool {
+        openerHostApp != nil
     }
 
     var openActionLabel: String {
@@ -59,10 +59,9 @@ struct RecentProject: Identifiable, Equatable {
         return parts
     }
 
-    static func projectEditorName(from terminal: TerminalInfo?) -> String? {
-        guard let program = terminal?.program, !program.isEmpty else { return nil }
-        guard HostApp.projectEditor(fromProgramName: program) != nil else { return nil }
-        return program
+    static func projectOpenerName(from terminal: TerminalInfo?) -> String? {
+        guard let hostApp = projectOpener(from: terminal) else { return nil }
+        return hostApp.displayName
     }
 
     static func agentName(from session: Session) -> String? {
@@ -78,18 +77,18 @@ struct RecentProject: Identifiable, Equatable {
         }
     }
 
-    private var editorHostApp: HostApp? {
-        HostApp.projectEditor(fromProgramName: lastEditor)
+    private static func projectOpener(from terminal: TerminalInfo?) -> HostApp? {
+        guard let terminal else { return nil }
+        return HostApp.projectOpener(fromBundleIdentifier: terminal.bundleId)
+            ?? HostApp.projectOpener(fromProgramName: terminal.program)
+    }
+
+    private var openerHostApp: HostApp? {
+        HostApp.projectOpener(fromProgramName: lastEditor)
     }
 
     private var openerName: String? {
-        switch editorHostApp {
-        case .vscode?: return "VS Code"
-        case .cursor?: return "Cursor"
-        case .windsurf?: return "Windsurf"
-        case .zed?: return "Zed"
-        default: return nil
-        }
+        openerHostApp?.displayName
     }
 
     private var displayBranch: String? {
