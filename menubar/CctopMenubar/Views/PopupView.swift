@@ -210,16 +210,16 @@ struct PopupView: View {
             .onTapGesture { openInEditor(project: project); NSApp.deactivate() }
             .contextMenu {
                 Button { openInEditor(project: project); NSApp.deactivate() } label: {
-                    Label("Open in Editor", systemImage: "macwindow")
+                    Label(project.openActionLabel, systemImage: project.editorIcon)
                 }
-                Button { openInFinder(path: project.projectPath) } label: {
-                    Label("Open in Finder", systemImage: "folder")
+                if project.opensWithProjectEditor {
+                    Button { openInFinder(path: project.projectPath) } label: { Label("Open in Finder", systemImage: "folder") }
                 }
                 Button { copyPath(project.projectPath) } label: {
                     Label("Copy Project Path", systemImage: "doc.on.doc")
                 }
             }
-            .help("Click to open in \(project.lastEditor ?? "editor")")
+            .help(project.openHelpText)
     }
 
     private func sessionList(_ list: [Session], tab: PopupTab, showNavigateNumbers: Bool = false) -> some View {

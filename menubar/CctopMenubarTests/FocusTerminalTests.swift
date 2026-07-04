@@ -76,4 +76,47 @@ final class FocusTerminalTests: XCTestCase {
             XCTAssertNotNil(app.bundleID, "\(app) has an activation name but no bundle ID to launch")
         }
     }
+
+    // MARK: - Recent project open strategy
+
+    func testRecentProjectWithoutEditorOpensProjectInFinder() {
+        let project = RecentProject.mock(editor: nil)
+        XCTAssertEqual(
+            resolveRecentProjectOpenStrategy(project: project),
+            .openInFinder(project.projectPath)
+        )
+    }
+
+    func testRecentProjectUnknownEditorOpensProjectInFinder() {
+        let project = RecentProject.mock(editor: "Codex")
+        XCTAssertEqual(
+            resolveRecentProjectOpenStrategy(project: project),
+            .openInFinder(project.projectPath)
+        )
+    }
+
+    func testRecentProjectTerminalProgramOpensProjectInFinder() {
+        let project = RecentProject.mock(editor: "iTerm2")
+        XCTAssertEqual(
+            resolveRecentProjectOpenStrategy(project: project),
+            .openInFinder(project.projectPath)
+        )
+    }
+
+    func testRecentProjectKnownEditorOpensWorkspaceFileWithApp() {
+        let workspaceFile = "/Users/dev/projects/my-project/my-project.code-workspace"
+        let project = RecentProject.mock(editor: "Cursor", workspaceFile: workspaceFile)
+        XCTAssertEqual(
+            resolveRecentProjectOpenStrategy(project: project),
+            .openWithApp(bundleID: "com.todesktop.230313mzl4w4u92", target: workspaceFile)
+        )
+    }
+
+    func testRecentProjectKnownEditorFallsBackToProjectPath() {
+        let project = RecentProject.mock(editor: "Code")
+        XCTAssertEqual(
+            resolveRecentProjectOpenStrategy(project: project),
+            .openWithApp(bundleID: "com.microsoft.VSCode", target: project.projectPath)
+        )
+    }
 }

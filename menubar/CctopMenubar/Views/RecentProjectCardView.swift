@@ -19,25 +19,26 @@ struct RecentProjectCardView: View {
                     .foregroundStyle(Color.textPrimary)
 
                 HStack(spacing: 5) {
-                    Text(project.lastBranch)
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(Color.textMuted)
+                    Text(project.pathContext)
                         .lineLimit(1)
+                        .truncationMode(.middle)
+                        .layoutPriority(0)
 
                     Text("\u{00B7}")
-                        .foregroundStyle(Color.textMuted)
 
-                    Text("\(project.sessionCount) session\(project.sessionCount == 1 ? "" : "s")")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color.textMuted)
+                    Text(project.metadataEvidenceText)
+                        .lineLimit(1)
+                        .layoutPriority(1)
                 }
+                .font(.system(size: 9))
+                .foregroundStyle(Color.textMuted)
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(project.lastSessionAt.relativeDescription(asOf: relativeTimeNow))
                 .font(.system(size: 10))
                 .foregroundStyle(Color.textMuted)
+                .layoutPriority(1)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

@@ -111,7 +111,8 @@ class HistoryManager: ObservableObject {
                     lastBranch: entry.latest.branch,
                     lastSessionAt: entry.latest.effectiveEndDate,
                     sessionCount: entry.count,
-                    lastEditor: entry.latest.terminal?.program,
+                    lastEditor: RecentProject.projectEditorName(from: entry.latest.terminal),
+                    lastAgent: RecentProject.agentName(from: entry.latest),
                     workspaceFile: entry.latest.workspaceFile
                 )
             }

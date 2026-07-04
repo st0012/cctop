@@ -29,7 +29,8 @@ final class HistoryManagerTests: XCTestCase {
         project: String,
         endedAt: Date? = nil,
         lastActivity: Date = Date(),
-        terminal: TerminalInfo? = TerminalInfo(program: "Code")
+        terminal: TerminalInfo? = TerminalInfo(program: "Code"),
+        source: String? = nil
     ) -> Session {
         Session(
             sessionId: UUID().uuidString,
@@ -45,6 +46,7 @@ final class HistoryManagerTests: XCTestCase {
             lastTool: nil,
             lastToolDetail: nil,
             notificationMessage: nil,
+            source: source,
             endedAt: endedAt
         )
     }
@@ -252,6 +254,69 @@ final class HistoryManagerTests: XCTestCase {
         )
         let result = HistoryManager.buildRecentProjects(from: [session])
         XCTAssertEqual(result[0].lastEditor, "Cursor")
+    }
+
+    func testBuildRecentProjectsIgnoresUnknownProgramAsProjectOpener() {
+        let session = mockSession(
+            project: "agent-created",
+            terminal: TerminalInfo(program: "codex")
+        )
+        let result = HistoryManager.buildRecentProjects(from: [session])
+        XCTAssertEqual(result[0].projectName, "agent-created")
+        XCTAssertNil(result[0].lastEditor)
+    }
+
+    func testBuildRecentProjectsKeepsAgentMetadataSeparateFromProjectOpener() {
+        let session = mockSession(
+            project: "agent-created",
+            terminal: TerminalInfo(program: "Claude Code"),
+            source: Session.ccSource
+        )
+        let result = HistoryManager.buildRecentProjects(from: [session])
+        XCTAssertNil(result[0].lastEditor)
+        XCTAssertEqual(result[0].lastAgent, "Claude Code")
+    }
+
+    func testBuildRecentProjectsIgnoresTerminalProgramAsProjectOpener() {
+        let session = mockSession(
+            project: "terminal-created",
+            terminal: TerminalInfo(program: "iTerm2")
+        )
+        let result = HistoryManager.buildRecentProjects(from: [session])
+        XCTAssertEqual(result[0].projectName, "terminal-created")
+        XCTAssertNil(result[0].lastEditor)
+    }
+
+    func testRecentProjectMetadataSkipsUnknownBranch() {
+        let project = RecentProject(
+            projectPath: NSHomeDirectory() + "/projects/cctop",
+            projectName: "cctop",
+            lastBranch: "unknown",
+            lastSessionAt: Date(),
+            sessionCount: 4,
+            lastEditor: nil,
+            lastAgent: "Codex",
+            workspaceFile: nil
+        )
+        XCTAssertEqual(project.pathContext, "~/projects/cctop")
+        XCTAssertEqual(project.metadataEvidenceText, "Codex \u{00B7} 4 sessions")
+        XCTAssertEqual(project.metadataText, "~/projects/cctop \u{00B7} Codex \u{00B7} 4 sessions")
+    }
+
+    func testRecentProjectMetadataIncludesMeaningfulBranch() {
+        let project = RecentProject(
+            projectPath: NSHomeDirectory() + "/projects/cctop",
+            projectName: "cctop",
+            lastBranch: "master",
+            lastSessionAt: Date(),
+            sessionCount: 1,
+            lastEditor: "Cursor",
+            lastAgent: "Claude Code",
+            workspaceFile: nil
+        )
+        XCTAssertEqual(project.pathContext, "~/projects/cctop")
+        XCTAssertEqual(project.metadataEvidenceText, "master \u{00B7} Claude Code \u{00B7} 1 session")
+        XCTAssertEqual(project.metadataText, "~/projects/cctop \u{00B7} master \u{00B7} Claude Code \u{00B7} 1 session")
     }
 
     func testRebuildCachesDecodedHistorySessionsAndKeepsCacheOnNoopRebuild() throws {

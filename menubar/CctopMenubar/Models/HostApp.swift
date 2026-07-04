@@ -48,6 +48,23 @@ enum HostApp: CaseIterable {
         return .unknown
     }
 
+    /// Stricter program-name match for Recent Projects open targets.
+    static func projectEditor(fromProgramName name: String?) -> HostApp? {
+        guard let name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        let tokens = Set(name.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init))
+        if tokens.contains("cursor") { return .cursor }
+        if tokens.contains("windsurf") { return .windsurf }
+        if tokens.contains("zed") { return .zed }
+        if tokens.contains("vscode") { return .vscode }
+        if tokens.contains("code")
+            && tokens.isDisjoint(with: ["claude", "codex", "opencode", "openai"]) {
+            return .vscode
+        }
+        return nil
+    }
+
     var bundleID: String? {
         switch self {
         case .vscode: return "com.microsoft.VSCode"
