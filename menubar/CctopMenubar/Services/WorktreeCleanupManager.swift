@@ -19,7 +19,11 @@ class WorktreeCleanupManager: ObservableObject {
         self.scanner = scanner
     }
 
-    func refresh(from cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>, force: Bool = false) {
+    func refresh(
+        from cleanupSources: [SessionCleanupSource],
+        activeProjectPaths: Set<String>,
+        force: Bool = false
+    ) {
         let signature = WorktreeCleanupRefreshSignature(
             cleanupSources: cleanupSources,
             activeProjectPaths: activeProjectPaths
@@ -48,11 +52,16 @@ class WorktreeCleanupManager: ObservableObject {
 }
 
 @MainActor
-final class WorktreeCleanupRefreshGate {
+final class WorktreeCleanupRefreshGate: ObservableObject {
+    @Published private(set) var hasHiddenCleanupNudge = false
+
     private let manager: WorktreeCleanupManager
     private var cleanupSources: [SessionCleanupSource] = []
     private var activeProjectPaths: Set<String> = []
+    private var isCleanupTabSelected = false
+    private var isPanelVisible = false
     private var isCleanupVisible = false
+    private var seenCleanupSourceIDs: Set<WorktreeCleanupSourceIdentity> = []
 
     init(manager: WorktreeCleanupManager) {
         self.manager = manager
@@ -61,19 +70,77 @@ final class WorktreeCleanupRefreshGate {
     func updateSources(_ cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
         self.cleanupSources = cleanupSources
         self.activeProjectPaths = activeProjectPaths
-        refreshIfVisible()
+        if isCleanupVisible {
+            refreshIfVisible()
+        } else {
+            updateHiddenNudgeFromSourceIdentities()
+        }
     }
 
     func setCleanupVisible(_ visible: Bool) {
+        isCleanupTabSelected = visible
+        isPanelVisible = visible
+        updateCleanupVisibility(forceRefreshWhenVisible: visible)
+    }
+
+    func setCleanupTabSelected(_ selected: Bool) {
+        isCleanupTabSelected = selected
+        updateCleanupVisibility()
+    }
+
+    func setPanelVisible(_ visible: Bool) {
+        isPanelVisible = visible
+        updateCleanupVisibility()
+    }
+
+    func refreshIfVisible(force: Bool = false) {
+        guard isCleanupVisible else { return }
+        markCurrentSourcesSeen()
+        manager.refresh(from: cleanupSources, activeProjectPaths: activeProjectPaths, force: force)
+    }
+
+    private func updateCleanupVisibility(forceRefreshWhenVisible: Bool = false) {
+        let visible = isCleanupTabSelected && isPanelVisible
+        guard visible != isCleanupVisible || (visible && forceRefreshWhenVisible) else { return }
         isCleanupVisible = visible
         if visible {
             refreshIfVisible(force: true)
         }
     }
 
-    func refreshIfVisible(force: Bool = false) {
-        guard isCleanupVisible else { return }
-        manager.refresh(from: cleanupSources, activeProjectPaths: activeProjectPaths, force: force)
+    private func updateHiddenNudgeFromSourceIdentities() {
+        let sourceIDs = currentSourceIDs()
+        if sourceIDs.isEmpty {
+            hasHiddenCleanupNudge = false
+            seenCleanupSourceIDs = []
+        } else {
+            hasHiddenCleanupNudge = !sourceIDs.subtracting(seenCleanupSourceIDs).isEmpty
+        }
+    }
+
+    private func markCurrentSourcesSeen() {
+        seenCleanupSourceIDs = currentSourceIDs()
+        hasHiddenCleanupNudge = false
+    }
+
+    private func currentSourceIDs() -> Set<WorktreeCleanupSourceIdentity> {
+        let activePaths = Set(activeProjectPaths.map(WorktreeCleanupScanner.standardizedPath))
+        return Set(cleanupSources.compactMap { source in
+            WorktreeCleanupSourceIdentity(source: source, activeProjectPaths: activePaths)
+        })
+    }
+}
+
+private struct WorktreeCleanupSourceIdentity: Hashable {
+    let path: String
+    let sessionId: String
+
+    init?(source: SessionCleanupSource, activeProjectPaths: Set<String>) {
+        let path = WorktreeCleanupScanner.standardizedPath(source.projectPath)
+        guard WorktreeCleanupScanner.shouldScanCleanupSourcePath(path) else { return nil }
+        guard !WorktreeCleanupScanner.isCleanupSourcePathActive(path, activeProjectPaths: activeProjectPaths) else { return nil }
+        self.path = path
+        sessionId = source.sessionId
     }
 }
 

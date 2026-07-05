@@ -11,6 +11,7 @@ struct PopupView: View {
     var recentResumeTargets: [RecentResumeTarget]?
     var cleanupCandidates: [WorktreeCleanupCandidate] = []
     var cleanupIsScanning = false
+    var cleanupHasUnseenCandidates = false
     @ObservedObject var updater: UpdaterBase
     let pluginManager: PluginManager
     var navigate: NavigateController?
@@ -142,15 +143,33 @@ struct PopupView: View {
                 tabButton("Idle", count: sortedIdleSessions.count, tab: .idle)
             }
             tabButton("Recent", count: recentTargets.count, tab: .recent)
-            tabButton("Cleanup", count: actionableCleanupCandidates.count, tab: .cleanup, isScanning: cleanupIsScanning)
+            tabButton(
+                "Cleanup",
+                count: actionableCleanupCandidates.count,
+                tab: .cleanup,
+                isScanning: cleanupIsScanning,
+                hasAttention: cleanupHasUnseenCandidates
+            )
             Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
     }
 
-    private func tabButton(_ label: String, count: Int, tab: PopupTab, isScanning: Bool = false) -> some View {
-        TabButtonView(label: label, count: count, isScanning: isScanning, isSelected: selectedTab == tab) {
+    private func tabButton(
+        _ label: String,
+        count: Int,
+        tab: PopupTab,
+        isScanning: Bool = false,
+        hasAttention: Bool = false
+    ) -> some View {
+        TabButtonView(
+            label: label,
+            count: count,
+            isScanning: isScanning,
+            hasAttention: hasAttention && selectedTab != tab,
+            isSelected: selectedTab == tab
+        ) {
             if overlayController.active != nil { closeOverlay(animated: false) }
             withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
             notifyLayoutChanged()

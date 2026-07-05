@@ -95,6 +95,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             sessionManager: sessionManager,
             historyManager: historyManager,
             cleanupManager: cleanupManager,
+            cleanupRefreshGate: cleanupRefreshGate,
             updater: updater,
             pluginManager: pluginManager,
             navigate: navigateController,
@@ -105,10 +106,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 await self?.executeCleanupRemovalAction(action) ?? .refused(action.candidate)
             },
             onCleanupTabVisible: { [weak self] in
-                Task { @MainActor in self?.setCleanupVisible(true) }
+                Task { @MainActor in self?.setCleanupTabSelected(true) }
             },
             onCleanupTabHidden: { [weak self] in
-                Task { @MainActor in self?.setCleanupVisible(false) }
+                Task { @MainActor in self?.setCleanupTabSelected(false) }
             },
             onLayoutChanged: { [weak self] in
                 Task { @MainActor in self?.resizePanel(animate: true) }
@@ -158,8 +159,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         return result
     }
 
-    @MainActor private func setCleanupVisible(_ visible: Bool) {
-        cleanupRefreshGate.setCleanupVisible(visible)
+    @MainActor private func setCleanupTabSelected(_ selected: Bool) {
+        cleanupRefreshGate.setCleanupTabSelected(selected)
+    }
+
+    @MainActor private func updateCleanupPanelVisibility() {
+        cleanupRefreshGate.setPanelVisible(panel?.isVisible == true)
     }
 
     @MainActor private func registerShortcuts() {
@@ -539,6 +544,7 @@ extension AppDelegate {
                 // Codex hooks in Codex itself) — re-read it on every open.
                 pluginManager.refresh()
                 panel.makeKeyAndOrderFront(nil)
+                updateCleanupPanelVisibility()
                 // Re-position after SwiftUI layout settles
                 DispatchQueue.main.async { [weak self] in
                     self?.positionPanel()
@@ -546,12 +552,14 @@ extension AppDelegate {
                 }
             case .dismissPanel:
                 panel.orderOut(nil)
+                updateCleanupPanelVisibility()
                 focusLocation = nil
                 previousApp = nil
                 stopNavKeyMonitor()
                 updateNotchVisibility(immediate: true)
             case .navigatePanel:
                 panel.makeKeyAndOrderFront(nil)
+                updateCleanupPanelVisibility()
             case .positionPanel:
                 positionPanel()
                 // If panel didn't land on target screen, clear stale position and retry

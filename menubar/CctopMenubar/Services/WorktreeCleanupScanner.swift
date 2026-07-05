@@ -73,7 +73,7 @@ struct WorktreeCleanupScanner {
         var resolvedPaths: [String: String] = [:]
         for source in cleanupSources {
             let rawPath = Self.standardizedPath(source.projectPath)
-            guard shouldScanCleanupSourcePath(rawPath) else { continue }
+            guard Self.shouldScanCleanupSourcePath(rawPath) else { continue }
             let path = resolvedPaths[rawPath] ?? {
                 let path = resolvedCandidatePath(for: rawPath)
                 resolvedPaths[rawPath] = path
@@ -363,7 +363,7 @@ extension WorktreeCleanupScanner {
         var resolvedPaths: [String: String] = [:]
         for source in cleanupSources {
             let rawPath = Self.standardizedPath(source.projectPath)
-            guard shouldScanCleanupSourcePath(rawPath) else { continue }
+            guard Self.shouldScanCleanupSourcePath(rawPath) else { continue }
             let path = resolvedPaths[rawPath] ?? {
                 let path = resolvedCandidatePath(for: rawPath)
                 resolvedPaths[rawPath] = path
@@ -382,12 +382,24 @@ extension WorktreeCleanupScanner {
     }
 }
 
-private extension WorktreeCleanupScanner {
-    func shouldScanCleanupSourcePath(_ path: String) -> Bool {
-        guard Self.isLikelyPrivacyProtectedUserPath(path) else { return true }
-        return Self.isPlausibleCleanupWorktreePath(path)
+extension WorktreeCleanupScanner {
+    static func shouldScanCleanupSourcePath(_ path: String) -> Bool {
+        guard isLikelyPrivacyProtectedUserPath(path) else { return true }
+        return isPlausibleCleanupWorktreePath(path)
     }
 
+    static func isCleanupSourcePathActive(_ path: String, activeProjectPaths: Set<String>) -> Bool {
+        activeProjectPaths.contains { activePath in
+            isPath(activePath, sameAsOrDescendantOf: path)
+        }
+    }
+
+    static func isPath(_ path: String, sameAsOrDescendantOf parentPath: String) -> Bool {
+        path == parentPath || path.hasPrefix(parentPath.hasSuffix("/") ? parentPath : "\(parentPath)/")
+    }
+}
+
+private extension WorktreeCleanupScanner {
     func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths: Set<String>) -> Bool {
         if candidatePaths.contains(where: { candidatePath in
             Self.isPath(activePath, sameAsOrDescendantOf: candidatePath)
@@ -396,10 +408,6 @@ private extension WorktreeCleanupScanner {
             return true
         }
         return !Self.isLikelyPrivacyProtectedUserPath(activePath)
-    }
-
-    static func isPath(_ path: String, sameAsOrDescendantOf parentPath: String) -> Bool {
-        path == parentPath || path.hasPrefix(parentPath.hasSuffix("/") ? parentPath : "\(parentPath)/")
     }
 
     static func isLikelyPrivacyProtectedUserPath(_ path: String) -> Bool {
