@@ -1091,6 +1091,7 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertTrue(recentHelpText.contains("Finished work"))
         XCTAssertTrue(recentHelpText.contains("archived desktop sessions"))
         XCTAssertTrue(recentHelpText.contains("Rows open"))
+        XCTAssertTrue(recentHelpText.contains("when possible"))
         XCTAssertFalse(recentHelpText.localizedCaseInsensitiveContains("return"))
         XCTAssertFalse(recentHelpText.localizedCaseInsensitiveContains("resume"))
         XCTAssertEqual(

@@ -11,7 +11,7 @@ enum PopupTab {
         case .idle:
             return "Dormant sessions and idle sessions over \(staleIdleDuration)."
         case .recent:
-            return "Finished work and archived desktop sessions. Rows open the project or app."
+            return "Finished work and archived desktop sessions. Rows open the project or app when possible."
         case .cleanup:
             return "Ended-session worktrees checked before removal."
         }
