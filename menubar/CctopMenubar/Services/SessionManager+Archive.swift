@@ -124,28 +124,18 @@ struct SessionClassificationSnapshot {
         }
     }
 
-    /// Cleanup sources are only emitted from cctop JSON records classified in this pass.
-    /// External host metadata may hide or enrich those records, but it never creates cleanup rows
-    /// without a session file because the scanner needs cctop's project path and recency context.
-    /// Missing/deleted desktop conversations stay hidden and preserved, but do not become cleanup
-    /// sources unless the host metadata explicitly marks the conversation archived.
+    /// Archived desktop conversations stay hidden and resumable in Recent, but a known
+    /// project path can still seed worktree cleanup while preserving the session file.
+    /// Non-desktop cleanup rows come from history.
     var cleanupSources: [SessionCleanupSource] {
         records.compactMap { record in
             guard case .hidden(let reason) = record.disposition,
-                  Self.emitsCleanupSource(for: reason),
-                  Self.hasKnownCleanupPath(record.candidate.session.projectPath) else {
+                  reason.emitsCleanupSource,
+                  record.candidate.session.hasCleanupSourcePath else {
                 return nil
             }
             return SessionCleanupSource(session: record.candidate.session)
         }
-    }
-
-    private static func hasKnownCleanupPath(_ path: String) -> Bool {
-        !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && path != "/"
-    }
-
-    private static func emitsCleanupSource(for reason: SessionHiddenReason) -> Bool {
-        reason == .archivedCodexDesktop || reason == .archivedClaudeDesktop
     }
 
     var archivedCodexThreadIDs: Set<String> { evidence.archivedCodexThreadIDs }
@@ -153,6 +143,25 @@ struct SessionClassificationSnapshot {
     var codexSubagentThreadIDs: Set<String> { evidence.codexSubagentThreadIDs }
     var codexExecHelperThreadIDs: Set<String> { evidence.codexExecHelperThreadIDs }
     var archivedClaudeSessionIDs: Set<String> { evidence.archivedClaudeSessionIDs }
+}
+
+private extension SessionHiddenReason {
+    var emitsCleanupSource: Bool {
+        switch self {
+        case .archivedCodexDesktop, .archivedClaudeDesktop:
+            return true
+        case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexSubagent,
+             .codexExecHelper, .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
+            return false
+        }
+    }
+}
+
+private extension Session {
+    var hasCleanupSourcePath: Bool {
+        let path = WorktreeCleanupScanner.standardizedPath(projectPath)
+        return !path.isEmpty && path != "/"
+    }
 }
 
 extension SessionManager {

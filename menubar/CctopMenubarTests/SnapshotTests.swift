@@ -467,6 +467,60 @@ final class SnapshotTests: XCTestCase {
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-cleanup.png")
     }
 
+    func testGenerateCleanupDiscoverabilityScreenshots() throws {
+        let candidates = WorktreeCleanupCandidate.mockCandidates.filter(\.state.isActionable)
+        let directoryName = "cctop-cleanup-discoverability-proof-\(Int(Date().timeIntervalSince1970))"
+        let normalView = PopupView(
+            sessions: Session.qaShowcase,
+            recentProjects: RecentProject.mockRecents,
+            cleanupCandidates: candidates,
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(),
+            initialTab: .cleanup
+        )
+        let scanningView = PopupView(
+            sessions: Session.qaShowcase,
+            recentProjects: RecentProject.mockRecents,
+            cleanupCandidates: candidates,
+            cleanupIsScanning: true,
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(),
+            initialTab: .cleanup
+        )
+        let nudgedView = PopupView(
+            sessions: Session.qaShowcase,
+            recentProjects: RecentProject.mockRecents,
+            cleanupCandidates: candidates,
+            cleanupHasUnseenCandidates: true,
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(),
+            initialTab: .active
+        )
+
+        let normalSize = try renderPanelScreenshot(
+            view: normalView,
+            colorScheme: .dark,
+            directoryName: directoryName,
+            filename: "cleanup-tab-normal.png"
+        )
+        let scanningSize = try renderPanelScreenshot(
+            view: scanningView,
+            colorScheme: .dark,
+            directoryName: directoryName,
+            filename: "cleanup-tab-scanning.png"
+        )
+        let nudgedSize = try renderPanelScreenshot(
+            view: nudgedView,
+            colorScheme: .dark,
+            directoryName: directoryName,
+            filename: "cleanup-tab-nudged.png"
+        )
+
+        XCTAssertLessThanOrEqual(normalSize.width, 320)
+        XCTAssertLessThanOrEqual(scanningSize.width, 320)
+        XCTAssertLessThanOrEqual(nudgedSize.width, 320)
+    }
+
     func testGenerateCleanupDetailScreenshots() throws {
         let clean = WorktreeCleanupCandidate.mock(
             path: "/Users/dev/projects/rdoc/.claude/worktrees/stupefied-panini-cface5",

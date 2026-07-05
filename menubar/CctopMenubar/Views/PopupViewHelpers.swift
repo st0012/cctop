@@ -171,6 +171,7 @@ struct TabButtonView: View {
     let label: String
     let count: Int
     var isScanning = false
+    var hasAttention = false
     let isSelected: Bool
     let action: () -> Void
     @State private var isHovered = false
@@ -183,7 +184,7 @@ struct TabButtonView: View {
                     .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
-                if isScanning {
+                if isScanning && count == 0 {
                     ProgressView()
                         .controlSize(.mini)
                         .frame(width: 10, height: 10)
@@ -191,9 +192,20 @@ struct TabButtonView: View {
                 } else {
                     Text("\(count)")
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
+                        .foregroundStyle(hasAttention ? Color.statusAttention : (isSelected ? Color.textPrimary : Color.textMuted))
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
+                    if isScanning {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .frame(width: 10, height: 10)
+                            .accessibilityLabel("\(label) scanning")
+                    } else if hasAttention {
+                        Circle()
+                            .fill(Color.statusAttention)
+                            .frame(width: 5, height: 5)
+                            .accessibilityHidden(true)
+                    }
                 }
             }
             .padding(.horizontal, 10)
@@ -226,6 +238,7 @@ struct PanelContentView: View {
     @ObservedObject var sessionManager: SessionManager
     @ObservedObject var historyManager: HistoryManager
     @ObservedObject var cleanupManager: WorktreeCleanupManager
+    @ObservedObject var cleanupRefreshGate: WorktreeCleanupRefreshGate
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @ObservedObject var navigate: NavigateController
@@ -245,6 +258,7 @@ struct PanelContentView: View {
             recentResumeTargets: sessionManager.recentResumeTargets,
             cleanupCandidates: cleanupManager.candidates,
             cleanupIsScanning: cleanupManager.isScanning,
+            cleanupHasUnseenCandidates: cleanupRefreshGate.hasHiddenCleanupNudge,
             updater: updater,
             pluginManager: pluginManager,
             navigate: navigate,

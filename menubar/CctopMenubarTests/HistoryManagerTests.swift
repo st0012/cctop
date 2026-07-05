@@ -250,6 +250,27 @@ final class HistoryManagerTests: XCTestCase {
         XCTAssertEqual(result[0].projectName, "inactive")
     }
 
+    func testBuildRecentProjectsDoesNotProbeProtectedActiveProjectPathBeforeExcludingIt() {
+        let now = Date()
+        let protectedActivePath = "/Users/dev/Documents/Codex/live-session"
+        let sessions = [
+            mockSession(project: "active", projectPath: protectedActivePath, endedAt: now),
+        ]
+        var probedPaths: [String] = []
+
+        let result = HistoryManager.buildRecentProjects(
+            from: sessions,
+            excludingActive: [protectedActivePath],
+            projectPathExists: { path in
+                probedPaths.append(path)
+                return true
+            }
+        )
+
+        XCTAssertEqual(result, [])
+        XCTAssertEqual(probedPaths, [])
+    }
+
     func testBuildRecentProjectsSortsByRecent() {
         let now = Date()
         let sessions = [

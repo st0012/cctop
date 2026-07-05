@@ -11,7 +11,7 @@ class WorktreeCleanupManager: ObservableObject {
     @Published var candidates: [WorktreeCleanupCandidate] = []
     @Published private(set) var isScanning = false
 
-    private let scanner: WorktreeCleanupScanner
+    fileprivate let scanner: WorktreeCleanupScanner
     private var refreshGeneration = 0
     private var lastRefreshSignature: WorktreeCleanupRefreshSignature?
 
@@ -19,7 +19,12 @@ class WorktreeCleanupManager: ObservableObject {
         self.scanner = scanner
     }
 
-    func refresh(from cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>, force: Bool = false) {
+    func refresh(
+        from cleanupSources: [SessionCleanupSource],
+        activeProjectPaths: Set<String>,
+        force: Bool = false,
+        onCompletion: (([WorktreeCleanupCandidate]) -> Void)? = nil
+    ) {
         let signature = WorktreeCleanupRefreshSignature(
             cleanupSources: cleanupSources,
             activeProjectPaths: activeProjectPaths
@@ -42,17 +47,23 @@ class WorktreeCleanupManager: ObservableObject {
                     worktreeCleanupLogger.info("cleanup candidates \(self.candidates.count) -> \(next.count)")
                     self.candidates = next
                 }
+                onCompletion?(next)
             }
         }
     }
 }
 
 @MainActor
-final class WorktreeCleanupRefreshGate {
+final class WorktreeCleanupRefreshGate: ObservableObject {
+    @Published private(set) var hasHiddenCleanupNudge = false
+
     private let manager: WorktreeCleanupManager
     private var cleanupSources: [SessionCleanupSource] = []
     private var activeProjectPaths: Set<String> = []
+    private var isCleanupTabSelected = false
+    private var isPanelVisible = false
     private var isCleanupVisible = false
+    private var seenCleanupCandidateIDs: Set<String> = []
 
     init(manager: WorktreeCleanupManager) {
         self.manager = manager
@@ -61,19 +72,77 @@ final class WorktreeCleanupRefreshGate {
     func updateSources(_ cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
         self.cleanupSources = cleanupSources
         self.activeProjectPaths = activeProjectPaths
-        refreshIfVisible()
+        if isCleanupVisible {
+            refreshIfVisible()
+        } else {
+            refreshWhileHidden()
+        }
     }
 
     func setCleanupVisible(_ visible: Bool) {
+        isCleanupTabSelected = visible
+        isPanelVisible = visible
+        updateCleanupVisibility(forceRefreshWhenVisible: visible)
+    }
+
+    func setCleanupTabSelected(_ selected: Bool) {
+        isCleanupTabSelected = selected
+        updateCleanupVisibility()
+    }
+
+    func setPanelVisible(_ visible: Bool) {
+        isPanelVisible = visible
+        updateCleanupVisibility()
+    }
+
+    func refreshIfVisible(force: Bool = false) {
+        guard isCleanupVisible else { return }
+        markCurrentCandidatesSeen()
+        manager.refresh(from: cleanupSources, activeProjectPaths: activeProjectPaths, force: force) { [weak self] candidates in
+            self?.handleRefreshCompletion(candidates)
+        }
+    }
+
+    private func updateCleanupVisibility(forceRefreshWhenVisible: Bool = false) {
+        let visible = isCleanupTabSelected && isPanelVisible
+        guard visible != isCleanupVisible || (visible && forceRefreshWhenVisible) else { return }
         isCleanupVisible = visible
         if visible {
             refreshIfVisible(force: true)
         }
     }
 
-    func refreshIfVisible(force: Bool = false) {
-        guard isCleanupVisible else { return }
-        manager.refresh(from: cleanupSources, activeProjectPaths: activeProjectPaths, force: force)
+    private func refreshWhileHidden() {
+        manager.refresh(from: cleanupSources, activeProjectPaths: activeProjectPaths) { [weak self] candidates in
+            self?.handleRefreshCompletion(candidates)
+        }
+    }
+
+    private func handleRefreshCompletion(_ candidates: [WorktreeCleanupCandidate]) {
+        if isCleanupVisible {
+            markCandidatesSeen(candidates)
+        } else {
+            updateHiddenNudge(from: candidates)
+        }
+    }
+
+    private func updateHiddenNudge(from candidates: [WorktreeCleanupCandidate]) {
+        let candidateIDs = Set(candidates.map(\.id))
+        if candidateIDs.isEmpty {
+            hasHiddenCleanupNudge = false
+            seenCleanupCandidateIDs = []
+        } else {
+            hasHiddenCleanupNudge = !candidateIDs.subtracting(seenCleanupCandidateIDs).isEmpty
+        }
+    }
+
+    private func markCurrentCandidatesSeen() {
+        markCandidatesSeen(manager.candidates)
+    }
+
+    private func markCandidatesSeen(_ candidates: [WorktreeCleanupCandidate]) {
+        seenCleanupCandidateIDs = Set(candidates.map(\.id))
+        hasHiddenCleanupNudge = false
     }
 }
 
@@ -91,9 +160,11 @@ struct WorktreeCleanupRefreshSignature: Equatable {
 
     init(cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
         self.cleanupSources = cleanupSources
-            .map {
-                CleanupSourceFingerprint(
-                    path: WorktreeCleanupScanner.standardizedPath($0.projectPath),
+            .compactMap {
+                let path = WorktreeCleanupScanner.standardizedPath($0.projectPath)
+                guard WorktreeCleanupScanner.shouldScanCleanupSourcePath(path) else { return nil }
+                return CleanupSourceFingerprint(
+                    path: path,
                     sessionId: $0.sessionId,
                     lastActiveAt: $0.lastActiveAt,
                     displayName: $0.sessionName,

@@ -98,6 +98,19 @@ enum Config {
         NSString(string: NSString(string: path).expandingTildeInPath).standardizingPath
     }
 
+    static func isLikelyPrivacyProtectedUserPath(_ path: String) -> Bool {
+        let pathComponents = URL(fileURLWithPath: standardizedPath(path)).pathComponents
+        guard let userDirectoryIndex = userDirectoryComponentIndex(in: pathComponents) else { return false }
+        let protectedFolderIndex = userDirectoryIndex + 2
+        guard pathComponents.indices.contains(protectedFolderIndex) else { return false }
+        if ["Desktop", "Documents", "Downloads"].contains(pathComponents[protectedFolderIndex]) {
+            return true
+        }
+        return pathComponents[protectedFolderIndex] == "Library"
+            && pathComponents.indices.contains(protectedFolderIndex + 1)
+            && pathComponents[protectedFolderIndex + 1] == "Mobile Documents"
+    }
+
     private static func ensureDirectoryExists(_ path: String) {
         let fm = FileManager.default
         if !fm.fileExists(atPath: path) {
@@ -106,6 +119,20 @@ enum Config {
                 attributes: [.posixPermissions: 0o700]
             )
         }
+    }
+
+    private static func userDirectoryComponentIndex(in pathComponents: [String]) -> Int? {
+        if pathComponents.count > 2, pathComponents[1] == "Users" {
+            return 1
+        }
+        if pathComponents.count > 5,
+           pathComponents[1] == "System",
+           pathComponents[2] == "Volumes",
+           pathComponents[3] == "Data",
+           pathComponents[4] == "Users" {
+            return 4
+        }
+        return nil
     }
 
     private static func codexHome() -> String {

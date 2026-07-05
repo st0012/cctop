@@ -93,10 +93,10 @@ class HistoryManager: ObservableObject {
         for session in sessions {
             if session.isHostedByDesktopApp { continue }
             let canonicalProjectPath = canonicalRecentProjectPath(session.projectPath)
+            if activeProjectPaths.contains(canonicalProjectPath) { continue }
             guard isDurableRecentProjectPath(canonicalProjectPath, projectPathExists: projectPathExists) else {
                 continue
             }
-            if activeProjectPaths.contains(canonicalProjectPath) { continue }
             if let existing = grouped[canonicalProjectPath] {
                 let newer = session.effectiveEndDate > existing.latest.effectiveEndDate
                 grouped[canonicalProjectPath] = (
@@ -131,8 +131,9 @@ class HistoryManager: ObservableObject {
         projectPathExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> Bool {
         let canonicalPath = canonicalRecentProjectPath(path)
-        guard projectPathExists(canonicalPath) else { return false }
-        return !isExcludedRecentProjectPath(canonicalPath)
+        guard !isExcludedRecentProjectPath(canonicalPath) else { return false }
+        guard !Config.isLikelyPrivacyProtectedUserPath(canonicalPath) else { return true }
+        return projectPathExists(canonicalPath)
     }
 
     private static func isExcludedRecentProjectPath(_ canonicalPath: String) -> Bool {
@@ -143,7 +144,9 @@ class HistoryManager: ObservableObject {
     }
 
     static func canonicalRecentProjectPath(_ path: String) -> String {
-        URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
+        let path = Config.standardizedPath(path)
+        guard !Config.isLikelyPrivacyProtectedUserPath(path) else { return path }
+        return URL(fileURLWithPath: path).resolvingSymlinksInPath().path
     }
 
     private static var nonDurableRecentProjectRootPaths: [String] {
@@ -230,7 +233,7 @@ class HistoryManager: ObservableObject {
                 toRemove.append(entry.url)
             } else {
                 seenProjects.insert(canonicalPath)
-                if projectPathExists(canonicalPath) {
+                if Config.isLikelyPrivacyProtectedUserPath(canonicalPath) || projectPathExists(canonicalPath) {
                     capEligibleKeep.append(entry)
                 }
             }

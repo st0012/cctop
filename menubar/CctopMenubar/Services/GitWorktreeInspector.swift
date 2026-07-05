@@ -11,6 +11,7 @@ struct GitWorktreeInspector {
     var runGitWithInput: (String, [String], String) -> GitCommandResult = GitCommand.run
     var worktreeFileMode: (String) -> String? = Self.gitWorktreeFileMode
     var symlinkDestination: (String) -> String? = Self.symlinkDestination
+    var canonicalizePath: (String) -> String = Self.resolvingSymlinksInPath
 
     func listWorktrees(from path: String) -> [GitWorktreeListEntry]? {
         let list = runGit(path, ["worktree", "list", "--porcelain", "-z"])
@@ -20,10 +21,25 @@ struct GitWorktreeInspector {
 
     func worktreeRoot(containing path: String) -> String? {
         guard let entries = listWorktrees(from: path) else { return nil }
-        let comparablePath = Self.comparablePath(path)
+        let needlePath = comparablePath(path)
         return entries
             .map(\.path)
-            .filter { Self.path(comparablePath, isSameAsOrDescendantOf: Self.comparablePath($0)) }
+            .filter { Self.path(needlePath, isSameAsOrDescendantOf: comparablePath($0)) }
+            .max { lhs, rhs in lhs.count < rhs.count }
+    }
+
+    func linkedWorktreeRoot(containing path: String) -> String? {
+        guard let entries = listWorktrees(from: path) else { return nil }
+        let needlePath = comparablePath(path)
+        return entries
+            .enumerated()
+            .compactMap { index, entry in
+                guard index > 0,
+                      Self.path(needlePath, isSameAsOrDescendantOf: comparablePath(entry.path)) else {
+                    return nil
+                }
+                return entry.path
+            }
             .max { lhs, rhs in lhs.count < rhs.count }
     }
 
@@ -43,9 +59,9 @@ struct GitWorktreeInspector {
             )
         }
 
-        let comparablePath = Self.comparablePath(path)
+        let needlePath = comparablePath(path)
         let mainWorktreePath = entries.first?.path
-        guard let matchIndex = entries.firstIndex(where: { Self.comparablePath($0.path) == comparablePath }) else {
+        guard let matchIndex = entries.firstIndex(where: { comparablePath($0.path) == needlePath }) else {
             return GitWorktreeInspection(
                 isRegisteredWorktree: false,
                 isLinkedWorktree: false,
@@ -285,8 +301,16 @@ struct GitWorktreeInspector {
         path == root || path.hasPrefix(root.hasSuffix("/") ? root : "\(root)/")
     }
 
-    private static func comparablePath(_ path: String) -> String {
-        Config.standardizedPath((path as NSString).resolvingSymlinksInPath)
+    private func comparablePath(_ path: String) -> String {
+        let standardizedPath = Config.standardizedPath(path)
+        guard !Config.isLikelyPrivacyProtectedUserPath(standardizedPath) else {
+            return standardizedPath
+        }
+        return Config.standardizedPath(canonicalizePath(path))
+    }
+
+    private static func resolvingSymlinksInPath(_ path: String) -> String {
+        (path as NSString).resolvingSymlinksInPath
     }
 }
 

@@ -40,6 +40,7 @@ struct WorktreeCleanupScanner {
     var resolveWorktreeRoot: (String) -> String?
     var inspectGit: (String) -> GitWorktreeInspection
     var measureSize: (String) -> Int64?
+    var resolveLinkedWorktreeRoot: (String) -> String? = { _ in nil }
 
     static func live() -> WorktreeCleanupScanner {
         let inspector = GitWorktreeInspector()
@@ -47,7 +48,8 @@ struct WorktreeCleanupScanner {
             fileExists: { FileManager.default.fileExists(atPath: $0) },
             resolveWorktreeRoot: { inspector.worktreeRoot(containing: $0) },
             inspectGit: { inspector.inspect(path: $0) },
-            measureSize: { DirectorySizeScanner.sizeOfDirectory(atPath: $0) }
+            measureSize: { DirectorySizeScanner.sizeOfDirectory(atPath: $0) },
+            resolveLinkedWorktreeRoot: { inspector.linkedWorktreeRoot(containing: $0) }
         )
     }
 
@@ -73,12 +75,13 @@ struct WorktreeCleanupScanner {
         var resolvedPaths: [String: String] = [:]
         for source in cleanupSources {
             let rawPath = Self.standardizedPath(source.projectPath)
-            guard shouldScanCleanupSourcePath(rawPath) else { continue }
-            let path = resolvedPaths[rawPath] ?? {
+            guard Self.shouldScanCleanupSourcePath(rawPath) else { continue }
+            let needsProtectedFolderAccess = Self.needsProtectedFolderAccessReview(rawPath)
+            let path = needsProtectedFolderAccess ? Self.cleanupWorktreeRootPath(for: rawPath) ?? rawPath : (resolvedPaths[rawPath] ?? {
                 let path = resolvedCandidatePath(for: rawPath)
                 resolvedPaths[rawPath] = path
                 return path
-            }()
+            }())
             guard let existing = result[path] else {
                 result[path] = CandidateContext(source: source, path: path)
                 continue
@@ -121,6 +124,14 @@ struct WorktreeCleanupScanner {
                 context: context,
                 state: .ignored(["Active cctop session is using this path"]),
                 checks: [WorktreeCleanupCheck(label: "No active cctop sessions here", status: .ignored)]
+            )
+        }
+
+        guard !Self.needsProtectedFolderAccessReview(context.path) else {
+            return ignoredCandidate(
+                context: context,
+                state: .review([WorktreeCleanupCandidate.protectedFolderAccessReason]),
+                checks: [WorktreeCleanupCheck(label: "Protected folder access", status: .review)]
             )
         }
 
@@ -341,9 +352,7 @@ struct WorktreeCleanupScanner {
         ]
     }
 
-    static func standardizedPath(_ path: String) -> String {
-        Config.standardizedPath(path)
-    }
+    static func standardizedPath(_ path: String) -> String { Config.standardizedPath(path) }
 }
 
 extension WorktreeCleanupScanner {
@@ -363,12 +372,13 @@ extension WorktreeCleanupScanner {
         var resolvedPaths: [String: String] = [:]
         for source in cleanupSources {
             let rawPath = Self.standardizedPath(source.projectPath)
-            guard shouldScanCleanupSourcePath(rawPath) else { continue }
-            let path = resolvedPaths[rawPath] ?? {
+            guard Self.shouldScanCleanupSourcePath(rawPath) else { continue }
+            let needsProtectedFolderAccess = Self.needsProtectedFolderAccessReview(rawPath)
+            let path = needsProtectedFolderAccess ? Self.cleanupWorktreeRootPath(for: rawPath) ?? rawPath : (resolvedPaths[rawPath] ?? {
                 let path = resolvedCandidatePath(for: rawPath)
                 resolvedPaths[rawPath] = path
                 return path
-            }()
+            }())
             guard path == id else { continue }
             guard let existing = result else {
                 result = CandidateContext(source: source, path: path)
@@ -382,43 +392,34 @@ extension WorktreeCleanupScanner {
     }
 }
 
+extension WorktreeCleanupScanner {
+    static func shouldScanCleanupSourcePath(_ path: String) -> Bool {
+        guard Config.isLikelyPrivacyProtectedUserPath(path) else { return true }
+        return isPlausibleCleanupWorktreePath(path)
+    }
+}
+
 private extension WorktreeCleanupScanner {
-    func shouldScanCleanupSourcePath(_ path: String) -> Bool {
-        guard Self.isLikelyPrivacyProtectedUserPath(path) else { return true }
-        return Self.isPlausibleCleanupWorktreePath(path)
+    func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths _: Set<String>) -> Bool {
+        !Config.isLikelyPrivacyProtectedUserPath(activePath)
     }
 
-    func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths: Set<String>) -> Bool {
-        if candidatePaths.contains(where: { candidatePath in
-            Self.isPath(activePath, sameAsOrDescendantOf: candidatePath)
-                || Self.isPath(candidatePath, sameAsOrDescendantOf: activePath)
-        }) {
-            return true
-        }
-        return !Self.isLikelyPrivacyProtectedUserPath(activePath)
+    static func needsProtectedFolderAccessReview(_ path: String) -> Bool {
+        Config.isLikelyPrivacyProtectedUserPath(path) && isPlausibleCleanupWorktreePath(path)
     }
 
-    static func isPath(_ path: String, sameAsOrDescendantOf parentPath: String) -> Bool {
-        path == parentPath || path.hasPrefix(parentPath.hasSuffix("/") ? parentPath : "\(parentPath)/")
-    }
-
-    static func isLikelyPrivacyProtectedUserPath(_ path: String) -> Bool {
+    static func isPlausibleCleanupWorktreePath(_ path: String) -> Bool { cleanupWorktreeRootPath(for: path) != nil }
+    static func cleanupWorktreeRootPath(for path: String) -> String? {
         let pathComponents = URL(fileURLWithPath: path).pathComponents
-        guard pathComponents.count > 3, pathComponents[1] == "Users" else { return false }
-        return ["Desktop", "Documents", "Downloads"].contains(pathComponents[3])
-    }
-
-    static func isPlausibleCleanupWorktreePath(_ path: String) -> Bool {
-        let pathComponents = URL(fileURLWithPath: path).pathComponents
-        guard pathComponents.count >= 3 else { return false }
+        guard pathComponents.count >= 3 else { return nil }
         for index in 0..<(pathComponents.count - 2) {
             let marker = pathComponents[index]
             guard marker == ".claude" || marker == ".codex" else { continue }
             if pathComponents[index + 1] == "worktrees", !pathComponents[index + 2].isEmpty {
-                return true
+                return NSString.path(withComponents: Array(pathComponents[0...(index + 2)]))
             }
         }
-        return false
+        return nil
     }
 }
 
@@ -454,9 +455,7 @@ private extension WorktreeCleanupCandidate.State {
 }
 
 private extension Array where Element == String {
-    func nonEmptyOr(_ fallback: [String]) -> [String] {
-        isEmpty ? fallback : self
-    }
+    func nonEmptyOr(_ fallback: [String]) -> [String] { isEmpty ? fallback : self }
 
     mutating func appendUnique(_ reason: String) {
         guard !contains(reason) else { return }
