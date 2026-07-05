@@ -2359,6 +2359,39 @@ final class WorktreeCleanupTests: XCTestCase {
     }
 
     @MainActor
+    func testCleanupRefreshGateNudgesIfVisibleScanCompletesAfterCleanupHides() async throws {
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let session = historySession(path: worktreePath)
+        let scanStarted = expectation(description: "visible cleanup scan started")
+        let releaseScan = DispatchSemaphore(value: 0)
+        let manager = WorktreeCleanupManager(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { _ in true },
+                resolveWorktreeRoot: { _ in nil },
+                inspectGit: { _ in
+                    scanStarted.fulfill()
+                    releaseScan.wait()
+                    return self.cleanInspection()
+                },
+                measureSize: { _ in 1_024 }
+            )
+        )
+        let gate = WorktreeCleanupRefreshGate(manager: manager)
+
+        gate.setCleanupVisible(true)
+        gate.updateSources([session], activeProjectPaths: [])
+        await fulfillment(of: [scanStarted], timeout: 1)
+
+        gate.setCleanupVisible(false)
+        releaseScan.signal()
+
+        try await waitForCleanupCandidates(manager) { candidates in
+            candidates.first?.worktreePath == worktreePath
+        }
+        XCTAssertTrue(gate.hasHiddenCleanupNudge)
+    }
+
+    @MainActor
     func testCleanupVisibleRefreshDoesNotProbeProtectedActiveProjectPathWithUnprotectedHistorySource() async throws {
         let historyWorktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let protectedActivePath = "/Users/dev/Documents/Codex/2026-07-04/can-you-check-my-email-and"

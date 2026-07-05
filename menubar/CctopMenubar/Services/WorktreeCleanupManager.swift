@@ -99,8 +99,7 @@ final class WorktreeCleanupRefreshGate: ObservableObject {
         guard isCleanupVisible else { return }
         markCurrentCandidatesSeen()
         manager.refresh(from: cleanupSources, activeProjectPaths: activeProjectPaths, force: force) { [weak self] candidates in
-            guard let self, self.isCleanupVisible else { return }
-            self.markCandidatesSeen(candidates)
+            self?.handleRefreshCompletion(candidates)
         }
     }
 
@@ -115,12 +114,15 @@ final class WorktreeCleanupRefreshGate: ObservableObject {
 
     private func refreshWhileHidden() {
         manager.refresh(from: cleanupSources, activeProjectPaths: activeProjectPaths) { [weak self] candidates in
-            guard let self else { return }
-            if self.isCleanupVisible {
-                self.markCandidatesSeen(candidates)
-            } else {
-                self.updateHiddenNudge(from: candidates)
-            }
+            self?.handleRefreshCompletion(candidates)
+        }
+    }
+
+    private func handleRefreshCompletion(_ candidates: [WorktreeCleanupCandidate]) {
+        if isCleanupVisible {
+            markCandidatesSeen(candidates)
+        } else {
+            updateHiddenNudge(from: candidates)
         }
     }
 
