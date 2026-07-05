@@ -512,7 +512,7 @@ final class SessionLifecycleTests: XCTestCase {
         XCTAssertEqual(classification.archivedClaudeSessionIDs, ["archived-claude"])
     }
 
-    func testClassificationSnapshotDoesNotEmitCleanupSourcesForArchivedDesktopSessions() {
+    func testClassificationSnapshotEmitsCleanupSourcesForArchivedDesktopSessions() {
         let archived = candidate(sessionId: "archived-thread", pid: 1, bundleId: HostAppBundleID.codexDesktop,
                                  lifecycleRank: 0, source: Session.codexSource, path: "/archived.json") { session in
             session.sessionName = "Archived desktop work"
@@ -532,7 +532,9 @@ final class SessionLifecycleTests: XCTestCase {
         )
 
         XCTAssertEqual(state.displayCandidates.map(\.session.sessionId), ["visible-thread"])
-        XCTAssertEqual(state.cleanupSources.map(\.sessionId), [])
+        XCTAssertEqual(state.cleanupSources.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(state.cleanupSources.map(\.projectPath), ["/tmp/p"])
+        XCTAssertEqual(state.cleanupSources.map(\.sessionName), ["Archived desktop work"])
         XCTAssertEqual(state.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
     }
 
@@ -586,7 +588,10 @@ final class SessionLifecycleTests: XCTestCase {
             ["terminal-finished", "visible-thread"]
         )
         XCTAssertEqual(state.finishedNonDesktopCandidates.map(\.session.sessionId), ["terminal-finished"])
-        XCTAssertEqual(state.cleanupSources.map(\.sessionId), [])
+        XCTAssertEqual(
+            state.cleanupSources.map(\.sessionId).sorted(),
+            ["archived-claude", "archived-thread"]
+        )
         XCTAssertEqual(state.autoHiddenSessions.map(\.1.sessionId), ["auto-hidden"])
         XCTAssertEqual(state.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
         XCTAssertEqual(state.protectedProjectPathsForCleanup, ["/tmp/p"])

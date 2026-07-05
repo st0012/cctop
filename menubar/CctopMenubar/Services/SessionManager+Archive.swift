@@ -124,10 +124,18 @@ struct SessionClassificationSnapshot {
         }
     }
 
-    /// Archived desktop conversations stay hidden and resumable in Recent, but are preserved
-    /// files rather than cleanup opportunities. Non-desktop cleanup rows come from history.
+    /// Archived desktop conversations stay hidden and resumable in Recent, but a known
+    /// project path can still seed worktree cleanup while preserving the session file.
+    /// Non-desktop cleanup rows come from history.
     var cleanupSources: [SessionCleanupSource] {
-        []
+        records.compactMap { record in
+            guard case .hidden(let reason) = record.disposition,
+                  reason.emitsCleanupSource,
+                  record.candidate.session.hasCleanupSourcePath else {
+                return nil
+            }
+            return SessionCleanupSource(session: record.candidate.session)
+        }
     }
 
     var archivedCodexThreadIDs: Set<String> { evidence.archivedCodexThreadIDs }
@@ -135,6 +143,25 @@ struct SessionClassificationSnapshot {
     var codexSubagentThreadIDs: Set<String> { evidence.codexSubagentThreadIDs }
     var codexExecHelperThreadIDs: Set<String> { evidence.codexExecHelperThreadIDs }
     var archivedClaudeSessionIDs: Set<String> { evidence.archivedClaudeSessionIDs }
+}
+
+private extension SessionHiddenReason {
+    var emitsCleanupSource: Bool {
+        switch self {
+        case .archivedCodexDesktop, .archivedClaudeDesktop:
+            return true
+        case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexSubagent,
+             .codexExecHelper, .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
+            return false
+        }
+    }
+}
+
+private extension Session {
+    var hasCleanupSourcePath: Bool {
+        let path = WorktreeCleanupScanner.standardizedPath(projectPath)
+        return !path.isEmpty && path != "/"
+    }
 }
 
 extension SessionManager {

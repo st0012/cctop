@@ -792,7 +792,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
-        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(manager.cleanupSources.map(\.projectPath), ["/tmp/p"])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
@@ -833,7 +834,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
-        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-without-source"])
+        XCTAssertEqual(manager.cleanupSources.map(\.projectPath), ["/tmp/p"])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
@@ -877,7 +879,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
-        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-claude-session"])
+        XCTAssertEqual(manager.cleanupSources.map(\.projectPath), ["/tmp/p"])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
@@ -927,6 +930,9 @@ final class SessionManagerVisibilityTests: XCTestCase {
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-claude-without-source"])
+        XCTAssertEqual(manager.cleanupSources.map(\.projectPath), ["/tmp/p"])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
