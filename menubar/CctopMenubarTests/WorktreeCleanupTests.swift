@@ -187,6 +187,22 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(linkedRootPaths.contains(activeDocumentsPath))
     }
 
+    func testProtectedPathDetectionIncludesDataVolumeAndICloudShapes() {
+        XCTAssertTrue(Config.isLikelyPrivacyProtectedUserPath("/Users/dev/Documents/app"))
+        XCTAssertTrue(Config.isLikelyPrivacyProtectedUserPath("/Users/dev/Desktop/app"))
+        XCTAssertTrue(Config.isLikelyPrivacyProtectedUserPath("/Users/dev/Downloads/app"))
+        XCTAssertTrue(Config.isLikelyPrivacyProtectedUserPath("/System/Volumes/Data/Users/dev/Documents/app"))
+        XCTAssertTrue(Config.isLikelyPrivacyProtectedUserPath("/System/Volumes/Data/Users/dev/Desktop/app"))
+        XCTAssertTrue(Config.isLikelyPrivacyProtectedUserPath("/System/Volumes/Data/Users/dev/Downloads/app"))
+        XCTAssertTrue(Config.isLikelyPrivacyProtectedUserPath("/Users/dev/Library/Mobile Documents/com~apple~CloudDocs/app"))
+        XCTAssertTrue(
+            Config.isLikelyPrivacyProtectedUserPath(
+                "/System/Volumes/Data/Users/dev/Library/Mobile Documents/com~apple~CloudDocs/app"
+            )
+        )
+        XCTAssertFalse(Config.isLikelyPrivacyProtectedUserPath("/Users/dev/projects/app"))
+    }
+
     func testScannerDoesNotProbeProtectedActiveParentProjectPath() {
         let activeDocumentsPath = "/Users/dev/Documents/app"
         let candidatePath = "\(activeDocumentsPath)/.claude/worktrees/feature-x"
@@ -1135,6 +1151,63 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(inspector.linkedWorktreeRoot(containing: "\(worktreePath)/pkg"), worktreePath)
         XCTAssertNil(inspector.linkedWorktreeRoot(containing: "\(repo)/pkg"))
         XCTAssertNil(inspector.linkedWorktreeRoot(containing: "/Users/dev/projects/other"))
+    }
+
+    func testInspectorDoesNotCanonicalizeProtectedWorktreeListEntriesWhileInspectingUnprotectedWorktree() {
+        let repo = "/Users/dev/projects/billing-api"
+        let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let protectedSibling = "/Users/dev/Documents/app/.codex/worktrees/protected-feature"
+        let output = [
+            "worktree \(repo)",
+            "branch refs/heads/master",
+            "",
+            "worktree \(worktreePath)",
+            "branch refs/heads/feature/invoices",
+            "",
+            "worktree \(protectedSibling)",
+            "branch refs/heads/protected-feature",
+            "",
+        ].joined(separator: "\u{0}")
+        var canonicalizedPaths: [String] = []
+        let inspector = GitWorktreeInspector(
+            runGit: { _, arguments in
+                switch arguments {
+                case ["worktree", "list", "--porcelain", "-z"]:
+                    return GitCommandResult(exitCode: 0, stdout: output, stderr: "")
+                case ["branch", "--show-current"]:
+                    return GitCommandResult(exitCode: 0, stdout: "feature/invoices\n", stderr: "")
+                case ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=traditional"]:
+                    return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+                case ["ls-files", "-s", "-v", "-z"]:
+                    return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+                case ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]:
+                    return GitCommandResult(exitCode: 0, stdout: "origin/feature/invoices\n", stderr: "")
+                case ["rev-list", "--count", "@{u}..HEAD"]:
+                    return GitCommandResult(exitCode: 0, stdout: "0\n", stderr: "")
+                case ["submodule", "status", "--recursive"]:
+                    return GitCommandResult(exitCode: 0, stdout: "", stderr: "")
+                default:
+                    return GitCommandResult(exitCode: 1, stdout: "", stderr: "unexpected \(arguments)")
+                }
+            },
+            canonicalizePath: { path in
+                canonicalizedPaths.append(path)
+                return path
+            }
+        )
+
+        XCTAssertEqual(inspector.worktreeRoot(containing: "\(worktreePath)/pkg"), worktreePath)
+
+        XCTAssertTrue(canonicalizedPaths.contains(worktreePath))
+        XCTAssertFalse(canonicalizedPaths.contains(protectedSibling))
+
+        canonicalizedPaths.removeAll()
+        let inspection = inspector.inspect(path: worktreePath)
+
+        XCTAssertTrue(inspection.isRegisteredWorktree)
+        XCTAssertTrue(inspection.isLinkedWorktree)
+        XCTAssertTrue(canonicalizedPaths.contains(worktreePath))
+        XCTAssertFalse(canonicalizedPaths.contains(protectedSibling))
     }
 
     func testInspectorResolvesSymlinkedPathToContainingWorktreeRoot() throws {
@@ -2132,6 +2205,57 @@ final class WorktreeCleanupTests: XCTestCase {
         }
         XCTAssertEqual(inspectionCount, 1)
         XCTAssertFalse(gate.hasHiddenCleanupNudge)
+    }
+
+    @MainActor
+    func testCleanupVisibleRefreshDoesNotProbeProtectedActiveProjectPathWithUnprotectedHistorySource() async throws {
+        let historyWorktreePath = "/Users/dev/.codex/worktrees/billing-api"
+        let protectedActivePath = "/Users/dev/Documents/Codex/2026-07-04/can-you-check-my-email-and"
+        let session = historySession(path: historyWorktreePath)
+        var probedPaths: [String] = []
+        var resolvedPaths: [String] = []
+        var inspectedPaths: [String] = []
+        var measuredPaths: [String] = []
+        var linkedRootPaths: [String] = []
+        let manager = WorktreeCleanupManager(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { path in
+                    probedPaths.append(path)
+                    return path == historyWorktreePath
+                },
+                resolveWorktreeRoot: { path in
+                    resolvedPaths.append(path)
+                    return path == historyWorktreePath ? historyWorktreePath : nil
+                },
+                inspectGit: { path in
+                    inspectedPaths.append(path)
+                    return self.cleanInspection()
+                },
+                measureSize: { path in
+                    measuredPaths.append(path)
+                    return 1_024
+                },
+                resolveLinkedWorktreeRoot: { path in
+                    linkedRootPaths.append(path)
+                    return nil
+                }
+            )
+        )
+        let gate = WorktreeCleanupRefreshGate(manager: manager)
+
+        gate.setPanelVisible(true)
+        gate.setCleanupTabSelected(true)
+        gate.updateSources([session], activeProjectPaths: [protectedActivePath])
+
+        try await waitForCleanupCandidates(manager) { candidates in
+            candidates.first?.worktreePath == historyWorktreePath
+        }
+
+        XCTAssertFalse(probedPaths.contains(protectedActivePath))
+        XCTAssertFalse(resolvedPaths.contains(protectedActivePath))
+        XCTAssertFalse(inspectedPaths.contains(protectedActivePath))
+        XCTAssertFalse(measuredPaths.contains(protectedActivePath))
+        XCTAssertFalse(linkedRootPaths.contains(protectedActivePath))
     }
 
     @MainActor
