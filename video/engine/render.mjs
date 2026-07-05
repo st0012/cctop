@@ -127,6 +127,21 @@ process.stdout.write('\n');
 const renderErr = await evalJS('window.__error || null').catch(() => null);
 if (renderErr) { console.error('render aborted:', renderErr); ws.close(); cleanup(); process.exit(1); }
 
+// --cut=<name>: resolve a named timeline cut from the page (window.__cuts, defined next to the
+// beat table), so cut boundaries live in one place and follow beat retimes automatically.
+let firstFrame = START;
+let endFrame = Math.round(DURATION * FPS);
+if (args.cut) {
+  const cut = await evalJS(`(window.__cuts && window.__cuts[${JSON.stringify(String(args.cut))}]) || null`);
+  if (!cut || typeof cut.start !== 'number' || typeof cut.end !== 'number' || cut.end <= cut.start) {
+    console.error(`unknown cut '${args.cut}': the page must define window.__cuts['${args.cut}'] = {start, end} (seconds)`);
+    ws.close(); cleanup(); process.exit(1);
+  }
+  firstFrame = Math.round(cut.start * FPS);
+  endFrame = Math.round(cut.end * FPS);
+  console.log(`cut '${args.cut}': t=[${cut.start.toFixed(2)}, ${cut.end.toFixed(2)}) -> frames ${firstFrame}..${endFrame - 1}`);
+}
+
 const t0 = Date.now();
 if (args.times) {
   // keyframe sampling mode: render specific timestamps to keyframe_<t>.png
@@ -140,17 +155,16 @@ if (args.times) {
   console.log(`Keyframes done in ${((Date.now() - t0) / 1000).toFixed(1)}s -> ${OUT}`);
   ws.close(); cleanup(); process.exit(0);
 }
-const totalFrames = Math.round(DURATION * FPS);
-console.log(`Rendering ${totalFrames} frames @ ${FPS}fps (${WIDTH}x${HEIGHT} x${SCALE}) from frame ${START}`);
-for (let f = START; f < totalFrames; f++) {
+console.log(`Rendering frames ${firstFrame}..${endFrame - 1} @ ${FPS}fps (${WIDTH}x${HEIGHT} x${SCALE})`);
+for (let f = firstFrame; f < endFrame; f++) {
   const t = f / FPS;
   await evalJS(`window.__seek(${t})`, true);
   const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false, fromSurface: true });
   writeFileSync(`${OUT}/frame_${String(f).padStart(5, '0')}.png`, Buffer.from(shot.data, 'base64'));
   if (f % 30 === 0) {
-    const pct = ((f - START) / (totalFrames - START) * 100).toFixed(0);
-    const eta = ((Date.now() - t0) / Math.max(1, f - START + 1) * (totalFrames - f) / 1000).toFixed(0);
-    process.stdout.write(`\r  frame ${f}/${totalFrames} (${pct}%) eta ${eta}s   `);
+    const pct = ((f - firstFrame) / (endFrame - firstFrame) * 100).toFixed(0);
+    const eta = ((Date.now() - t0) / Math.max(1, f - firstFrame + 1) * (endFrame - f) / 1000).toFixed(0);
+    process.stdout.write(`\r  frame ${f}/${endFrame} (${pct}%) eta ${eta}s   `);
   }
 }
 console.log(`\nDone in ${((Date.now() - t0) / 1000).toFixed(1)}s -> ${OUT}`);

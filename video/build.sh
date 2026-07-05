@@ -2,9 +2,14 @@
 # Build one video end-to-end:  ./build.sh <project>   (default: launch)
 # Renders projects/<project>/body.html headlessly and encodes the mp4. Everything the build
 # touches (staged screenshots, frames, mp4, poster) lives in projects/<project>/.video-build/ (gitignored).
+#
+# Timeline cuts:  CUT=clip ./build.sh launch  renders the named cut that the project's body.html
+# defines in window.__cuts (next to its beat table), into <project>-<cut>.mp4 alongside the full
+# render. Cut boundaries live only in body.html so beat retimes move them automatically.
 set -euo pipefail
 cd "$(dirname "$0")"
 PROJECT="${1:-launch}"; PORT="${PORT:-8123}"; SCALE="${SCALE:-2}"; FPS=30; DUR="${DUR:-30.0}"; W="${W:-1920}"; H="${H:-1080}"
+CUT="${CUT:-}"; OUT_NAME="${OUT_NAME:-$PROJECT${CUT:+-$CUT}}"
 REPO="$(cd .. && pwd)"                 # <repo> root: needs <repo>/docs/*.png (relocate-friendly: override REPO=)
 PDIR="projects/$PROJECT"
 [ -f "$PDIR/body.html" ] || { echo "no such project: $PDIR/body.html"; exit 1; }
@@ -34,7 +39,8 @@ SRV_PID=$!
 sleep 0.6
 kill -0 "$SRV_PID" 2>/dev/null || { echo "preview server failed to start on port $PORT"; cat /tmp/cctop-video-http.log; exit 1; }
 node engine/render.mjs --url="http://127.0.0.1:$PORT/$PDIR/body.html" \
-  --out="$BUILD/frames" --duration="$DUR" --fps="$FPS" --scale="$SCALE" --width="$W" --height="$H"
-OW="$W" OH="$H" bash engine/encode.sh "$BUILD/frames" "$BUILD/$PROJECT.mp4"
-bash engine/check.sh "$BUILD/$PROJECT.mp4"     # set -e: a failed check fails the build (don't print "Built")
-echo "Built $BUILD/$PROJECT.mp4  (and ${PROJECT}-720p.mp4)"
+  --out="$BUILD/frames" --duration="$DUR" --fps="$FPS" --scale="$SCALE" --width="$W" --height="$H" \
+  ${CUT:+--cut="$CUT"}
+OW="$W" OH="$H" bash engine/encode.sh "$BUILD/frames" "$BUILD/$OUT_NAME.mp4"
+bash engine/check.sh "$BUILD/$OUT_NAME.mp4"    # set -e: a failed check fails the build (don't print "Built")
+echo "Built $BUILD/$OUT_NAME.mp4  (and ${OUT_NAME}-720p.mp4)"

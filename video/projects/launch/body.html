@@ -289,6 +289,11 @@ const TL={
   jump:[10.6,13.8], payoff:[13.7,17.4], cleanup:[17.3,22.2], stack:[22.25,25.3], cta:[25.1,30.0]
 };
 const TOTAL=30.0;
+// Named timeline cuts, derived from TL so retiming beats moves them too (render.mjs --cut).
+// clip: the social/feed cut. In after the morph settles (panel readable; earlier frames read
+// as blank in feeds). Out while the payoff is still fully lit, leaving room for the encoder's
+// 0.6s fade-out before the beat's own dim.
+window.__cuts={ clip:{ start:TL.morph[1]+0.4, end:TL.payoff[1]-0.5 } };
 const PANEL={x:905,y:176,w:680,h:781};
 const PILL={x:1630,y:30};                       // pill centre — bloom origin + dot convergence
 const DOTC=[868,914,960,1006,1052], DOTY=538;   // hook dot centres at rest
