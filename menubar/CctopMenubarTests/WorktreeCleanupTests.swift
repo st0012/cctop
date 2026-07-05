@@ -1571,6 +1571,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let session = historySession(path: projectPath)
         var probeCount = 0
         var linkedRootCount = 0
+        var linkedRootRanOnMainThread: Bool?
         var inspectionCount = 0
         var sizeCount = 0
         let manager = WorktreeCleanupManager(
@@ -1590,6 +1591,7 @@ final class WorktreeCleanupTests: XCTestCase {
                 },
                 resolveLinkedWorktreeRoot: { _ in
                     linkedRootCount += 1
+                    linkedRootRanOnMainThread = Thread.isMainThread
                     return nil
                 }
             )
@@ -1597,13 +1599,14 @@ final class WorktreeCleanupTests: XCTestCase {
         let gate = WorktreeCleanupRefreshGate(manager: manager)
 
         gate.updateSources([session], activeProjectPaths: [])
-        try await Task.sleep(nanoseconds: 100_000_000)
+        try await waitForCondition { linkedRootCount == 1 }
 
         XCTAssertFalse(gate.hasHiddenCleanupNudge)
         XCTAssertEqual(manager.candidates, [])
         XCTAssertFalse(manager.isScanning)
         XCTAssertEqual(probeCount, 0)
         XCTAssertEqual(linkedRootCount, 1)
+        XCTAssertEqual(linkedRootRanOnMainThread, false)
         XCTAssertEqual(inspectionCount, 0)
         XCTAssertEqual(sizeCount, 0)
     }
@@ -1614,6 +1617,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let session = historySession(path: worktreePath)
         var probeCount = 0
         var linkedRootCount = 0
+        var linkedRootRanOnMainThread: Bool?
         var inspectionCount = 0
         var sizeCount = 0
         let manager = WorktreeCleanupManager(
@@ -1633,6 +1637,7 @@ final class WorktreeCleanupTests: XCTestCase {
                 },
                 resolveLinkedWorktreeRoot: { _ in
                     linkedRootCount += 1
+                    linkedRootRanOnMainThread = Thread.isMainThread
                     return worktreePath
                 }
             )
@@ -1640,13 +1645,14 @@ final class WorktreeCleanupTests: XCTestCase {
         let gate = WorktreeCleanupRefreshGate(manager: manager)
 
         gate.updateSources([session], activeProjectPaths: [])
-        try await Task.sleep(nanoseconds: 100_000_000)
+        try await waitForCondition { linkedRootCount == 1 }
 
         XCTAssertTrue(gate.hasHiddenCleanupNudge)
         XCTAssertEqual(manager.candidates, [])
         XCTAssertFalse(manager.isScanning)
         XCTAssertEqual(probeCount, 0)
         XCTAssertEqual(linkedRootCount, 1)
+        XCTAssertEqual(linkedRootRanOnMainThread, false)
         XCTAssertEqual(inspectionCount, 0)
         XCTAssertEqual(sizeCount, 0)
     }
@@ -4256,6 +4262,19 @@ final class WorktreeCleanupTests: XCTestCase {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
         XCTFail("Timed out waiting for cleanup candidates", file: file, line: line)
+    }
+
+    @MainActor
+    private func waitForCondition(
+        _ predicate: @escaping () -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        for _ in 0..<50 {
+            if predicate() { return }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTFail("Timed out waiting for condition", file: file, line: line)
     }
 
     @MainActor

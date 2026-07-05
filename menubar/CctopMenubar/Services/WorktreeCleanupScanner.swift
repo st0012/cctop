@@ -392,8 +392,26 @@ extension WorktreeCleanupScanner {
 
     func hiddenCleanupSourceIdentityPath(for path: String) -> String? {
         let path = Self.standardizedPath(path)
-        guard Self.shouldScanCleanupSourcePath(path) else { return nil }
-        if Self.isPlausibleCleanupWorktreePath(path) { return path }
+        if let path = Self.hiddenCleanupSourceIdentityPath(for: path) { return path }
+        guard Self.shouldResolveHiddenLinkedWorktreeRoot(for: path) else { return nil }
+        return resolveLinkedWorktreeRoot(path).map(Self.standardizedPath)
+    }
+
+    static func hiddenCleanupSourceIdentityPath(for path: String) -> String? {
+        let path = Self.standardizedPath(path)
+        guard shouldScanCleanupSourcePath(path) else { return nil }
+        return isPlausibleCleanupWorktreePath(path) ? path : nil
+    }
+
+    static func shouldResolveHiddenLinkedWorktreeRoot(for path: String) -> Bool {
+        let path = Self.standardizedPath(path)
+        guard shouldScanCleanupSourcePath(path) else { return false }
+        return !isPlausibleCleanupWorktreePath(path)
+    }
+
+    func hiddenLinkedWorktreeIdentityPath(for path: String) -> String? {
+        let path = Self.standardizedPath(path)
+        guard Self.shouldResolveHiddenLinkedWorktreeRoot(for: path) else { return nil }
         return resolveLinkedWorktreeRoot(path).map(Self.standardizedPath)
     }
 

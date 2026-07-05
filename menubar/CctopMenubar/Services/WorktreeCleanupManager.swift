@@ -62,6 +62,9 @@ final class WorktreeCleanupRefreshGate: ObservableObject {
     private var isPanelVisible = false
     private var isCleanupVisible = false
     private var seenCleanupSourceIDs: Set<WorktreeCleanupSourceIdentity> = []
+    private var hiddenLinkedWorktreeIdentityPaths: [String: String] = [:]
+    private var hiddenNonLinkedWorktreePaths: Set<String> = []
+    private var pendingHiddenLinkedWorktreePaths: Set<String> = []
 
     init(manager: WorktreeCleanupManager) {
         self.manager = manager
@@ -109,6 +112,7 @@ final class WorktreeCleanupRefreshGate: ObservableObject {
     }
 
     private func updateHiddenNudgeFromSourceIdentities() {
+        resolveHiddenLinkedWorktreeIdentitiesIfNeeded()
         let sourceIDs = currentSourceIDs()
         if sourceIDs.isEmpty {
             hasHiddenCleanupNudge = false
@@ -119,6 +123,7 @@ final class WorktreeCleanupRefreshGate: ObservableObject {
     }
 
     private func markCurrentSourcesSeen() {
+        resolveHiddenLinkedWorktreeIdentitiesIfNeeded()
         seenCleanupSourceIDs = currentSourceIDs()
         hasHiddenCleanupNudge = false
     }
@@ -126,7 +131,62 @@ final class WorktreeCleanupRefreshGate: ObservableObject {
     private func currentSourceIDs() -> Set<WorktreeCleanupSourceIdentity> {
         let activePaths = Set(activeProjectPaths.map(WorktreeCleanupScanner.standardizedPath))
         return Set(cleanupSources.compactMap { source in
-            WorktreeCleanupSourceIdentity(source: source, activeProjectPaths: activePaths, scanner: manager.scanner)
+            let sourcePath = WorktreeCleanupScanner.standardizedPath(source.projectPath)
+            let identityPath = WorktreeCleanupScanner.hiddenCleanupSourceIdentityPath(for: sourcePath)
+                ?? hiddenLinkedWorktreeIdentityPaths[sourcePath]
+            guard let identityPath else { return nil }
+            return WorktreeCleanupSourceIdentity(source: source, identityPath: identityPath, activeProjectPaths: activePaths)
+        })
+    }
+
+    private func resolveHiddenLinkedWorktreeIdentitiesIfNeeded() {
+        let sourcePaths = hiddenLinkedWorktreeSourcePaths()
+        hiddenLinkedWorktreeIdentityPaths = hiddenLinkedWorktreeIdentityPaths.filter { sourcePaths.contains($0.key) }
+        hiddenNonLinkedWorktreePaths = hiddenNonLinkedWorktreePaths.intersection(sourcePaths)
+        pendingHiddenLinkedWorktreePaths = pendingHiddenLinkedWorktreePaths.intersection(sourcePaths)
+
+        let unresolvedPaths = sourcePaths
+            .subtracting(hiddenLinkedWorktreeIdentityPaths.keys)
+            .subtracting(hiddenNonLinkedWorktreePaths)
+            .subtracting(pendingHiddenLinkedWorktreePaths)
+        guard !unresolvedPaths.isEmpty else { return }
+
+        pendingHiddenLinkedWorktreePaths.formUnion(unresolvedPaths)
+        let scanner = manager.scanner
+        DispatchQueue.global(qos: .utility).async {
+            let resolvedPaths = unresolvedPaths.map { sourcePath in
+                (sourcePath, scanner.hiddenLinkedWorktreeIdentityPath(for: sourcePath))
+            }
+            DispatchQueue.main.async {
+                self.finishResolvingHiddenLinkedWorktreeIdentities(resolvedPaths)
+            }
+        }
+    }
+
+    private func finishResolvingHiddenLinkedWorktreeIdentities(_ resolvedPaths: [(String, String?)]) {
+        let currentSourcePaths = hiddenLinkedWorktreeSourcePaths()
+        for (sourcePath, identityPath) in resolvedPaths {
+            pendingHiddenLinkedWorktreePaths.remove(sourcePath)
+            guard currentSourcePaths.contains(sourcePath) else { continue }
+            if let identityPath {
+                hiddenLinkedWorktreeIdentityPaths[sourcePath] = identityPath
+                hiddenNonLinkedWorktreePaths.remove(sourcePath)
+            } else {
+                hiddenLinkedWorktreeIdentityPaths.removeValue(forKey: sourcePath)
+                hiddenNonLinkedWorktreePaths.insert(sourcePath)
+            }
+        }
+        if isCleanupVisible {
+            markCurrentSourcesSeen()
+        } else {
+            updateHiddenNudgeFromSourceIdentities()
+        }
+    }
+
+    private func hiddenLinkedWorktreeSourcePaths() -> Set<String> {
+        Set(cleanupSources.compactMap { source in
+            let sourcePath = WorktreeCleanupScanner.standardizedPath(source.projectPath)
+            return WorktreeCleanupScanner.shouldResolveHiddenLinkedWorktreeRoot(for: sourcePath) ? sourcePath : nil
         })
     }
 }
@@ -135,10 +195,10 @@ private struct WorktreeCleanupSourceIdentity: Hashable {
     let path: String
     let sessionId: String
 
-    init?(source: SessionCleanupSource, activeProjectPaths: Set<String>, scanner: WorktreeCleanupScanner) {
-        guard let path = scanner.hiddenCleanupSourceIdentityPath(for: source.projectPath) else { return nil }
-        guard !Self.isActive(path, activeProjectPaths: activeProjectPaths) else { return nil }
-        self.path = path
+    init?(source: SessionCleanupSource, identityPath: String, activeProjectPaths: Set<String>) {
+        let identityPath = WorktreeCleanupScanner.standardizedPath(identityPath)
+        guard !Self.isActive(identityPath, activeProjectPaths: activeProjectPaths) else { return nil }
+        path = identityPath
         sessionId = source.sessionId
     }
 
