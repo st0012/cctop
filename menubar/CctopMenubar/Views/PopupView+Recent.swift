@@ -4,7 +4,11 @@ extension PopupView {
     @ViewBuilder
     var recentContent: some View {
         if recentTargets.isEmpty {
-            emptyPlaceholder(systemImage: "clock", title: "No recent items yet\nFinished projects and archived sessions appear here")
+            emptyPlaceholder(
+                systemImage: "clock",
+                title: "No recent items yet",
+                detail: PopupTab.recent.emptyStateDetail
+            )
         } else {
             panelList(recentTargets, tab: .recent) { _, target, isSelected in
                 recentCard(target, isSelected: isSelected)

@@ -1076,6 +1076,53 @@ final class WorktreeCleanupTests: XCTestCase {
         )
     }
 
+    func testPopupTabHelpTextDescribesCurrentBuckets() {
+        let staleIdleHours = Int(SessionDisplayPolicy.staleIdleInterval / 3_600)
+
+        XCTAssertEqual(
+            PopupTab.active.helpText,
+            "Current sessions; idle moves after \(staleIdleHours) hours."
+        )
+        XCTAssertEqual(
+            PopupTab.idle.helpText,
+            "Dormant sessions and idle sessions over \(staleIdleHours) hours."
+        )
+        let recentHelpText = PopupTab.recent.helpText
+        XCTAssertTrue(recentHelpText.contains("Finished work"))
+        XCTAssertTrue(recentHelpText.contains("archived desktop sessions"))
+        XCTAssertTrue(recentHelpText.contains("Rows open"))
+        XCTAssertFalse(recentHelpText.localizedCaseInsensitiveContains("return"))
+        XCTAssertFalse(recentHelpText.localizedCaseInsensitiveContains("resume"))
+        XCTAssertEqual(
+            PopupTab.cleanup.helpText,
+            "Ended-session worktrees checked before removal."
+        )
+    }
+
+    func testPopupTabEmptyStateDetailsTeachBuckets() {
+        XCTAssertEqual(
+            PopupTab.active.emptyStateDetail,
+            "Current and recently idle sessions appear here."
+        )
+        XCTAssertEqual(
+            PopupTab.idle.emptyStateDetail,
+            "Dormant and long-idle sessions appear here."
+        )
+        let recentEmptyStateDetail = PopupTab.recent.emptyStateDetail
+        XCTAssertTrue(recentEmptyStateDetail.contains("Finished work"))
+        XCTAssertTrue(recentEmptyStateDetail.contains("archived desktop sessions"))
+        XCTAssertFalse(recentEmptyStateDetail.localizedCaseInsensitiveContains("return"))
+        XCTAssertFalse(recentEmptyStateDetail.localizedCaseInsensitiveContains("resume"))
+        XCTAssertEqual(
+            PopupTab.cleanup.emptyStateDetail,
+            "Ended-session worktrees appear here after checks."
+        )
+        XCTAssertEqual(
+            PopupTab.cleanupScanningDetail,
+            "Checking ended-session worktrees."
+        )
+    }
+
     func testKeyboardTabSwitchingIncludesCleanup() {
         let tabs: [PopupTab] = [.active, .recent, .cleanup]
 
