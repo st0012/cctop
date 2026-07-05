@@ -138,9 +138,41 @@ private struct WorktreeCleanupSourceIdentity: Hashable {
     init?(source: SessionCleanupSource, activeProjectPaths: Set<String>) {
         let path = WorktreeCleanupScanner.standardizedPath(source.projectPath)
         guard WorktreeCleanupScanner.shouldScanCleanupSourcePath(path) else { return nil }
-        guard !WorktreeCleanupScanner.isCleanupSourcePathActive(path, activeProjectPaths: activeProjectPaths) else { return nil }
+        guard !Self.isActive(path, activeProjectPaths: activeProjectPaths) else { return nil }
         self.path = path
         sessionId = source.sessionId
+    }
+
+    private static func isActive(_ path: String, activeProjectPaths: Set<String>) -> Bool {
+        if WorktreeCleanupScanner.isCleanupSourcePathActive(path, activeProjectPaths: activeProjectPaths) {
+            return true
+        }
+        guard let cleanupRoot = cleanupWorktreePrefix(for: path) else { return false }
+        return activeProjectPaths.contains { activePath in
+            cleanupWorktreePrefix(for: activePath) == cleanupRoot
+        }
+    }
+
+    private static func cleanupWorktreePrefix(for path: String) -> String? {
+        let components = URL(fileURLWithPath: WorktreeCleanupScanner.standardizedPath(path)).pathComponents
+        guard components.count >= 3 else { return nil }
+        for index in 0..<(components.count - 2) {
+            let marker = components[index]
+            guard marker == ".claude" || marker == ".codex",
+                  components[index + 1] == "worktrees",
+                  !components[index + 2].isEmpty else {
+                continue
+            }
+            return prefixPath(from: components.prefix(index + 3))
+        }
+        return nil
+    }
+
+    private static func prefixPath(from components: ArraySlice<String>) -> String {
+        if components.first == "/" {
+            return "/" + components.dropFirst().joined(separator: "/")
+        }
+        return components.joined(separator: "/")
     }
 }
 
