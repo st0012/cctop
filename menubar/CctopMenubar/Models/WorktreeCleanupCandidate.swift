@@ -11,6 +11,7 @@ struct WorktreeCleanupCandidate: Identifiable, Equatable {
     static let branchUnknownReason = "Branch is unknown or detached"
     static let mainWorktreePathUnverifiedReason = "Main checkout path could not be verified"
     static let commitSafetyUnknownReason = "Branch upstream or commit safety could not be verified"
+    static let protectedFolderAccessReason = "File access is needed to inspect this protected worktree"
     private static let localFileReasons = [untrackedFilesReason, ignoredFilesReason]
 
     enum State: Equatable {

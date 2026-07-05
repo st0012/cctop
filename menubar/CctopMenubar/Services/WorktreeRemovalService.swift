@@ -200,7 +200,8 @@ private extension WorktreeCleanupCandidate {
         }
         if state.reasons.contains(WorktreeCleanupCandidate.initializedSubmodulesReason)
             || state.reasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason)
-            || state.reasons.contains(WorktreeCleanupCandidate.statusUnreadableReason) {
+            || state.reasons.contains(WorktreeCleanupCandidate.statusUnreadableReason)
+            || state.reasons.contains(WorktreeCleanupCandidate.protectedFolderAccessReason) {
             return self
         }
         return nil
@@ -256,6 +257,9 @@ private extension WorktreeCleanupCandidate {
     }
 
     var blockedRemovalReason: String {
+        if state.reasons.contains(Self.protectedFolderAccessReason) {
+            return "Grant file access in Settings before removing this protected worktree."
+        }
         if state.reasons.contains(Self.statusUnreadableReason) {
             return "Git status could not be read, so cctop cannot verify what removal would delete."
         }

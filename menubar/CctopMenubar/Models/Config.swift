@@ -98,6 +98,12 @@ enum Config {
         NSString(string: NSString(string: path).expandingTildeInPath).standardizingPath
     }
 
+    static func isLikelyPrivacyProtectedUserPath(_ path: String) -> Bool {
+        let pathComponents = URL(fileURLWithPath: standardizedPath(path)).pathComponents
+        guard pathComponents.count > 3, pathComponents[1] == "Users" else { return false }
+        return ["Desktop", "Documents", "Downloads"].contains(pathComponents[3])
+    }
+
     private static func ensureDirectoryExists(_ path: String) {
         let fm = FileManager.default
         if !fm.fileExists(atPath: path) {
