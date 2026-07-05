@@ -131,17 +131,23 @@ final class WorktreeCleanupTests: XCTestCase {
     func testScannerDoesNotResolveUnrelatedActiveProjectPaths() {
         let candidatePath = "/Users/dev/.codex/worktrees/billing-api"
         let activeDocumentsPath = "/Users/dev/Documents/Codex/unrelated-active"
+        var probedPaths: [String] = []
         var resolvedPaths: [String] = []
+        var inspectedPaths: [String] = []
+        var measuredPaths: [String] = []
+        var linkedRootPaths: [String] = []
         let scanner = WorktreeCleanupScanner(
             fileExists: { path in
-                path == candidatePath || path == activeDocumentsPath
+                probedPaths.append(path)
+                return path == candidatePath || path == activeDocumentsPath
             },
             resolveWorktreeRoot: { path in
                 resolvedPaths.append(path)
                 return path == candidatePath ? candidatePath : nil
             },
             inspectGit: { path in
-                path == candidatePath ? self.cleanInspection() : GitWorktreeInspection(
+                inspectedPaths.append(path)
+                return path == candidatePath ? self.cleanInspection() : GitWorktreeInspection(
                     isRegisteredWorktree: false,
                     isLinkedWorktree: false,
                     isLocked: false,
@@ -153,7 +159,12 @@ final class WorktreeCleanupTests: XCTestCase {
                 )
             },
             measureSize: { path in
-                path == candidatePath ? 1_024 : nil
+                measuredPaths.append(path)
+                return path == candidatePath ? 1_024 : nil
+            },
+            resolveLinkedWorktreeRoot: { path in
+                linkedRootPaths.append(path)
+                return nil
             }
         )
 
@@ -164,7 +175,75 @@ final class WorktreeCleanupTests: XCTestCase {
 
         XCTAssertEqual(candidates.map(\.id), [candidatePath])
         XCTAssertEqual(candidates[0].state, .clean)
+        XCTAssertEqual(probedPaths, [candidatePath, candidatePath])
         XCTAssertEqual(resolvedPaths, [candidatePath])
+        XCTAssertEqual(inspectedPaths, [candidatePath])
+        XCTAssertEqual(measuredPaths, [candidatePath])
+        XCTAssertEqual(linkedRootPaths, [])
+        XCTAssertFalse(probedPaths.contains(activeDocumentsPath))
+        XCTAssertFalse(resolvedPaths.contains(activeDocumentsPath))
+        XCTAssertFalse(inspectedPaths.contains(activeDocumentsPath))
+        XCTAssertFalse(measuredPaths.contains(activeDocumentsPath))
+        XCTAssertFalse(linkedRootPaths.contains(activeDocumentsPath))
+    }
+
+    func testScannerDoesNotProbeProtectedActiveParentProjectPath() {
+        let activeDocumentsPath = "/Users/dev/Documents/app"
+        let candidatePath = "\(activeDocumentsPath)/.claude/worktrees/feature-x"
+        var probedPaths: [String] = []
+        var resolvedPaths: [String] = []
+        var inspectedPaths: [String] = []
+        var measuredPaths: [String] = []
+        var linkedRootPaths: [String] = []
+        let scanner = WorktreeCleanupScanner(
+            fileExists: { path in
+                probedPaths.append(path)
+                return path == candidatePath
+            },
+            resolveWorktreeRoot: { path in
+                resolvedPaths.append(path)
+                return path == candidatePath ? candidatePath : nil
+            },
+            inspectGit: { path in
+                inspectedPaths.append(path)
+                return path == candidatePath ? self.cleanInspection(branch: "claude/feature-x") : GitWorktreeInspection(
+                    isRegisteredWorktree: false,
+                    isLinkedWorktree: false,
+                    isLocked: false,
+                    mainWorktreePath: nil,
+                    branchName: nil,
+                    statusEntries: nil,
+                    uniqueCommitCount: nil,
+                    failureReasons: ["unexpected inspection"]
+                )
+            },
+            measureSize: { path in
+                measuredPaths.append(path)
+                return path == candidatePath ? 1_024 : nil
+            },
+            resolveLinkedWorktreeRoot: { path in
+                linkedRootPaths.append(path)
+                return nil
+            }
+        )
+
+        let candidates = scanner.candidates(
+            from: [historySession(path: candidatePath)],
+            activeProjectPaths: [activeDocumentsPath]
+        )
+
+        XCTAssertEqual(candidates.map(\.id), [candidatePath])
+        XCTAssertEqual(candidates[0].state, .clean)
+        XCTAssertEqual(probedPaths, [candidatePath, candidatePath])
+        XCTAssertEqual(resolvedPaths, [candidatePath])
+        XCTAssertEqual(inspectedPaths, [candidatePath])
+        XCTAssertEqual(measuredPaths, [candidatePath])
+        XCTAssertEqual(linkedRootPaths, [])
+        XCTAssertFalse(probedPaths.contains(activeDocumentsPath))
+        XCTAssertFalse(resolvedPaths.contains(activeDocumentsPath))
+        XCTAssertFalse(inspectedPaths.contains(activeDocumentsPath))
+        XCTAssertFalse(measuredPaths.contains(activeDocumentsPath))
+        XCTAssertFalse(linkedRootPaths.contains(activeDocumentsPath))
     }
 
     func testScannerSkipsProtectedEndedProjectPathWithoutFileProbes() {
@@ -205,6 +284,8 @@ final class WorktreeCleanupTests: XCTestCase {
         var probedPaths: [String] = []
         var resolvedPaths: [String] = []
         var inspectedPaths: [String] = []
+        var measuredPaths: [String] = []
+        var linkedRootPaths: [String] = []
 
         let scanner = WorktreeCleanupScanner(
             fileExists: { path in
@@ -219,7 +300,14 @@ final class WorktreeCleanupTests: XCTestCase {
                 inspectedPaths.append(path)
                 return self.cleanInspection(branch: "claude/feature-x")
             },
-            measureSize: { _ in 1_024 }
+            measureSize: { path in
+                measuredPaths.append(path)
+                return 1_024
+            },
+            resolveLinkedWorktreeRoot: { path in
+                linkedRootPaths.append(path)
+                return nil
+            }
         )
 
         let candidates = scanner.candidates(
@@ -232,6 +320,8 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(probedPaths.isEmpty)
         XCTAssertEqual(resolvedPaths, [documentsWorktreePath])
         XCTAssertEqual(inspectedPaths, [documentsWorktreePath])
+        XCTAssertEqual(measuredPaths, [documentsWorktreePath])
+        XCTAssertEqual(linkedRootPaths, [])
     }
 
     func testActiveProjectPathPrefixSiblingDoesNotProtectCandidate() {
@@ -1645,7 +1735,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let gate = WorktreeCleanupRefreshGate(manager: manager)
 
         gate.updateSources([session], activeProjectPaths: [])
-        try await waitForCondition { linkedRootCount == 1 }
+        try await waitForCondition { linkedRootCount == 1 && gate.hasHiddenCleanupNudge }
 
         XCTAssertTrue(gate.hasHiddenCleanupNudge)
         XCTAssertEqual(manager.candidates, [])

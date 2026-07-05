@@ -427,14 +427,8 @@ extension WorktreeCleanupScanner {
 }
 
 private extension WorktreeCleanupScanner {
-    func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths: Set<String>) -> Bool {
-        if candidatePaths.contains(where: { candidatePath in
-            Self.isPath(activePath, sameAsOrDescendantOf: candidatePath)
-                || Self.isPath(candidatePath, sameAsOrDescendantOf: activePath)
-        }) {
-            return true
-        }
-        return !Self.isLikelyPrivacyProtectedUserPath(activePath)
+    func shouldResolveActiveProjectPath(_ activePath: String, candidatePaths _: Set<String>) -> Bool {
+        !Self.isLikelyPrivacyProtectedUserPath(activePath)
     }
 
     static func isLikelyPrivacyProtectedUserPath(_ path: String) -> Bool {
