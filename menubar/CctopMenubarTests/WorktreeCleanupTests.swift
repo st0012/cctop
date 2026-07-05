@@ -1302,6 +1302,27 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertNotEqual(lhs, rhs)
     }
 
+    func testRefreshSignatureIgnoresScannerSkippedProtectedProjectPaths() {
+        let skippedProtectedProject = historySession(
+            id: "documents-project",
+            path: "/Users/dev/Documents/Codex/old-session"
+        )
+        let plausibleProtectedWorktree = historySession(
+            id: "documents-worktree",
+            path: "/Users/dev/Documents/app/.claude/worktrees/feature-x"
+        )
+        let empty = WorktreeCleanupRefreshSignature(cleanupSources: [], activeProjectPaths: [])
+
+        XCTAssertEqual(
+            WorktreeCleanupRefreshSignature(cleanupSources: [skippedProtectedProject], activeProjectPaths: []),
+            empty
+        )
+        XCTAssertNotEqual(
+            WorktreeCleanupRefreshSignature(cleanupSources: [plausibleProtectedWorktree], activeProjectPaths: []),
+            empty
+        )
+    }
+
     @MainActor
     func testNonForcedRefreshRunsWhenLatestEndedSessionForPathChanges() async throws {
         let path = "/Users/dev/.codex/worktrees/billing-api"

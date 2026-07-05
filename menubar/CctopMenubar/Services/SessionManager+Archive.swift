@@ -124,28 +124,10 @@ struct SessionClassificationSnapshot {
         }
     }
 
-    /// Cleanup sources are only emitted from cctop JSON records classified in this pass.
-    /// External host metadata may hide or enrich those records, but it never creates cleanup rows
-    /// without a session file because the scanner needs cctop's project path and recency context.
-    /// Missing/deleted desktop conversations stay hidden and preserved, but do not become cleanup
-    /// sources unless the host metadata explicitly marks the conversation archived.
+    /// Archived desktop conversations stay hidden and resumable in Recent, but are preserved
+    /// files rather than cleanup opportunities. Non-desktop cleanup rows come from history.
     var cleanupSources: [SessionCleanupSource] {
-        records.compactMap { record in
-            guard case .hidden(let reason) = record.disposition,
-                  Self.emitsCleanupSource(for: reason),
-                  Self.hasKnownCleanupPath(record.candidate.session.projectPath) else {
-                return nil
-            }
-            return SessionCleanupSource(session: record.candidate.session)
-        }
-    }
-
-    private static func hasKnownCleanupPath(_ path: String) -> Bool {
-        !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && path != "/"
-    }
-
-    private static func emitsCleanupSource(for reason: SessionHiddenReason) -> Bool {
-        reason == .archivedCodexDesktop || reason == .archivedClaudeDesktop
+        []
     }
 
     var archivedCodexThreadIDs: Set<String> { evidence.archivedCodexThreadIDs }

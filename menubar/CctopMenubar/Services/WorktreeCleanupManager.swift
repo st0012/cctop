@@ -158,9 +158,11 @@ struct WorktreeCleanupRefreshSignature: Equatable {
 
     init(cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
         self.cleanupSources = cleanupSources
-            .map {
-                CleanupSourceFingerprint(
-                    path: WorktreeCleanupScanner.standardizedPath($0.projectPath),
+            .compactMap {
+                let path = WorktreeCleanupScanner.standardizedPath($0.projectPath)
+                guard WorktreeCleanupScanner.shouldScanCleanupSourcePath(path) else { return nil }
+                return CleanupSourceFingerprint(
+                    path: path,
                     sessionId: $0.sessionId,
                     lastActiveAt: $0.lastActiveAt,
                     displayName: $0.sessionName,
