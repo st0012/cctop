@@ -387,6 +387,60 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(linkedRootPaths, [])
     }
 
+    func testScannerUsesProtectedCleanupWorktreeRootForSubdirectorySourceWithoutProbes() {
+        let documentsWorktreePath = "/Users/dev/Documents/app/.claude/worktrees/feature-x"
+        let sessionPath = "\(documentsWorktreePath)/Sources"
+        var probedPaths: [String] = []
+        var resolvedPaths: [String] = []
+        var inspectedPaths: [String] = []
+        var measuredPaths: [String] = []
+        var linkedRootPaths: [String] = []
+
+        let scanner = WorktreeCleanupScanner(
+            fileExists: { path in
+                probedPaths.append(path)
+                return false
+            },
+            resolveWorktreeRoot: { path in
+                resolvedPaths.append(path)
+                return nil
+            },
+            inspectGit: { path in
+                inspectedPaths.append(path)
+                return GitWorktreeInspection(
+                    isRegisteredWorktree: false,
+                    isLinkedWorktree: false,
+                    isLocked: false,
+                    mainWorktreePath: nil,
+                    branchName: nil,
+                    statusEntries: nil,
+                    uniqueCommitCount: nil,
+                    failureReasons: ["unexpected inspection: \(path)"]
+                )
+            },
+            measureSize: { path in
+                measuredPaths.append(path)
+                return nil
+            },
+            resolveLinkedWorktreeRoot: { path in
+                linkedRootPaths.append(path)
+                return nil
+            }
+        )
+
+        let candidates = scanner.candidates(from: [historySession(path: sessionPath)], activeProjectPaths: [])
+
+        XCTAssertEqual(candidates.map(\.id), [documentsWorktreePath])
+        XCTAssertEqual(candidates[0].worktreePath, documentsWorktreePath)
+        XCTAssertEqual(candidates[0].worktreeName, "feature-x")
+        XCTAssertEqual(candidates[0].state, .review([WorktreeCleanupCandidate.protectedFolderAccessReason]))
+        XCTAssertEqual(probedPaths, [])
+        XCTAssertEqual(resolvedPaths, [])
+        XCTAssertEqual(inspectedPaths, [])
+        XCTAssertEqual(measuredPaths, [])
+        XCTAssertEqual(linkedRootPaths, [])
+    }
+
     func testActiveProjectPathPrefixSiblingDoesNotProtectCandidate() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
 
@@ -2449,8 +2503,9 @@ final class WorktreeCleanupTests: XCTestCase {
 
     func testRemovalServiceCanRemoveProtectedCandidateAfterExplicitInspection() {
         let worktreePath = "/Users/dev/Documents/app/.claude/worktrees/feature-x"
+        let sessionPath = "\(worktreePath)/Sources"
         let mainPath = "/Users/dev/projects/billing-api"
-        let session = historySession(path: worktreePath, branch: "claude/feature-x")
+        let session = historySession(path: sessionPath, branch: "claude/feature-x")
         var inspectedPaths: [String] = []
         var gitArguments: [[String]] = []
         let success = GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
