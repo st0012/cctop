@@ -909,6 +909,26 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(arguments, [sessionPath, "worktree", "list", "--porcelain", "-z"])
     }
 
+    func testInspectorResolvesLinkedWorktreeRootOnlyForLinkedEntries() {
+        let repo = "/Users/dev/projects/billing-api"
+        let worktreePath = "/Users/dev/projects/billing-api-feature"
+        let output = [
+            "worktree \(repo)",
+            "branch refs/heads/master",
+            "",
+            "worktree \(worktreePath)",
+            "branch refs/heads/feature/invoices",
+            "",
+        ].joined(separator: "\u{0}")
+        let inspector = GitWorktreeInspector(runGit: { _, _ in
+            GitCommandResult(exitCode: 0, stdout: output, stderr: "")
+        })
+
+        XCTAssertEqual(inspector.linkedWorktreeRoot(containing: "\(worktreePath)/pkg"), worktreePath)
+        XCTAssertNil(inspector.linkedWorktreeRoot(containing: "\(repo)/pkg"))
+        XCTAssertNil(inspector.linkedWorktreeRoot(containing: "/Users/dev/projects/other"))
+    }
+
     func testInspectorResolvesSymlinkedPathToContainingWorktreeRoot() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("cctop-worktree-inspector-\(UUID().uuidString)")
@@ -1506,6 +1526,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let projectPath = "/Users/dev/Documents/Codex/old-session"
         let session = historySession(path: projectPath)
         var probeCount = 0
+        var linkedRootCount = 0
         var inspectionCount = 0
         var sizeCount = 0
         let manager = WorktreeCleanupManager(
@@ -1522,6 +1543,10 @@ final class WorktreeCleanupTests: XCTestCase {
                 measureSize: { _ in
                     sizeCount += 1
                     return 1_024
+                },
+                resolveLinkedWorktreeRoot: { _ in
+                    linkedRootCount += 1
+                    return projectPath
                 }
             )
         )
@@ -1534,6 +1559,7 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(manager.candidates, [])
         XCTAssertFalse(manager.isScanning)
         XCTAssertEqual(probeCount, 0)
+        XCTAssertEqual(linkedRootCount, 0)
         XCTAssertEqual(inspectionCount, 0)
         XCTAssertEqual(sizeCount, 0)
     }
@@ -1543,6 +1569,7 @@ final class WorktreeCleanupTests: XCTestCase {
         let projectPath = "/Users/dev/projects/app"
         let session = historySession(path: projectPath)
         var probeCount = 0
+        var linkedRootCount = 0
         var inspectionCount = 0
         var sizeCount = 0
         let manager = WorktreeCleanupManager(
@@ -1559,6 +1586,10 @@ final class WorktreeCleanupTests: XCTestCase {
                 measureSize: { _ in
                     sizeCount += 1
                     return 1_024
+                },
+                resolveLinkedWorktreeRoot: { _ in
+                    linkedRootCount += 1
+                    return nil
                 }
             )
         )
@@ -1571,15 +1602,17 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(manager.candidates, [])
         XCTAssertFalse(manager.isScanning)
         XCTAssertEqual(probeCount, 0)
+        XCTAssertEqual(linkedRootCount, 1)
         XCTAssertEqual(inspectionCount, 0)
         XCTAssertEqual(sizeCount, 0)
     }
 
     @MainActor
-    func testCleanupRefreshGateNudgesForHiddenCleanupWorktreeOutsideProtectedFolders() async throws {
-        let worktreePath = "/Users/dev/projects/app/.claude/worktrees/feature-x"
+    func testCleanupRefreshGateNudgesForHiddenManualLinkedWorktreeOutsideProtectedFolders() async throws {
+        let worktreePath = "/Users/dev/projects/app-feature"
         let session = historySession(path: worktreePath)
         var probeCount = 0
+        var linkedRootCount = 0
         var inspectionCount = 0
         var sizeCount = 0
         let manager = WorktreeCleanupManager(
@@ -1588,7 +1621,7 @@ final class WorktreeCleanupTests: XCTestCase {
                     probeCount += 1
                     return true
                 },
-                resolveWorktreeRoot: { _ in nil },
+                resolveWorktreeRoot: { _ in worktreePath },
                 inspectGit: { _ in
                     inspectionCount += 1
                     return self.cleanInspection()
@@ -1596,6 +1629,10 @@ final class WorktreeCleanupTests: XCTestCase {
                 measureSize: { _ in
                     sizeCount += 1
                     return 1_024
+                },
+                resolveLinkedWorktreeRoot: { _ in
+                    linkedRootCount += 1
+                    return worktreePath
                 }
             )
         )
@@ -1608,6 +1645,50 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(manager.candidates, [])
         XCTAssertFalse(manager.isScanning)
         XCTAssertEqual(probeCount, 0)
+        XCTAssertEqual(linkedRootCount, 1)
+        XCTAssertEqual(inspectionCount, 0)
+        XCTAssertEqual(sizeCount, 0)
+    }
+
+    @MainActor
+    func testCleanupRefreshGateNudgesForHiddenCleanupWorktreeOutsideProtectedFolders() async throws {
+        let worktreePath = "/Users/dev/projects/app/.claude/worktrees/feature-x"
+        let session = historySession(path: worktreePath)
+        var probeCount = 0
+        var linkedRootCount = 0
+        var inspectionCount = 0
+        var sizeCount = 0
+        let manager = WorktreeCleanupManager(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { _ in
+                    probeCount += 1
+                    return true
+                },
+                resolveWorktreeRoot: { _ in nil },
+                inspectGit: { _ in
+                    inspectionCount += 1
+                    return self.cleanInspection()
+                },
+                measureSize: { _ in
+                    sizeCount += 1
+                    return 1_024
+                },
+                resolveLinkedWorktreeRoot: { _ in
+                    linkedRootCount += 1
+                    return nil
+                }
+            )
+        )
+        let gate = WorktreeCleanupRefreshGate(manager: manager)
+
+        gate.updateSources([session], activeProjectPaths: [])
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertTrue(gate.hasHiddenCleanupNudge)
+        XCTAssertEqual(manager.candidates, [])
+        XCTAssertFalse(manager.isScanning)
+        XCTAssertEqual(probeCount, 0)
+        XCTAssertEqual(linkedRootCount, 0)
         XCTAssertEqual(inspectionCount, 0)
         XCTAssertEqual(sizeCount, 0)
     }

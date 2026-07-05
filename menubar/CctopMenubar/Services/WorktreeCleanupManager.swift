@@ -11,7 +11,7 @@ class WorktreeCleanupManager: ObservableObject {
     @Published var candidates: [WorktreeCleanupCandidate] = []
     @Published private(set) var isScanning = false
 
-    private let scanner: WorktreeCleanupScanner
+    fileprivate let scanner: WorktreeCleanupScanner
     private var refreshGeneration = 0
     private var lastRefreshSignature: WorktreeCleanupRefreshSignature?
 
@@ -126,7 +126,7 @@ final class WorktreeCleanupRefreshGate: ObservableObject {
     private func currentSourceIDs() -> Set<WorktreeCleanupSourceIdentity> {
         let activePaths = Set(activeProjectPaths.map(WorktreeCleanupScanner.standardizedPath))
         return Set(cleanupSources.compactMap { source in
-            WorktreeCleanupSourceIdentity(source: source, activeProjectPaths: activePaths)
+            WorktreeCleanupSourceIdentity(source: source, activeProjectPaths: activePaths, scanner: manager.scanner)
         })
     }
 }
@@ -135,10 +135,8 @@ private struct WorktreeCleanupSourceIdentity: Hashable {
     let path: String
     let sessionId: String
 
-    init?(source: SessionCleanupSource, activeProjectPaths: Set<String>) {
-        let path = WorktreeCleanupScanner.standardizedPath(source.projectPath)
-        guard WorktreeCleanupScanner.shouldScanCleanupSourcePath(path) else { return nil }
-        guard Self.cleanupWorktreePrefix(for: path) != nil else { return nil }
+    init?(source: SessionCleanupSource, activeProjectPaths: Set<String>, scanner: WorktreeCleanupScanner) {
+        guard let path = scanner.hiddenCleanupSourceIdentityPath(for: source.projectPath) else { return nil }
         guard !Self.isActive(path, activeProjectPaths: activeProjectPaths) else { return nil }
         self.path = path
         sessionId = source.sessionId

@@ -27,6 +27,21 @@ struct GitWorktreeInspector {
             .max { lhs, rhs in lhs.count < rhs.count }
     }
 
+    func linkedWorktreeRoot(containing path: String) -> String? {
+        guard let entries = listWorktrees(from: path) else { return nil }
+        let comparablePath = Self.comparablePath(path)
+        return entries
+            .enumerated()
+            .compactMap { index, entry in
+                guard index > 0,
+                      Self.path(comparablePath, isSameAsOrDescendantOf: Self.comparablePath(entry.path)) else {
+                    return nil
+                }
+                return entry.path
+            }
+            .max { lhs, rhs in lhs.count < rhs.count }
+    }
+
     func inspect(path: String) -> GitWorktreeInspection {
         var failures: [String] = []
 

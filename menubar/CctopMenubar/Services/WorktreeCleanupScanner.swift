@@ -40,6 +40,7 @@ struct WorktreeCleanupScanner {
     var resolveWorktreeRoot: (String) -> String?
     var inspectGit: (String) -> GitWorktreeInspection
     var measureSize: (String) -> Int64?
+    var resolveLinkedWorktreeRoot: (String) -> String? = { _ in nil }
 
     static func live() -> WorktreeCleanupScanner {
         let inspector = GitWorktreeInspector()
@@ -47,7 +48,8 @@ struct WorktreeCleanupScanner {
             fileExists: { FileManager.default.fileExists(atPath: $0) },
             resolveWorktreeRoot: { inspector.worktreeRoot(containing: $0) },
             inspectGit: { inspector.inspect(path: $0) },
-            measureSize: { DirectorySizeScanner.sizeOfDirectory(atPath: $0) }
+            measureSize: { DirectorySizeScanner.sizeOfDirectory(atPath: $0) },
+            resolveLinkedWorktreeRoot: { inspector.linkedWorktreeRoot(containing: $0) }
         )
     }
 
@@ -386,6 +388,13 @@ extension WorktreeCleanupScanner {
     static func shouldScanCleanupSourcePath(_ path: String) -> Bool {
         guard isLikelyPrivacyProtectedUserPath(path) else { return true }
         return isPlausibleCleanupWorktreePath(path)
+    }
+
+    func hiddenCleanupSourceIdentityPath(for path: String) -> String? {
+        let path = Self.standardizedPath(path)
+        guard Self.shouldScanCleanupSourcePath(path) else { return nil }
+        if Self.isPlausibleCleanupWorktreePath(path) { return path }
+        return resolveLinkedWorktreeRoot(path).map(Self.standardizedPath)
     }
 
     static func isCleanupSourcePathActive(_ path: String, activeProjectPaths: Set<String>) -> Bool {
