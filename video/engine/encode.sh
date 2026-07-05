@@ -16,13 +16,19 @@ FPS=30
 OW="${OW:-1920}"; OH="${OH:-1080}"     # output resolution (frames are supersampled above this)
 TAGS=(-color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv)
 
-N=$(ls "$FRAMES_DIR"/frame_*.png 2>/dev/null | wc -l | tr -d ' ')
+# glob (sorted), not `ls | head`: head's early exit SIGPIPEs ls, which pipefail turns fatal
+frames=( "$FRAMES_DIR"/frame_*.png )
+[ -e "${frames[0]}" ] || { echo "no frames in $FRAMES_DIR"; exit 1; }
+N=${#frames[@]}
+# frame numbering is absolute timeline position; derive the sequence start so cuts encode correctly
+START_NUMBER=$((10#$(basename "${frames[0]}" .png | cut -d_ -f2)))
 DUR=$(echo "scale=3; $N / $FPS" | bc)
-FOUT_ST=$(echo "scale=3; $DUR - 0.6" | bc)
+# printf: bc emits sub-1s values without a leading zero (".400"), which ffmpeg rejects
+FOUT_ST=$(printf '%.3f' "$(echo "scale=3; $DUR - 0.6" | bc)")
 echo "Encoding $N frames (${DUR}s) -> $OUT  (${OW}x${OH})"
 
 ffmpeg -y -hide_banner -loglevel error \
-  -framerate "$FPS" -i "$FRAMES_DIR/frame_%05d.png" \
+  -framerate "$FPS" -start_number "$START_NUMBER" -i "$FRAMES_DIR/frame_%05d.png" \
   -vf "scale=${OW}:${OH}:flags=lanczos:out_color_matrix=bt709:out_range=tv,fade=t=out:st=${FOUT_ST}:d=0.6,format=yuv420p,setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709" \
   -c:v libx264 -preset slow -crf 18 -pix_fmt yuv420p "${TAGS[@]}" -movflags +faststart -r "$FPS" \
   "$OUT"
@@ -34,7 +40,7 @@ ffmpeg -y -hide_banner -loglevel error -i "$OUT" \
   -movflags +faststart "${OUT%.mp4}-720p.mp4"
 
 # poster frame: a CTA-region frame near the end (2s before fade-out)
-POSTER_N=$(printf "%05d" "$(( N > 60 ? N - 60 : N ))")
+POSTER_N=$(printf "%05d" "$(( START_NUMBER + (N > 60 ? N - 60 : 0) ))")
 cp "$FRAMES_DIR/frame_${POSTER_N}.png" "${OUT%.mp4}-poster.png" 2>/dev/null || true
 
 echo "Done:"

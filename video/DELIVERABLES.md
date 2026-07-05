@@ -6,7 +6,44 @@ to the non-latest `media-assets` GitHub Release through the repo-local `$video-a
 
 | project | published assets | source commit | notes |
 |---------|------------------|---------------|-------|
-| launch  | [`preview.avif`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-preview.avif), [`720p.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-720p.mp4), [`1080p.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch.mp4) | _pending source commit_ | ~28s launch video; AVIF is the README inline preview |
+| launch  | [`preview.avif`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-preview.avif), [`720p.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-720p.mp4), [`1080p.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch.mp4) | _pending source commit_ | 30s launch video; AVIF is the README inline preview |
+| launch social clip | [`clip.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-clip.mp4), [`clip-720p.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-clip-720p.mp4) | 16c50bac | 12.5s timeline cut of the launch project (see below); for feed posts, release announcements, and replies |
+
+## Social clip (timeline cut)
+
+The social clip is a named cut of the launch project. There is no separate source
+file; it renders the same `projects/launch/body.html` over a sub-range of the
+timeline:
+
+```bash
+CUT=clip ./build.sh launch     # -> .video-build/launch-clip.mp4 (and -720p)
+```
+
+The cut's boundaries are defined once, in `projects/launch/body.html` as
+`window.__cuts.clip`, right next to the `TL` beat table and derived from it, so
+retiming beats moves the cut automatically:
+
+- **In**: end of the morph beat plus a short settle, the first moment the panel is
+  fully readable. Earlier frames are mostly empty (hook text fading, dots still
+  converging), which reads as a blank first frame in feeds.
+- **Out**: end of the payoff beat minus a margin, while it is still fully lit, so
+  the encoder's 0.6s fade-out lands on bright content instead of fading a fade.
+
+The build log prints the resolved boundaries (`cut 'clip': t=[...] -> frames ...`);
+sanity-check them after any substantial beat or copy change, e.g. by sampling the
+boundary frames with `render.mjs --times`.
+
+Upload with the `$video-assets` one-off helper, keeping the stable asset names:
+
+```bash
+.agents/skills/video-assets/scripts/upload-video-asset.sh \
+  --file video/projects/launch/.video-build/launch-clip.mp4 --name cctop-launch-clip.mp4 --clobber
+.agents/skills/video-assets/scripts/upload-video-asset.sh \
+  --file video/projects/launch/.video-build/launch-clip-720p.mp4 --name cctop-launch-clip-720p.mp4 --clobber
+```
+
+**Keep the clip matching the launch video**: when the launch video is re-rendered
+and republished, re-cut the clip from the same checkout and re-upload it too.
 
 ## Publishing a cut
 
