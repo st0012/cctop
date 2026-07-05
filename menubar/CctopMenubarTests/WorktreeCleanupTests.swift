@@ -1539,6 +1539,80 @@ final class WorktreeCleanupTests: XCTestCase {
     }
 
     @MainActor
+    func testCleanupRefreshGateDoesNotNudgeForHiddenOrdinaryCheckoutPath() async throws {
+        let projectPath = "/Users/dev/projects/app"
+        let session = historySession(path: projectPath)
+        var probeCount = 0
+        var inspectionCount = 0
+        var sizeCount = 0
+        let manager = WorktreeCleanupManager(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { _ in
+                    probeCount += 1
+                    return true
+                },
+                resolveWorktreeRoot: { _ in nil },
+                inspectGit: { _ in
+                    inspectionCount += 1
+                    return self.cleanInspection()
+                },
+                measureSize: { _ in
+                    sizeCount += 1
+                    return 1_024
+                }
+            )
+        )
+        let gate = WorktreeCleanupRefreshGate(manager: manager)
+
+        gate.updateSources([session], activeProjectPaths: [])
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertFalse(gate.hasHiddenCleanupNudge)
+        XCTAssertEqual(manager.candidates, [])
+        XCTAssertFalse(manager.isScanning)
+        XCTAssertEqual(probeCount, 0)
+        XCTAssertEqual(inspectionCount, 0)
+        XCTAssertEqual(sizeCount, 0)
+    }
+
+    @MainActor
+    func testCleanupRefreshGateNudgesForHiddenCleanupWorktreeOutsideProtectedFolders() async throws {
+        let worktreePath = "/Users/dev/projects/app/.claude/worktrees/feature-x"
+        let session = historySession(path: worktreePath)
+        var probeCount = 0
+        var inspectionCount = 0
+        var sizeCount = 0
+        let manager = WorktreeCleanupManager(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { _ in
+                    probeCount += 1
+                    return true
+                },
+                resolveWorktreeRoot: { _ in nil },
+                inspectGit: { _ in
+                    inspectionCount += 1
+                    return self.cleanInspection()
+                },
+                measureSize: { _ in
+                    sizeCount += 1
+                    return 1_024
+                }
+            )
+        )
+        let gate = WorktreeCleanupRefreshGate(manager: manager)
+
+        gate.updateSources([session], activeProjectPaths: [])
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertTrue(gate.hasHiddenCleanupNudge)
+        XCTAssertEqual(manager.candidates, [])
+        XCTAssertFalse(manager.isScanning)
+        XCTAssertEqual(probeCount, 0)
+        XCTAssertEqual(inspectionCount, 0)
+        XCTAssertEqual(sizeCount, 0)
+    }
+
+    @MainActor
     func testCleanupRefreshGateDoesNotNudgeForHiddenActiveCleanupSource() async throws {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)

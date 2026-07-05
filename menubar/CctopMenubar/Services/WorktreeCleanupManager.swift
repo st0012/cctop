@@ -138,6 +138,7 @@ private struct WorktreeCleanupSourceIdentity: Hashable {
     init?(source: SessionCleanupSource, activeProjectPaths: Set<String>) {
         let path = WorktreeCleanupScanner.standardizedPath(source.projectPath)
         guard WorktreeCleanupScanner.shouldScanCleanupSourcePath(path) else { return nil }
+        guard Self.cleanupWorktreePrefix(for: path) != nil else { return nil }
         guard !Self.isActive(path, activeProjectPaths: activeProjectPaths) else { return nil }
         self.path = path
         sessionId = source.sessionId
