@@ -397,41 +397,6 @@ extension WorktreeCleanupScanner {
         guard Config.isLikelyPrivacyProtectedUserPath(path) else { return true }
         return isPlausibleCleanupWorktreePath(path)
     }
-
-    func hiddenCleanupSourceIdentityPath(for path: String) -> String? {
-        let path = Self.standardizedPath(path)
-        if let path = Self.hiddenCleanupSourceIdentityPath(for: path) { return path }
-        guard Self.shouldResolveHiddenLinkedWorktreeRoot(for: path) else { return nil }
-        return resolveLinkedWorktreeRoot(path).map(Self.standardizedPath)
-    }
-
-    static func hiddenCleanupSourceIdentityPath(for path: String) -> String? {
-        let path = Self.standardizedPath(path)
-        guard shouldScanCleanupSourcePath(path) else { return nil }
-        return cleanupWorktreeRootPath(for: path)
-    }
-
-    static func shouldResolveHiddenLinkedWorktreeRoot(for path: String) -> Bool {
-        let path = Self.standardizedPath(path)
-        guard shouldScanCleanupSourcePath(path) else { return false }
-        return !isPlausibleCleanupWorktreePath(path)
-    }
-
-    func hiddenLinkedWorktreeIdentityPath(for path: String) -> String? {
-        let path = Self.standardizedPath(path)
-        guard Self.shouldResolveHiddenLinkedWorktreeRoot(for: path) else { return nil }
-        return resolveLinkedWorktreeRoot(path).map(Self.standardizedPath)
-    }
-
-    static func isCleanupSourcePathActive(_ path: String, activeProjectPaths: Set<String>) -> Bool {
-        activeProjectPaths.contains { activePath in
-            isPath(activePath, sameAsOrDescendantOf: path)
-        }
-    }
-
-    static func isPath(_ path: String, sameAsOrDescendantOf parentPath: String) -> Bool {
-        path == parentPath || path.hasPrefix(parentPath.hasSuffix("/") ? parentPath : "\(parentPath)/")
-    }
 }
 
 private extension WorktreeCleanupScanner {
