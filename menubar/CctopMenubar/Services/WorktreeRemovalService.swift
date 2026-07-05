@@ -137,10 +137,13 @@ struct WorktreeRemovalService {
             return .refused(preflightCandidate)
         }
 
-        if let refusal = preflightCandidate.refusalCandidate(
-            comparedTo: candidate,
-            refuseCleanDowngrade: candidate.state.isClean
-        ) {
+        let preflightNeedsProtectedFolderInspection =
+            preflightCandidate.state.reasons.contains(WorktreeCleanupCandidate.protectedFolderAccessReason)
+        if !preflightNeedsProtectedFolderInspection,
+           let refusal = preflightCandidate.refusalCandidate(
+               comparedTo: candidate,
+               refuseCleanDowngrade: candidate.state.isClean
+           ) {
             return .refused(refusal)
         }
 
@@ -195,13 +198,15 @@ private extension WorktreeCleanupCandidate {
         if refuseCleanDowngrade && !state.isClean {
             return self
         }
-        if changesWorktreeIdentity(comparedTo: candidate) || changesLocalFileReviewEvidence(comparedTo: candidate) {
+        if candidate.state.reasons.contains(WorktreeCleanupCandidate.protectedFolderAccessReason) {
+            // Passive protected-folder rows intentionally skip identity and file-evidence probes.
+            guard worktreePath == candidate.worktreePath else { return self }
+        } else if changesWorktreeIdentity(comparedTo: candidate) || changesLocalFileReviewEvidence(comparedTo: candidate) {
             return self
         }
         if state.reasons.contains(WorktreeCleanupCandidate.initializedSubmodulesReason)
             || state.reasons.contains(WorktreeCleanupCandidate.indexHiddenTrackedFilesReason)
-            || state.reasons.contains(WorktreeCleanupCandidate.statusUnreadableReason)
-            || state.reasons.contains(WorktreeCleanupCandidate.protectedFolderAccessReason) {
+            || state.reasons.contains(WorktreeCleanupCandidate.statusUnreadableReason) {
             return self
         }
         return nil

@@ -2447,6 +2447,71 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(selectedCandidate.state, .clean)
     }
 
+    func testRemovalServiceCanRemoveProtectedCandidateAfterExplicitInspection() {
+        let worktreePath = "/Users/dev/Documents/app/.claude/worktrees/feature-x"
+        let mainPath = "/Users/dev/projects/billing-api"
+        let session = historySession(path: worktreePath, branch: "claude/feature-x")
+        var inspectedPaths: [String] = []
+        var gitArguments: [[String]] = []
+        let success = GitCommandResult(exitCode: 0, stdout: "removed\n", stderr: "")
+        let scanner = WorktreeCleanupScanner(
+            fileExists: { _ in
+                XCTFail("Protected cleanup action should not preflight with fileExists")
+                return false
+            },
+            resolveWorktreeRoot: { _ in
+                XCTFail("Protected cleanup action should not resolve the worktree root before explicit Git inspection")
+                return nil
+            },
+            inspectGit: { path in
+                inspectedPaths.append(path)
+                return self.cleanInspection(branch: "claude/feature-x")
+            },
+            measureSize: { _ in
+                XCTFail("Protected cleanup action should not measure size before removal")
+                return nil
+            },
+            resolveLinkedWorktreeRoot: { _ in
+                XCTFail("Protected cleanup action should not resolve linked roots")
+                return nil
+            }
+        )
+        let service = WorktreeRemovalService(
+            scanner: scanner,
+            runGit: { arguments in
+                gitArguments.append(arguments)
+                return success
+            }
+        )
+
+        let passiveCandidates = scanner.candidates(from: [session], activeProjectPaths: [])
+
+        XCTAssertEqual(passiveCandidates.map(\.id), [worktreePath])
+        XCTAssertEqual(passiveCandidates[0].state, .review([WorktreeCleanupCandidate.protectedFolderAccessReason]))
+        XCTAssertEqual(inspectedPaths, [])
+
+        let selectedAction = service.selectedAction(
+            for: passiveCandidates[0],
+            cleanupSources: [session],
+            activeProjectPaths: []
+        )
+
+        guard case .normalRemove(let selectedCandidate) = selectedAction else {
+            return XCTFail("Expected normal removal after explicit inspection, got \(selectedAction)")
+        }
+        XCTAssertEqual(selectedCandidate.worktreePath, worktreePath)
+        XCTAssertEqual(selectedCandidate.mainWorktreePath, mainPath)
+        XCTAssertEqual(selectedCandidate.branchName, "claude/feature-x")
+        XCTAssertEqual(selectedCandidate.state, .clean)
+        XCTAssertEqual(inspectedPaths, [worktreePath])
+
+        let result = service.executeConfirmed(selectedAction, cleanupSources: [session], activeProjectPaths: [])
+
+        XCTAssertEqual(result, .removed(success))
+        XCTAssertEqual(gitArguments, [["-C", mainPath, "worktree", "remove", worktreePath]])
+        XCTAssertEqual(inspectedPaths, [worktreePath, worktreePath])
+    }
+
     func testRemovalServiceSelectsNormalActionForUniqueLocalCommitsOnly() {
         let worktreePath = "/Users/dev/.codex/worktrees/billing-api"
         let session = historySession(path: worktreePath)
