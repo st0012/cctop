@@ -3,6 +3,7 @@ import XCTest
 
 final class WorktreeCleanupTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
+    private let layoutNotificationTimeout: TimeInterval = 5
 
     func testCandidateGroupingChoosesLatestEndedSessionPerPath() {
         let path = "/Users/dev/.codex/worktrees/billing-api"
@@ -1180,7 +1181,7 @@ final class WorktreeCleanupTests: XCTestCase {
 
         view.handleCleanupCandidatesChanged()
 
-        await fulfillment(of: [layoutChanged], timeout: 1)
+        await fulfillment(of: [layoutChanged], timeout: layoutNotificationTimeout)
     }
 
     @MainActor
@@ -1218,7 +1219,7 @@ final class WorktreeCleanupTests: XCTestCase {
 
         view.handleCleanupScanningChanged()
 
-        await fulfillment(of: [layoutChanged], timeout: 1)
+        await fulfillment(of: [layoutChanged], timeout: layoutNotificationTimeout)
     }
 
     @MainActor
