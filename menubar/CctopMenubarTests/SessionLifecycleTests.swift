@@ -782,6 +782,24 @@ final class SessionLifecycleTests: XCTestCase {
         )
     }
 
+    func testRecentResumeTargetDesktopThreadOpenHelpTextUsesCautiousArchiveLanguage() {
+        let target = RecentResumeTarget.desktopThread(.init(
+            sessionId: "019e1eff-3374-74b0-8d3d-6fba94e7d75f",
+            title: "Can you use product design skills for the cctop logo",
+            projectPath: "/Users/dev/projects/cctop",
+            projectName: "cctop",
+            sourceApp: .codexDesktop,
+            lastActiveAt: Date()
+        ))
+
+        XCTAssertEqual(
+            target.openHelpText,
+            "Open Codex Desktop; archived sessions may need manual lookup"
+        )
+        XCTAssertFalse(target.openHelpText.localizedCaseInsensitiveContains("return"))
+        XCTAssertFalse(target.openHelpText.localizedCaseInsensitiveContains("resume"))
+    }
+
     func testClassificationSnapshotDoesNotEmitCleanupSourceForArchivedDesktopWithoutKnownPath() {
         var session = Session(
             sessionId: "archived-root",

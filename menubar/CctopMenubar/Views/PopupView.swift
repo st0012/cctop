@@ -155,6 +155,7 @@ struct PopupView: View {
             withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
             notifyLayoutChanged()
         }
+        .help(tab.helpText)
     }
     // MARK: - Active tab
     private var activeContent: some View {

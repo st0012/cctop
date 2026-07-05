@@ -112,7 +112,7 @@ enum RecentResumeTarget: Identifiable, Equatable {
         case .project(let project):
             return project.openHelpText
         case .desktopThread(let thread):
-            return "Open \(thread.sourceApp.displayName) to find this archived session"
+            return "Open \(thread.sourceApp.displayName); archived sessions may need manual lookup"
         }
     }
 

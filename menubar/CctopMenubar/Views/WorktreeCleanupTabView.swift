@@ -58,6 +58,12 @@ struct WorktreeCleanupTabView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(Color.textMuted)
                     .multilineTextAlignment(.center)
+                Text(isScanning ? PopupTab.cleanupScanningDetail : PopupTab.cleanup.emptyStateDetail)
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 24)

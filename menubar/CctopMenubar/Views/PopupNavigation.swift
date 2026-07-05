@@ -3,6 +3,37 @@ import Foundation
 enum PopupTab {
     case active, idle, recent, cleanup
 
+    var helpText: String {
+        let staleIdleDuration = Self.staleIdleDurationText
+        switch self {
+        case .active:
+            return "Current sessions; idle moves after \(staleIdleDuration)."
+        case .idle:
+            return "Dormant sessions and idle sessions over \(staleIdleDuration)."
+        case .recent:
+            return "Finished work and archived desktop sessions. Rows open the project or app when possible."
+        case .cleanup:
+            return "Ended-session worktrees checked before removal."
+        }
+    }
+
+    var emptyStateDetail: String {
+        switch self {
+        case .active:
+            return "Current and recently idle sessions appear here."
+        case .idle:
+            return "Dormant and long-idle sessions appear here."
+        case .recent:
+            return "Finished work and archived desktop sessions appear here."
+        case .cleanup:
+            return "Ended-session worktrees appear here after checks."
+        }
+    }
+
+    static var cleanupScanningDetail: String {
+        "Checking ended-session worktrees."
+    }
+
     static func availableTabs(
         hasIdleSessions: Bool,
         hasRecentProjects _: Bool,
@@ -31,6 +62,11 @@ enum PopupTab {
         default:
             return current
         }
+    }
+
+    private static var staleIdleDurationText: String {
+        let hours = Int(SessionDisplayPolicy.staleIdleInterval / 3_600)
+        return "\(hours) hours"
     }
 }
 
