@@ -7,7 +7,7 @@ to the non-latest `media-assets` GitHub Release through the repo-local `$video-a
 | project | published assets | source commit | notes |
 |---------|------------------|---------------|-------|
 | launch  | [`preview.avif`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-preview.avif), [`720p.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-720p.mp4), [`1080p.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch.mp4) | _pending source commit_ | 30s launch video; AVIF is the README inline preview |
-| launch social clip | [`clip.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-clip.mp4), [`clip-720p.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-clip-720p.mp4) | _pending source commit_ | 12.5s timeline cut of the launch project (see below); for feed posts, release announcements, and replies |
+| launch social clip | [`clip.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-clip.mp4), [`clip-720p.mp4`](https://github.com/st0012/cctop/releases/download/media-assets/cctop-launch-clip-720p.mp4) | 16c50bac | 12.5s timeline cut of the launch project (see below); for feed posts, release announcements, and replies |
 
 ## Social clip (timeline cut)
 
