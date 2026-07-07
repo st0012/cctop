@@ -4,13 +4,6 @@ enum SessionIdentityPolicy {
     static let notificationSessionIDKey = "sessionID"
     static let notificationSessionPIDKey = "sessionPID"
 
-    /// UI identity. Codex multiplexes many conversations onto one host process, so its PID is
-    /// not unique per conversation; every other source keeps the existing PID identity.
-    static func displayID(for session: Session) -> String {
-        if session.isCodex { return session.sessionId }
-        return session.pid.map { String($0) } ?? session.sessionId
-    }
-
     /// Stable grouping key shared by dedup and notification transition guards.
     static func stableKey(for session: Session) -> String {
         if session.isCodex {
@@ -19,7 +12,7 @@ enum SessionIdentityPolicy {
         if session.hostClass == .desktop {
             return "desktop:\(session.sessionId)"
         }
-        return "active:\(displayID(for: session))"
+        return "active:\(session.id)"
     }
 
     static func notificationRequestIdentifier(for session: Session) -> String {
@@ -41,12 +34,12 @@ enum SessionIdentityPolicy {
             if let match = sessions.first(where: { notificationSessionID(for: $0) == sessionID }) {
                 return match
             }
-            return sessions.first { displayID(for: $0) == sessionID }
+            return sessions.first { $0.id == sessionID }
         }
 
         guard let pid = nonEmptyString(userInfo[notificationSessionPIDKey]) else { return nil }
         return sessions.first {
-            displayID(for: $0) == pid || $0.pid.map(String.init) == pid
+            $0.id == pid || $0.pid.map(String.init) == pid
         }
     }
 
@@ -54,7 +47,7 @@ enum SessionIdentityPolicy {
         if session.isCodex || session.hostClass == .desktop {
             return session.sessionId
         }
-        return displayID(for: session)
+        return session.id
     }
 
     private static func nonEmptyString(_ value: Any?) -> String? {
@@ -66,13 +59,13 @@ enum SessionIdentityPolicy {
     static func dedupedByDisplayID(_ sessions: [Session]) -> [Session] {
         var byID: [String: Session] = [:]
         for session in sessions {
-            let id = displayID(for: session)
+            let id = session.id
             if let existing = byID[id], existing.lastActivity >= session.lastActivity {
                 continue
             }
             byID[id] = session
         }
-        return byID.values.sorted { displayID(for: $0) < displayID(for: $1) }
+        return byID.values.sorted { $0.id < $1.id }
     }
 
     /// Collapse multiple files for one conversation only for hosts with stable conversation identity.
