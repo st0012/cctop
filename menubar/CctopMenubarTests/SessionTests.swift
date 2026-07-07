@@ -306,6 +306,35 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.id, "abc-123")
     }
 
+    func testIdentityPolicyDisplayIDMirrorsSessionIdentifiableID() {
+        let cases: [(name: String, session: Session, expectedID: String)] = [
+            (
+                "codex conversations use session id even with a shared host pid",
+                Session.mock(id: "codex-thread-1", pid: 12345, source: Session.codexSource),
+                "codex-thread-1"
+            ),
+            (
+                "non-codex sessions use pid when available",
+                Session.mock(id: "claude-thread-1", pid: 12345, source: Session.ccSource),
+                "12345"
+            ),
+            (
+                "non-codex sessions fall back to session id when pid is missing",
+                Session.mock(id: "claude-thread-2", source: Session.ccSource),
+                "claude-thread-2"
+            ),
+        ]
+
+        for identityCase in cases {
+            XCTAssertEqual(identityCase.session.id, identityCase.expectedID, identityCase.name)
+            XCTAssertEqual(
+                SessionIdentityPolicy.displayID(for: identityCase.session),
+                identityCase.session.id,
+                identityCase.name
+            )
+        }
+    }
+
     // MARK: - Notification identity
 
     func testNotificationUserInfoStoresStableCodexSessionID() {

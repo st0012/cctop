@@ -4,11 +4,9 @@ enum SessionIdentityPolicy {
     static let notificationSessionIDKey = "sessionID"
     static let notificationSessionPIDKey = "sessionPID"
 
-    /// UI identity. Codex multiplexes many conversations onto one host process, so its PID is
-    /// not unique per conversation; every other source keeps the existing PID identity.
+    /// UI identity shared with `Session.id`.
     static func displayID(for session: Session) -> String {
-        if session.isCodex { return session.sessionId }
-        return session.pid.map { String($0) } ?? session.sessionId
+        session.id
     }
 
     /// Stable grouping key shared by dedup and notification transition guards.
