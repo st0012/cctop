@@ -47,10 +47,10 @@ Type: `string`
 Default: `null` when omitted.
 
 The exact unsanitized session reference supplied to `cctop-hook`, byte-for-byte.
-For integrations that expose a real conversation reference, this preserves it;
-OpenCode intentionally continues to supply its process-scoped synthetic reference
-until all of its per-session event payloads can be routed consistently. `session_id` is
-sanitized to a restricted character set and truncated to 64 characters so it can
+For integrations that expose a real conversation reference, this preserves it.
+OpenCode supplies real per-conversation references on routable events; its plugin-load
+and legacy/no-id fallback record remains process-scoped. `session_id` is sanitized to
+a restricted character set and truncated to 64 characters so it can
 safely appear in file names and logs, which makes it a lossy projection of the
 hook reference; `harness_session_id` preserves the original value for resume
 lookup. It is evidence, not cctop identity. The hook stamps it after a matching event loads the record,
@@ -64,7 +64,7 @@ may replace a PID-keyed record only through `SessionStart`-driven rotation.
 | Codex CLI/Desktop | Yes | The client supplies the same UUID conversation reference across process generations. |
 | Claude Code/Desktop | Yes when a UUID session reference is available | Claude session/transcript state preserves that UUID across resume. |
 | pi | Yes only when `getSessionId()` supplies a real UUID | Synthetic `pi-<pid>` fallback observations remain record-local. |
-| OpenCode | Not yet | The plugin intentionally uses a process-scoped synthetic reference until per-event session routing is reliable. |
+| OpenCode | Not yet | Per-conversation capture is supported, but reopened observations remain record-local after their prior session file is cleaned up. |
 
 Every newly observed record still receives a `cctop_session_id`; “not yet” means
 cctop cannot promise that a later reopened observation will recover the same

@@ -9,6 +9,8 @@ final class SessionFileFormatTests: XCTestCase {
         XCTAssertFalse(SessionManager.isLegacyUUIDFilename("31349"))
         // Codex per-conversation files -> keep.
         XCTAssertFalse(SessionManager.isLegacyUUIDFilename("codex-019e4b0c-9473-7a33-a4b9-749fd2c83a9e"))
+        // OpenCode process-and-conversation files -> keep.
+        XCTAssertFalse(SessionManager.isLegacyUUIDFilename("opencode-31349-ses_main"))
     }
 
     @MainActor

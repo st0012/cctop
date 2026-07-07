@@ -80,19 +80,38 @@ export const cctop = async ({ directory }) => {
   const hookBin = findHookBinary();
   if (!hookBin) return {};
 
-  // Keep one process-scoped identity until every callback can route its own opencode
-  // session payload safely. Adopting only session.created/updated would let child and
-  // background events mutate whichever conversation happened to be current in memory.
-  const sessionId = `opencode-${process.pid}`;
-  let sessionName = null;
+  const fallbackSessionId = `opencode-${process.pid}`;
+  const sessionNames = new Map();
+  const childSessionIds = new Set();
 
-  function basePayload() {
+  function normalizeSessionId(value) {
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  }
+
+  function rememberSessionInfo(info, fallbackId = null) {
+    const id = normalizeSessionId(info?.id) || fallbackId;
+    const title = typeof info?.title === "string" ? info.title.trim() : "";
+    if (!id) return null;
+
+    if (title) sessionNames.set(id, title);
+    if (normalizeSessionId(info?.parentID)) childSessionIds.add(id);
+    return id;
+  }
+
+  function sessionIdFromEvent(event) {
+    const explicitId = normalizeSessionId(event?.properties?.sessionID);
+    return rememberSessionInfo(event?.properties?.info, explicitId) || explicitId;
+  }
+
+  function basePayload(sessionId = fallbackSessionId) {
+    const sessionName = sessionNames.get(sessionId);
     return {
       session_id: sessionId,
       cwd: directory,
       harness_name: "opencode",
       source: "opencode",  // MIGRATION(harness_name): Keep for older cctop-hook binaries
       ...(sessionName && { session_name: sessionName }),
+      ...(childSessionIds.has(sessionId) && { is_subagent: true }),
     };
   }
 
@@ -106,28 +125,29 @@ export const cctop = async ({ directory }) => {
       switch (event.type) {
         case "question.asked":
           callHook(hookBin, "PermissionRequest", {
-            ...basePayload(),
+            ...basePayload(sessionIdFromEvent(event) || undefined),
             title: questionMessage(event.properties),
           });
           break;
 
         case "question.replied":
         case "question.rejected":
-          callHook(hookBin, "PostToolUse", basePayload());
+          callHook(hookBin, "PostToolUse", basePayload(sessionIdFromEvent(event) || undefined));
           break;
 
         case "session.created":
-          callHook(hookBin, "SessionStart", basePayload());
+          callHook(hookBin, "SessionStart", basePayload(sessionIdFromEvent(event) || undefined));
           break;
 
         case "session.idle":
-          callHook(hookBin, "Stop", basePayload());
+          callHook(hookBin, "Stop", basePayload(sessionIdFromEvent(event) || undefined));
           break;
 
         case "session.error": {
-          const errMsg = event.error?.message || event.message || null;
+          const error = event.properties?.error || event.error;
+          const errMsg = error?.message || event.message || null;
           callHook(hookBin, "SessionError", {
-            ...basePayload(),
+            ...basePayload(sessionIdFromEvent(event) || undefined),
             ...(errMsg && { error: errMsg }),
             ...(event.message && { message: event.message }),
           });
@@ -141,7 +161,7 @@ export const cctop = async ({ directory }) => {
             event.status?.type;
           if (type === "retry") {
             callHook(hookBin, "SessionError", {
-              ...basePayload(),
+              ...basePayload(sessionIdFromEvent(event) || undefined),
               error: "Retry",
             });
           }
@@ -151,60 +171,68 @@ export const cctop = async ({ directory }) => {
         }
 
         case "session.updated": {
-          const title = event.properties?.info?.title;
-          if (title) sessionName = title;
+          rememberSessionInfo(event.properties?.info);
           break;
         }
 
         case "session.compacted":
-          callHook(hookBin, "PostCompact", basePayload());
+          callHook(hookBin, "PostCompact", basePayload(sessionIdFromEvent(event) || undefined));
           break;
 
-        case "session.deleted":
+        case "session.deleted": {
+          const sessionId = sessionIdFromEvent(event);
+          if (sessionId) {
+            callHook(hookBin, "SessionEnd", basePayload(sessionId));
+            sessionNames.delete(sessionId);
+            childSessionIds.delete(sessionId);
+          }
+          break;
+        }
+
         case "permission.replied":
-          // skip — liveness handles deletion, PreToolUse follows permission
+          // skip — PreToolUse follows permission
           break;
       }
     },
 
-    "chat.message": async (_input, output) => {
+    "chat.message": async (input, output) => {
       const prompt =
         output?.message?.content ||
         output?.content ||
         (typeof output?.text === "string" ? output.text : null);
       callHook(hookBin, "UserPromptSubmit", {
-        ...basePayload(),
+        ...basePayload(normalizeSessionId(input?.sessionID) || undefined),
         ...(prompt && { prompt }),
       });
     },
 
-    "tool.execute.before": async (_input, output) => {
-      const tool = normalizeTool(output?.tool || _input?.tool);
-      const args = output?.args || _input?.args;
+    "tool.execute.before": async (input, output) => {
+      const tool = normalizeTool(output?.tool || input?.tool);
+      const args = output?.args || input?.args;
       callHook(hookBin, "PreToolUse", {
-        ...basePayload(),
+        ...basePayload(normalizeSessionId(input?.sessionID) || undefined),
         ...(tool && { tool_name: tool }),
         ...(args && { tool_input: normalizeToolInput(args) }),
       });
     },
 
-    "tool.execute.after": async () => {
-      callHook(hookBin, "PostToolUse", basePayload());
+    "tool.execute.after": async (input) => {
+      callHook(hookBin, "PostToolUse", basePayload(normalizeSessionId(input?.sessionID) || undefined));
     },
 
     "permission.ask": async (input) => {
       const tool = normalizeTool(input?.tool);
       const args = input?.args;
       callHook(hookBin, "PermissionRequest", {
-        ...basePayload(),
+        ...basePayload(normalizeSessionId(input?.sessionID) || undefined),
         ...(tool && { tool_name: tool }),
         ...(input?.title && { title: input.title }),
         ...(args && { tool_input: normalizeToolInput(args) }),
       });
     },
 
-    "experimental.session.compacting": async () => {
-      callHook(hookBin, "PreCompact", basePayload());
+    "experimental.session.compacting": async (input) => {
+      callHook(hookBin, "PreCompact", basePayload(normalizeSessionId(input?.sessionID) || undefined));
     },
   };
 };

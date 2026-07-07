@@ -67,6 +67,11 @@ enum HookHandler {
             let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
             applySessionName(&session, event: event, input: input, names: deps.names)
             applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
+            if isRealOpencodeSession(input: input, pid: pid, safeSessionId: safeId),
+               isNewSessionFile, event != .sessionStart {
+                session.activeSubagents = []
+                session.workspaceFile = Session.findWorkspaceFile(in: input.cwd)
+            }
             if input.isSubagentSession == true { session.isSubagentSession = true }
             if session.shouldAutoHide { session.hidden = true }
             session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: isNewSessionFile)
@@ -401,6 +406,10 @@ extension HookHandler {
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
         let source = input.resolvedHarnessName ?? Session.ccSource
 
+        defer {
+            runProjectCleanupIfNeeded(event: .sessionEnd, sessionsDir: sessionsDir, input: input, pid: pid, deps: deps)
+        }
+
         // The end-time parent walk can resolve a different PID than at start (ancestors
         // exit during teardown), so the PID-derived path may miss the session's file or
         // hold a different conversation. Key the stamp to session_id (issue #155 P3).
@@ -566,6 +575,19 @@ extension HookHandler {
             }
         }
 
+        if source == Session.opencodeSource {
+            if exact.contains(where: { $0.path == primaryPath }) {
+                return SessionEndTarget(path: primaryPath, match: .exact)
+            }
+            if exact.isEmpty, legacyPaths.count == 1, legacyPaths.first == primaryPath {
+                return SessionEndTarget(path: primaryPath, match: .legacy)
+            }
+            // OpenCode observations are record-local across host processes. A delete
+            // without the current process-qualified record must not end an older
+            // process's same-named conversation.
+            return nil
+        }
+
         if !exact.isEmpty {
             if exact.contains(where: { $0.path == primaryPath }) {
                 return SessionEndTarget(path: primaryPath, match: .exact)
@@ -623,6 +645,28 @@ extension HookHandler {
             if isStale {
                 removeSession(at: path, sessionId: session.sessionId, logger: logger)
             }
+        }
+    }
+
+    static func cleanupOpencodeProcessFallbackSession(
+        sessionsDir: String,
+        projectPath: String,
+        incomingSafeId: String,
+        currentPid: UInt32,
+        logger: HookLogger
+    ) {
+        guard !isOpencodeProcessFallbackSessionId(incomingSafeId, pid: currentPid) else { return }
+
+        let fallbackPath = (sessionsDir as NSString).appendingPathComponent("\(currentPid).json")
+        try? withSessionLock(sessionPath: fallbackPath, onError: logger.logError) {
+            guard let session = try? Session.fromFile(path: fallbackPath),
+                  session.source == Session.opencodeSource,
+                  session.projectPath == projectPath,
+                  session.pid == currentPid,
+                  isOpencodeProcessFallbackSessionId(session.sessionId, pid: currentPid) else {
+                return
+            }
+            removeSession(at: fallbackPath, sessionId: session.sessionId, logger: logger)
         }
     }
 
@@ -691,6 +735,15 @@ private func runProjectCleanupIfNeeded(
     deps: HookDependencies
 ) {
     // Cleanup runs outside the lock: it scans all session files and makes sysctl calls per file.
+    if input.resolvedHarnessName == Session.opencodeSource {
+        HookHandler.cleanupOpencodeProcessFallbackSession(
+            sessionsDir: sessionsDir,
+            projectPath: input.cwd,
+            incomingSafeId: Session.sanitizeSessionId(raw: input.sessionId),
+            currentPid: pid,
+            logger: deps.logger
+        )
+    }
     guard event == .sessionStart else { return }
     HookHandler.cleanupSessionsForProject(
         sessionsDir: sessionsDir, projectPath: input.cwd, currentPid: pid,
@@ -809,14 +862,26 @@ private func canReplaceDecodedSessionFile(existing: Session, fresh: Session, eve
 // MARK: - Session File Naming
 
 /// The single writer-side source of truth for session file naming. Files are keyed by
-/// PID, except Codex where one host process can emit hooks for multiple conversations.
-/// The `codex-` prefix also keeps Codex files out of the reader-side legacy UUID-file
+/// PID, except harnesses where one host process can emit hooks for multiple conversations.
+/// Harness prefixes also keep per-conversation files out of the reader-side legacy UUID-file
 /// sweep (`SessionManager.isLegacyUUIDFilename`) — keep both sides in sync.
 func sessionFileName(input: HookInput, pid: UInt32, safeSessionId: String) -> String {
     if input.resolvedHarnessName == Session.codexSource {
         return "codex-\(safeSessionId).json"
     }
+    if isRealOpencodeSession(input: input, pid: pid, safeSessionId: safeSessionId) {
+        return "opencode-\(pid)-\(safeSessionId).json"
+    }
     return "\(pid).json"
+}
+
+private func isRealOpencodeSession(input: HookInput, pid: UInt32, safeSessionId: String) -> Bool {
+    input.resolvedHarnessName == Session.opencodeSource
+        && !isOpencodeProcessFallbackSessionId(safeSessionId, pid: pid)
+}
+
+private func isOpencodeProcessFallbackSessionId(_ sessionId: String, pid: UInt32) -> Bool {
+    sessionId == "opencode-\(pid)"
 }
 
 // MARK: - Git Branch

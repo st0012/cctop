@@ -96,7 +96,7 @@ CLI sessions do not need `disconnected_at` because disconnected CLI sessions bec
 
 ## Dedup and Cleanup
 
-Session files are deduplicated by a stable identity key before publishing. `SessionIdentityPolicy` owns that grouping rule. Codex sessions use `session_id` across both old PID-keyed files and newer `codex-<session_id>` files. Known desktop sessions also use `session_id`; other terminal or ambiguous sessions keep PID identity.
+Session files are deduplicated by a stable identity key before publishing. `SessionIdentityPolicy` owns that grouping rule. Codex sessions use `session_id` across both old PID-keyed files and newer `codex-<session_id>` files. Real opencode conversations use process-scoped `session_id` keys across `opencode-<pid>-<session_id>` files so one host PID can retain multiple rows without changing the record-local reopen contract; plugin-load and legacy/no-id fallback records remain process-scoped. Known desktop sessions also use `session_id`; other terminal or ambiguous sessions keep PID identity.
 
 Archived desktop sessions are filtered from the active/dormant list before display dedup. cctop does not persist `hidden = true` for this case and does not remove the `.json`, so a later app-level unarchive can make the same session file visible again. Archived desktop sessions are not archived into Recent Projects. If the same classified cctop JSON record has a known project path, the classification snapshot can emit an explicit worktree cleanup source for that path; this does not delete the session JSON. If host metadata is missing, unreadable, or lacks enough path evidence, cleanup fails safe by emitting no source.
 

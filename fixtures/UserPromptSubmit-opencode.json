@@ -1,5 +1,5 @@
 {
-  "session_id": "opencode-12345",
+  "session_id": "opencode-4242",
   "cwd": "/tmp/test-project",
   "hook_event_name": "UserPromptSubmit",
   "harness_name": "opencode",

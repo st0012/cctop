@@ -152,7 +152,7 @@ final class HookInputTests: XCTestCase {
 
     func testDecodeSessionStartOpencode() throws {
         let input = try JSONDecoder().decode(HookInput.self, from: loadFixture("SessionStart-opencode"))
-        XCTAssertEqual(input.sessionId, "opencode-12345")
+        XCTAssertEqual(input.sessionId, "opencode-4242")
         XCTAssertEqual(input.hookEventName, "SessionStart")
         XCTAssertEqual(input.source, "opencode")
         XCTAssertEqual(input.harnessName, "opencode")

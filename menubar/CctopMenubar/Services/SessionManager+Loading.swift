@@ -232,7 +232,7 @@ extension SessionManager {
     }
 
     /// A pre-PID session file was keyed by a bare session UUID. Today's files are either
-    /// numeric (PID) or `codex-<uuid>`, so only genuinely old files match.
+    /// numeric (PID) or harness-prefixed, so only genuinely old files match.
     nonisolated static func isLegacyUUIDFilename(_ stem: String) -> Bool {
         HostApp.isUUID(stem)
     }

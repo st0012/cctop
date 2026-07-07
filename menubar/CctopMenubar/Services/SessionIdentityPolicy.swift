@@ -20,6 +20,14 @@ enum SessionIdentityPolicy {
         if session.isCodex {
             return "codex:\(session.sessionId)"
         }
+        // OpenCode can publish multiple per-conversation files from one host PID. Keep
+        // them distinct during the pre-identity winner pass; permanent cctop identity
+        // remains the authority for the final panel projection and user actions.
+        if session.source == Session.opencodeSource,
+           let pid = session.pid,
+           session.sessionId != "opencode-\(pid)" {
+            return "opencode:\(pid):\(session.sessionId)"
+        }
         if session.hostClass == .desktop {
             return "desktop:\(session.sessionId)"
         }

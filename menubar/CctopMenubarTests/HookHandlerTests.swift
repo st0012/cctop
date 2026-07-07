@@ -200,13 +200,65 @@ final class HookHandlerTests: XCTestCase {
         {"session_id": "ses_same", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "opencode"}
         """
         try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 4242, startTime: 1_000))
-        let firstCctopSessionID = try loadSession("4242.json").cctopSessionId
-        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 5002, startTime: 2_000))
+        let firstPath = "opencode-4242-ses_same.json"
+        let secondPath = "opencode-5002-ses_same.json"
+        let firstCctopSessionID = try loadSession(firstPath).cctopSessionId
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 5002, startTime: 1_000))
 
         XCTAssertNotEqual(
             firstCctopSessionID,
-            try loadSession("5002.json").cctopSessionId
+            try loadSession(secondPath).cctopSessionId
         )
+
+        try handleHook("""
+        {"session_id": "ses_same", "cwd": "/tmp/test-project", "hook_event_name": "SessionEnd", "harness_name": "opencode"}
+        """, hookName: "SessionEnd", deps: makeDeps(pid: 5002, startTime: 1_000))
+
+        XCTAssertNil(try loadSession(firstPath).endedAt)
+        XCTAssertNotNil(try loadSession(secondPath).endedAt)
+    }
+
+    func testOpenCodeSessionEndWithoutCurrentProcessRecordFailsClosed() throws {
+        let input = """
+        {"session_id": "ses_same", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "opencode"}
+        """
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 4242, startTime: 1_000))
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 5002, startTime: 1_000))
+
+        try handleHook("""
+        {"session_id": "ses_same", "cwd": "/tmp/test-project", "hook_event_name": "SessionEnd", "harness_name": "opencode"}
+        """, hookName: "SessionEnd", deps: makeDeps(pid: 6003, startTime: 1_000))
+
+        XCTAssertNil(try loadSession("opencode-4242-ses_same.json").endedAt)
+        XCTAssertNil(try loadSession("opencode-5002-ses_same.json").endedAt)
+    }
+
+    func testOpenCodeSessionEndDoesNotUseAnotherProcessLegacyFallback() throws {
+        var legacy = Session.mock(id: "ses_same", pid: 4242, source: Session.opencodeSource)
+        legacy.harnessSessionId = nil
+        try legacy.writeToFile(path: sessionFilePath())
+
+        try handleHook("""
+        {"session_id": "ses_same", "cwd": "/tmp/test-project", "hook_event_name": "SessionEnd", "harness_name": "opencode"}
+        """, hookName: "SessionEnd", deps: makeDeps(pid: 5002, startTime: 1_000))
+
+        XCTAssertNil(try loadSession().endedAt)
+    }
+
+    func testOpenCodeSessionEndDoesNotUseAmbiguousCurrentProcessLegacyFallback() throws {
+        var current = Session.mock(id: "ses_same", pid: 4242, source: Session.opencodeSource)
+        current.harnessSessionId = nil
+        try current.writeToFile(path: sessionFilePath("opencode-4242-ses_same.json"))
+        var other = Session.mock(id: "ses_same", pid: 5002, source: Session.opencodeSource)
+        other.harnessSessionId = nil
+        try other.writeToFile(path: sessionFilePath("opencode-5002-ses_same.json"))
+
+        try handleHook("""
+        {"session_id": "ses_same", "cwd": "/tmp/test-project", "hook_event_name": "SessionEnd", "harness_name": "opencode"}
+        """, hookName: "SessionEnd")
+
+        XCTAssertNil(try loadSession("opencode-4242-ses_same.json").endedAt)
+        XCTAssertNil(try loadSession("opencode-5002-ses_same.json").endedAt)
     }
 
     func testCodexSanitizedCollisionStillFailsClosed() throws {
@@ -843,7 +895,7 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertNil(try loadSession().disconnectedAt)
 
         try handleHook("""
-        {"session_id":"opencode-12345","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"opencode"}
+        {"session_id":"opencode-4242","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"opencode"}
         """, hookName: "SessionEnd", deps: deps)
 
         let session = try loadSession()
@@ -1057,7 +1109,7 @@ final class HookHandlerTests: XCTestCase {
     func testSessionIdChange_inSamePID_resetsConversationState() throws {
         try handleFixture("SessionStart-opencode")
         let first = try loadSession()
-        XCTAssertEqual(first.sessionId, "opencode-12345")
+        XCTAssertEqual(first.sessionId, "opencode-4242")
         XCTAssertEqual(first.sessionName, "Fix login bug")
         XCTAssertEqual(first.projectName, "test-project")
 
@@ -1255,6 +1307,16 @@ final class HookHandlerTests: XCTestCase {
     func testHookInputMarkedSubagentWritesHiddenSession() throws {
         try handleHook("""
         {
+          "session_id": "opencode-4242",
+          "cwd": "/tmp/p",
+          "hook_event_name": "SessionStart",
+          "harness_name": "opencode"
+        }
+        """, hookName: "SessionStart")
+        XCTAssertTrue(sessionFileExists("4242.json"))
+
+        try handleHook("""
+        {
           "session_id": "delegated-agent-session",
           "cwd": "/tmp/p",
           "hook_event_name": "SessionStart",
@@ -1263,7 +1325,8 @@ final class HookHandlerTests: XCTestCase {
         }
         """, hookName: "SessionStart")
 
-        XCTAssertTrue(try loadSession().hidden)
+        XCTAssertFalse(sessionFileExists("4242.json"))
+        XCTAssertTrue(try loadSession("opencode-4242-delegated-agent-session.json").hidden)
     }
 
     // MARK: - Project cleanup (stale-PID GC)
@@ -1286,7 +1349,7 @@ final class HookHandlerTests: XCTestCase {
             process: FakeProcessProber(alive: false), logger: HookLogger(logsDir: logsDir)
         )
 
-        XCTAssertTrue(sessionFileExists())
+        XCTAssertTrue(sessionFileExists("opencode-4242-delegated-agent-session.json"))
     }
 
     func testProjectCleanupRemovesStaleOpencodeWithLeakedCodexDesktopBundle() throws {
@@ -1309,7 +1372,7 @@ final class HookHandlerTests: XCTestCase {
             process: FakeProcessProber(alive: false), logger: HookLogger(logsDir: logsDir)
         )
 
-        XCTAssertFalse(sessionFileExists())
+        XCTAssertFalse(sessionFileExists("opencode-4242-opencode-stale.json"))
     }
 
     func testProjectCleanupRemovesSessionWhosePIDIsDead() throws {
@@ -1479,12 +1542,68 @@ final class HookHandlerTests: XCTestCase {
         ])
     }
 
+    func testOpencodeKeepsSeparateRealSessionsForSameHostPID() throws {
+        try handleHook("""
+        {"session_id":"ses_main","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"opencode","session_name":"Main"}
+        """, hookName: "SessionStart")
+        try handleHook("""
+        {"session_id":"ses_other","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"opencode","session_name":"Other"}
+        """, hookName: "SessionStart")
+
+        let main = try loadSession("opencode-4242-ses_main.json")
+        let other = try loadSession("opencode-4242-ses_other.json")
+        XCTAssertEqual(main.sessionName, "Main")
+        XCTAssertEqual(other.sessionName, "Other")
+        XCTAssertNotEqual(main.cctopSessionId, other.cctopSessionId)
+    }
+
+    func testOpencodeRealActivityPreservesIdentityAndInitializesWorkspaceFile() throws {
+        let project = NSTemporaryDirectory() + "cctop-opencode-resume-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: project, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: project) }
+        let workspace = (project as NSString).appendingPathComponent("project.code-workspace")
+        FileManager.default.createFile(atPath: workspace, contents: Data())
+
+        let prompt = """
+        {"session_id":"ses_main","cwd":\(try jsonString(project)),"hook_event_name":"UserPromptSubmit","harness_name":"opencode","prompt":"continue"}
+        """
+        try handleHook(prompt, hookName: "UserPromptSubmit")
+        let fileName = "opencode-4242-ses_main.json"
+        let first = try loadSession(fileName)
+        try handleHook(prompt, hookName: "UserPromptSubmit")
+        let updated = try loadSession(fileName)
+
+        XCTAssertEqual(updated.cctopSessionId, first.cctopSessionId)
+        XCTAssertEqual(updated.workspaceFile, workspace)
+        XCTAssertEqual(updated.lastPrompt, "continue")
+    }
+
+    func testOpencodeProjectCleanupKeepsCurrentPIDSiblingsAndRemovesDeadOldPID() throws {
+        let project = "/tmp/cctop-opencode-siblings-\(UUID().uuidString)"
+        let main = """
+        {"session_id":"ses_main","cwd":"\(project)","hook_event_name":"SessionStart","harness_name":"opencode"}
+        """
+        let other = """
+        {"session_id":"ses_other","cwd":"\(project)","hook_event_name":"SessionStart","harness_name":"opencode"}
+        """
+        try handleHook(main, hookName: "SessionStart", deps: makeDeps(pid: 4242, startTime: 1_000))
+        try handleHook(other, hookName: "SessionStart", deps: makeDeps(pid: 4242, startTime: 1_000))
+        try handleHook(main, hookName: "SessionStart", deps: makeDeps(pid: 5002, startTime: 1_000))
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 4242,
+            process: FakeProcessProber(alive: false), logger: HookLogger(logsDir: logsDir)
+        )
+
+        XCTAssertTrue(sessionFileExists("opencode-4242-ses_main.json"))
+        XCTAssertTrue(sessionFileExists("opencode-4242-ses_other.json"))
+        XCTAssertFalse(sessionFileExists("opencode-5002-ses_main.json"))
+    }
+
     // MARK: - Session file naming contract
 
-    /// Pins the writer-side naming rule directly: Codex files are keyed by session id
-    /// (one host PID serves many conversations), everything else by PID. The codex-
-    /// prefix must also keep matching what SessionManager.isLegacyUUIDFilename skips.
-    func testSessionFileNameKeysCodexBySessionIdAndOthersByPID() throws {
+    /// Pins multiplexed writer keys while preserving process fallbacks and PID-only clients.
+    func testSessionFileNameKeysMultiplexedHarnessesAndFallbacks() throws {
         func input(_ json: String) throws -> HookInput {
             try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
         }
@@ -1494,11 +1613,29 @@ final class HookHandlerTests: XCTestCase {
         let claude = try input("""
         {"session_id":"thread-1","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"cc"}
         """)
+        let opencode = try input("""
+        {"session_id":"ses_abc","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"opencode"}
+        """)
+        let opencodeFallback = try input("""
+        {"session_id":"opencode-4242","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"opencode"}
+        """)
+        let numericRealOpencode = try input("""
+        {"session_id":"opencode-12345","cwd":"/tmp/p","hook_event_name":"SessionStart","harness_name":"opencode"}
+        """)
         let legacy = try input("""
         {"session_id":"thread-1","cwd":"/tmp/p","hook_event_name":"SessionStart"}
         """)
 
         XCTAssertEqual(sessionFileName(input: codex, pid: 4242, safeSessionId: "thread-1"), "codex-thread-1.json")
+        XCTAssertEqual(
+            sessionFileName(input: opencode, pid: 4242, safeSessionId: "ses_abc"),
+            "opencode-4242-ses_abc.json"
+        )
+        XCTAssertEqual(sessionFileName(input: opencodeFallback, pid: 4242, safeSessionId: "opencode-4242"), "4242.json")
+        XCTAssertEqual(
+            sessionFileName(input: numericRealOpencode, pid: 4242, safeSessionId: "opencode-12345"),
+            "opencode-4242-opencode-12345.json"
+        )
         XCTAssertEqual(sessionFileName(input: claude, pid: 4242, safeSessionId: "thread-1"), "4242.json")
         XCTAssertEqual(sessionFileName(input: legacy, pid: 4242, safeSessionId: "thread-1"), "4242.json")
     }
