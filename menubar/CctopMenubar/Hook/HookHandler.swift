@@ -692,7 +692,7 @@ func extractToolDetail(toolName: String, toolInput: [String: String]?) -> String
 
     let field: String
     switch toolName.lowercased() {
-    case "bash": field = "command"
+    case "bash", "local_shell": field = "command"
     case "edit", "write", "read": field = "file_path"
     case "grep", "glob": field = "pattern"
     case "webfetch": field = "url"

@@ -418,6 +418,39 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.lastToolDetail, "npm test")
     }
 
+    func testCodexLocalShellPreToolUseSetsCommandDetail() throws {
+        try handleHook(
+            """
+            {
+              "session_id": "local-shell-session",
+              "cwd": "/tmp/test-project",
+              "hook_event_name": "SessionStart",
+              "harness_name": "codex"
+            }
+            """,
+            hookName: "SessionStart"
+        )
+        try handleHook(
+            """
+            {
+              "session_id": "local-shell-session",
+              "cwd": "/tmp/test-project",
+              "hook_event_name": "PreToolUse",
+              "harness_name": "codex",
+              "tool_name": "local_shell",
+              "tool_input": {"command": "echo hello"}
+            }
+            """,
+            hookName: "PreToolUse"
+        )
+
+        let session = try loadSession("codex-local-shell-session.json")
+        XCTAssertEqual(session.status, .working)
+        XCTAssertEqual(session.lastTool, "local_shell")
+        XCTAssertEqual(session.lastToolDetail, "echo hello")
+        XCTAssertEqual(session.contextLine, "Running: echo hello")
+    }
+
     // MARK: - PostToolUse stays working
 
     func testPostToolUseStaysWorking() throws {
