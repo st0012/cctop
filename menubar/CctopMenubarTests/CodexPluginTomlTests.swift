@@ -74,6 +74,12 @@ final class CodexPluginTomlTests: XCTestCase {
         XCTAssertEqual(result, "features = { hooks = true }")
     }
 
+    func testReplacesInlineFeatureFalseAfterStringValue() {
+        let input = #"features = { note = "x, hooks = false", hooks = false }"#
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, #"features = { note = "x, hooks = false", hooks = true }"#)
+    }
+
     func testIgnoresRootDottedLookalikeKey() {
         let input = "other.features.hooks = false"
         XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
@@ -81,6 +87,11 @@ final class CodexPluginTomlTests: XCTestCase {
 
     func testIgnoresInlineLookalikeKey() {
         let input = "features = { pre-hooks = false }"
+        XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
+    }
+
+    func testIgnoresInlineStringContents() {
+        let input = #"features = { note = "x, hooks = false" }"#
         XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
     }
 
