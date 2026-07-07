@@ -92,6 +92,17 @@ final class CodexPluginTomlTests: XCTestCase {
         XCTAssertEqual(result, #""features"."hooks" = true"#)
     }
 
+    func testReplacesSpacedDottedFeatureFalseWithTrue() {
+        let cases = [
+            ("features . hooks = false", "features . hooks = true"),
+            (#""features" . "hooks" = false"#, #""features" . "hooks" = true"#),
+            (#"'features' . hooks = false"#, #"'features' . hooks = true"#)
+        ]
+        for (input, expected) in cases {
+            XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), expected)
+        }
+    }
+
     func testReplacesInlineFeatureFalseWithTrue() {
         let input = "features = { hooks = false }"
         let result = CodexPluginInstaller.patchConfigToml(input)
@@ -269,7 +280,9 @@ final class CodexPluginTomlTests: XCTestCase {
             "[features]\nhooks = false",
             "[\"features\"]\nhooks = false",
             "features.hooks = false",
+            "features . hooks = false",
             #""features"."hooks" = false"#,
+            #""features" . "hooks" = false"#,
             #""features" = { hooks = false }"#,
             "features = { hooks = false }"
         ] {

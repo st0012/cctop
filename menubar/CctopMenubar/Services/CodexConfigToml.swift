@@ -277,6 +277,10 @@ enum CodexConfigToml {
         [key, "\"\(key)\"", "'\(key)'"]
     }
 
+    private static func simpleTomlKeyPattern(for key: String) -> String {
+        "(?:\(key)|\"\(key)\"|'\(key)')"
+    }
+
     private static func hasFalseBooleanAssignment(_ line: String, regex: NSRegularExpression) -> Bool {
         let effective = stripCommentAndTrim(line)
         return regex.firstMatch(
@@ -302,7 +306,9 @@ enum CodexConfigToml {
     }
 
     private static func rootDottedHooksRegex() -> NSRegularExpression {
-        booleanAssignmentRegex(pattern: #"^(\s*(?:features|"features"|'features')\.(?:hooks|"hooks"|'hooks')\s*=\s*)false\b"#)
+        let featuresKey = simpleTomlKeyPattern(for: "features")
+        let hooksKey = simpleTomlKeyPattern(for: "hooks")
+        return booleanAssignmentRegex(pattern: #"^(\s*\#(featuresKey)\s*\.\s*\#(hooksKey)\s*=\s*)false\b"#)
     }
 
     private static func booleanAssignmentRegex(pattern: String) -> NSRegularExpression {
