@@ -187,7 +187,8 @@ enum CodexConfigToml {
         let trimmed = stripCommentAndTrim(line)
         guard trimmed.hasPrefix("[") && trimmed.hasSuffix("]") else { return nil }
         guard !trimmed.hasPrefix("[[") && !trimmed.hasSuffix("]]") else { return nil }
-        return trimmed.dropFirst().dropLast().trimmingCharacters(in: .whitespaces)
+        let rawKey = String(trimmed.dropFirst().dropLast())
+        return parseSimpleTomlKey(rawKey)
     }
 
     /// True for `[[name]]` array-of-tables headers. Callers use this only to
@@ -220,10 +221,10 @@ enum CodexConfigToml {
     }
 
     private static func isExactAssignTrue(_ line: String, key: String) -> Bool {
-        let effective = stripCommentAndTrim(line)
-        let compact = effective.replacingOccurrences(of: " ", with: "")
+        guard let value = assignmentValue(line, key: key) else { return false }
+        let compact = value.replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "\t", with: "")
-        return compact == "\(key)=true"
+        return compact == "true"
     }
 
     private static func isHooksAssignLine(_ line: String) -> Bool {
@@ -243,14 +244,37 @@ enum CodexConfigToml {
     }
 
     private static func isAssignLine(_ line: String, key: String) -> Bool {
+        assignmentValue(line, key: key) != nil
+    }
+
+    private static func assignmentValue(_ line: String, key: String) -> String? {
         let effective = stripCommentAndTrim(line)
-        guard effective.hasPrefix(key) else { return false }
-        let afterKey = effective.dropFirst(key.count)
-        guard let first = afterKey.first,
-              first == " " || first == "\t" || first == "=" else {
-            return false
+        guard let afterKey = remainderAfterSimpleTomlKey(key, in: effective) else { return nil }
+        let trimmedRest = afterKey.trimmingCharacters(in: .whitespaces)
+        guard trimmedRest.hasPrefix("=") else { return nil }
+        return String(trimmedRest.dropFirst()).trimmingCharacters(in: .whitespaces)
+    }
+
+    private static func remainderAfterSimpleTomlKey(_ key: String, in effective: String) -> Substring? {
+        for candidate in simpleTomlKeySpellings(for: key) where effective.hasPrefix(candidate) {
+            return effective.dropFirst(candidate.count)
         }
-        return afterKey.contains("=")
+        return nil
+    }
+
+    private static func parseSimpleTomlKey(_ rawKey: String) -> String {
+        let key = rawKey.trimmingCharacters(in: .whitespaces)
+        guard key.count >= 2,
+              let first = key.first,
+              let last = key.last,
+              (first == "\"" && last == "\"") || (first == "'" && last == "'") else {
+            return key
+        }
+        return String(key.dropFirst().dropLast())
+    }
+
+    private static func simpleTomlKeySpellings(for key: String) -> [String] {
+        [key, "\"\(key)\"", "'\(key)'"]
     }
 
     private static func hasFalseBooleanAssignment(_ line: String, regex: NSRegularExpression) -> Bool {
@@ -278,7 +302,7 @@ enum CodexConfigToml {
     }
 
     private static func rootDottedHooksRegex() -> NSRegularExpression {
-        booleanAssignmentRegex(pattern: #"^(\s*features\.hooks\s*=\s*)false\b"#)
+        booleanAssignmentRegex(pattern: #"^(\s*(?:features|"features"|'features')\.(?:hooks|"hooks"|'hooks')\s*=\s*)false\b"#)
     }
 
     private static func booleanAssignmentRegex(pattern: String) -> NSRegularExpression {
@@ -293,7 +317,7 @@ private enum InlineFeaturesTableScanner {
     static func hooksFalseRange(in line: String) -> Range<String.Index>? {
         var index = line.startIndex
         skipWhitespace(in: line, from: &index)
-        guard consume("features", in: line, from: &index) else { return nil }
+        guard parseInlineTableKey(in: line, from: &index) == "features" else { return nil }
         skipWhitespace(in: line, from: &index)
         guard index < line.endIndex, line[index] == "=" else { return nil }
         index = line.index(after: index)
@@ -415,12 +439,6 @@ private enum InlineFeaturesTableScanner {
         while index < line.endIndex, line[index].isWhitespace {
             index = line.index(after: index)
         }
-    }
-
-    private static func consume(_ token: String, in line: String, from index: inout String.Index) -> Bool {
-        guard line[index...].hasPrefix(token) else { return false }
-        index = line.index(index, offsetBy: token.count)
-        return true
     }
 
     private static func isBareKeyCharacter(_ char: Character) -> Bool {

@@ -62,16 +62,46 @@ final class CodexPluginTomlTests: XCTestCase {
         XCTAssertEqual(result, "[features]\nother = true\nhooks = true\nmore = 1")
     }
 
+    func testReplacesFalseInQuotedFeaturesTables() {
+        let cases = [
+            (#"["features"]"#, #"["features"]"#),
+            (#"['features']"#, #"['features']"#)
+        ]
+        for (inputHeader, expectedHeader) in cases {
+            let input = "\(inputHeader)\nhooks = false"
+            let result = CodexPluginInstaller.patchConfigToml(input)
+            XCTAssertEqual(result, "\(expectedHeader)\nhooks = true")
+        }
+    }
+
+    func testReplacesFalseWithQuotedHooksKey() {
+        let input = "[features]\n\"hooks\" = false"
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, "[features]\nhooks = true")
+    }
+
     func testReplacesDottedFeatureFalseWithTrue() {
         let input = "features.hooks = false"
         let result = CodexPluginInstaller.patchConfigToml(input)
         XCTAssertEqual(result, "features.hooks = true")
     }
 
+    func testReplacesQuotedDottedFeatureFalseWithTrue() {
+        let input = #""features"."hooks" = false"#
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, #""features"."hooks" = true"#)
+    }
+
     func testReplacesInlineFeatureFalseWithTrue() {
         let input = "features = { hooks = false }"
         let result = CodexPluginInstaller.patchConfigToml(input)
         XCTAssertEqual(result, "features = { hooks = true }")
+    }
+
+    func testReplacesQuotedInlineFeatureFalseWithTrue() {
+        let input = #""features" = { hooks = false }"#
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, #""features" = { hooks = true }"#)
     }
 
     func testReplacesInlineFeatureFalseAfterStringValue() {
@@ -237,7 +267,10 @@ final class CodexPluginTomlTests: XCTestCase {
     func testHooksDisabledForAcceptedTomlFeatureSpellings() {
         for input in [
             "[features]\nhooks = false",
+            "[\"features\"]\nhooks = false",
             "features.hooks = false",
+            #""features"."hooks" = false"#,
+            #""features" = { hooks = false }"#,
             "features = { hooks = false }"
         ] {
             XCTAssertFalse(CodexConfigToml.isHooksEnabled(input), input)
