@@ -1,6 +1,10 @@
 import XCTest
 @testable import CctopMenubar
 
+private final class PanelPositioningMemoryStore: PanelPositionStoring {
+    var positionsDict: [String: [String: CGFloat]] = [:]
+}
+
 final class PanelPositioningTests: XCTestCase {
     // Two-screen setup: primary (left), secondary (right)
     let primary = ScreenLayout(
@@ -128,6 +132,35 @@ final class PanelPositioningTests: XCTestCase {
         )
         XCTAssertNotNil(result)
         XCTAssertEqual(result!.origin.x, 100, accuracy: 1)
+    }
+
+    func testSavedPositionWithOffscreenTopLeftUsesVisibleIntersectionOnShow() {
+        let result = PanelPositioning.resolveShowPosition(
+            savedPositions: ["primary": (originX: -20, topY: 700)],
+            clickScreenKey: "primary",
+            clickLocation: NSPoint(x: 500, y: 500),
+            anchorRect: anchorOnPrimary,
+            panelSize: panelSize, screens: screens
+        )
+
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result!.origin.x, margin, accuracy: 1)
+        XCTAssertEqual(result!.maxY, 700, accuracy: 1)
+    }
+
+    func testSavedPositionSpanningDisplaysClampsToValidatedScreen() {
+        let result = PanelPositioning.resolveShowPosition(
+            savedPositions: ["secondary": (originX: 1800, topY: 1100)],
+            clickScreenKey: "secondary",
+            clickLocation: NSPoint(x: 2500, y: 500),
+            anchorRect: anchorOnPrimary,
+            panelSize: panelSize, screens: screens
+        )
+
+        XCTAssertNotNil(result)
+        XCTAssertGreaterThanOrEqual(result!.origin.x, secondary.visibleFrame.minX)
+        XCTAssertLessThan(result!.maxX, secondary.visibleFrame.maxX)
+        XCTAssertEqual(result!.maxY, secondary.visibleFrame.maxY - margin, accuracy: 1)
     }
 
     func testSavedPositionOnWrongScreenFallsBackToAnchor() {
@@ -337,10 +370,10 @@ final class PanelPositioningTests: XCTestCase {
         let model = PanelGeometryModel(store: store)
         XCTAssertEqual(model.savedPositions()["primary"]?.originX, 200)
         XCTAssertEqual(model.savedPositions()["primary"]?.topY, 700)
-        XCTAssertTrue(model.hasCustomPosition(forScreenKey: "primary"))
-        XCTAssertFalse(model.hasCustomPosition(forScreenKey: "secondary"))
+        XCTAssertNotNil(model.savedPositions()["primary"])
+        XCTAssertNil(model.savedPositions()["secondary"])
 
-        model.saveCustomPosition(originX: 2200.5, topY: 901.25, forScreenKey: "secondary")
+        model.saveUserDraggedPosition(originX: 2200.5, topY: 901.25, panelSize: panelSize, screens: screens)
         XCTAssertEqual(
             defaults.dictionary(forKey: "panelPositions") as? [String: [String: CGFloat]],
             [
@@ -350,11 +383,46 @@ final class PanelPositioningTests: XCTestCase {
             "Saving must write the identical raw UserDefaults format"
         )
 
-        model.clearCustomPosition(forScreenKey: "primary")
+        let primaryFrame = NSRect(
+            x: 200, y: 700 - panelSize.height,
+            width: panelSize.width, height: panelSize.height
+        )
+        model.clearUserPosition(forPanelFrame: primaryFrame, screens: screens)
         XCTAssertEqual(
             defaults.dictionary(forKey: "panelPositions") as? [String: [String: CGFloat]],
             ["secondary": ["originX": 2200.5, "topY": 901.25]],
             "Clearing must remove only the given screen's entry, preserving the format"
+        )
+    }
+
+    func testUserDragWithOffscreenTopLeftFallsBackToVisibleIntersection() {
+        let store = PanelPositioningMemoryStore()
+        let model = PanelGeometryModel(store: store)
+
+        model.saveUserDraggedPosition(originX: -20, topY: 700, panelSize: panelSize, screens: screens)
+
+        XCTAssertEqual(
+            store.positionsDict,
+            ["primary": ["originX": -20, "topY": 700]],
+            "Visible off-screen drag-end should still persist the user's intended screen"
+        )
+    }
+
+    func testResetWithOffscreenTopLeftClearsVisibleIntersectionScreen() {
+        let store = PanelPositioningMemoryStore()
+        store.positionsDict = ["primary": ["originX": 200, "topY": 700]]
+        let model = PanelGeometryModel(store: store)
+        let offscreenFrame = NSRect(
+            x: -20, y: 700 - panelSize.height,
+            width: panelSize.width, height: panelSize.height
+        )
+
+        model.clearUserPosition(forPanelFrame: offscreenFrame, screens: screens)
+
+        XCTAssertEqual(
+            store.positionsDict,
+            [:],
+            "Reset from a visible off-screen frame should clear the screen it still occupies"
         )
     }
 

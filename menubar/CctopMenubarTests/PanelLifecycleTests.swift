@@ -22,7 +22,7 @@ private struct PanelLifecycleDriver {
     var isVisible: Bool = false
 
     var screens: [ScreenLayout]
-    let anchorRect: NSRect
+    let anchorRect: NSRect?
     let panelSize: NSSize
 
     var savedPositions: [String: (originX: CGFloat, topY: CGFloat)] { model.savedPositions() }
@@ -32,14 +32,16 @@ private struct PanelLifecycleDriver {
         panelFrame: NSRect? = nil,
         isVisible: Bool = false,
         screens: [ScreenLayout],
-        anchorRect: NSRect,
+        anchorRect: NSRect?,
         panelSize: NSSize,
         store: PanelPositionStoring = InMemoryPanelPositionStore()
     ) {
-        self.model = PanelGeometryModel(store: store)
+        var dict = store.positionsDict
         for (key, position) in savedPositions {
-            model.saveCustomPosition(originX: position.originX, topY: position.topY, forScreenKey: key)
+            dict[key] = ["originX": position.originX, "topY": position.topY]
         }
+        store.positionsDict = dict
+        self.model = PanelGeometryModel(store: store)
         self.panelFrame = panelFrame
         self.isVisible = isVisible
         self.screens = screens
@@ -58,7 +60,7 @@ private struct PanelLifecycleDriver {
     /// The screen key the panel is currently on (mirrors AppDelegate.panelScreenKey()).
     private var panelScreenKey: String? {
         guard let frame = panelFrame else { return nil }
-        return screenKey(for: NSPoint(x: frame.midX, y: frame.midY))
+        return PanelPositioning.screenKey(forPanelFrame: frame, in: screens)
     }
 
     /// togglePanel() when hidden → show.
@@ -97,6 +99,25 @@ private struct PanelLifecycleDriver {
         isVisible = true
     }
 
+    /// Menubar click on a different screen while the panel is already visible.
+    /// Mirrors AppDelegate's transient .positionPanel path.
+    mutating func repositionWhileVisible(clickAt clickLocation: NSPoint) {
+        precondition(isVisible, "Panel must be visible to reposition")
+        let clickKey = screenKey(for: clickLocation)
+
+        if let frame = model.showFrame(
+            clickScreenKey: clickKey,
+            clickLocation: clickLocation,
+            anchorRect: anchorRect,
+            panelSize: panelSize,
+            screens: screens
+        ) {
+            panelFrame = frame
+        }
+
+        // A transient miss may move the live frame, but it must not mutate saved intent.
+    }
+
     /// Header drag to a new position.
     /// Mirrors: FloatingPanel.handleHeaderDrag → AppDelegate.panelDidDrag.
     mutating func drag(toOriginX originX: CGFloat, topY: CGFloat) {
@@ -105,10 +126,7 @@ private struct PanelLifecycleDriver {
             x: originX, y: topY - panelSize.height,
             width: panelSize.width, height: panelSize.height
         )
-        // Save under the screen key the panel is now on
-        if let key = panelScreenKey {
-            model.saveCustomPosition(originX: originX, topY: topY, forScreenKey: key)
-        }
+        model.saveUserDraggedPosition(originX: originX, topY: topY, panelSize: panelSize, screens: screens)
     }
 
     /// togglePanel() when visible → dismiss.
@@ -120,12 +138,12 @@ private struct PanelLifecycleDriver {
     }
 
     /// Screen-parameter change while panel is visible.
-    /// Mirrors: AppDelegate.handleScreenChange → positionPanel + resave if custom.
+    /// Mirrors: AppDelegate.handleScreenChange → transient positionPanel only.
     mutating func handleScreenChange() {
         guard isVisible else { return }
 
         // Capture the key before repositioning (mirrors AppDelegate): the
-        // resave must key off the screen the panel was on, not where it lands
+        // transient move should be based on where the panel started.
         let key = panelScreenKey
 
         // positionPanel with focusLocation = nil (explicitly cleared at the
@@ -140,10 +158,7 @@ private struct PanelLifecycleDriver {
             panelFrame = frame
         }
 
-        // Overwrite the saved position with the possibly clamped frame, if one exists
-        if let frame = panelFrame {
-            model.resaveAfterScreenChange(panelScreenKey: key, panelFrame: frame)
-        }
+        // Screen changes adjust only the live frame; saved intent is unchanged.
     }
 
     /// Screen-parameter change with a new screen layout.
@@ -168,20 +183,17 @@ private struct PanelLifecycleDriver {
     mutating func resetPosition() {
         precondition(isVisible, "Panel must be visible to reset")
 
-        // Clear only the current screen's saved position
-        if let key = panelScreenKey {
-            model.clearCustomPosition(forScreenKey: key)
+        if let frame = panelFrame {
+            model.clearUserPosition(forPanelFrame: frame, screens: screens)
         }
 
         let panelIdx = panelFrame.flatMap { frame in
-            PanelPositioning.screenIndex(
-                containing: NSPoint(x: frame.midX, y: frame.midY), in: screens
-            )
+            PanelPositioning.screenIndex(forPanelFrame: frame, in: screens)
         }
 
         // Models the no-pill case only: menubarIconRect defaults to nil and
         // falls back to anchorRect (the pill case is covered by unit tests)
-        if let frame = model.resetFrame(
+        if let frame = PanelPositioning.resolveResetPosition(
             anchorRect: anchorRect,
             panelScreenIndex: panelIdx,
             panelSize: panelSize,
@@ -236,6 +248,22 @@ final class PanelLifecycleTests: XCTestCase {
         XCTAssertEqual(lc.panelFrame!.maxY, 700, accuracy: 1)
     }
 
+    func testDragPersistsUnderTopLeftScreenWhenPanelSpansDisplays() {
+        var lc = makeLifecycle()
+
+        lc.show(clickAt: clickOnPrimary)
+        lc.drag(toOriginX: 1800, topY: 700)
+
+        XCTAssertEqual(
+            lc.savedPositions["primary"]?.originX, 1800,
+            "A dragged panel belongs to the screen containing its top-left point"
+        )
+        XCTAssertNil(
+            lc.savedPositions["secondary"],
+            "Greatest-overlap or midpoint ownership must not choose the secondary display"
+        )
+    }
+
     func testNoDragShowsAtAnchor() {
         var lc = makeLifecycle()
 
@@ -277,10 +305,9 @@ final class PanelLifecycleTests: XCTestCase {
 
     // MARK: - Screen change while on different screen
 
-    /// The clamp-resave must key off the screen the panel was on BEFORE
-    /// repositioning. With no custom position on secondary, the screen change
-    /// snaps the panel back to the anchor on primary — but primary's
-    /// user-dragged entry must not be overwritten with the anchor frame.
+    /// With no custom position on secondary, the screen change snaps the panel
+    /// back to the anchor on primary — but primary's user-dragged entry must
+    /// not be overwritten with the anchor frame.
     func testScreenChangeWhileOnSecondaryPreservesPrimaryPosition() {
         var lc = makeLifecycle()
 
@@ -296,22 +323,22 @@ final class PanelLifecycleTests: XCTestCase {
         lc.handleScreenChange()
 
         // No custom position on secondary → the panel snaps back to the anchor
-        // on primary, but the resave keys off secondary and is a no-op
+        // on primary, without mutating stored primary intent.
         XCTAssertLessThan(
             lc.panelFrame!.maxX, primary.frame.maxX,
             "Panel should snap back to the anchor screen"
         )
         XCTAssertEqual(
             lc.savedPositions["primary"]!.originX, 200, accuracy: 0.5,
-            "Dragged primary position must survive the resave"
+            "Dragged primary position must survive the screen change"
         )
         XCTAssertEqual(
             lc.savedPositions["primary"]!.topY, 700, accuracy: 0.5,
-            "Dragged primary position must survive the resave"
+            "Dragged primary position must survive the screen change"
         )
         XCTAssertNil(
             lc.savedPositions["secondary"],
-            "The no-op resave must not invent an entry for secondary"
+            "Screen change must not invent an entry for secondary"
         )
 
         lc.dismiss()
@@ -330,7 +357,7 @@ final class PanelLifecycleTests: XCTestCase {
 
     // MARK: - Screen layout change (monitor disconnected/reconfigured)
 
-    func testScreenLayoutChangeRelocatesSavedPosition() {
+    func testScreenLayoutChangePreservesSavedPosition() {
         var lc = makeLifecycle()
 
         // Drag to position on primary
@@ -361,7 +388,7 @@ final class PanelLifecycleTests: XCTestCase {
         // Session update triggers resize
         lc.resize(newHeight: 500)
 
-        // Panel stays on secondary (top-left stable because hasCustomPosition)
+        // Panel stays on secondary; no saved position there, so resize keeps it centered.
         XCTAssertEqual(
             lc.panelFrame!.origin.x, secondaryOriginX, accuracy: 1,
             "Resize should keep panel on secondary"
@@ -412,6 +439,19 @@ final class PanelLifecycleTests: XCTestCase {
         XCTAssertNotEqual(
             lc.panelFrame!.origin.x, 200,
             "After reset, should use anchor not custom position"
+        )
+    }
+
+    func testResetClearsTopLeftScreenWhenPanelSpansDisplays() {
+        var lc = makeLifecycle()
+
+        lc.show(clickAt: clickOnPrimary)
+        lc.drag(toOriginX: 1800, topY: 700)
+        lc.resetPosition()
+
+        XCTAssertNil(
+            lc.savedPositions["primary"],
+            "Reset should clear the screen containing the panel's saved top-left point"
         )
     }
 
@@ -552,7 +592,7 @@ final class PanelLifecycleTests: XCTestCase {
 
     // MARK: - Screen change while visible on same screen
 
-    func testScreenChangeOnSameScreenClampsPosition() {
+    func testScreenChangeOnSameScreenMovesFrameWithoutOverwritingSavedIntent() {
         // Use a single-screen setup so the position can only clamp within it
         let screen = ScreenLayout(
             frame: NSRect(x: 0, y: 0, width: 1920, height: 1080),
@@ -577,12 +617,17 @@ final class PanelLifecycleTests: XCTestCase {
         )
         lc = lc.handleScreenChange(newScreens: [smaller])
 
-        // Saved position should be clamped to new screen bounds
+        // The live frame is clamped for the current layout.
         let margin = PanelPositioning.margin
         XCTAssertLessThanOrEqual(
-            lc.savedPositions["primary"]!.originX,
+            lc.panelFrame!.origin.x,
             smaller.visibleFrame.maxX - panelSize.width - margin,
-            "Saved position should be clamped to smaller screen"
+            "Screen change should keep the visible panel inside the smaller screen"
+        )
+        XCTAssertEqual(
+            lc.savedPositions["primary"]!.originX,
+            1200,
+            "Screen change is not a user gesture and must not overwrite saved intent"
         )
     }
 
@@ -613,6 +658,43 @@ final class PanelLifecycleTests: XCTestCase {
         XCTAssertTrue(FloatingPanel.shouldPersistDrag(sawDragEvents: true, originMoved: true))
         XCTAssertFalse(FloatingPanel.shouldPersistDrag(sawDragEvents: true, originMoved: false))
         XCTAssertFalse(FloatingPanel.shouldPersistDrag(sawDragEvents: false, originMoved: false))
+    }
+
+    func testVisibleOffscreenDragPersistsAndResetClearsSameScreen() {
+        let store = InMemoryPanelPositionStore()
+        var lc = PanelLifecycleDriver(
+            screens: [primary],
+            anchorRect: anchorOnPrimary,
+            panelSize: panelSize,
+            store: store
+        )
+
+        lc.show(clickAt: clickOnPrimary)
+        lc.drag(toOriginX: 200, topY: 700)
+        lc.drag(toOriginX: -20, topY: 700)
+
+        XCTAssertEqual(
+            store.positionsDict,
+            ["primary": ["originX": -20, "topY": 700]],
+            "Visible off-screen drag-end should update the user's saved intent"
+        )
+
+        lc.dismiss()
+        lc.show(clickAt: clickOnPrimary)
+
+        XCTAssertEqual(
+            lc.panelFrame!.origin.x, PanelPositioning.margin, accuracy: 0.5,
+            "Reopening should honor the saved off-screen intent by clamping it into view"
+        )
+        XCTAssertEqual(lc.panelFrame!.maxY, 700, accuracy: 0.5)
+
+        lc.resetPosition()
+
+        XCTAssertEqual(
+            store.positionsDict,
+            [:],
+            "Reset from that visible off-screen frame should not leave an older saved position behind"
+        )
     }
 
     func testFloatingPanelMovesToActiveSpaceWhenOrderedFront() {
@@ -696,9 +778,9 @@ final class PanelLifecycleTests: XCTestCase {
         XCTAssertEqual(lc.panelFrame!.height, 550, accuracy: 0.5)
     }
 
-    // MARK: - Screen change clamp-resave (what actually lands in the store)
+    // MARK: - Screen change store invariants
 
-    func testScreenChangeResaveWritesClampedPositionToStore() {
+    func testScreenChangeDoesNotWriteClampedPositionToStore() {
         let store = InMemoryPanelPositionStore()
         var lc = PanelLifecycleDriver(
             screens: [primary],
@@ -718,11 +800,10 @@ final class PanelLifecycleTests: XCTestCase {
         )
         lc = lc.handleScreenChange(newScreens: [smaller])
 
-        let expectedX = smaller.visibleFrame.maxX - panelSize.width - PanelPositioning.margin
         XCTAssertEqual(
             store.positionsDict,
-            ["primary": ["originX": expectedX, "topY": 700]],
-            "Screen change must resave the clamped position in the persisted format"
+            ["primary": ["originX": 1200, "topY": 700]],
+            "Screen change may move the live frame but must not rewrite persisted user intent"
         )
     }
 
@@ -741,7 +822,34 @@ final class PanelLifecycleTests: XCTestCase {
 
         XCTAssertEqual(
             store.positionsDict, [:],
-            "Resave must not invent a position for a screen that never had one"
+            "Screen change must not invent a position for a screen that never had one"
+        )
+    }
+
+    func testRepositionMissRecoveryDoesNotDeleteSavedIntent() {
+        let store = InMemoryPanelPositionStore()
+        store.positionsDict = ["primary": ["originX": 2500, "topY": 700]]
+        let originalFrame = NSRect(x: 2200, y: 300, width: panelSize.width, height: panelSize.height)
+        var lc = PanelLifecycleDriver(
+            panelFrame: originalFrame,
+            isVisible: true,
+            screens: screens,
+            anchorRect: nil,
+            panelSize: panelSize,
+            store: store
+        )
+
+        lc.repositionWhileVisible(clickAt: clickOnPrimary)
+
+        XCTAssertEqual(
+            store.positionsDict,
+            ["primary": ["originX": 2500, "topY": 700]],
+            "Recovery from a transient screen mismatch must not delete the user's saved position"
+        )
+        XCTAssertEqual(
+            lc.panelFrame!,
+            originalFrame,
+            "Without a usable target frame, recovery should leave the transient frame alone"
         )
     }
 }
