@@ -157,6 +157,16 @@ final class CodexPluginTomlTests: XCTestCase {
         XCTAssertTrue(CodexPluginInstaller.isFeatureFlagEnabled("[features]\nother = true"))
     }
 
+    func testFlagEnabledWhenHooksUnsetInAcceptedFeaturesSpellings() {
+        for input in [
+            "[features]\nother = true",
+            "features.other = true",
+            "features = { other = true }"
+        ] {
+            XCTAssertTrue(CodexConfigToml.isHooksEnabled(input), input)
+        }
+    }
+
     func testFlagEnabledWhenHooksIsTrue() {
         XCTAssertTrue(CodexPluginInstaller.isFeatureFlagEnabled("[features]\nhooks = true"))
     }
@@ -184,6 +194,16 @@ final class CodexPluginTomlTests: XCTestCase {
 
     func testFlagDisabledWhenHooksIsFalse() {
         XCTAssertFalse(CodexPluginInstaller.isFeatureFlagEnabled("[features]\nhooks = false"))
+    }
+
+    func testHooksDisabledForAcceptedTomlFeatureSpellings() {
+        for input in [
+            "[features]\nhooks = false",
+            "features.hooks = false",
+            "features = { hooks = false }"
+        ] {
+            XCTAssertFalse(CodexConfigToml.isHooksEnabled(input), input)
+        }
     }
 
     func testFlagDisabledOnLegacyFalse() {

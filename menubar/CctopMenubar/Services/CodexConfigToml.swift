@@ -1,4 +1,5 @@
 import Foundation
+import TOMLDecoder
 
 /// Line-based TOML editing scoped to `[features].hooks` and the
 /// `[features].codex_hooks` alias. Used by `CodexPluginInstaller` to keep
@@ -77,6 +78,17 @@ enum CodexConfigToml {
     /// Codex default (true). Returns false only on an explicit opt-out under
     /// `[features]`.
     static func isHooksEnabled(_ input: String) -> Bool {
+        if let parsed = try? TOMLDecoder().decode(ParsedConfig.self, from: Data(input.utf8)),
+           let hooks = parsed.features?.hooks {
+            return hooks
+        }
+
+        // Preserve the legacy alias behavior exactly as the line scanner
+        // understood it; the new TOML parser path only broadens `hooks`.
+        return isHooksEnabledByLineScan(input)
+    }
+
+    private static func isHooksEnabledByLineScan(_ input: String) -> Bool {
         let lines = input.components(separatedBy: "\n")
         let scan = scan(lines)
         if let idx = scan.hooksInFeaturesIndex {
@@ -97,6 +109,14 @@ enum CodexConfigToml {
     }
 
     // MARK: - Scanning
+
+    private struct ParsedConfig: Decodable {
+        let features: ParsedFeatures?
+    }
+
+    private struct ParsedFeatures: Decodable {
+        let hooks: Bool?
+    }
 
     private struct Scan {
         let featuresHeaderIndex: Int?

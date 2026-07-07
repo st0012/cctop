@@ -9,8 +9,18 @@ permissions:
   contents: write
 
 jobs:
+  validate-release-version:
+    name: Validate release version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Validate tag matches committed versions
+        run: ./scripts/validate-release-version.sh "${GITHUB_REF_NAME}"
+
   build-macos:
     name: Build macOS (${{ matrix.arch }})
+    needs: validate-release-version
     runs-on: macos-15
     strategy:
       matrix:
