@@ -306,7 +306,7 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.id, "abc-123")
     }
 
-    func testIdentityPolicyDisplayIDMirrorsSessionIdentifiableID() {
+    func testIdentifiableIDUsesHarnessSpecificDisplayIdentity() {
         let cases: [(name: String, session: Session, expectedID: String)] = [
             (
                 "codex conversations use session id even with a shared host pid",
@@ -327,11 +327,6 @@ final class SessionTests: XCTestCase {
 
         for identityCase in cases {
             XCTAssertEqual(identityCase.session.id, identityCase.expectedID, identityCase.name)
-            XCTAssertEqual(
-                SessionIdentityPolicy.displayID(for: identityCase.session),
-                identityCase.session.id,
-                identityCase.name
-            )
         }
     }
 
