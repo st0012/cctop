@@ -14,6 +14,7 @@ if [[ ! "$TAG_NAME" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
 fi
 
 TAG_VERSION="${BASH_REMATCH[1]}"
+TAG_BUILD_NUMBER=$(echo "$TAG_VERSION" | awk -F. '{print $1*10000 + $2*100 + $3}')
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
@@ -40,4 +41,18 @@ if [ "$MARKETING_VERSION_COUNT" -eq 0 ]; then
     exit 1
 fi
 
-echo "Release version guard passed: $TAG_NAME matches Config.hookVersion and $MARKETING_VERSION_COUNT MARKETING_VERSION values"
+CURRENT_PROJECT_VERSION_COUNT=0
+while IFS= read -r version; do
+    CURRENT_PROJECT_VERSION_COUNT=$((CURRENT_PROJECT_VERSION_COUNT + 1))
+    if [ "$version" != "$TAG_BUILD_NUMBER" ]; then
+        echo "Error: $TAG_NAME build number ($TAG_BUILD_NUMBER) does not match CURRENT_PROJECT_VERSION ($version)"
+        exit 1
+    fi
+done < <(sed -nE 's/^[[:space:]]*CURRENT_PROJECT_VERSION = ([^;]+);.*/\1/p' "$PBXPROJ")
+
+if [ "$CURRENT_PROJECT_VERSION_COUNT" -eq 0 ]; then
+    echo "Error: no CURRENT_PROJECT_VERSION values found in $PBXPROJ"
+    exit 1
+fi
+
+echo "Release version guard passed: $TAG_NAME matches Config.hookVersion, $MARKETING_VERSION_COUNT MARKETING_VERSION values, and $CURRENT_PROJECT_VERSION_COUNT CURRENT_PROJECT_VERSION values"

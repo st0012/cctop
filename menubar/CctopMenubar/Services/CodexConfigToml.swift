@@ -36,6 +36,20 @@ enum CodexConfigToml {
             updated[hooksIdx] = "hooks = true"
             changed = true
         }
+        if let hooksIdx = scan.rootDottedHooksIndex {
+            updated[hooksIdx] = replaceFalseBooleanAssignment(
+                in: updated[hooksIdx],
+                keyPattern: #"features\.hooks"#
+            )
+            changed = true
+        }
+        if let featuresIdx = scan.rootInlineFeaturesIndex {
+            updated[featuresIdx] = replaceFalseBooleanAssignment(
+                in: updated[featuresIdx],
+                keyPattern: "hooks"
+            )
+            changed = true
+        }
 
         // Drop the deprecated `codex_hooks` line if present. Safe to remove
         // after the replace above because the replace was in-place (no
@@ -122,16 +136,22 @@ enum CodexConfigToml {
         let featuresHeaderIndex: Int?
         let hooksInFeaturesIndex: Int?
         let legacyHooksInFeaturesIndex: Int?
+        let rootDottedHooksIndex: Int?
+        let rootInlineFeaturesIndex: Int?
     }
 
     private static func scan(_ lines: [String]) -> Scan {
         var current: String?
+        var isRootScope = true
         var featuresHeaderIdx: Int?
         var hooksIdx: Int?
         var legacyIdx: Int?
+        var rootDottedHooksIdx: Int?
+        var rootInlineFeaturesIdx: Int?
         for (idx, line) in lines.enumerated() {
             if let table = parseTableHeader(line) {
                 current = table
+                isRootScope = false
                 if table == "features" && featuresHeaderIdx == nil {
                     featuresHeaderIdx = idx
                 }
@@ -142,7 +162,15 @@ enum CodexConfigToml {
                 // kind. Whatever it is, it's not `[features]`, so anything
                 // inside it must not be attributed to features.
                 current = nil
+                isRootScope = false
                 continue
+            }
+            if isRootScope {
+                if rootDottedHooksIdx == nil, isRootDottedHooksFalseLine(line) {
+                    rootDottedHooksIdx = idx
+                } else if rootInlineFeaturesIdx == nil, isRootInlineFeaturesHooksFalseLine(line) {
+                    rootInlineFeaturesIdx = idx
+                }
             }
             guard current == "features" else { continue }
             if hooksIdx == nil, isHooksAssignLine(line) {
@@ -154,7 +182,9 @@ enum CodexConfigToml {
         return Scan(
             featuresHeaderIndex: featuresHeaderIdx,
             hooksInFeaturesIndex: hooksIdx,
-            legacyHooksInFeaturesIndex: legacyIdx
+            legacyHooksInFeaturesIndex: legacyIdx,
+            rootDottedHooksIndex: rootDottedHooksIdx,
+            rootInlineFeaturesIndex: rootInlineFeaturesIdx
         )
     }
 
@@ -210,6 +240,17 @@ enum CodexConfigToml {
         isAssignLine(line, key: "codex_hooks")
     }
 
+    private static func isRootDottedHooksFalseLine(_ line: String) -> Bool {
+        isFalseBooleanAssignment(line, keyPattern: #"features\.hooks"#)
+    }
+
+    private static func isRootInlineFeaturesHooksFalseLine(_ line: String) -> Bool {
+        let effective = stripCommentAndTrim(line)
+        guard isAssignLine(effective, key: "features") else { return false }
+        guard effective.contains("{") && effective.contains("}") else { return false }
+        return isFalseBooleanAssignment(effective, keyPattern: "hooks")
+    }
+
     private static func isAssignLine(_ line: String, key: String) -> Bool {
         let effective = stripCommentAndTrim(line)
         guard effective.hasPrefix(key) else { return false }
@@ -219,5 +260,33 @@ enum CodexConfigToml {
             return false
         }
         return afterKey.contains("=")
+    }
+
+    private static func isFalseBooleanAssignment(_ line: String, keyPattern: String) -> Bool {
+        let effective = stripCommentAndTrim(line)
+        return assignmentRegex(keyPattern: keyPattern).firstMatch(
+            in: effective,
+            range: NSRange(effective.startIndex..., in: effective)
+        ) != nil
+    }
+
+    private static func replaceFalseBooleanAssignment(in line: String, keyPattern: String) -> String {
+        let regex = assignmentRegex(keyPattern: keyPattern)
+        let range = NSRange(line.startIndex..., in: line)
+        return regex.stringByReplacingMatches(
+            in: line,
+            range: range,
+            withTemplate: "$1true"
+        )
+    }
+
+    private static func assignmentRegex(keyPattern: String) -> NSRegularExpression {
+        // Comments/strings are already out of scope for these boolean-only edits.
+        // Capture the assignment prefix so whitespace and key spelling survive.
+        let pattern = #"\b("# + keyPattern + #"\s*=\s*)false\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            preconditionFailure("Invalid boolean-assignment regex")
+        }
+        return regex
     }
 }

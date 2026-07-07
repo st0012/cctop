@@ -62,6 +62,18 @@ final class CodexPluginTomlTests: XCTestCase {
         XCTAssertEqual(result, "[features]\nother = true\nhooks = true\nmore = 1")
     }
 
+    func testReplacesDottedFeatureFalseWithTrue() {
+        let input = "features.hooks = false"
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, "features.hooks = true")
+    }
+
+    func testReplacesInlineFeatureFalseWithTrue() {
+        let input = "features = { hooks = false }"
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, "features = { hooks = true }")
+    }
+
     // MARK: - patchConfigToml: legacy codex_hooks migration
 
     func testRemovesLegacyTrueLine() {
@@ -134,6 +146,11 @@ final class CodexPluginTomlTests: XCTestCase {
         // inside it is not under [features] and must not trigger the
         // opt-out override.
         let input = "[features]\nother = 1\n[[notifications]]\nhooks = false"
+        XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
+    }
+
+    func testIgnoresDottedFeatureFalseInsideArrayOfTables() {
+        let input = "[[notifications]]\nfeatures.hooks = false"
         XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
     }
 
