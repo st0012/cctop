@@ -9,6 +9,14 @@ struct SessionNotificationContent: Equatable {
 extension Session {
     private static let notificationBodyLimit = 72
 
+    var shouldPostAttentionNotification: Bool {
+        guard status.needsAttention else { return false }
+        guard usesCodexPromptFallbackPolicy, status == .waitingInput else { return true }
+        guard Self.cleanOptionalNotificationBodyText(notificationMessage) == nil else { return true }
+        guard let lastPrompt else { return true }
+        return Self.userFacingCodexPromptFallbackText(from: lastPrompt) != nil
+    }
+
     var notificationContent: SessionNotificationContent {
         let sender = notificationSenderName
         return SessionNotificationContent(
@@ -71,7 +79,10 @@ extension Session {
             detail = Self.cleanOptionalNotificationBodyText(notificationMessage) ?? "Permission needed"
         case .waitingInput:
             detail = Self.cleanOptionalNotificationBodyText(notificationMessage)
-                ?? Self.cleanOptionalNotificationBodyText(lastPrompt)
+                ?? Self.cleanOptionalPromptFallbackText(
+                    lastPrompt,
+                    usesCodexPromptFallbackPolicy: usesCodexPromptFallbackPolicy
+                )
                 ?? "Waiting for input"
         default:
             detail = Self.cleanOptionalNotificationBodyText(notificationMessage) ?? "Needs attention"
@@ -83,6 +94,12 @@ extension Session {
         let title = title.lowercased()
         let project = project.lowercased()
         return title == project || title.hasPrefix("[\(project)] ")
+    }
+
+    private var usesCodexPromptFallbackPolicy: Bool {
+        source == Self.codexSource
+            || (terminal?.bundleId == HostAppBundleID.codexDesktop
+                && Self.trustsDesktopBundle(source: source, bundleId: terminal?.bundleId))
     }
 
     private static func cleanOptionalNotificationTitleText(_ text: String?) -> String? {
@@ -97,6 +114,24 @@ extension Session {
         return cleaned.isEmpty ? nil : cleaned
     }
 
+    private static func cleanOptionalPromptFallbackText(
+        _ text: String?,
+        usesCodexPromptFallbackPolicy: Bool
+    ) -> String? {
+        guard let text else { return nil }
+        let userFacingText: String?
+        if usesCodexPromptFallbackPolicy {
+            userFacingText = userFacingCodexPromptFallbackText(from: text)
+        } else {
+            userFacingText = text
+        }
+        guard let userFacingText else {
+            return nil
+        }
+        let cleaned = cleanNotificationBodyText(userFacingText)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
     private static func cleanNotificationTitleText(_ text: String) -> String {
         cleanNotificationBodyText(text)
             .replacingOccurrences(of: "CCTOP", with: "cctop")
@@ -106,6 +141,86 @@ extension Session {
         text.components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+    }
+
+    private static func userFacingCodexPromptFallbackText(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if isMachineWrapperText(trimmed) {
+            return nil
+        }
+        if let userRequest = extractCodexUserRequestFromScaffold(trimmed) {
+            return userRequest
+        }
+        if isMachineOnlyCodexScaffoldText(trimmed) {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func extractCodexUserRequestFromScaffold(_ text: String) -> String? {
+        guard isCodexScaffoldText(text),
+              let marker = text.range(of: "## My request for Codex:") else {
+            return nil
+        }
+        let request = String(text[marker.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !request.isEmpty, !isMachineWrapperText(request) else {
+            return nil
+        }
+        return request
+    }
+
+    private static func isMachineWrapperText(_ text: String) -> Bool {
+        let lowercased = text.lowercased()
+        let prefixes = [
+            "<codex_delegation",
+            "&lt;codex_delegation",
+            "<heartbeat",
+            "&lt;heartbeat",
+            "<environment_context",
+            "&lt;environment_context",
+            "<skill",
+            "&lt;skill"
+        ]
+        return prefixes.contains { lowercased.hasPrefix($0) }
+    }
+
+    private static func isCodexScaffoldText(_ text: String) -> Bool {
+        let lowercased = text.lowercased()
+        let prefixes = [
+            "# in app browser:",
+            "# in browser:",
+            "# open files:",
+            "# files:"
+        ]
+        return prefixes.contains { lowercased.hasPrefix($0) }
+    }
+
+    private static func isMachineOnlyCodexScaffoldText(_ text: String) -> Bool {
+        guard isCodexScaffoldText(text) else { return false }
+        let lines = text.components(separatedBy: .newlines)
+            .dropFirst()
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return false }
+        return lines.allSatisfy(isGeneratedCodexScaffoldContextLine)
+    }
+
+    private static func isGeneratedCodexScaffoldContextLine(_ line: String) -> Bool {
+        let content = line.hasPrefix("- ")
+            ? String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+            : line
+        let lowercased = content.lowercased()
+        return content.hasPrefix("/")
+            || content.hasPrefix("~/")
+            || lowercased.hasPrefix("file://")
+            || lowercased.hasPrefix("http://")
+            || lowercased.hasPrefix("https://")
+            || lowercased.hasPrefix("current url:")
+            || lowercased.hasPrefix("page:")
+            || lowercased.hasPrefix("url:")
+            || lowercased.hasPrefix("the user has ")
     }
 
     private static func truncateNotificationBody(_ text: String) -> String {
