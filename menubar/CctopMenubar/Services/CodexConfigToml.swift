@@ -37,17 +37,11 @@ enum CodexConfigToml {
             changed = true
         }
         if let hooksIdx = scan.rootDottedHooksIndex {
-            updated[hooksIdx] = replaceFalseBooleanAssignment(
-                in: updated[hooksIdx],
-                keyPattern: #"features\.hooks"#
-            )
+            updated[hooksIdx] = replaceFalseBooleanAssignment(in: updated[hooksIdx], regex: rootDottedHooksRegex())
             changed = true
         }
         if let featuresIdx = scan.rootInlineFeaturesIndex {
-            updated[featuresIdx] = replaceFalseBooleanAssignment(
-                in: updated[featuresIdx],
-                keyPattern: "hooks"
-            )
+            updated[featuresIdx] = replaceFalseBooleanAssignment(in: updated[featuresIdx], regex: rootInlineFeaturesHooksRegex())
             changed = true
         }
 
@@ -241,14 +235,14 @@ enum CodexConfigToml {
     }
 
     private static func isRootDottedHooksFalseLine(_ line: String) -> Bool {
-        isFalseBooleanAssignment(line, keyPattern: #"features\.hooks"#)
+        hasFalseBooleanAssignment(line, regex: rootDottedHooksRegex())
     }
 
     private static func isRootInlineFeaturesHooksFalseLine(_ line: String) -> Bool {
         let effective = stripCommentAndTrim(line)
         guard isAssignLine(effective, key: "features") else { return false }
         guard effective.contains("{") && effective.contains("}") else { return false }
-        return isFalseBooleanAssignment(effective, keyPattern: "hooks")
+        return hasFalseBooleanAssignment(effective, regex: rootInlineFeaturesHooksRegex())
     }
 
     private static func isAssignLine(_ line: String, key: String) -> Bool {
@@ -262,16 +256,15 @@ enum CodexConfigToml {
         return afterKey.contains("=")
     }
 
-    private static func isFalseBooleanAssignment(_ line: String, keyPattern: String) -> Bool {
+    private static func hasFalseBooleanAssignment(_ line: String, regex: NSRegularExpression) -> Bool {
         let effective = stripCommentAndTrim(line)
-        return assignmentRegex(keyPattern: keyPattern).firstMatch(
+        return regex.firstMatch(
             in: effective,
             range: NSRange(effective.startIndex..., in: effective)
         ) != nil
     }
 
-    private static func replaceFalseBooleanAssignment(in line: String, keyPattern: String) -> String {
-        let regex = assignmentRegex(keyPattern: keyPattern)
+    private static func replaceFalseBooleanAssignment(in line: String, regex: NSRegularExpression) -> String {
         let range = NSRange(line.startIndex..., in: line)
         return regex.stringByReplacingMatches(
             in: line,
@@ -280,10 +273,15 @@ enum CodexConfigToml {
         )
     }
 
-    private static func assignmentRegex(keyPattern: String) -> NSRegularExpression {
-        // Comments/strings are already out of scope for these boolean-only edits.
-        // Capture the assignment prefix so whitespace and key spelling survive.
-        let pattern = #"\b("# + keyPattern + #"\s*=\s*)false\b"#
+    private static func rootDottedHooksRegex() -> NSRegularExpression {
+        booleanAssignmentRegex(pattern: #"^(\s*features\.hooks\s*=\s*)false\b"#)
+    }
+
+    private static func rootInlineFeaturesHooksRegex() -> NSRegularExpression {
+        booleanAssignmentRegex(pattern: #"^(\s*features\s*=\s*\{\s*(?:[^{}]*,\s*)?hooks\s*=\s*)false\b"#)
+    }
+
+    private static func booleanAssignmentRegex(pattern: String) -> NSRegularExpression {
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             preconditionFailure("Invalid boolean-assignment regex")
         }

@@ -74,6 +74,16 @@ final class CodexPluginTomlTests: XCTestCase {
         XCTAssertEqual(result, "features = { hooks = true }")
     }
 
+    func testIgnoresRootDottedLookalikeKey() {
+        let input = "other.features.hooks = false"
+        XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
+    }
+
+    func testIgnoresInlineLookalikeKey() {
+        let input = "features = { pre-hooks = false }"
+        XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
+    }
+
     // MARK: - patchConfigToml: legacy codex_hooks migration
 
     func testRemovesLegacyTrueLine() {
