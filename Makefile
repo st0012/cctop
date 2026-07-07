@@ -30,6 +30,7 @@ lint:
 contract:
 	scripts/validate-fixtures.sh
 	scripts/validate-hooks-coverage.sh
+	scripts/test-validate-release-version.sh
 
 clean:
 	xcodebuild clean -project $(PROJECT) -scheme CctopMenubar -derivedDataPath $(DERIVED)

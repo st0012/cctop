@@ -62,6 +62,80 @@ final class CodexPluginTomlTests: XCTestCase {
         XCTAssertEqual(result, "[features]\nother = true\nhooks = true\nmore = 1")
     }
 
+    func testReplacesFalseInQuotedFeaturesTables() {
+        let cases = [
+            (#"["features"]"#, #"["features"]"#),
+            (#"['features']"#, #"['features']"#)
+        ]
+        for (inputHeader, expectedHeader) in cases {
+            let input = "\(inputHeader)\nhooks = false"
+            let result = CodexPluginInstaller.patchConfigToml(input)
+            XCTAssertEqual(result, "\(expectedHeader)\nhooks = true")
+        }
+    }
+
+    func testReplacesFalseWithQuotedHooksKey() {
+        let input = "[features]\n\"hooks\" = false"
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, "[features]\nhooks = true")
+    }
+
+    func testReplacesDottedFeatureFalseWithTrue() {
+        let input = "features.hooks = false"
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, "features.hooks = true")
+    }
+
+    func testReplacesQuotedDottedFeatureFalseWithTrue() {
+        let input = #""features"."hooks" = false"#
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, #""features"."hooks" = true"#)
+    }
+
+    func testReplacesSpacedDottedFeatureFalseWithTrue() {
+        let cases = [
+            ("features . hooks = false", "features . hooks = true"),
+            (#""features" . "hooks" = false"#, #""features" . "hooks" = true"#),
+            (#"'features' . hooks = false"#, #"'features' . hooks = true"#)
+        ]
+        for (input, expected) in cases {
+            XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), expected)
+        }
+    }
+
+    func testReplacesInlineFeatureFalseWithTrue() {
+        let input = "features = { hooks = false }"
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, "features = { hooks = true }")
+    }
+
+    func testReplacesQuotedInlineFeatureFalseWithTrue() {
+        let input = #""features" = { hooks = false }"#
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, #""features" = { hooks = true }"#)
+    }
+
+    func testReplacesInlineFeatureFalseAfterStringValue() {
+        let input = #"features = { note = "x, hooks = false", hooks = false }"#
+        let result = CodexPluginInstaller.patchConfigToml(input)
+        XCTAssertEqual(result, #"features = { note = "x, hooks = false", hooks = true }"#)
+    }
+
+    func testIgnoresRootDottedLookalikeKey() {
+        let input = "other.features.hooks = false"
+        XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
+    }
+
+    func testIgnoresInlineLookalikeKey() {
+        let input = "features = { pre-hooks = false }"
+        XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
+    }
+
+    func testIgnoresInlineStringContents() {
+        let input = #"features = { note = "x, hooks = false" }"#
+        XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
+    }
+
     // MARK: - patchConfigToml: legacy codex_hooks migration
 
     func testRemovesLegacyTrueLine() {
@@ -137,6 +211,11 @@ final class CodexPluginTomlTests: XCTestCase {
         XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
     }
 
+    func testIgnoresDottedFeatureFalseInsideArrayOfTables() {
+        let input = "[[notifications]]\nfeatures.hooks = false"
+        XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
+    }
+
     func testIgnoresLegacyKeyInsideArrayOfTables() {
         let input = "[features]\nother = 1\n[[notifications]]\ncodex_hooks = true"
         XCTAssertEqual(CodexPluginInstaller.patchConfigToml(input), input)
@@ -155,6 +234,16 @@ final class CodexPluginTomlTests: XCTestCase {
 
     func testFlagEnabledWhenFeaturesTableButNoHooksKey() {
         XCTAssertTrue(CodexPluginInstaller.isFeatureFlagEnabled("[features]\nother = true"))
+    }
+
+    func testFlagEnabledWhenHooksUnsetInAcceptedFeaturesSpellings() {
+        for input in [
+            "[features]\nother = true",
+            "features.other = true",
+            "features = { other = true }"
+        ] {
+            XCTAssertTrue(CodexConfigToml.isHooksEnabled(input), input)
+        }
     }
 
     func testFlagEnabledWhenHooksIsTrue() {
@@ -184,6 +273,21 @@ final class CodexPluginTomlTests: XCTestCase {
 
     func testFlagDisabledWhenHooksIsFalse() {
         XCTAssertFalse(CodexPluginInstaller.isFeatureFlagEnabled("[features]\nhooks = false"))
+    }
+
+    func testHooksDisabledForAcceptedTomlFeatureSpellings() {
+        for input in [
+            "[features]\nhooks = false",
+            "[\"features\"]\nhooks = false",
+            "features.hooks = false",
+            "features . hooks = false",
+            #""features"."hooks" = false"#,
+            #""features" . "hooks" = false"#,
+            #""features" = { hooks = false }"#,
+            "features = { hooks = false }"
+        ] {
+            XCTAssertFalse(CodexConfigToml.isHooksEnabled(input), input)
+        }
     }
 
     func testFlagDisabledOnLegacyFalse() {

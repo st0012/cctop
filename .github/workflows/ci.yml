@@ -30,6 +30,21 @@ jobs:
       - name: Test pi plugin
         run: node --test plugins/pi/test/*.test.mjs
 
+  hook-contract:
+    name: Hook Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install check-jsonschema
+        run: |
+          python3 -m venv .venv-contract
+          . .venv-contract/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install check-jsonschema
+          echo "$PWD/.venv-contract/bin" >> "$GITHUB_PATH"
+      - name: Validate hook contract
+        run: make contract
+
   swift-test:
     name: Swift Build & Test
     runs-on: macos-15

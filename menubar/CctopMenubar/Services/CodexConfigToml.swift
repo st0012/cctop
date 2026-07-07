@@ -1,4 +1,5 @@
 import Foundation
+import TOMLDecoder
 
 /// Line-based TOML editing scoped to `[features].hooks` and the
 /// `[features].codex_hooks` alias. Used by `CodexPluginInstaller` to keep
@@ -33,6 +34,14 @@ enum CodexConfigToml {
         if let hooksIdx = scan.hooksInFeaturesIndex,
            !isHooksTrueLine(updated[hooksIdx]) {
             updated[hooksIdx] = "hooks = true"
+            changed = true
+        }
+        if let hooksIdx = scan.rootDottedHooksIndex {
+            updated[hooksIdx] = replaceFalseBooleanAssignment(in: updated[hooksIdx], regex: rootDottedHooksRegex())
+            changed = true
+        }
+        if let featuresIdx = scan.rootInlineFeaturesIndex {
+            updated[featuresIdx] = replaceInlineFeaturesHooksFalse(in: updated[featuresIdx])
             changed = true
         }
 
@@ -77,6 +86,17 @@ enum CodexConfigToml {
     /// Codex default (true). Returns false only on an explicit opt-out under
     /// `[features]`.
     static func isHooksEnabled(_ input: String) -> Bool {
+        if let parsed = try? TOMLDecoder().decode(ParsedConfig.self, from: Data(input.utf8)),
+           let hooks = parsed.features?.hooks {
+            return hooks
+        }
+
+        // Preserve the legacy alias behavior exactly as the line scanner
+        // understood it; the new TOML parser path only broadens `hooks`.
+        return isHooksEnabledByLineScan(input)
+    }
+
+    private static func isHooksEnabledByLineScan(_ input: String) -> Bool {
         let lines = input.components(separatedBy: "\n")
         let scan = scan(lines)
         if let idx = scan.hooksInFeaturesIndex {
@@ -98,20 +118,34 @@ enum CodexConfigToml {
 
     // MARK: - Scanning
 
+    private struct ParsedConfig: Decodable {
+        let features: ParsedFeatures?
+    }
+
+    private struct ParsedFeatures: Decodable {
+        let hooks: Bool?
+    }
+
     private struct Scan {
         let featuresHeaderIndex: Int?
         let hooksInFeaturesIndex: Int?
         let legacyHooksInFeaturesIndex: Int?
+        let rootDottedHooksIndex: Int?
+        let rootInlineFeaturesIndex: Int?
     }
 
     private static func scan(_ lines: [String]) -> Scan {
         var current: String?
+        var isRootScope = true
         var featuresHeaderIdx: Int?
         var hooksIdx: Int?
         var legacyIdx: Int?
+        var rootDottedHooksIdx: Int?
+        var rootInlineFeaturesIdx: Int?
         for (idx, line) in lines.enumerated() {
             if let table = parseTableHeader(line) {
                 current = table
+                isRootScope = false
                 if table == "features" && featuresHeaderIdx == nil {
                     featuresHeaderIdx = idx
                 }
@@ -122,7 +156,15 @@ enum CodexConfigToml {
                 // kind. Whatever it is, it's not `[features]`, so anything
                 // inside it must not be attributed to features.
                 current = nil
+                isRootScope = false
                 continue
+            }
+            if isRootScope {
+                if rootDottedHooksIdx == nil, isRootDottedHooksFalseLine(line) {
+                    rootDottedHooksIdx = idx
+                } else if rootInlineFeaturesIdx == nil, isRootInlineFeaturesHooksFalseLine(line) {
+                    rootInlineFeaturesIdx = idx
+                }
             }
             guard current == "features" else { continue }
             if hooksIdx == nil, isHooksAssignLine(line) {
@@ -134,7 +176,9 @@ enum CodexConfigToml {
         return Scan(
             featuresHeaderIndex: featuresHeaderIdx,
             hooksInFeaturesIndex: hooksIdx,
-            legacyHooksInFeaturesIndex: legacyIdx
+            legacyHooksInFeaturesIndex: legacyIdx,
+            rootDottedHooksIndex: rootDottedHooksIdx,
+            rootInlineFeaturesIndex: rootInlineFeaturesIdx
         )
     }
 
@@ -143,7 +187,8 @@ enum CodexConfigToml {
         let trimmed = stripCommentAndTrim(line)
         guard trimmed.hasPrefix("[") && trimmed.hasSuffix("]") else { return nil }
         guard !trimmed.hasPrefix("[[") && !trimmed.hasSuffix("]]") else { return nil }
-        return trimmed.dropFirst().dropLast().trimmingCharacters(in: .whitespaces)
+        let rawKey = String(trimmed.dropFirst().dropLast())
+        return parseSimpleTomlKey(rawKey)
     }
 
     /// True for `[[name]]` array-of-tables headers. Callers use this only to
@@ -176,10 +221,10 @@ enum CodexConfigToml {
     }
 
     private static func isExactAssignTrue(_ line: String, key: String) -> Bool {
-        let effective = stripCommentAndTrim(line)
-        let compact = effective.replacingOccurrences(of: " ", with: "")
+        guard let value = assignmentValue(line, key: key) else { return false }
+        let compact = value.replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "\t", with: "")
-        return compact == "\(key)=true"
+        return compact == "true"
     }
 
     private static func isHooksAssignLine(_ line: String) -> Bool {
@@ -190,14 +235,219 @@ enum CodexConfigToml {
         isAssignLine(line, key: "codex_hooks")
     }
 
+    private static func isRootDottedHooksFalseLine(_ line: String) -> Bool {
+        hasFalseBooleanAssignment(line, regex: rootDottedHooksRegex())
+    }
+
+    private static func isRootInlineFeaturesHooksFalseLine(_ line: String) -> Bool {
+        InlineFeaturesTableScanner.hooksFalseRange(in: line) != nil
+    }
+
     private static func isAssignLine(_ line: String, key: String) -> Bool {
+        assignmentValue(line, key: key) != nil
+    }
+
+    private static func assignmentValue(_ line: String, key: String) -> String? {
         let effective = stripCommentAndTrim(line)
-        guard effective.hasPrefix(key) else { return false }
-        let afterKey = effective.dropFirst(key.count)
-        guard let first = afterKey.first,
-              first == " " || first == "\t" || first == "=" else {
-            return false
+        guard let afterKey = remainderAfterSimpleTomlKey(key, in: effective) else { return nil }
+        let trimmedRest = afterKey.trimmingCharacters(in: .whitespaces)
+        guard trimmedRest.hasPrefix("=") else { return nil }
+        return String(trimmedRest.dropFirst()).trimmingCharacters(in: .whitespaces)
+    }
+
+    private static func remainderAfterSimpleTomlKey(_ key: String, in effective: String) -> Substring? {
+        for candidate in simpleTomlKeySpellings(for: key) where effective.hasPrefix(candidate) {
+            return effective.dropFirst(candidate.count)
         }
-        return afterKey.contains("=")
+        return nil
+    }
+
+    private static func parseSimpleTomlKey(_ rawKey: String) -> String {
+        let key = rawKey.trimmingCharacters(in: .whitespaces)
+        guard key.count >= 2,
+              let first = key.first,
+              let last = key.last,
+              (first == "\"" && last == "\"") || (first == "'" && last == "'") else {
+            return key
+        }
+        return String(key.dropFirst().dropLast())
+    }
+
+    private static func simpleTomlKeySpellings(for key: String) -> [String] {
+        [key, "\"\(key)\"", "'\(key)'"]
+    }
+
+    private static func simpleTomlKeyPattern(for key: String) -> String {
+        "(?:\(key)|\"\(key)\"|'\(key)')"
+    }
+
+    private static func hasFalseBooleanAssignment(_ line: String, regex: NSRegularExpression) -> Bool {
+        let effective = stripCommentAndTrim(line)
+        return regex.firstMatch(
+            in: effective,
+            range: NSRange(effective.startIndex..., in: effective)
+        ) != nil
+    }
+
+    private static func replaceFalseBooleanAssignment(in line: String, regex: NSRegularExpression) -> String {
+        let range = NSRange(line.startIndex..., in: line)
+        return regex.stringByReplacingMatches(
+            in: line,
+            range: range,
+            withTemplate: "$1true"
+        )
+    }
+
+    private static func replaceInlineFeaturesHooksFalse(in line: String) -> String {
+        guard let range = InlineFeaturesTableScanner.hooksFalseRange(in: line) else { return line }
+        var updated = line
+        updated.replaceSubrange(range, with: "true")
+        return updated
+    }
+
+    private static func rootDottedHooksRegex() -> NSRegularExpression {
+        let featuresKey = simpleTomlKeyPattern(for: "features")
+        let hooksKey = simpleTomlKeyPattern(for: "hooks")
+        return booleanAssignmentRegex(pattern: #"^(\s*\#(featuresKey)\s*\.\s*\#(hooksKey)\s*=\s*)false\b"#)
+    }
+
+    private static func booleanAssignmentRegex(pattern: String) -> NSRegularExpression {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            preconditionFailure("Invalid boolean-assignment regex")
+        }
+        return regex
+    }
+}
+
+private enum InlineFeaturesTableScanner {
+    static func hooksFalseRange(in line: String) -> Range<String.Index>? {
+        var index = line.startIndex
+        skipWhitespace(in: line, from: &index)
+        guard parseInlineTableKey(in: line, from: &index) == "features" else { return nil }
+        skipWhitespace(in: line, from: &index)
+        guard index < line.endIndex, line[index] == "=" else { return nil }
+        index = line.index(after: index)
+        skipWhitespace(in: line, from: &index)
+        guard index < line.endIndex, line[index] == "{" else { return nil }
+        index = line.index(after: index)
+
+        while index < line.endIndex {
+            skipWhitespaceAndCommas(in: line, from: &index)
+            guard index < line.endIndex, line[index] != "}" else { return nil }
+            guard let key = parseInlineTableKey(in: line, from: &index) else { return nil }
+            skipWhitespace(in: line, from: &index)
+            guard index < line.endIndex, line[index] == "=" else { return nil }
+            index = line.index(after: index)
+            skipWhitespace(in: line, from: &index)
+
+            if key == "hooks" {
+                return falseBooleanRange(in: line, from: index)
+            }
+            skipInlineTableValue(in: line, from: &index)
+        }
+        return nil
+    }
+
+    private static func falseBooleanRange(in line: String, from index: String.Index) -> Range<String.Index>? {
+        guard line[index...].hasPrefix("false") else { return nil }
+        let falseEnd = line.index(index, offsetBy: 5)
+        if falseEnd < line.endIndex, isBareKeyCharacter(line[falseEnd]) {
+            return nil
+        }
+        return index..<falseEnd
+    }
+
+    private static func parseInlineTableKey(in line: String, from index: inout String.Index) -> String? {
+        skipWhitespace(in: line, from: &index)
+        guard index < line.endIndex else { return nil }
+        if line[index] == "\"" || line[index] == "'" {
+            return parseQuotedInlineTableKey(in: line, from: &index)
+        }
+        let start = index
+        while index < line.endIndex, isBareKeyCharacter(line[index]) {
+            index = line.index(after: index)
+        }
+        guard start < index else { return nil }
+        return String(line[start..<index])
+    }
+
+    private static func parseQuotedInlineTableKey(in line: String, from index: inout String.Index) -> String? {
+        let quote = line[index]
+        index = line.index(after: index)
+        let start = index
+        while index < line.endIndex {
+            if line[index] == quote {
+                let key = String(line[start..<index])
+                index = line.index(after: index)
+                return key
+            }
+            if quote == "\"", line[index] == "\\" {
+                index = line.index(after: index)
+                if index == line.endIndex { return nil }
+            }
+            index = line.index(after: index)
+        }
+        return nil
+    }
+
+    private static func skipInlineTableValue(in line: String, from index: inout String.Index) {
+        var nestedArrayDepth = 0
+        var nestedTableDepth = 0
+        while index < line.endIndex {
+            switch line[index] {
+            case "\"", "'":
+                skipQuotedString(in: line, from: &index)
+            case "[":
+                nestedArrayDepth += 1
+                index = line.index(after: index)
+            case "]":
+                nestedArrayDepth = max(0, nestedArrayDepth - 1)
+                index = line.index(after: index)
+            case "{":
+                nestedTableDepth += 1
+                index = line.index(after: index)
+            case "}":
+                if nestedArrayDepth == 0 && nestedTableDepth == 0 { return }
+                nestedTableDepth = max(0, nestedTableDepth - 1)
+                index = line.index(after: index)
+            case ",":
+                index = line.index(after: index)
+                if nestedArrayDepth == 0 && nestedTableDepth == 0 { return }
+            default:
+                index = line.index(after: index)
+            }
+        }
+    }
+
+    private static func skipQuotedString(in line: String, from index: inout String.Index) {
+        let quote = line[index]
+        index = line.index(after: index)
+        while index < line.endIndex {
+            if line[index] == quote {
+                index = line.index(after: index)
+                return
+            }
+            if quote == "\"", line[index] == "\\" {
+                index = line.index(after: index)
+                if index == line.endIndex { return }
+            }
+            index = line.index(after: index)
+        }
+    }
+
+    private static func skipWhitespaceAndCommas(in line: String, from index: inout String.Index) {
+        while index < line.endIndex, line[index].isWhitespace || line[index] == "," {
+            index = line.index(after: index)
+        }
+    }
+
+    private static func skipWhitespace(in line: String, from index: inout String.Index) {
+        while index < line.endIndex, line[index].isWhitespace {
+            index = line.index(after: index)
+        }
+    }
+
+    private static func isBareKeyCharacter(_ char: Character) -> Bool {
+        char.isLetter || char.isNumber || char == "_" || char == "-"
     }
 }
