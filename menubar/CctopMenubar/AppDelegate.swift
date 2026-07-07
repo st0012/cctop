@@ -341,13 +341,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     /// The screen key for the screen the panel is currently on.
     @MainActor private func panelScreenKey() -> String? {
-        guard let panelScreen = panel.screen ?? NSScreen.main else { return nil }
-        return panelScreen.screenKey
+        PanelPositioning.screenKey(forPanelFrame: panel.frame, in: screenLayouts)
     }
 
     /// The screen key for the screen containing a point.
     private func screenKey(at point: NSPoint) -> String? {
-        NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) }?.screenKey
+        PanelPositioning.screenKey(containing: point, in: screenLayouts)
     }
 
     /// Migrate legacy single-position UserDefaults to per-screen dictionary.
@@ -355,9 +354,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let ud = UserDefaults.standard
         guard let originX = ud.object(forKey: PanelPositionKeys.legacyOriginX) as? Double else { return }
         let topY = ud.double(forKey: PanelPositionKeys.legacyTopY)
-        let point = NSPoint(x: originX, y: topY)
-        let key = screenKey(at: point) ?? NSScreen.main?.screenKey ?? "builtin"
-        panelGeometry.saveCustomPosition(originX: CGFloat(originX), topY: CGFloat(topY), forScreenKey: key)
+        panelGeometry.saveLegacyPosition(
+            originX: CGFloat(originX), topY: CGFloat(topY),
+            screens: screenLayouts,
+            fallbackScreenKey: NSScreen.main?.screenKey
+        )
         ud.removeObject(forKey: PanelPositionKeys.legacyOriginX)
         ud.removeObject(forKey: PanelPositionKeys.legacyTopY)
     }
@@ -426,10 +427,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     @MainActor private func resetPanelToCurrentScreen(animate: Bool = false) {
         guard let size = panelFittingSize() else { return }
         let layouts = screenLayouts
-        let panelIdx = (panel.screen ?? NSScreen.main).flatMap { screen in
-            layouts.firstIndex { $0.frame == ScreenLayout(screen).frame }
-        }
-        if let frame = panelGeometry.resetFrame(
+        let panelIdx = PanelPositioning.screenIndex(forPanelFrame: panel.frame, in: layouts)
+        if let frame = PanelPositioning.resolveResetPosition(
             anchorRect: anchorRect(),
             menubarIconRect: menubarIconRect(),
             panelScreenIndex: panelIdx,
@@ -453,15 +452,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             // screen-change repositioning; clearing it keeps the key below
             // and positionPanel's internal key identical.
             self.focusLocation = nil
-            // Capture the key before repositioning: positionPanel may snap the
-            // panel home to the anchor screen, and resaving under that screen's
-            // key would overwrite a user-dragged position with the anchor frame.
-            let key = self.panelScreenKey()
             self.positionPanel(animate: false)
-            // Update saved position if it was clamped to new screen bounds
-            self.panelGeometry.resaveAfterScreenChange(
-                panelScreenKey: key, panelFrame: self.panel.frame
-            )
         }
         screenChangeWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
@@ -534,7 +525,6 @@ extension AppDelegate {
         return result.eventConsumed
     }
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     @MainActor private func execute(_ actions: [PanelAction]) {
         for action in actions {
             switch action {
@@ -562,13 +552,6 @@ extension AppDelegate {
                 updateCleanupPanelVisibility()
             case .positionPanel:
                 positionPanel()
-                // If panel didn't land on target screen, clear stale position and retry
-                if let click = focusLocation,
-                   let clickKey = screenKey(at: click),
-                   panelScreenKey() != clickKey {
-                    panelGeometry.clearCustomPosition(forScreenKey: clickKey)
-                    positionPanel()
-                }
             case .activateApp:
                 NSApp.activate(ignoringOtherApps: true)
             case .deactivateApp:
@@ -652,14 +635,16 @@ extension AppDelegate {
 // MARK: - FloatingPanelDelegate
 extension AppDelegate: FloatingPanelDelegate {
     @MainActor func panelDidDrag(originX: CGFloat, topY: CGFloat) {
-        guard let key = panelScreenKey() else { return }
-        panelGeometry.saveCustomPosition(originX: originX, topY: topY, forScreenKey: key)
+        panelGeometry.saveUserDraggedPosition(
+            originX: originX,
+            topY: topY,
+            panelSize: panel.frame.size,
+            screens: screenLayouts
+        )
     }
 
     @MainActor func panelDidRequestReset() {
-        if let key = panelScreenKey() {
-            panelGeometry.clearCustomPosition(forScreenKey: key)
-        }
+        panelGeometry.clearUserPosition(forPanelFrame: panel.frame, screens: screenLayouts)
         resetPanelToCurrentScreen(animate: true)
     }
 }

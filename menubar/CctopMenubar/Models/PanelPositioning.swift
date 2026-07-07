@@ -63,23 +63,42 @@ struct PanelGeometryModel {
         }
     }
 
-    /// Save a custom position for a screen.
-    func saveCustomPosition(originX: CGFloat, topY: CGFloat, forScreenKey key: String) {
+    /// Persist a user drag-end as the desired panel position.
+    func saveUserDraggedPosition(
+        originX: CGFloat,
+        topY: CGFloat,
+        panelSize: NSSize,
+        screens: [ScreenLayout]
+    ) {
+        let frame = NSRect(x: originX, y: topY - panelSize.height, width: panelSize.width, height: panelSize.height)
+        guard let key = PanelPositioning.screenKey(forPanelFrame: frame, in: screens) else { return }
+        saveCustomPosition(originX: originX, topY: topY, forScreenKey: key)
+    }
+
+    /// Clear the desired panel position for the screen the panel is currently assigned to.
+    func clearUserPosition(forPanelFrame frame: NSRect, screens: [ScreenLayout]) {
+        guard let key = PanelPositioning.screenKey(forPanelFrame: frame, in: screens) else { return }
+        clearCustomPosition(forScreenKey: key)
+    }
+
+    /// Migrate the legacy single-position keys to the established per-screen store.
+    func saveLegacyPosition(originX: CGFloat, topY: CGFloat, screens: [ScreenLayout], fallbackScreenKey: String?) {
+        let key = PanelPositioning.screenKey(containing: NSPoint(x: originX, y: topY), in: screens)
+            ?? fallbackScreenKey
+            ?? "builtin"
+        saveCustomPosition(originX: originX, topY: topY, forScreenKey: key)
+    }
+
+    private func saveCustomPosition(originX: CGFloat, topY: CGFloat, forScreenKey key: String) {
         var dict = store.positionsDict
         dict[key] = ["originX": originX, "topY": topY]
         store.positionsDict = dict
     }
 
-    /// Remove the custom position for a screen.
-    func clearCustomPosition(forScreenKey key: String) {
+    private func clearCustomPosition(forScreenKey key: String) {
         var dict = store.positionsDict
         dict.removeValue(forKey: key)
         store.positionsDict = dict
-    }
-
-    /// Whether a custom position is saved for a screen.
-    func hasCustomPosition(forScreenKey key: String) -> Bool {
-        savedPositions()[key] != nil
     }
 
     // MARK: - Geometry decisions
@@ -122,33 +141,6 @@ struct PanelGeometryModel {
         )
     }
 
-    /// Resolve where the panel lands on double-click reset.
-    func resetFrame(
-        anchorRect: NSRect?,
-        menubarIconRect: NSRect? = nil,
-        panelScreenIndex: Int?,
-        panelSize: NSSize,
-        screens: [ScreenLayout]
-    ) -> NSRect? {
-        PanelPositioning.resolveResetPosition(
-            anchorRect: anchorRect,
-            menubarIconRect: menubarIconRect,
-            panelScreenIndex: panelScreenIndex,
-            panelSize: panelSize,
-            screens: screens
-        )
-    }
-
-    /// After a screen-parameter change, overwrite the saved position for the
-    /// panel's screen with the panel's current (possibly clamped) frame — but
-    /// only if a custom position already exists for that screen key. The key
-    /// must be captured before repositioning: if the change snapped the panel
-    /// to another screen, resaving under the landing screen's key would
-    /// overwrite that screen's user-dragged position with the new frame.
-    func resaveAfterScreenChange(panelScreenKey: String?, panelFrame: NSRect) {
-        guard let key = panelScreenKey, savedPositions()[key] != nil else { return }
-        saveCustomPosition(originX: panelFrame.origin.x, topY: panelFrame.maxY, forScreenKey: key)
-    }
 }
 
 /// Pure positioning math for the floating panel.
@@ -164,18 +156,58 @@ enum PanelPositioning {
         screens.firstIndex { NSMouseInRect(point, $0.frame, false) }
     }
 
+    static func screenKey(containing point: NSPoint, in screens: [ScreenLayout]) -> String? {
+        guard let idx = screenIndex(containing: point, in: screens) else { return nil }
+        return screens[idx].key
+    }
+
+    static func screenKey(forPanelFrame frame: NSRect, in screens: [ScreenLayout]) -> String? {
+        guard let idx = screenIndex(forPanelFrame: frame, in: screens) else { return nil }
+        return screens[idx].key
+    }
+
+    static func screenIndex(forPanelFrame frame: NSRect, in screens: [ScreenLayout]) -> Int? {
+        screenIndex(containing: NSPoint(x: frame.origin.x, y: frame.maxY), in: screens)
+            ?? screenIndex(intersecting: frame, in: screens)
+    }
+
+    static func screenIndex(intersecting panelFrame: NSRect, in screens: [ScreenLayout]) -> Int? {
+        var best: (index: Int, area: CGFloat)?
+        for (idx, screen) in screens.enumerated() {
+            let area = intersectionArea(panelFrame, screen.visibleFrame)
+            guard area > 0 else { continue }
+            if best == nil || area > best!.area {
+                best = (idx, area)
+            }
+        }
+        return best?.index
+    }
+
+    private static func intersectionArea(_ lhs: NSRect, _ rhs: NSRect) -> CGFloat {
+        let width = min(lhs.maxX, rhs.maxX) - max(lhs.minX, rhs.minX)
+        let height = min(lhs.maxY, rhs.maxY) - max(lhs.minY, rhs.minY)
+        guard width > 0, height > 0 else { return 0 }
+        return width * height
+    }
+
     /// Clamp a saved panel position to stay within screen bounds.
     static func clampToScreen(
         originX: CGFloat, topY: CGFloat,
         size: NSSize,
         screens: [ScreenLayout]
     ) -> (originX: CGFloat, topY: CGFloat) {
-        let point = NSPoint(x: originX, y: topY)
         let panelRect = NSRect(x: originX, y: topY - size.height, width: size.width, height: size.height)
-        let idx = screens.firstIndex { NSMouseInRect(point, $0.frame, false) }
-                  ?? screens.firstIndex { $0.visibleFrame.intersects(panelRect) }
+        let idx = screenIndex(forPanelFrame: panelRect, in: screens)
         guard let idx, idx < screens.count else { return (originX, topY) }
-        let vf = screens[idx].visibleFrame
+        return clampToScreen(originX: originX, topY: topY, size: size, screen: screens[idx])
+    }
+
+    static func clampToScreen(
+        originX: CGFloat, topY: CGFloat,
+        size: NSSize,
+        screen: ScreenLayout
+    ) -> (originX: CGFloat, topY: CGFloat) {
+        let vf = screen.visibleFrame
         let clampedX = max(vf.minX + margin, min(originX, vf.maxX - size.width - margin))
         let clampedTopY = max(vf.minY + size.height + margin, min(topY, vf.maxY - margin))
         return (clampedX, clampedTopY)
@@ -191,15 +223,19 @@ enum PanelPositioning {
         screens: [ScreenLayout]
     ) -> NSRect? {
         if let key = clickScreenKey, let saved = savedPositions[key] {
-            // Find the target screen by key
-            let targetScreen = screens.first { $0.key == key }
-            let savedPoint = NSPoint(x: saved.originX, y: saved.topY)
+            let savedFrame = NSRect(
+                x: saved.originX,
+                y: saved.topY - panelSize.height,
+                width: panelSize.width,
+                height: panelSize.height
+            )
 
-            // Validate saved position is on the target screen (not stale from a different layout)
-            if let target = targetScreen, target.frame.contains(savedPoint) {
+            // Validate saved position belongs to the same screen key used when persisting.
+            if let screenIdx = screenIndex(forPanelFrame: savedFrame, in: screens),
+               screens[screenIdx].key == key {
                 let clamped = clampToScreen(
                     originX: saved.originX, topY: saved.topY,
-                    size: panelSize, screens: screens
+                    size: panelSize, screen: screens[screenIdx]
                 )
                 return NSRect(
                     x: clamped.originX, y: clamped.topY - panelSize.height,
