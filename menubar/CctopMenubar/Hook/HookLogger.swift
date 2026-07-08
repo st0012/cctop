@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// Writes per-session hook logs and the error log under `logsDir`
@@ -66,12 +67,24 @@ struct HookLogger {
             attributes: [.posixPermissions: 0o700]
         )
 
-        if let handle = FileHandle(forWritingAtPath: path) {
-            handle.seekToEndOfFile()
-            handle.write(Data(line.utf8))
-            handle.closeFile()
-        } else {
-            fm.createFile(atPath: path, contents: Data(line.utf8), attributes: [.posixPermissions: 0o600])
+        let fd = open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC | O_NONBLOCK, 0o600)
+        guard fd >= 0 else { return }
+        defer { close(fd) }
+
+        let data = Data(line.utf8)
+        data.withUnsafeBytes { buffer in
+            guard let baseAddress = buffer.baseAddress else { return }
+            var offset = 0
+            while offset < buffer.count {
+                let written = write(fd, baseAddress.advanced(by: offset), buffer.count - offset)
+                if written > 0 {
+                    offset += written
+                } else if written == -1 && errno == EINTR {
+                    continue
+                } else {
+                    return
+                }
+            }
         }
     }
 }
