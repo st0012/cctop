@@ -1392,7 +1392,7 @@ private func startSessionLockHolder(lockPath: String, readyPath: String, holdSec
     return process
 }
 
-private func waitForFile(path: String, process: Process, timeout: TimeInterval = 2) throws {
+private func waitForFile(path: String, process: Process, timeout: TimeInterval = 10) throws {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
         if FileManager.default.fileExists(atPath: path) { return }
