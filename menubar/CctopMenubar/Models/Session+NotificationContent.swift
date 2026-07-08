@@ -187,7 +187,11 @@ extension Session {
     }
 
     private static func isCodexScaffoldText(_ text: String) -> Bool {
-        let lowercased = text.lowercased()
+        isCodexScaffoldHeadingLine(text)
+    }
+
+    private static func isCodexScaffoldHeadingLine(_ line: String) -> Bool {
+        let lowercased = line.lowercased()
         let prefixes = [
             "# in app browser:",
             "# in browser:",
@@ -212,7 +216,8 @@ extension Session {
             ? String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines)
             : line
         let lowercased = content.lowercased()
-        return content.hasPrefix("/")
+        return isCodexScaffoldHeadingLine(content)
+            || content.hasPrefix("/")
             || content.hasPrefix("~/")
             || lowercased.hasPrefix("file://")
             || lowercased.hasPrefix("http://")

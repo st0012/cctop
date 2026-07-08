@@ -285,6 +285,24 @@ final class SessionTests: XCTestCase {
         )
     }
 
+    func testNotificationBodyFallsBackForMachineOnlyCodexScaffoldWithMultipleSections() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Generated context",
+            status: .waitingInput,
+            lastPrompt: """
+            # Files:
+            - /Users/test/project/App.swift
+
+            # In app browser:
+            - Current URL: http://localhost:3000
+            """,
+            source: "codex"
+        )
+
+        XCTAssertEqual(session.notificationContent.body, "Waiting for input")
+    }
+
     func testNotificationBodyFallsBackForMachineWrapperPrompts() {
         let heartbeat = Session.mock(
             project: "cctop",
@@ -809,6 +827,18 @@ final class SessionTests: XCTestCase {
             """,
             source: "codex"
         )
+        let multiSectionScaffoldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            # Files:
+            - /Users/test/project/App.swift
+
+            # In app browser:
+            - Current URL: http://localhost:3000
+            """,
+            source: "codex"
+        )
 
         XCTAssertEqual(
             notificationActions(newSession: browserScaffoldSession, oldSession: oldSession),
@@ -816,6 +846,10 @@ final class SessionTests: XCTestCase {
         )
         XCTAssertEqual(
             notificationActions(newSession: fileScaffoldSession, oldSession: oldSession),
+            []
+        )
+        XCTAssertEqual(
+            notificationActions(newSession: multiSectionScaffoldSession, oldSession: oldSession),
             []
         )
     }
