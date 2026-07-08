@@ -130,6 +130,30 @@ class SessionManager: ObservableObject {
         }
     }
 
+    func withSessionLockForMaintenance(
+        sessionPath: String,
+        sessionId: String,
+        action: String,
+        body: () throws -> Void
+    ) {
+        do {
+            let didAcquire = try withSessionLockIfAvailable(
+                sessionPath: sessionPath,
+                onError: { sessionManagerLogger.warning("\($0, privacy: .public)") },
+                body: body
+            )
+            if !didAcquire {
+                sessionManagerLogger.info(
+                    "skipping \(action, privacy: .public) for \(sessionId, privacy: .public): session lock is busy"
+                )
+            }
+        } catch {
+            sessionManagerLogger.warning(
+                "skipping \(action, privacy: .public) for \(sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
     func cleanupSnapshotForRemoval() -> WorktreeCleanupSessionSnapshot {
         loadSessions()
         return WorktreeCleanupSessionSnapshot(
@@ -140,18 +164,12 @@ class SessionManager: ObservableObject {
 
     private func hideAutoHiddenSessions(_ sessions: [(URL, Session)]) {
         for (url, session) in sessions {
-            sessionManagerLogger.info(
-                "hiding \(self.autoHideReason(for: session), privacy: .public) session \(session.sessionId, privacy: .public)"
-            )
-            do {
-                try withSessionLock(sessionPath: url.path) {
-                    guard let hiddenSession = try Self.autoHiddenSessionSnapshot(path: url.path) else { return }
-                    try hiddenSession.writeToFile(path: url.path)
-                }
-            } catch {
-                sessionManagerLogger.warning(
-                    "skipping auto-hide update for \(session.sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            withSessionLockForMaintenance(sessionPath: url.path, sessionId: session.sessionId, action: "auto-hide update") {
+                guard let hiddenSession = try Self.autoHiddenSessionSnapshot(path: url.path) else { return }
+                sessionManagerLogger.info(
+                    "hiding \(self.autoHideReason(for: session), privacy: .public) session \(session.sessionId, privacy: .public)"
                 )
+                try hiddenSession.writeToFile(path: url.path)
             }
         }
     }
@@ -198,7 +216,11 @@ class SessionManager: ObservableObject {
             guard candidate.session.hostClass == .desktop,
                   candidate.session.lifecycle == .active,
                   candidate.session.disconnectedAt != nil else { continue }
-            try? withSessionLock(sessionPath: candidate.path) {
+            withSessionLockForMaintenance(
+                sessionPath: candidate.path,
+                sessionId: candidate.session.sessionId,
+                action: "desktop reconnect update"
+            ) {
                 guard var session = try? Session.fromFile(path: candidate.path),
                       session.hostClass == .desktop,
                       session.disconnectedAt != nil else {
@@ -224,7 +246,11 @@ class SessionManager: ObservableObject {
             guard candidate.session.hostClass == .desktop,
                   candidate.session.lifecycle == .dormant,
                   candidate.session.disconnectedAt == nil else { continue }
-            try? withSessionLock(sessionPath: candidate.path) {
+            withSessionLockForMaintenance(
+                sessionPath: candidate.path,
+                sessionId: candidate.session.sessionId,
+                action: "desktop disconnect update"
+            ) {
                 guard var session = try? Session.fromFile(path: candidate.path),
                       session.hostClass == .desktop,
                       session.disconnectedAt == nil else {
@@ -260,7 +286,11 @@ class SessionManager: ObservableObject {
                 try? fm.removeItem(at: url)   // pre-PID legacy file; no live writer to race
                 continue
             }
-            try? withSessionLock(sessionPath: url.path) {
+            withSessionLockForMaintenance(
+                sessionPath: url.path,
+                sessionId: url.deletingPathExtension().lastPathComponent,
+                action: "desktop GC"
+            ) {
                 guard let data = try? Data(contentsOf: url),
                       let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
                     return   // decode failure → never treat as finished

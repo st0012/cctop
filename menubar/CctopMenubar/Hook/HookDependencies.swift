@@ -107,3 +107,35 @@ func withSessionLock(
     defer { flock(fd, LOCK_UN) }
     try body()
 }
+
+/// Try to acquire the per-session lock without waiting. Returns `false` when another
+/// process currently owns the lock, so UI-side maintenance can skip this pass instead
+/// of blocking the main actor behind a hook process.
+@discardableResult
+func withSessionLockIfAvailable(
+    sessionPath: String,
+    onError: (String) -> Void = { HookLogger().logError($0) },
+    body: () throws -> Void
+) throws -> Bool {
+    let lockPath = sessionPath + ".lock"
+    let fd = open(lockPath, O_CREAT | O_WRONLY, 0o600)
+    guard fd >= 0 else {
+        let err = errno
+        onError("withSessionLockIfAvailable: open(\(lockPath)) failed: \(err)")
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
+                      userInfo: [NSLocalizedDescriptionKey: "Failed to open lock file: \(lockPath)"])
+    }
+    defer { close(fd) }
+    guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+        let err = errno
+        if err == EWOULDBLOCK || err == EAGAIN {
+            return false
+        }
+        onError("withSessionLockIfAvailable: flock(\(lockPath)) failed: \(err)")
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
+                      userInfo: [NSLocalizedDescriptionKey: "Failed to acquire lock: \(lockPath)"])
+    }
+    defer { flock(fd, LOCK_UN) }
+    try body()
+    return true
+}
