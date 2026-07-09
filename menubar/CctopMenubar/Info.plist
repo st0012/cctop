@@ -4,6 +4,12 @@
 <dict>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/st0012/cctop/master/appcast.xml</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>3600</integer>
 	<key>SUPublicEDKey</key>
 	<string>7Ts0HFX10tBXROh8uS9x2Gvuy+K5g3WT48FFYSIR51g=</string>
 	<key>CFBundleURLTypes</key>

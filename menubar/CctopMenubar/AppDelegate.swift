@@ -99,6 +99,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             updater: updater,
             pluginManager: pluginManager,
             navigate: navigateController,
+            onOpenUpdater: { [weak self] in
+                Task { @MainActor in self?.openUpdaterFromPanel() }
+            },
             onSelectCleanupRemovalAction: { [weak self] candidate in
                 await self?.selectCleanupRemovalAction(candidate) ?? .blocked(candidate, "Cleanup is unavailable right now.")
             },
@@ -541,12 +544,7 @@ extension AppDelegate {
                     self?.focusLocation = nil
                 }
             case .dismissPanel:
-                panel.orderOut(nil)
-                updateCleanupPanelVisibility()
-                focusLocation = nil
-                previousApp = nil
-                stopNavKeyMonitor()
-                updateNotchVisibility(immediate: true)
+                dismissPanel()
             case .navigatePanel:
                 panel.makeKeyAndOrderFront(nil)
                 updateCleanupPanelVisibility()
@@ -580,6 +578,25 @@ extension AppDelegate {
         }
     }
 
+    @MainActor private func dismissPanel() {
+        panel.orderOut(nil)
+        updateCleanupPanelVisibility()
+        focusLocation = nil
+        previousApp = nil
+        stopNavKeyMonitor()
+        updateNotchVisibility(immediate: true)
+    }
+
+    @MainActor private func openUpdaterFromPanel() {
+        if navigateController.isActive {
+            navigateController.deactivate()
+            postNavAction(.reset)
+        }
+        panelMode = .hidden
+        dismissPanel()
+        updater.checkForUpdates()
+    }
+
     @MainActor private func jumpToSession(index: Int) {
         guard index < navigateController.frozenSessions.count else { return }
         focusTerminal(session: navigateController.frozenSessions[index])
@@ -594,7 +611,8 @@ extension AppDelegate {
             // Navigate: digit keys jump to session (use keyCode for IME compatibility)
             if self.navigateController.isActive,
                let digit = digitKeyCodeMap[event.keyCode] {
-                DispatchQueue.main.async { self.jumpToSession(index: digit - 1) }
+                let index = digit - 1
+                DispatchQueue.main.async { self.jumpToSession(index: index) }
                 return nil
             }
 

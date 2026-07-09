@@ -56,16 +56,21 @@ final class SparkleUpdater: UpdaterBase, @preconcurrency SPUUpdaterDelegate {
 
     override init() {
         super.init()
-        let updater = controller.updater
-        updater.automaticallyChecksForUpdates = true
-        updater.automaticallyDownloadsUpdates = true
         controller.startUpdater()
+        checkForUpdatesInBackgroundAtLaunch()
     }
 
     override var canCheckForUpdates: Bool { true }
 
     override func checkForUpdates() {
         controller.checkForUpdates(nil)
+    }
+
+    private func checkForUpdatesInBackgroundAtLaunch() {
+        let updater = controller.updater
+        guard updater.automaticallyChecksForUpdates else { return }
+        // Sparkle recommends forcing launch checks only immediately after startup.
+        updater.checkForUpdatesInBackground()
     }
 
     // MARK: - SPUUpdaterDelegate
