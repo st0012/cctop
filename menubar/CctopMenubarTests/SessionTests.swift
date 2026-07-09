@@ -215,6 +215,19 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.notificationContent.body, "Which option should I choose?")
     }
 
+    func testNotificationBodyPreservesMachineLikeNotificationMessage() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Elicitation dialog",
+            status: .waitingInput,
+            lastPrompt: "<heartbeat><automation_id>watchdog</automation_id></heartbeat>",
+            notificationMessage: "# Files: choose the changelog section",
+            source: "codex"
+        )
+
+        XCTAssertEqual(session.notificationContent.body, "# Files: choose the changelog section")
+    }
+
     func testNotificationBodyFallsBackToLastPromptForWaitingInput() {
         let session = Session.mock(
             project: "cctop",
@@ -225,6 +238,151 @@ final class SessionTests: XCTestCase {
         )
 
         XCTAssertEqual(session.notificationContent.body, "Actual user prompt")
+    }
+
+    func testNotificationBodyPreservesNonCodexPromptFallback() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Generic idle prompt",
+            status: .waitingInput,
+            lastPrompt: "# Files: draft a changelog",
+            source: "cc"
+        )
+
+        XCTAssertEqual(session.notificationContent.body, "# Files: draft a changelog")
+    }
+
+    func testNotificationBodyPreservesCodexPromptFallbackStartingWithScaffoldHeading() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Generic idle prompt",
+            status: .waitingInput,
+            lastPrompt: "# Files: draft a changelog",
+            source: "codex"
+        )
+
+        XCTAssertEqual(session.notificationContent.body, "# Files: draft a changelog")
+    }
+
+    func testNotificationBodyExtractsUserRequestFromCodexScaffold() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Chief driver",
+            status: .waitingInput,
+            lastPrompt: """
+            # In app browser:
+            - Current URL: file:///tmp/codex-explainers/example.html
+
+            ## My request for Codex:
+            This is a separate thing, not related to the current PR.
+            """,
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            session.notificationContent.body,
+            "This is a separate thing, not related to the current PR."
+        )
+    }
+
+    func testNotificationBodyFallsBackForMachineOnlyCodexScaffoldWithMultipleSections() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Generated context",
+            status: .waitingInput,
+            lastPrompt: """
+            # Files:
+            - /Users/test/project/App.swift
+
+            # In app browser:
+            - Current URL: http://localhost:3000
+            """,
+            source: "codex"
+        )
+
+        XCTAssertEqual(session.notificationContent.body, "Waiting for input")
+    }
+
+    func testNotificationBodyFallsBackForMachineWrapperPrompts() {
+        let heartbeat = Session.mock(
+            project: "cctop",
+            sessionName: "Chief watchdog",
+            status: .waitingInput,
+            lastPrompt: """
+            <heartbeat>
+              <automation_id>cctop-chief-workflow-watchdog</automation_id>
+            </heartbeat>
+            """,
+            source: "codex"
+        )
+        let delegation = Session.mock(
+            project: "cctop",
+            sessionName: "Driver task",
+            status: .waitingInput,
+            lastPrompt: """
+            &lt;codex_delegation&gt;
+              &lt;source_thread_id&gt;019f3cfa&lt;/source_thread_id&gt;
+            &lt;/codex_delegation&gt;
+            """,
+            source: "codex"
+        )
+
+        XCTAssertEqual(heartbeat.notificationContent.body, "Waiting for input")
+        XCTAssertEqual(delegation.notificationContent.body, "Waiting for input")
+    }
+
+    func testNotificationBodyFallsBackForLegacyCodexDesktopMachineWrapperPrompts() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Chief watchdog",
+            status: .waitingInput,
+            lastPrompt: """
+            <heartbeat>
+              <automation_id>cctop-chief-workflow-watchdog</automation_id>
+            </heartbeat>
+            """,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        )
+
+        XCTAssertEqual(session.notificationContent.body, "Waiting for input")
+    }
+
+    func testNotificationBodyRejectsMachineWrapperBeforeExtractingCodexMarker() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Driver task",
+            status: .waitingInput,
+            lastPrompt: """
+            <codex_delegation>
+              <input>
+            ## My request for Codex:
+            Please fix notification text.
+              </input>
+            </codex_delegation>
+            """,
+            source: "codex"
+        )
+
+        XCTAssertEqual(session.notificationContent.body, "Waiting for input")
+    }
+
+    func testNotificationBodyDoesNotExtractCodexMarkerFromOrdinaryPrompt() {
+        let session = Session.mock(
+            project: "cctop",
+            sessionName: "Docs edit",
+            status: .waitingInput,
+            lastPrompt: """
+            Please edit this template section:
+            ## My request for Codex:
+            Keep the heading visible.
+            """,
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            session.notificationContent.body,
+            "Please edit this template section: ## My request for Codex: Keep the..."
+        )
     }
 
     func testDecodesSessionName() throws {
@@ -570,6 +728,287 @@ final class SessionTests: XCTestCase {
                 notificationsEnabled: true
             ),
             [.post(session: waitingSession)]
+        )
+    }
+
+    private func notificationActions(
+        newSession: Session,
+        oldSession: Session,
+        notificationsEnabled: Bool = true
+    ) -> [SessionNotificationAction] {
+        SessionManager.notificationActions(
+            newSessions: [newSession],
+            oldSessions: [oldSession],
+            notificationsEnabled: notificationsEnabled
+        )
+    }
+
+    func testNotificationActionsSuppressMachineOnlyCodexEnvelopeWaitingInput() {
+        let oldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .working,
+            source: "codex"
+        )
+        let heartbeatSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            <heartbeat>
+              <automation_id>cctop-chief-workflow-watchdog</automation_id>
+            </heartbeat>
+            """,
+            source: "codex"
+        )
+        let delegationSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            <codex_delegation>
+              <source_thread_id>019f3cfa</source_thread_id>
+            </codex_delegation>
+            """,
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            notificationActions(newSession: heartbeatSession, oldSession: oldSession),
+            []
+        )
+        XCTAssertEqual(
+            notificationActions(newSession: delegationSession, oldSession: oldSession),
+            []
+        )
+    }
+
+    func testNotificationActionsSuppressLegacyCodexDesktopMachineOnlyWaitingInput() {
+        let oldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .working,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        )
+        let heartbeatSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            <heartbeat>
+              <automation_id>cctop-chief-workflow-watchdog</automation_id>
+            </heartbeat>
+            """,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        )
+
+        XCTAssertEqual(
+            notificationActions(newSession: heartbeatSession, oldSession: oldSession),
+            []
+        )
+    }
+
+    func testNotificationActionsSuppressCodexScaffoldWithoutUserRequest() {
+        let oldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .working,
+            source: "codex"
+        )
+        let browserScaffoldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            # In app browser:
+            - page: http://localhost:3000
+            """,
+            source: "codex"
+        )
+        let fileScaffoldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            # Files:
+            - /Users/test/project/App.swift
+            """,
+            source: "codex"
+        )
+        let multiSectionScaffoldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            # Files:
+            - /Users/test/project/App.swift
+
+            # In app browser:
+            - Current URL: http://localhost:3000
+            """,
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            notificationActions(newSession: browserScaffoldSession, oldSession: oldSession),
+            []
+        )
+        XCTAssertEqual(
+            notificationActions(newSession: fileScaffoldSession, oldSession: oldSession),
+            []
+        )
+        XCTAssertEqual(
+            notificationActions(newSession: multiSectionScaffoldSession, oldSession: oldSession),
+            []
+        )
+    }
+
+    func testNotificationActionsDoNotApplyCodexSuppressionToLeakedDesktopBundle() {
+        let oldSession = Session.mock(
+            id: "cc-thread-1",
+            status: .working,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop),
+            source: "cc",
+        )
+        let waitingSession = Session.mock(
+            id: "cc-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            # Files:
+            - /Users/test/project/App.swift
+            """,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop),
+            source: "cc",
+        )
+
+        XCTAssertEqual(
+            notificationActions(newSession: waitingSession, oldSession: oldSession),
+            [.post(session: waitingSession)]
+        )
+    }
+
+    func testNotificationActionsPostUserFacingCodexWaitingInput() {
+        let oldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .working,
+            source: "codex"
+        )
+        let explicitMessageSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            <heartbeat>
+              <automation_id>cctop-chief-workflow-watchdog</automation_id>
+            </heartbeat>
+            """,
+            notificationMessage: "Which option should I choose?",
+            source: "codex"
+        )
+        let scaffoldWithRequestSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            # In app browser:
+            - page: http://localhost:3000
+
+            ## My request for Codex:
+            Click the export button and tell me what happens.
+            """,
+            source: "codex"
+        )
+        let promptStartingWithScaffoldHeading = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: "# Files: draft a changelog entry",
+            source: "codex"
+        )
+        let multilinePromptStartingWithScaffoldHeading = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: """
+            # Files:
+            Draft a changelog entry for PR 213.
+            """,
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            notificationActions(newSession: explicitMessageSession, oldSession: oldSession),
+            [.post(session: explicitMessageSession)]
+        )
+        XCTAssertEqual(
+            notificationActions(newSession: scaffoldWithRequestSession, oldSession: oldSession),
+            [.post(session: scaffoldWithRequestSession)]
+        )
+        XCTAssertEqual(
+            notificationActions(newSession: promptStartingWithScaffoldHeading, oldSession: oldSession),
+            [.post(session: promptStartingWithScaffoldHeading)]
+        )
+        XCTAssertEqual(
+            notificationActions(newSession: multilinePromptStartingWithScaffoldHeading, oldSession: oldSession),
+            [.post(session: multilinePromptStartingWithScaffoldHeading)]
+        )
+    }
+
+    func testNotificationActionsPostCodexPermissionAndErrorAttention() {
+        let oldSession = Session.mock(
+            id: "codex-thread-1",
+            status: .working,
+            source: "codex"
+        )
+        let permissionSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingPermission,
+            lastPrompt: "<heartbeat></heartbeat>",
+            notificationMessage: "Allow Bash: make all",
+            source: "codex"
+        )
+        let errorSession = Session.mock(
+            id: "codex-thread-1",
+            status: .needsAttention,
+            lastPrompt: "<codex_delegation></codex_delegation>",
+            notificationMessage: "Command failed",
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            notificationActions(newSession: permissionSession, oldSession: oldSession),
+            [.post(session: permissionSession)]
+        )
+        XCTAssertEqual(
+            notificationActions(newSession: errorSession, oldSession: oldSession),
+            [.post(session: errorSession)]
+        )
+    }
+
+    func testNotificationActionsPostWhenSuppressedCodexWaitingInputBecomesUserFacing() {
+        let oldMachineOnlySession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: "<heartbeat></heartbeat>",
+            source: "codex"
+        )
+        let userFacingSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: "yo",
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            notificationActions(newSession: userFacingSession, oldSession: oldMachineOnlySession),
+            [.post(session: userFacingSession)]
+        )
+    }
+
+    func testNotificationActionsRemoveWhenUserFacingCodexWaitingInputBecomesMachineOnly() {
+        let oldUserFacingSession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: "Can you check this?",
+            source: "codex"
+        )
+        let machineOnlySession = Session.mock(
+            id: "codex-thread-1",
+            status: .waitingInput,
+            lastPrompt: "<heartbeat></heartbeat>",
+            source: "codex"
+        )
+
+        XCTAssertEqual(
+            notificationActions(newSession: machineOnlySession, oldSession: oldUserFacingSession),
+            [.remove(identifier: "session-codex:codex-thread-1")]
         )
     }
 

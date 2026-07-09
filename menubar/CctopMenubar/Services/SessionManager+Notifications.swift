@@ -56,19 +56,19 @@ extension SessionManager {
         )
 
         var actions: [SessionNotificationAction] = []
-        for (key, oldSession) in oldByStableKey where oldSession.status.needsAttention {
+        for (key, oldSession) in oldByStableKey where oldSession.shouldPostAttentionNotification {
             guard let newSession = newByStableKey[key],
                   newSession.lifecycle == .active,
-                  newSession.status.needsAttention else {
+                  newSession.shouldPostAttentionNotification else {
                 actions.append(.remove(identifier: SessionIdentityPolicy.notificationRequestIdentifier(for: oldSession)))
                 continue
             }
         }
 
         guard notificationsEnabled else { return actions }
-        for (key, newSession) in newByStableKey where newSession.lifecycle == .active && newSession.status.needsAttention {
+        for (key, newSession) in newByStableKey where newSession.lifecycle == .active && newSession.shouldPostAttentionNotification {
             guard let oldSession = oldByStableKey[key],
-                  !oldSession.status.needsAttention else { continue }
+                  !oldSession.shouldPostAttentionNotification else { continue }
             actions.append(.post(session: newSession))
         }
         return actions

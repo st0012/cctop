@@ -492,24 +492,21 @@ extension SessionManager {
 
     func hideCodexSubagentSessions(_ candidates: [DedupCandidate]) {
         for candidate in candidates {
-            sessionManagerLogger.info(
-                "hiding Codex subagent session \(candidate.session.sessionId, privacy: .public)"
-            )
-            do {
-                try withSessionLock(sessionPath: candidate.path) {
-                    guard let hiddenSession = try Self.codexSubagentHiddenSessionSnapshot(
-                        path: candidate.path,
-                        codexThreads: dataSources.codexThreads
-                    ) else {
-                        return
-                    }
-                    try hiddenSession.writeToFile(path: candidate.path)
+            withSessionLockForMaintenance(
+                sessionPath: candidate.path,
+                sessionId: candidate.session.sessionId,
+                action: "Codex subagent hide"
+            ) {
+                guard let hiddenSession = try Self.codexSubagentHiddenSessionSnapshot(
+                    path: candidate.path,
+                    codexThreads: dataSources.codexThreads
+                ) else {
+                    return
                 }
-            } catch {
-                let sessionId = candidate.session.sessionId
-                sessionManagerLogger.warning(
-                    "skipping Codex subagent hide for \(sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                sessionManagerLogger.info(
+                    "hiding Codex subagent session \(candidate.session.sessionId, privacy: .public)"
                 )
+                try hiddenSession.writeToFile(path: candidate.path)
             }
         }
     }

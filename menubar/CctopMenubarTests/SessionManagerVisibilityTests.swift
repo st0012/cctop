@@ -394,6 +394,46 @@ final class SessionManagerVisibilityTests: XCTestCase {
     }
 
     @MainActor
+    func testGarbageCollectSkipsBusySessionLockWithoutBlockingMainActor() throws {
+        let root = NSTemporaryDirectory() + "cctop-gc-busy-lock-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let old = Date(timeIntervalSinceNow: -SessionManager.lifecycleWindows.retention - 86_400)
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-busy-finished-thread.json")
+        var session = codexDesktopSession(sessionId: "busy-finished-thread", projectPath: "/tmp/p")
+        session.lastActivity = old
+        session.disconnectedAt = old
+        try session.writeToFile(path: sessionPath)
+
+        let readyPath = (root as NSString).appendingPathComponent("lock-ready")
+        let lockHolder = try startSessionLockHolder(lockPath: sessionPath + ".lock", readyPath: readyPath, holdSeconds: 1.5)
+        defer { terminateProcess(lockHolder) }
+
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.codexThreads = StubCodexThreadState(existing: ["busy-finished-thread"], archived: [])
+        sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot())
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
+        sources.processAlive = { _ in false }
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        let start = Date()
+        manager.garbageCollectFinished()
+        let elapsed = Date().timeIntervalSince(start)
+
+        XCTAssertLessThan(elapsed, 0.75)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+    }
+
+    @MainActor
     func testSessionManagerHidesGenericSubagentSessionFilesWithoutArchivingOrRemovingThem() throws {
         let root = NSTemporaryDirectory() + "cctop-generic-subagent-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
@@ -1327,6 +1367,55 @@ final class SessionManagerVisibilityTests: XCTestCase {
         manager.garbageCollectFinished()
         XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
     }
+}
+
+private func startSessionLockHolder(lockPath: String, readyPath: String, holdSeconds: TimeInterval) throws -> Process {
+    let script = """
+    import fcntl
+    import pathlib
+    import sys
+    import time
+
+    lock_path, ready_path, hold_seconds = sys.argv[1], sys.argv[2], float(sys.argv[3])
+    with open(lock_path, "a") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        pathlib.Path(ready_path).write_text("ready")
+        time.sleep(hold_seconds)
+    """
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+    process.arguments = ["-c", script, lockPath, readyPath, String(holdSeconds)]
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    try waitForFile(path: readyPath, process: process)
+    return process
+}
+
+private func waitForFile(path: String, process: Process, timeout: TimeInterval = 10) throws {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if FileManager.default.fileExists(atPath: path) { return }
+        if !process.isRunning {
+            throw NSError(
+                domain: "CctopMenubarTests",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "lock holder exited before acquiring the lock"]
+            )
+        }
+        Thread.sleep(forTimeInterval: 0.02)
+    }
+    throw NSError(
+        domain: "CctopMenubarTests",
+        code: 2,
+        userInfo: [NSLocalizedDescriptionKey: "timed out waiting for lock holder"]
+    )
+}
+
+private func terminateProcess(_ process: Process) {
+    guard process.isRunning else { return }
+    process.terminate()
+    process.waitUntilExit()
 }
 
 private final class CountingClaudeDesktopState: ClaudeDesktopSessionStateProviding {
