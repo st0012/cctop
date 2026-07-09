@@ -7,7 +7,7 @@ final class CodexThreadArchiveLookup {
     typealias StateDatabasePaths = () -> [String]
 
     private static let maxIndexCacheEntries = 8
-    private static let stateDatabasePathCacheDuration: TimeInterval = 30
+    private static let stateDatabasePathCacheDuration: TimeInterval = 5
 
     private let stateDatabasePaths: StateDatabasePaths
     private let rolloutOriginator: RolloutOriginator
