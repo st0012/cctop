@@ -57,7 +57,11 @@ struct FrozenCodexThreadState: CodexThreadStateProviding {
     }
 
     func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
-        index.map { $0.archivedThreadIDs.intersection(threadIDs) } ?? []
+        guard let index else { return [] }
+        guard index.unknownThreadIDs.isDisjoint(with: threadIDs) else {
+            return nil
+        }
+        return index.archivedThreadIDs.intersection(threadIDs)
     }
 
     func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {

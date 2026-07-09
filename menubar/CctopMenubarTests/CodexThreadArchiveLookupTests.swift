@@ -300,6 +300,8 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         XCTAssertEqual(index.unknownThreadIDs, ["cli-thread"])
         XCTAssertEqual(lookup.existingThreadIDs(matching: ["desktop-thread"]), ["desktop-thread"])
         XCTAssertNil(lookup.existingThreadIDs(matching: ["cli-thread"]))
+        XCTAssertEqual(lookup.archivedThreadIDs(matching: ["desktop-thread"]), ["desktop-thread"])
+        XCTAssertNil(lookup.archivedThreadIDs(matching: ["cli-thread"]))
     }
 
     func testCodexThreadLookupReusesResolvedDatabaseCandidatesAcrossMetadataLookups() {

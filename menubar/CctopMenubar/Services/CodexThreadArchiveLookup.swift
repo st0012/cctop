@@ -74,6 +74,7 @@ final class CodexThreadArchiveLookup {
         case .missing:
             return []
         case .available(let index):
+            guard index.unknownThreadIDs.isDisjoint(with: threadIDs) else { return nil }
             return index.archivedThreadIDs.intersection(threadIDs)
         }
     }
@@ -287,7 +288,6 @@ final class CodexThreadArchiveLookup {
             index.projectNamesByThreadID[threadID] = name
         }
     }
-
 }
 
 private extension CodexThreadArchiveLookup {
