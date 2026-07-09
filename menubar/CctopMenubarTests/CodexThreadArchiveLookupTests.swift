@@ -270,6 +270,35 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         XCTAssertNil(lookup.archivedThreadIDs(matching: ["target-thread"]))
     }
 
+    func testCodexThreadLookupKeepsEarlierAnswersWhenLaterCandidateIsUnreadable() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-lookup-unreadable-fallback-\(UUID().uuidString)"
+        let preferredDB = (root as NSString).appendingPathComponent("runtime/state_5.sqlite")
+        let fallbackDB = (root as NSString).appendingPathComponent("root/state_5.sqlite")
+        try FileManager.default.createDirectory(
+            atPath: (fallbackDB as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        try writeCodexStateDatabase(path: preferredDB, archivedThreads: ["desktop-thread"])
+        try executeSQLite(
+            """
+            UPDATE threads
+            SET git_origin_url = 'git@github.com:st0012/cctop.git'
+            WHERE id = 'desktop-thread';
+            """,
+            path: preferredDB
+        )
+        try Data("this is not a sqlite database".utf8).write(to: URL(fileURLWithPath: fallbackDB))
+
+        let lookup = CodexThreadArchiveLookup(stateDatabasePaths: { [preferredDB, fallbackDB] })
+        let index = try XCTUnwrap(lookup.stateIndex(matching: ["desktop-thread", "cli-thread"]))
+
+        XCTAssertEqual(index.existingThreadIDs, ["desktop-thread"])
+        XCTAssertEqual(index.archivedThreadIDs, ["desktop-thread"])
+        XCTAssertEqual(index.projectNamesByThreadID["desktop-thread"], "cctop")
+    }
+
     func testCodexThreadLookupReusesResolvedDatabaseCandidatesAcrossMetadataLookups() {
         let missing = NSTemporaryDirectory() + "cctop-codex-missing-db-\(UUID().uuidString)/state_5.sqlite"
         var resolveCount = 0

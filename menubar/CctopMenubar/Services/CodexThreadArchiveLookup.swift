@@ -297,7 +297,7 @@ private extension CodexThreadArchiveLookup {
 
         for path in resolvedStateDatabasePaths() where !remainingThreadIDs.isEmpty {
             guard let snapshot = stateSnapshot(at: path, matching: remainingThreadIDs) else {
-                return nil
+                return foundReadableDatabase ? .available(mergedIndex) : nil
             }
             guard case .available(let index) = snapshot else {
                 continue
