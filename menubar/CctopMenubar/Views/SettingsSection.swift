@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsSection: View {
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
+    var onOpenUpdater: (() -> Void)?
     @ObservedObject private var themeManager = ThemeManager.shared
     @StateObject private var notificationPermission: NotificationPermissionController
     @AppStorage("appearanceMode") private var appearanceMode = "system"
@@ -14,10 +15,12 @@ struct SettingsSection: View {
     init(
         updater: UpdaterBase,
         pluginManager: PluginManager,
+        onOpenUpdater: (() -> Void)? = nil,
         notificationPermission: NotificationPermissionController = NotificationPermissionController()
     ) {
         self.updater = updater
         self.pluginManager = pluginManager
+        self.onOpenUpdater = onOpenUpdater
         _notificationPermission = StateObject(wrappedValue: notificationPermission)
     }
 
@@ -197,7 +200,7 @@ struct SettingsSection: View {
         } else if let version = updater.pendingUpdateVersion {
             settingsGroup {
                 Button {
-                    updater.checkForUpdates()
+                    openUpdater()
                 } label: {
                     HStack {
                         Text("v\(version) available")
@@ -216,6 +219,9 @@ struct SettingsSection: View {
                     .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
+                .help("Open updater for v\(version)")
+                .accessibilityLabel("Open cctop updater")
+                .accessibilityHint("Opens the updater for cctop v\(version).")
             }
         } else if let reason = updater.disabledReason {
             settingsGroup {
@@ -280,6 +286,14 @@ struct SettingsSection: View {
             return
         }
         NSWorkspace.shared.open(FileAccessSettings.privacySecurityURL)
+    }
+
+    private func openUpdater() {
+        if let onOpenUpdater {
+            onOpenUpdater()
+        } else {
+            updater.checkForUpdates()
+        }
     }
 }
 

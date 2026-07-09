@@ -44,6 +44,19 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertTrue(source.contains(".popover(isPresented: $showFileAccessHelp)"))
     }
 
+    func testSparkleChecksHourlyByDefaultWithAutomaticChecksEnabled() throws {
+        let root = try repoRoot()
+        let plistURL = root.appendingPathComponent("menubar/CctopMenubar/Info.plist")
+        let data = try Data(contentsOf: plistURL)
+        let plist = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        )
+
+        XCTAssertEqual(plist["SUScheduledCheckInterval"] as? Int, 60 * 60)
+        XCTAssertEqual(plist["SUEnableAutomaticChecks"] as? Bool, true)
+        XCTAssertEqual(plist["SUAutomaticallyUpdate"] as? Bool, true)
+    }
+
     private func repoRoot() throws -> URL {
         var url = URL(fileURLWithPath: #filePath)
         while url.path != "/" {

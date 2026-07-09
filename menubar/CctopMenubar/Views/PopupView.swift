@@ -18,6 +18,7 @@ struct PopupView: View {
     @ObservedObject var overlayController: OverlayController = OverlayController()
     var initialTab: PopupTab = .active
     var initialCleanupCandidate: WorktreeCleanupCandidate?
+    var onOpenUpdater: (() -> Void)?
     var onSelectCleanupRemovalAction: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalAction)?
     var onExecuteCleanupRemovalAction: ((WorktreeRemovalService.RemovalAction) async -> WorktreeRemovalService.RemovalResult)?
     var onCleanupTabVisible: () -> Void = {}
@@ -76,7 +77,11 @@ struct PopupView: View {
                     switch overlay {
                     case .settings:
                         overlayPanel(verticalPadding: AppChrome.settingsOverlayVerticalPadding) {
-                            SettingsSection(updater: updater, pluginManager: pluginManager)
+                            SettingsSection(
+                                updater: updater,
+                                pluginManager: pluginManager,
+                                onOpenUpdater: onOpenUpdater
+                            )
                         }
                     case .about:
                         overlayPanel {
@@ -107,12 +112,8 @@ struct PopupView: View {
         .onChange(of: recentTargets.map(\.id)) { _ in ensureSelectedTabAvailable() }
         .onChange(of: actionableCleanupCandidates) { _ in handleCleanupCandidatesChanged() }
         .onChange(of: cleanupIsScanning) { _ in handleCleanupScanningChanged() }
-        .onChange(of: selectedCleanupCandidate?.id) { _ in
-            notifyLayoutChanged()
-        }
-        .alert(item: $pendingRemovalConfirmation) { confirmation in
-            removalAlert(for: confirmation)
-        }
+        .onChange(of: selectedCleanupCandidate?.id) { _ in notifyLayoutChanged() }
+        .alert(item: $pendingRemovalConfirmation) { removalAlert(for: $0) }
         .onAppear {
             selectedTab = availableTabs.contains(initialTab) ? initialTab : .active
             if selectedTab == .cleanup,
@@ -272,31 +273,13 @@ struct PopupView: View {
 // MARK: - Overlay & Footer
 
 extension PopupView {
-    func overlayPanel<Content: View>(
-        verticalPadding: CGFloat = AppChrome.overlayContentVerticalPadding,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .padding(.vertical, verticalPadding)
-            .frame(maxWidth: .infinity, minHeight: AppChrome.overlayMinimumContentHeight, alignment: .top)
-            .background {
-                PanelSurfaceBackground(usesMaterial: false)
-            }
-            .transition(.asymmetric(
-                insertion: .move(edge: .top),
-                removal: .modifier(
-                    active: RollUpEffect(progress: 0),
-                    identity: RollUpEffect(progress: 1)
-                )
-            ))
-    }
-
     var footerBar: some View {
-        HStack {
+        HStack(spacing: 8) {
             QuitButton()
             versionButton
             footerShortcutHints
             Spacer()
+            footerUpdateStatus
             settingsGearButton
         }
         .padding(.horizontal, 16)
@@ -326,14 +309,28 @@ extension PopupView {
                     RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
                         .fill(gearHovered ? Color.panelSelectionBackground : Color.clear)
                 )
-                .overlay(alignment: .topTrailing) {
-                    if updater.pendingUpdateVersion != nil && overlayController.active != .settings {
-                        Circle().fill(Color.amber).frame(width: 7, height: 7).offset(x: 2, y: -2)
-                    }
-                }
         }
         .buttonStyle(.plain)
         .onHover { gearHovered = $0 }
+    }
+
+    @ViewBuilder
+    private var footerUpdateStatus: some View {
+        if let version = updater.downloadingUpdateVersion {
+            FooterUpdateStatusView(state: .downloading(version: version)) {}
+        } else if let version = updater.pendingUpdateVersion {
+            FooterUpdateStatusView(state: .available(version: version)) {
+                openUpdater()
+            }
+        }
+    }
+
+    private func openUpdater() {
+        if let onOpenUpdater {
+            onOpenUpdater()
+        } else {
+            updater.checkForUpdates()
+        }
     }
 
     // MARK: - Helpers
@@ -346,9 +343,11 @@ extension PopupView {
                     .foregroundStyle(shortcutHovered ? Color.textPrimary : Color.textSecondary)
                     .underline(shortcutHovered)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
             .buttonStyle(.plain)
             .onHover { shortcutHovered = $0 }
+            .layoutPriority(-1)
         } else { EmptyView() }
     }
     private var isNavigateActive: Bool { navigate?.isActive ?? false }
@@ -365,7 +364,6 @@ extension PopupView {
     var actionableCleanupCandidates: [WorktreeCleanupCandidate] {
         cleanupCandidates.filter(\.state.isActionable)
     }
-
     private func syncSelectedCleanupCandidate() {
         selectedCleanupCandidate = Self.syncedCleanupCandidate(
             selectedCleanupCandidate,
@@ -486,5 +484,4 @@ extension PopupView {
         cleanupRemovalNotice = nil
         selectedCleanupCandidate = candidate
     }
-
 }

@@ -232,6 +232,63 @@ struct TabButtonView: View {
     }
 }
 
+// MARK: - Footer update status
+
+enum FooterUpdateStatusState: Equatable {
+    case available(version: String)
+    case downloading(version: String)
+
+    var version: String {
+        switch self {
+        case .available(let version), .downloading(let version):
+            return version
+        }
+    }
+}
+
+struct FooterUpdateStatusView: View {
+    let state: FooterUpdateStatusState
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        switch state {
+        case .available:
+            Button(action: action) {
+                Text("Update")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.accentButtonText)
+                    .lineLimit(1)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(Color.amber.opacity(isHovered ? 0.90 : 1.0))
+                    .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .onHover { isHovered = $0 }
+            .help("Open updater for v\(state.version)")
+            .accessibilityLabel("Open cctop updater")
+            .accessibilityHint("Opens the updater for cctop v\(state.version).")
+        case .downloading:
+            HStack(spacing: 4) {
+                ProgressView()
+                    .controlSize(.mini)
+                    .frame(width: 10, height: 10)
+                    .accessibilityHidden(true)
+                Text("Downloading")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.textSecondary)
+                    .lineLimit(1)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .help("Downloading cctop v\(state.version)")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Downloading cctop update")
+            .accessibilityHint("cctop v\(state.version) is downloading.")
+        }
+    }
+}
+
 // MARK: - Panel content wrapper (used by AppDelegate)
 
 struct PanelContentView: View {
@@ -242,6 +299,7 @@ struct PanelContentView: View {
     @ObservedObject var updater: UpdaterBase
     @ObservedObject var pluginManager: PluginManager
     @ObservedObject var navigate: NavigateController
+    var onOpenUpdater: (() -> Void)?
     var onSelectCleanupRemovalAction: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalAction)?
     var onExecuteCleanupRemovalAction: ((WorktreeRemovalService.RemovalAction) async -> WorktreeRemovalService.RemovalResult)?
     var onCleanupTabVisible: () -> Void = {}
@@ -263,6 +321,7 @@ struct PanelContentView: View {
             pluginManager: pluginManager,
             navigate: navigate,
             overlayController: overlayController,
+            onOpenUpdater: onOpenUpdater,
             onSelectCleanupRemovalAction: onSelectCleanupRemovalAction,
             onExecuteCleanupRemovalAction: onExecuteCleanupRemovalAction,
             onCleanupTabVisible: onCleanupTabVisible,

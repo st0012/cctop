@@ -78,6 +78,18 @@ final class QASnapshotTests: XCTestCase {
 
     // MARK: - Update UI scenarios
 
+    func testFooterUpdateAvailable() throws {
+        let updater = DisabledUpdater()
+        updater.pendingUpdateVersion = "0.7.0"
+        try renderSnapshot(sessions: Session.qaShowcase, updater: updater, name: "11b-footer-update-available")
+    }
+
+    func testFooterUpdateDownloading() throws {
+        let updater = DisabledUpdater()
+        updater.downloadingUpdateVersion = "0.7.0"
+        try renderSnapshot(sessions: Session.qaShowcase, updater: updater, name: "11c-footer-update-downloading")
+    }
+
     func testSettingsUpdateAvailable() throws {
         let updater = DisabledUpdater()
         updater.pendingUpdateVersion = "0.7.0"
@@ -227,10 +239,11 @@ final class QASnapshotTests: XCTestCase {
 
     private func renderSnapshot(
         sessions: [Session],
+        updater: UpdaterBase? = nil,
         name: String,
         colorScheme: ColorScheme = .light
     ) throws {
-        let view = PopupView(sessions: sessions, updater: DisabledUpdater(), pluginManager: inertPluginManager())
+        let view = PopupView(sessions: sessions, updater: updater ?? DisabledUpdater(), pluginManager: inertPluginManager())
             .frame(width: 320)
             .panelSnapshotChrome()
             .environment(\.colorScheme, colorScheme)
