@@ -235,6 +235,16 @@ struct StubCodexThreadState: CodexThreadStateProviding {
     var execHelpers: Set<String>? = []
     var projectNamesByThreadID: [String: String]? = [:]
 
+    func stateIndex(matching threadIDs: Set<String>) -> CodexThreadStateIndex? {
+        var index = CodexThreadStateIndex()
+        index.existingThreadIDs = (existing ?? threadIDs).intersection(threadIDs)
+        index.archivedThreadIDs = (archived ?? []).intersection(threadIDs)
+        index.subagentThreadIDs = (subagents ?? []).intersection(threadIDs)
+        index.execHelperThreadIDs = (execHelpers ?? []).intersection(threadIDs)
+        index.projectNamesByThreadID = (projectNamesByThreadID ?? [:]).filter { threadIDs.contains($0.key) }
+        return index
+    }
+
     func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
         existing.map { $0.intersection(threadIDs) }
     }

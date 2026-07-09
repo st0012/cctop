@@ -104,6 +104,77 @@ final class SessionLifecycleTests: XCTestCase {
         XCTAssertEqual(requestedBundleIDSets, [[HostAppBundleID.codexDesktop, HostAppBundleID.claudeDesktop]])
     }
 
+    func testBuildCandidatesWarmsCodexThreadLookupWithAllCodexSessionIDs() {
+        var desktop = codexDesktopSession(sessionId: "codex-desktop", projectPath: "/tmp/desktop")
+        desktop.pid = nil
+        var cli = codexTerminalSession(sessionId: "codex-cli", projectPath: "/tmp/cli")
+        cli.pid = nil
+        let codexThreads = RecordingCodexThreadState(
+            projectNamesByThreadID: [
+                "codex-desktop": "desktop-project",
+                "codex-cli": "cli-project"
+            ]
+        )
+
+        let candidates = SessionManager.buildCandidates(
+            [
+                (URL(fileURLWithPath: "/tmp/codex-desktop.json"), desktop),
+                (URL(fileURLWithPath: "/tmp/codex-cli.json"), cli)
+            ],
+            now: Self.lifeNow,
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true },
+            claudeMetadata: nil,
+            codexThreads: codexThreads,
+            processAlive: { _ in false }
+        )
+        let namesByID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.session.sessionId, $0.session.desktopProjectName) })
+
+        XCTAssertEqual(codexThreads.projectNameRequests, [["codex-cli", "codex-desktop"]])
+        XCTAssertEqual(namesByID["codex-desktop"]!, "desktop-project")
+        XCTAssertNil(namesByID["codex-cli"]!)
+    }
+
+    @MainActor
+    func testSessionManagerBatchesCodexThreadLookupDuringRefresh() throws {
+        let root = NSTemporaryDirectory() + "cctop-batched-codex-thread-state-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let desktopID = "codex-desktop"
+        var desktop = codexDesktopSession(sessionId: desktopID, projectPath: "/tmp/desktop")
+        desktop.pid = nil
+        try desktop.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("codex-\(desktopID).json"))
+
+        let cliID = "codex-cli"
+        var cli = codexTerminalSession(sessionId: cliID, projectPath: "/tmp/cli")
+        cli.pid = nil
+        try cli.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("codex-\(cliID).json"))
+
+        let codexThreads = RecordingCodexThreadState(
+            projectNamesByThreadID: [
+                desktopID: "desktop-project",
+                cliID: "cli-project"
+            ]
+        )
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.codexThreads = codexThreads
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
+        sources.processAlive = { _ in false }
+
+        _ = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        XCTAssertEqual(codexThreads.stateIndexRequests, [[desktopID, cliID]])
+        XCTAssertEqual(codexThreads.projectNameRequests, [])
+    }
+
     @MainActor
     func testSessionManagerClearsDisconnectedAtWhenDesktopHostAppIsRunning() throws {
         let root = NSTemporaryDirectory() + "cctop-desktop-reconnected-\(UUID().uuidString)"
@@ -1014,5 +1085,44 @@ final class SessionLifecycleTests: XCTestCase {
         var working = session
         working.status = .working
         XCTAssertEqual(SessionManager.adjustIdleTimeout(working, now: pastTimeout).status, .working)
+    }
+}
+
+private final class RecordingCodexThreadState: CodexThreadStateProviding {
+    private let projectNamesByThreadID: [String: String]
+    private(set) var stateIndexRequests: [Set<String>] = []
+    private(set) var projectNameRequests: [Set<String>] = []
+
+    init(projectNamesByThreadID: [String: String]) {
+        self.projectNamesByThreadID = projectNamesByThreadID
+    }
+
+    func stateIndex(matching threadIDs: Set<String>) -> CodexThreadStateIndex? {
+        stateIndexRequests.append(threadIDs)
+        var index = CodexThreadStateIndex()
+        index.existingThreadIDs = threadIDs
+        index.projectNamesByThreadID = projectNamesByThreadID.filter { threadIDs.contains($0.key) }
+        return index
+    }
+
+    func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        threadIDs
+    }
+
+    func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        []
+    }
+
+    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        []
+    }
+
+    func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        []
+    }
+
+    func projectNames(matching threadIDs: Set<String>) -> [String: String]? {
+        projectNameRequests.append(threadIDs)
+        return projectNamesByThreadID.filter { threadIDs.contains($0.key) }
     }
 }

@@ -2,24 +2,12 @@ import Darwin
 import Foundation
 import SQLite3
 
-/// Read-side seam over Codex's local thread state. `CodexThreadArchiveLookup` is the live
-/// SQLite-backed implementation; tests substitute in-memory stubs so classification and archive
-/// logic can run without a database on disk. `nil` means the lookup could not prove an answer,
-/// either because the store was unreadable or because absence is intentionally treated as unknown.
-protocol CodexThreadStateProviding {
-    func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
-    func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
-    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
-    func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
-    func projectNames(matching threadIDs: Set<String>) -> [String: String]?
-}
-
 final class CodexThreadArchiveLookup {
     typealias RolloutOriginator = (String) -> String?
     typealias StateDatabasePaths = () -> [String]
 
     private static let maxIndexCacheEntries = 8
-    private static let stateDatabasePathCacheDuration: TimeInterval = 1
+    private static let stateDatabasePathCacheDuration: TimeInterval = 30
 
     private let stateDatabasePaths: StateDatabasePaths
     private let rolloutOriginator: RolloutOriginator
@@ -45,6 +33,19 @@ final class CodexThreadArchiveLookup {
 
     private static func liveStateDatabasePaths() -> [String] {
         Config.codexStateDatabaseCandidates(desktopSQLiteHome: CodexDesktopRuntimeProbe().currentDesktopSQLiteHome())
+    }
+
+    /// Returns all Codex thread metadata cctop needs for `threadIDs` using one database pass.
+    /// Missing or unreadable state is unknown, so callers should fail OPEN when this returns `nil`.
+    func stateIndex(matching threadIDs: Set<String>) -> CodexThreadStateIndex? {
+        guard !threadIDs.isEmpty else { return CodexThreadStateIndex() }
+        guard let snapshot = stateSnapshot(matching: threadIDs) else { return nil }
+        switch snapshot {
+        case .missing:
+            return nil
+        case .available(let index):
+            return index
+        }
     }
 
     /// Returns the subset of `threadIDs` present in Codex's thread state. Unlike archive

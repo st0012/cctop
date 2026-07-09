@@ -41,6 +41,35 @@ struct SessionClassificationEvidence {
     let archivedClaudeSessionIDs: Set<String>
 }
 
+struct FrozenCodexThreadState: CodexThreadStateProviding {
+    let index: CodexThreadStateIndex?
+
+    func stateIndex(matching threadIDs: Set<String>) -> CodexThreadStateIndex? {
+        guard let index else { return nil }
+        return index.filtered(to: threadIDs)
+    }
+
+    func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        index?.existingThreadIDs.intersection(threadIDs)
+    }
+
+    func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        index.map { $0.archivedThreadIDs.intersection(threadIDs) } ?? []
+    }
+
+    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        index.map { $0.subagentThreadIDs.intersection(threadIDs) } ?? []
+    }
+
+    func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        index.map { $0.execHelperThreadIDs.intersection(threadIDs) } ?? []
+    }
+
+    func projectNames(matching threadIDs: Set<String>) -> [String: String]? {
+        index.map { $0.projectNamesByThreadID.filter { threadIDs.contains($0.key) } }
+    }
+}
+
 enum SessionHiddenReason: Equatable {
     case persistedHidden
     case autoHidden
@@ -349,6 +378,10 @@ extension SessionManager {
         let classifiableSessions = decoded
             .map(\.session)
             .filter { !$0.hidden && !$0.shouldAutoHide }
+        let codexThreads = Self.batchedCodexThreadState(
+            in: classifiableSessions,
+            codexThreads: dataSources.codexThreads
+        )
         let claudeMetadata = Self.claudeDesktopMetadataSnapshot(
             in: classifiableSessions,
             claudeDesktopSessions: dataSources.claudeDesktopSessions
@@ -358,15 +391,34 @@ extension SessionManager {
             now: now,
             desktopAppConnectionLookup: dataSources.desktopAppConnection,
             claudeMetadata: claudeMetadata,
-            codexThreads: dataSources.codexThreads,
+            codexThreads: codexThreads,
             processAlive: dataSources.processAlive
         )
         return Self.sessionClassificationSnapshot(
             in: candidates,
             sessions: decoded.map(\.session),
             claudeMetadata: claudeMetadata,
-            codexThreads: dataSources.codexThreads,
+            codexThreads: codexThreads,
             now: now
+        )
+    }
+
+    private nonisolated static func batchedCodexThreadState(
+        in sessions: [Session],
+        codexThreads: any CodexThreadStateProviding
+    ) -> FrozenCodexThreadState {
+        let threadIDs = codexThreadIDs(in: sessions)
+        guard !threadIDs.isEmpty else {
+            return FrozenCodexThreadState(index: CodexThreadStateIndex())
+        }
+        return FrozenCodexThreadState(index: codexThreads.stateIndex(matching: threadIDs))
+    }
+
+    private nonisolated static func codexThreadIDs(in sessions: [Session]) -> Set<String> {
+        Set(
+            sessions
+                .filter { $0.isCodex || $0.isCodexDesktopHost }
+                .map(\.sessionId)
         )
     }
 
@@ -427,11 +479,7 @@ extension SessionManager {
         in sessions: [Session],
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
     ) -> Set<String> {
-        let threadIDs = Set(
-            sessions
-                .filter { $0.isCodex || $0.isCodexDesktopHost }
-                .map(\.sessionId)
-        )
+        let threadIDs = codexThreadIDs(in: sessions)
         return codexThreads.subagentThreadIDs(matching: threadIDs) ?? []
     }
 
@@ -448,11 +496,7 @@ extension SessionManager {
         in sessions: [Session],
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
     ) -> Set<String> {
-        let threadIDs = Set(
-            sessions
-                .filter { $0.isCodex || $0.isCodexDesktopHost }
-                .map(\.sessionId)
-        )
+        let threadIDs = codexThreadIDs(in: sessions)
         return codexThreads.execHelperThreadIDs(matching: threadIDs) ?? []
     }
 
@@ -682,9 +726,10 @@ extension SessionManager {
             projectNames.merge(claudeMetadata.projectNamesBySessionID) { current, _ in current }
         }
 
-        let codexThreadIDs = Set(sessions.filter(\.isCodexDesktopHost).map(\.sessionId))
+        let codexDesktopThreadIDs = Set(sessions.filter(\.isCodexDesktopHost).map(\.sessionId))
+        let codexThreadIDs = Self.codexThreadIDs(in: sessions)
         if let codexProjectNames = codexThreads.projectNames(matching: codexThreadIDs) {
-            projectNames.merge(codexProjectNames) { current, _ in current }
+            projectNames.merge(codexProjectNames.filter { codexDesktopThreadIDs.contains($0.key) }) { current, _ in current }
         }
 
         return projectNames
