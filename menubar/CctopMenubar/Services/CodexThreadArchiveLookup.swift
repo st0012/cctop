@@ -58,6 +58,7 @@ final class CodexThreadArchiveLookup {
         case .missing:
             return nil
         case .available(let index):
+            guard index.unknownThreadIDs.isDisjoint(with: threadIDs) else { return nil }
             return index.existingThreadIDs.intersection(threadIDs)
         }
     }
@@ -297,6 +298,7 @@ private extension CodexThreadArchiveLookup {
 
         for path in resolvedStateDatabasePaths() where !remainingThreadIDs.isEmpty {
             guard let snapshot = stateSnapshot(at: path, matching: remainingThreadIDs) else {
+                mergedIndex.unknownThreadIDs.formUnion(remainingThreadIDs)
                 return foundReadableDatabase ? .available(mergedIndex) : nil
             }
             guard case .available(let index) = snapshot else {
@@ -495,5 +497,4 @@ private extension CodexThreadArchiveLookup {
         return value.isEmpty ? nil : value
     }
 }
-
 extension CodexThreadArchiveLookup: CodexThreadStateProviding {}

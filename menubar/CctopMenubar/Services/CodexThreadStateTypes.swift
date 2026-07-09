@@ -41,6 +41,7 @@ struct CodexThreadStateIndex {
     var subagentThreadIDs: Set<String> = []
     var execHelperThreadIDs: Set<String> = []
     var projectNamesByThreadID: [String: String] = [:]
+    var unknownThreadIDs: Set<String> = []
 
     mutating func merge(_ other: CodexThreadStateIndex) {
         existingThreadIDs.formUnion(other.existingThreadIDs)
@@ -48,6 +49,7 @@ struct CodexThreadStateIndex {
         subagentThreadIDs.formUnion(other.subagentThreadIDs)
         execHelperThreadIDs.formUnion(other.execHelperThreadIDs)
         projectNamesByThreadID.merge(other.projectNamesByThreadID) { current, _ in current }
+        unknownThreadIDs.formUnion(other.unknownThreadIDs)
     }
 
     func filtered(to threadIDs: Set<String>) -> CodexThreadStateIndex {
@@ -56,7 +58,8 @@ struct CodexThreadStateIndex {
             archivedThreadIDs: archivedThreadIDs.intersection(threadIDs),
             subagentThreadIDs: subagentThreadIDs.intersection(threadIDs),
             execHelperThreadIDs: execHelperThreadIDs.intersection(threadIDs),
-            projectNamesByThreadID: projectNamesByThreadID.filter { threadIDs.contains($0.key) }
+            projectNamesByThreadID: projectNamesByThreadID.filter { threadIDs.contains($0.key) },
+            unknownThreadIDs: unknownThreadIDs.intersection(threadIDs)
         )
     }
 }
