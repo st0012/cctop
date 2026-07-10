@@ -1,6 +1,6 @@
 {
   "name": "cctop-opencode",
-  "version": "0.19.4",
+  "version": "0.19.5",
   "description": "cctop session monitor plugin for opencode",
   "type": "module",
   "main": "plugin.js",
