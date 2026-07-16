@@ -13,7 +13,9 @@ struct SessionLoadLogSignature: Equatable {
     let summary: SessionLoadSummary
     let archivedCodexThreadIDs: Int
     let missingCodexDesktopThreadIDs: Int
-    let codexSubagentThreadIDs: Int
+    let codexInternalHelperThreadIDs: Int
+    let uncertainCodexDelegationThreadIDs: Int
+    let contradictoryCodexDelegationThreadIDs: Int
     let codexExecHelperThreadIDs: Int
     let archivedClaudeSessionIDs: Int
 }
@@ -89,7 +91,9 @@ extension SessionManager {
             summary: summary,
             archivedCodexThreadIDs: classification.archivedCodexThreadIDs.count,
             missingCodexDesktopThreadIDs: classification.missingCodexDesktopThreadIDs.count,
-            codexSubagentThreadIDs: classification.codexSubagentThreadIDs.count,
+            codexInternalHelperThreadIDs: classification.codexInternalHelperThreadIDs.count,
+            uncertainCodexDelegationThreadIDs: classification.uncertainCodexDelegationThreadIDs.count,
+            contradictoryCodexDelegationThreadIDs: classification.contradictoryCodexDelegationThreadIDs.count,
             codexExecHelperThreadIDs: classification.codexExecHelperThreadIDs.count,
             archivedClaudeSessionIDs: classification.archivedClaudeSessionIDs.count
         )
@@ -102,7 +106,11 @@ extension SessionManager {
         )
         sessionManagerLogger.info("loadSessions: \(classification.archivedCodexThreadIDs.count) codex-archived")
         sessionManagerLogger.info("loadSessions: \(classification.missingCodexDesktopThreadIDs.count) codex-missing-state")
-        sessionManagerLogger.info("loadSessions: \(classification.codexSubagentThreadIDs.count) codex-subagent")
+        sessionManagerLogger.info("loadSessions: \(classification.codexInternalHelperThreadIDs.count) codex-internal-helper")
+        sessionManagerLogger.info("loadSessions: \(classification.uncertainCodexDelegationThreadIDs.count) codex-source-uncertain")
+        sessionManagerLogger.info(
+            "loadSessions: \(classification.contradictoryCodexDelegationThreadIDs.count) codex-source-contradictory"
+        )
         sessionManagerLogger.info("loadSessions: \(classification.codexExecHelperThreadIDs.count) codex-exec-helper")
         sessionManagerLogger.info("loadSessions: \(classification.archivedClaudeSessionIDs.count) claude-archived")
     }

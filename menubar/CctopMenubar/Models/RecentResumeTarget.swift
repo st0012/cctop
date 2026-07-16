@@ -164,7 +164,7 @@ enum RecentResumeTarget: Identifiable, Equatable {
             return .codexDesktop
         case .archivedClaudeDesktop:
             return .claudeDesktop
-        case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexSubagent, .codexExecHelper,
+        case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper, .codexExecHelper,
              .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
             return nil
         }
@@ -176,7 +176,8 @@ enum RecentResumeTarget: Identifiable, Equatable {
         evidence: SessionClassificationEvidence
     ) -> Bool {
         guard sourceApp == .codexDesktop else { return false }
-        return evidence.codexSubagentThreadIDs.contains(sessionId) || evidence.codexExecHelperThreadIDs.contains(sessionId)
+        return evidence.codexInternalHelperThreadIDs.contains(sessionId)
+            || evidence.codexExecHelperThreadIDs.contains(sessionId)
     }
 
     private static func joinedMetadata(_ parts: [String]) -> String {

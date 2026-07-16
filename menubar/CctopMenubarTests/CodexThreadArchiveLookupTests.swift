@@ -316,7 +316,7 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         XCTAssertEqual(lookup.projectNames(matching: threadIDs), [:])
         XCTAssertEqual(lookup.archivedThreadIDs(matching: threadIDs), [])
         XCTAssertNil(lookup.existingThreadIDs(matching: threadIDs))
-        XCTAssertEqual(lookup.subagentThreadIDs(matching: threadIDs), [])
+        XCTAssertEqual(lookup.internalHelperThreadIDs(matching: threadIDs), [])
         XCTAssertEqual(lookup.execHelperThreadIDs(matching: threadIDs), [])
         XCTAssertEqual(resolveCount, 1)
     }
@@ -380,6 +380,87 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         XCTAssertEqual(state.isArchived, true)
         XCTAssertNil(state.observedFingerprints[fixture.activePath]?.file)
         XCTAssertNotNil(state.observedFingerprints[fixture.archivedPath]?.file)
+    }
+
+    func testStoredSessionSourceDecoderUsesStructuredSourceAndFailsOpenOnUncertainty() {
+        let spawned = """
+        {"subagent":{"thread_spawn":{"parent_thread_id":"parent","depth":1}}}
+        """
+        let mismatched = """
+        {"subagent":{"thread_spawn":{"parent_thread_id":"expected","depth":1}}}
+        """
+
+        XCTAssertEqual(CodexStoredSessionSource(storedValue: "cli"), .decoded(.cli))
+        XCTAssertEqual(CodexStoredSessionSource(storedValue: "\"vscode\""), .decoded(.vscode))
+        XCTAssertEqual(CodexStoredSessionSource(storedValue: "{\"internal\":\"memory_consolidation\"}"), .decoded(.internalHelper))
+        XCTAssertEqual(CodexStoredSessionSource(storedValue: spawned), .decoded(.subagent(parentThreadID: "parent")))
+        XCTAssertEqual(
+            CodexStoredSessionSource(storedValue: "{\"subagent\":{\"other\":\"guardian\"}}"),
+            .decoded(.subagent(parentThreadID: nil))
+        )
+        XCTAssertEqual(CodexStoredSessionSource(storedValue: nil), .missing)
+        XCTAssertEqual(CodexStoredSessionSource(storedValue: "{broken"), .malformed)
+        XCTAssertEqual(
+            CodexStoredSessionSource(storedValue: "future_source").delegationClassification(spawnParentThreadID: nil),
+            .uncertain
+        )
+        XCTAssertEqual(
+            CodexStoredSessionSource(storedValue: "vscode").delegationClassification(spawnParentThreadID: "parent"),
+            .contradictory
+        )
+        XCTAssertEqual(
+            CodexStoredSessionSource(storedValue: "mcp").delegationClassification(spawnParentThreadID: "parent"),
+            .contradictory
+        )
+        XCTAssertEqual(
+            CodexStoredSessionSource(storedValue: mismatched).delegationClassification(spawnParentThreadID: "actual"),
+            .contradictory
+        )
+    }
+
+    func testCodexThreadLookupClassifiesStructuredSourcesAndUsesEdgesAsCorroboration() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-source-classification-\(UUID().uuidString)"
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
+
+        let spawnedSource = """
+        {"subagent":{"thread_spawn":{"parent_thread_id":"spawn-parent","depth":1}}}
+        """
+        let mismatchedSource = """
+        {"subagent":{"thread_spawn":{"parent_thread_id":"expected-parent","depth":1}}}
+        """
+        try executeSQLite(
+            """
+            INSERT INTO threads (id, source, thread_source) VALUES ('cli-root', 'cli', 'subagent');
+            INSERT INTO threads (id, source, thread_source) VALUES ('vscode-root', 'vscode', 'subagent');
+            INSERT INTO threads (id, source, thread_source) VALUES ('spawned', \(sqlValue(spawnedSource)), 'user');
+            INSERT INTO threads (id, source, thread_source) VALUES ('review', '{"subagent":"review"}', 'user');
+            INSERT INTO threads (id, source, thread_source) VALUES ('guardian', '{"subagent":{"other":"guardian"}}', 'user');
+            INSERT INTO threads (id, source, thread_source) VALUES ('internal', '{"internal":"memory_consolidation"}', 'user');
+            INSERT INTO threads (id, source, thread_source) VALUES ('malformed', '{broken', 'subagent');
+            INSERT INTO threads (id, source, thread_source) VALUES ('missing', '', 'subagent');
+            INSERT INTO threads (id, source, thread_source) VALUES ('unknown', 'future_source', 'subagent');
+            INSERT INTO threads (id, source, thread_source) VALUES ('interactive-edge', 'vscode', 'user');
+            INSERT INTO threads (id, source, thread_source) VALUES ('mismatched-spawn', \(sqlValue(mismatchedSource)), 'user');
+            INSERT INTO thread_spawn_edges VALUES ('spawn-parent', 'spawned', 'open');
+            INSERT INTO thread_spawn_edges VALUES ('edge-parent', 'interactive-edge', 'open');
+            INSERT INTO thread_spawn_edges VALUES ('actual-parent', 'mismatched-spawn', 'open');
+            """,
+            path: stateDB
+        )
+
+        let threadIDs: Set<String> = [
+            "cli-root", "vscode-root", "spawned", "review", "guardian", "internal",
+            "malformed", "missing", "unknown", "interactive-edge", "mismatched-spawn",
+        ]
+        let index = try XCTUnwrap(CodexThreadArchiveLookup(stateDatabasePath: stateDB).stateIndex(matching: threadIDs))
+
+        XCTAssertEqual(index.interactiveRootThreadIDs, ["cli-root", "vscode-root"])
+        XCTAssertEqual(index.internalHelperThreadIDs, ["guardian", "internal", "review", "spawned"])
+        XCTAssertEqual(index.uncertainDelegationThreadIDs, ["malformed", "missing", "unknown"])
+        XCTAssertEqual(index.contradictoryDelegationThreadIDs, ["interactive-edge", "mismatched-spawn"])
+        XCTAssertTrue(index.internalHelperThreadIDs.isDisjoint(with: index.contradictoryDelegationThreadIDs))
     }
 
     func testCodexThreadLookupDerivesProjectNameFromGitOriginURL() throws {
@@ -450,9 +531,11 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
 
         XCTAssertEqual(lookup.existingThreadIDs(matching: threadIDs), threadIDs)
         XCTAssertEqual(lookup.archivedThreadIDs(matching: threadIDs), ["archived-thread"])
-        XCTAssertEqual(lookup.subagentThreadIDs(matching: threadIDs), ["subagent-thread"])
+        XCTAssertEqual(lookup.internalHelperThreadIDs(matching: threadIDs), [])
         XCTAssertEqual(lookup.execHelperThreadIDs(matching: threadIDs), [])
         XCTAssertEqual(lookup.projectNames(matching: threadIDs), ["project-thread": "cctop"])
+        XCTAssertEqual(lookup.stateIndex(matching: threadIDs)?.uncertainDelegationThreadIDs, threadIDs)
+        XCTAssertEqual(lookup.stateIndex(matching: threadIDs)?.knownNoSpawnEdgeThreadIDs, [])
     }
 
     func testCodexThreadLookupInvalidatesCacheWhenSQLiteSidecarChanges() throws {

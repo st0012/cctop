@@ -110,7 +110,7 @@ class SessionManager: ObservableObject {
         }
 
         hideAutoHiddenSessions(autoHidden)
-        hideCodexSubagentSessions(classification.codexSubagentCandidates)
+        hideCodexInternalHelperSessions(classification.codexInternalHelperCandidates)
         clearReconnectedDesktopSessions(displayCandidates, now: now)
         stampDisconnectedDesktopSessions(displayCandidates, now: now)
 

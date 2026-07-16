@@ -146,6 +146,7 @@
 		SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SIP000020000000000000001 /* SessionIdentityPolicy.swift */; };
 		DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */; };
 		CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */; };
+		CTQ000010000000000000001 /* CodexThreadArchiveLookup+Query.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTQ000020000000000000001 /* CodexThreadArchiveLookup+Query.swift */; };
 		CTP000010000000000000001 /* CodexThreadArchiveLookup+Placement.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTP000020000000000000001 /* CodexThreadArchiveLookup+Placement.swift */; };
 		CTS000010000000000000001 /* CodexThreadStateTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTS000020000000000000001 /* CodexThreadStateTypes.swift */; };
 		CDA000010000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */; };
@@ -187,6 +188,7 @@
 		SIP000020000000000000001 /* SessionIdentityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIdentityPolicy.swift; sourceTree = "<group>"; };
 		DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopAppConnectionLookup.swift; sourceTree = "<group>"; };
 		CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexThreadArchiveLookup.swift; sourceTree = "<group>"; };
+		CTQ000020000000000000001 /* CodexThreadArchiveLookup+Query.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodexThreadArchiveLookup+Query.swift"; sourceTree = "<group>"; };
 		CTP000020000000000000001 /* CodexThreadArchiveLookup+Placement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodexThreadArchiveLookup+Placement.swift"; sourceTree = "<group>"; };
 		CTS000020000000000000001 /* CodexThreadStateTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexThreadStateTypes.swift; sourceTree = "<group>"; };
 		CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDesktopSessionArchiveLookup.swift; sourceTree = "<group>"; };
@@ -361,6 +363,7 @@
 				SIP000020000000000000001 /* SessionIdentityPolicy.swift */,
 				DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */,
 				CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */,
+				CTQ000020000000000000001 /* CodexThreadArchiveLookup+Query.swift */,
 				CTP000020000000000000001 /* CodexThreadArchiveLookup+Placement.swift */,
 				CTS000020000000000000001 /* CodexThreadStateTypes.swift */,
 				CDA000020000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift */,
@@ -685,6 +688,7 @@
 				SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */,
 				DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */,
 				CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */,
+				CTQ000010000000000000001 /* CodexThreadArchiveLookup+Query.swift in Sources */,
 				CTP000010000000000000001 /* CodexThreadArchiveLookup+Placement.swift in Sources */,
 				CTS000010000000000000001 /* CodexThreadStateTypes.swift in Sources */,
 				CDA000010000000000000001 /* ClaudeDesktopSessionArchiveLookup.swift in Sources */,
