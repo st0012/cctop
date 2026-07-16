@@ -79,16 +79,16 @@ final class CodexThreadArchiveLookup {
         }
     }
 
-    /// Returns the subset of `threadIDs` Codex marks as subagent-owned. This is display-only
-    /// metadata, so callers should fail OPEN when the lookup returns `nil`.
-    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+    /// Returns the subset of `threadIDs` whose structured Codex session source is internal or
+    /// subagent-owned. This is display-only metadata, so callers fail OPEN on uncertainty.
+    func internalHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
         guard !threadIDs.isEmpty else { return [] }
         guard let snapshot = stateSnapshot(matching: threadIDs) else { return nil }
         switch snapshot {
         case .missing:
             return []
         case .available(let index):
-            return index.subagentThreadIDs.intersection(threadIDs)
+            return index.internalHelperThreadIDs.intersection(threadIDs)
         }
     }
 
@@ -117,62 +117,6 @@ final class CodexThreadArchiveLookup {
         case .available(let index):
             return index.execHelperThreadIDs.intersection(threadIDs)
         }
-    }
-
-    private static func threadSnapshotSQL(in database: OpaquePointer, matchingCount: Int) -> String? {
-        guard let columns = threadColumns(in: database),
-              columns.contains("id") else {
-            return nil
-        }
-
-        let selections = [
-            "id",
-            selectColumn("archived", from: columns, defaultingTo: "0"),
-            selectColumn("thread_source", from: columns, defaultingTo: "NULL"),
-            selectColumn("source", from: columns, defaultingTo: "NULL"),
-            selectColumn("has_user_event", from: columns, defaultingTo: "0"),
-            selectColumn("rollout_path", from: columns, defaultingTo: "NULL"),
-            selectColumn("git_origin_url", from: columns, defaultingTo: "NULL"),
-            selectColumn("cwd", from: columns, defaultingTo: "NULL")
-        ]
-        let placeholders = Array(repeating: "?", count: matchingCount).joined(separator: ",")
-        return "SELECT \(selections.joined(separator: ", ")) FROM threads WHERE id IN (\(placeholders))"
-    }
-
-    private static func threadColumns(in database: OpaquePointer) -> Set<String>? {
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(database, "PRAGMA table_info(threads)", -1, &statement, nil) == SQLITE_OK,
-              let statement else {
-            return nil
-        }
-        defer { sqlite3_finalize(statement) }
-
-        var columns = Set<String>()
-        while true {
-            switch sqlite3_step(statement) {
-            case SQLITE_ROW:
-                if let nameText = sqlite3_column_text(statement, 1) {
-                    columns.insert(String(cString: nameText))
-                }
-            case SQLITE_DONE:
-                return columns
-            default:
-                return nil
-            }
-        }
-    }
-
-    private static func selectColumn(_ name: String, from columns: Set<String>, defaultingTo fallback: String) -> String {
-        columns.contains(name) ? name : "\(fallback) AS \(name)"
-    }
-
-    private static func bind(_ threadIDs: [String], to statement: OpaquePointer) -> Bool {
-        for (index, threadID) in threadIDs.enumerated() {
-            guard sqlite3_bind_text(statement, Int32(index + 1), threadID, -1, sqliteTransient) == SQLITE_OK else {
-                return false
-            }
-        }
-        return true
     }
 
     static func rolloutFileFingerprints(at paths: Set<String>) -> [CodexThreadStateRolloutFileFingerprint] {
@@ -227,7 +171,7 @@ final class CodexThreadArchiveLookup {
         let threadID = String(cString: idText)
         index.existingThreadIDs.insert(threadID)
 
-        let rolloutPath = Self.columnString(statement, 5)
+        let rolloutPath = Self.columnString(statement, 4)
         let archiveState = Self.archiveState(
             sqliteArchived: sqlite3_column_int(statement, 1) == 1,
             rolloutPath: rolloutPath
@@ -239,9 +183,7 @@ final class CodexThreadArchiveLookup {
             index.archivedThreadIDs.insert(threadID)
         }
 
-        if Self.columnString(statement, 2) == "subagent" {
-            index.subagentThreadIDs.insert(threadID)
-        }
+        addDelegationRow(threadID, statement: statement, to: &index)
 
         addExecHelperRow(
             threadID,
@@ -253,6 +195,27 @@ final class CodexThreadArchiveLookup {
         Self.addProjectNameRow(threadID, statement: statement, to: &index)
     }
 
+    private func addDelegationRow(_ threadID: String, statement: OpaquePointer, to index: inout CodexThreadStateIndex) {
+        let storedSource = CodexStoredSessionSource(storedValue: Self.columnString(statement, 2))
+        let spawnParentThreadID = Self.columnString(statement, 7)
+        if spawnParentThreadID == nil, sqlite3_column_int(statement, 8) == 1 {
+            index.knownNoSpawnEdgeThreadIDs.insert(threadID)
+        }
+
+        switch storedSource.delegationClassification(spawnParentThreadID: spawnParentThreadID) {
+        case .interactiveRoot:
+            index.interactiveRootThreadIDs.insert(threadID)
+        case .internalHelper:
+            index.internalHelperThreadIDs.insert(threadID)
+        case .uncertain:
+            index.uncertainDelegationThreadIDs.insert(threadID)
+        case .contradictory:
+            index.contradictoryDelegationThreadIDs.insert(threadID)
+        case .otherVisible:
+            break
+        }
+    }
+
     private func addExecHelperRow(
         _ threadID: String,
         statement: OpaquePointer,
@@ -260,9 +223,9 @@ final class CodexThreadArchiveLookup {
         to index: inout CodexThreadStateIndex,
         rolloutTracker: inout CodexThreadStateRolloutTracker
     ) {
-        let source = Self.columnString(statement, 3)
-        let hasUserEvent = sqlite3_column_int(statement, 4) != 0
-        let rolloutPath = Self.columnString(statement, 5)
+        let source = Self.columnString(statement, 2)
+        let hasUserEvent = sqlite3_column_int(statement, 3) != 0
+        let rolloutPath = Self.columnString(statement, 4)
         guard source == "exec",
               !hasUserEvent,
               let rolloutPath else {
@@ -281,8 +244,8 @@ final class CodexThreadArchiveLookup {
     }
 
     private static func addProjectNameRow(_ threadID: String, statement: OpaquePointer, to index: inout CodexThreadStateIndex) {
-        let origin = columnString(statement, 6)
-        let cwd = columnString(statement, 7)
+        let origin = columnString(statement, 5)
+        let cwd = columnString(statement, 6)
         if let name = origin.flatMap({ projectName(fromGitOriginURL: $0) })
             ?? cwd.flatMap({ projectName(fromPath: $0) }) {
             index.projectNamesByThreadID[threadID] = name

@@ -520,6 +520,172 @@ final class SessionManagerVisibilityTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionManagerKeepsUserVisibleDelegatedCodexThreadVisible() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-delegated-visible-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            delegatedThreads: ["delegated-visible"]
+        )
+
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-delegated-visible.json")
+        try codexDesktopSession(
+            sessionId: "delegated-visible",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        ).writeToFile(path: sessionPath)
+
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["delegated-visible"])
+        let persisted = try Session.fromFile(path: sessionPath)
+        XCTAssertFalse(persisted.hidden)
+        XCTAssertFalse(persisted.isSubagentSession)
+    }
+
+    @MainActor
+    func testSessionManagerRepairsStickyDelegatedCodexThreadClassification() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-delegated-repair-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            delegatedThreads: ["delegated-sticky", "memory-sticky"]
+        )
+
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-delegated-sticky.json")
+        var session = codexDesktopSession(
+            sessionId: "delegated-sticky",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        )
+        session.isSubagentSession = true
+        session.hidden = true
+        try session.writeToFile(path: sessionPath)
+
+        let memoryPath = (sessionsDir as NSString).appendingPathComponent("codex-memory-sticky.json")
+        var memorySession = codexDesktopSession(
+            sessionId: "memory-sticky",
+            projectPath: Config.codexMemoriesDir()
+        )
+        memorySession.isSubagentSession = true
+        memorySession.hidden = true
+        try memorySession.writeToFile(path: memoryPath)
+
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.sessions.map(\.sessionId), ["delegated-sticky"])
+        let persisted = try Session.fromFile(path: sessionPath)
+        XCTAssertFalse(persisted.hidden)
+        XCTAssertFalse(persisted.isSubagentSession)
+        let persistedMemory = try Session.fromFile(path: memoryPath)
+        XCTAssertTrue(persistedMemory.hidden)
+        XCTAssertTrue(persistedMemory.isSubagentSession)
+    }
+
+    @MainActor
+    func testSessionManagerDoesNotRepairStickyDelegatedCodexThreadWithContradictorySpawnEdge() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-delegated-contradiction-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            delegatedThreads: ["delegated-with-edge"]
+        )
+        try executeSQLite(
+            "INSERT INTO thread_spawn_edges VALUES ('parent', 'delegated-with-edge', 'open');",
+            path: stateDB
+        )
+
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-delegated-with-edge.json")
+        var session = codexDesktopSession(
+            sessionId: "delegated-with-edge",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        )
+        session.isSubagentSession = true
+        session.hidden = true
+        try session.writeToFile(path: sessionPath)
+
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.sessions, [])
+        let persisted = try Session.fromFile(path: sessionPath)
+        XCTAssertTrue(persisted.hidden)
+        XCTAssertTrue(persisted.isSubagentSession)
+    }
+
+    @MainActor
+    func testSessionManagerDoesNotRepairStickyDelegatedCodexThreadWithoutSpawnEdgeSchema() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-delegated-legacy-schema-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            delegatedThreads: ["delegated-legacy"]
+        )
+        try executeSQLite("DROP TABLE thread_spawn_edges;", path: stateDB)
+
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-delegated-legacy.json")
+        var session = codexDesktopSession(
+            sessionId: "delegated-legacy",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        )
+        session.isSubagentSession = true
+        session.hidden = true
+        try session.writeToFile(path: sessionPath)
+
+        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.sessions, [])
+        let persisted = try Session.fromFile(path: sessionPath)
+        XCTAssertTrue(persisted.hidden)
+        XCTAssertTrue(persisted.isSubagentSession)
+    }
+
+    @MainActor
     func testSessionManagerFiltersCodexExecHelperThreadsWithoutRemovingFiles() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-exec-helper-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")

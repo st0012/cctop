@@ -36,7 +36,9 @@ struct SessionDataSources {
 struct SessionClassificationEvidence {
     let archivedCodexThreadIDs: Set<String>
     let missingCodexDesktopThreadIDs: Set<String>
-    let codexSubagentThreadIDs: Set<String>
+    let codexInternalHelperThreadIDs: Set<String>
+    let uncertainCodexDelegationThreadIDs: Set<String>
+    let contradictoryCodexDelegationThreadIDs: Set<String>
     let codexExecHelperThreadIDs: Set<String>
     let archivedClaudeSessionIDs: Set<String>
 }
@@ -64,8 +66,8 @@ struct FrozenCodexThreadState: CodexThreadStateProviding {
         return index.archivedThreadIDs.intersection(threadIDs)
     }
 
-    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
-        index.map { $0.subagentThreadIDs.intersection(threadIDs) } ?? []
+    func internalHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        index.map { $0.internalHelperThreadIDs.intersection(threadIDs) } ?? []
     }
 
     func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
@@ -82,7 +84,7 @@ enum SessionHiddenReason: Equatable {
     case autoHidden
     case archivedCodexDesktop
     case missingCodexDesktopThread
-    case codexSubagent
+    case codexInternalHelper
     case codexExecHelper
     case archivedClaudeDesktop
     case orphanedEndedClaudeDesktop
@@ -93,7 +95,7 @@ enum SessionHiddenReason: Equatable {
     /// explicitly emitted cleanup sources can make those paths cleanup candidates.
     var protectsCleanupPath: Bool {
         switch self {
-        case .persistedHidden, .autoHidden, .codexSubagent, .codexExecHelper:
+        case .persistedHidden, .autoHidden, .codexInternalHelper, .codexExecHelper:
             return true
         case .archivedCodexDesktop, .missingCodexDesktopThread, .archivedClaudeDesktop,
              .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
@@ -131,9 +133,9 @@ struct SessionClassificationSnapshot {
         }
     }
 
-    var codexSubagentCandidates: [DedupCandidate] {
+    var codexInternalHelperCandidates: [DedupCandidate] {
         records.compactMap { record in
-            guard case .hidden(.codexSubagent) = record.disposition else { return nil }
+            guard case .hidden(.codexInternalHelper) = record.disposition else { return nil }
             return record.candidate
         }
     }
@@ -176,7 +178,9 @@ struct SessionClassificationSnapshot {
 
     var archivedCodexThreadIDs: Set<String> { evidence.archivedCodexThreadIDs }
     var missingCodexDesktopThreadIDs: Set<String> { evidence.missingCodexDesktopThreadIDs }
-    var codexSubagentThreadIDs: Set<String> { evidence.codexSubagentThreadIDs }
+    var codexInternalHelperThreadIDs: Set<String> { evidence.codexInternalHelperThreadIDs }
+    var uncertainCodexDelegationThreadIDs: Set<String> { evidence.uncertainCodexDelegationThreadIDs }
+    var contradictoryCodexDelegationThreadIDs: Set<String> { evidence.contradictoryCodexDelegationThreadIDs }
     var codexExecHelperThreadIDs: Set<String> { evidence.codexExecHelperThreadIDs }
     var archivedClaudeSessionIDs: Set<String> { evidence.archivedClaudeSessionIDs }
 }
@@ -186,7 +190,7 @@ private extension SessionHiddenReason {
         switch self {
         case .archivedCodexDesktop, .archivedClaudeDesktop:
             return true
-        case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexSubagent,
+        case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper,
              .codexExecHelper, .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
             return false
         }
@@ -317,14 +321,21 @@ extension SessionManager {
             codexThreads: codexThreads,
             now: now
         )
-        let codexSubagentThreadIDs = codexSubagentThreadIDs(in: externallyClassifiableSessions, codexThreads: codexThreads)
+        let codexDelegationIndex = codexThreads.stateIndex(
+            matching: codexThreadIDs(in: sessions)
+        )
+        let codexInternalHelperThreadIDs = codexDelegationIndex?.internalHelperThreadIDs ?? []
+        let uncertainCodexDelegationThreadIDs = codexDelegationIndex?.uncertainDelegationThreadIDs ?? []
+        let contradictoryCodexDelegationThreadIDs = codexDelegationIndex?.contradictoryDelegationThreadIDs ?? []
         let codexExecHelperThreadIDs = codexExecHelperThreadIDs(in: externallyClassifiableSessions, codexThreads: codexThreads)
         let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
 
         let evidence = SessionClassificationEvidence(
             archivedCodexThreadIDs: archivedCodexThreadIDs,
             missingCodexDesktopThreadIDs: missingCodexDesktopThreadIDs,
-            codexSubagentThreadIDs: codexSubagentThreadIDs,
+            codexInternalHelperThreadIDs: codexInternalHelperThreadIDs,
+            uncertainCodexDelegationThreadIDs: uncertainCodexDelegationThreadIDs,
+            contradictoryCodexDelegationThreadIDs: contradictoryCodexDelegationThreadIDs,
             codexExecHelperThreadIDs: codexExecHelperThreadIDs,
             archivedClaudeSessionIDs: archivedClaudeSessionIDs
         )
@@ -361,8 +372,8 @@ extension SessionManager {
         if isMissingCodexDesktopSession(session, missingThreadIDs: evidence.missingCodexDesktopThreadIDs) {
             return .hidden(.missingCodexDesktopThread)
         }
-        if isCodexSubagentSession(session, subagentThreadIDs: evidence.codexSubagentThreadIDs) {
-            return .hidden(.codexSubagent)
+        if isCodexInternalHelperSession(session, internalHelperThreadIDs: evidence.codexInternalHelperThreadIDs) {
+            return .hidden(.codexInternalHelper)
         }
         if isCodexExecHelperSession(session, execHelperThreadIDs: evidence.codexExecHelperThreadIDs) {
             return .hidden(.codexExecHelper)
@@ -382,19 +393,20 @@ extension SessionManager {
 
     func deriveSessionClassification(from decoded: [(url: URL, session: Session)]) -> SessionClassificationSnapshot {
         let now = dataSources.now()
-        let classifiableSessions = decoded
-            .map(\.session)
-            .filter { !$0.hidden && !$0.shouldAutoHide }
         let codexThreads = Self.batchedCodexThreadState(
-            in: classifiableSessions,
+            in: decoded.map(\.session),
             codexThreads: dataSources.codexThreads
         )
+        let repaired = repairStickyCodexDelegationState(in: decoded, codexThreads: codexThreads)
+        let classifiableSessions = repaired
+            .map(\.session)
+            .filter { !$0.hidden && !$0.shouldAutoHide }
         let claudeMetadata = Self.claudeDesktopMetadataSnapshot(
             in: classifiableSessions,
             claudeDesktopSessions: dataSources.claudeDesktopSessions
         )
         let candidates = Self.buildCandidates(
-            decoded,
+            repaired,
             now: now,
             desktopAppConnectionLookup: dataSources.desktopAppConnection,
             claudeMetadata: claudeMetadata,
@@ -403,11 +415,48 @@ extension SessionManager {
         )
         return Self.sessionClassificationSnapshot(
             in: candidates,
-            sessions: decoded.map(\.session),
+            sessions: repaired.map(\.session),
             claudeMetadata: claudeMetadata,
             codexThreads: codexThreads,
             now: now
         )
+    }
+
+    private func repairStickyCodexDelegationState(
+        in decoded: [(url: URL, session: Session)],
+        codexThreads: FrozenCodexThreadState
+    ) -> [(url: URL, session: Session)] {
+        guard let index = codexThreads.index else { return decoded }
+        let repairableThreadIDs = index.interactiveRootThreadIDs
+            .intersection(index.knownNoSpawnEdgeThreadIDs)
+        guard !repairableThreadIDs.isEmpty else { return decoded }
+
+        var repairedByPath: [String: Session] = [:]
+        for (url, session) in decoded where session.hidden
+            && session.isSubagentSession
+            && repairableThreadIDs.contains(session.sessionId) {
+            withSessionLockForMaintenance(
+                sessionPath: url.path,
+                sessionId: session.sessionId,
+                action: "Codex delegated-task classification repair"
+            ) {
+                guard let repaired = try Self.repairedCodexInteractiveRootSessionSnapshot(
+                    path: url.path,
+                    repairableThreadIDs: repairableThreadIDs
+                ) else {
+                    return
+                }
+                try repaired.writeToFile(path: url.path)
+                repairedByPath[url.path] = repaired
+                sessionManagerLogger.info(
+                    "restoring interactive Codex session \(session.sessionId, privacy: .public)"
+                )
+            }
+        }
+
+        return decoded.map { entry in
+            (entry.url, repairedByPath[entry.url.path] ?? entry.session)
+        }
     }
 
     private nonisolated static func batchedCodexThreadState(
@@ -480,21 +529,11 @@ extension SessionManager {
             && missingThreadIDs.contains(session.sessionId)
     }
 
-    /// Codex records whether a thread is user-owned or subagent-owned in its local thread
-    /// database. That signal applies across Codex hosts: Desktop and terminal Codex CLI.
-    nonisolated static func codexSubagentThreadIDs(
-        in sessions: [Session],
-        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
-    ) -> Set<String> {
-        let threadIDs = codexThreadIDs(in: sessions)
-        return codexThreads.subagentThreadIDs(matching: threadIDs) ?? []
-    }
-
-    nonisolated static func isCodexSubagentSession(
+    nonisolated static func isCodexInternalHelperSession(
         _ session: Session,
-        subagentThreadIDs: Set<String>
+        internalHelperThreadIDs: Set<String>
     ) -> Bool {
-        (session.isCodex || session.isCodexDesktopHost) && subagentThreadIDs.contains(session.sessionId)
+        (session.isCodex || session.isCodexDesktopHost) && internalHelperThreadIDs.contains(session.sessionId)
     }
 
     /// Codex Desktop can launch short-lived `codex exec` helper threads. They are useful as
@@ -514,22 +553,41 @@ extension SessionManager {
         (session.isCodex || session.isCodexDesktopHost) && execHelperThreadIDs.contains(session.sessionId)
     }
 
-    /// Fresh single-session check used before persisting a hidden flag for a Codex subagent
-    /// thread. Lookup uncertainty fails OPEN: if we cannot prove it is a subagent, leave it
-    /// visible rather than permanently hiding the file.
-    nonisolated static func codexSubagentHiddenSessionSnapshot(
+    /// Re-read the session file under its lock before persisting a hidden flag. The helper IDs
+    /// come from the same batched authoritative snapshot used for classification, avoiding a
+    /// second database query per session while still rejecting a concurrently replaced file.
+    nonisolated static func codexInternalHelperHiddenSessionSnapshot(
         path: String,
-        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
+        internalHelperThreadIDs: Set<String>
     ) throws -> Session? {
         guard FileManager.default.fileExists(atPath: path) else { return nil }
         var latest = try Session.fromFile(path: path)
         guard !latest.hidden, latest.isCodex || latest.isCodexDesktopHost else { return nil }
-        guard let subagentIDs = codexThreads.subagentThreadIDs(matching: [latest.sessionId]),
-              subagentIDs.contains(latest.sessionId) else {
-            return nil
-        }
+        guard internalHelperThreadIDs.contains(latest.sessionId) else { return nil }
         latest.isSubagentSession = true
         latest.hidden = true
+        return latest
+    }
+
+    /// Repairs only the stale marker pair written by the old `thread_source` classifier. The
+    /// caller supplies a batched, authoritative set that has already proven `cli`/`vscode` and
+    /// a readable topology table with no spawn edge.
+    nonisolated static func repairedCodexInteractiveRootSessionSnapshot(
+        path: String,
+        repairableThreadIDs: Set<String>
+    ) throws -> Session? {
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        var latest = try Session.fromFile(path: path)
+        guard latest.hidden,
+              latest.isSubagentSession,
+              latest.isCodex || latest.isCodexDesktopHost,
+              repairableThreadIDs.contains(latest.sessionId) else {
+            return nil
+        }
+
+        latest.isSubagentSession = false
+        guard !latest.shouldAutoHide else { return nil }
+        latest.hidden = false
         return latest
     }
 
@@ -541,21 +599,22 @@ extension SessionManager {
         return latest
     }
 
-    func hideCodexSubagentSessions(_ candidates: [DedupCandidate]) {
+    func hideCodexInternalHelperSessions(_ candidates: [DedupCandidate]) {
+        let internalHelperThreadIDs = Set(candidates.map(\.session.sessionId))
         for candidate in candidates {
             withSessionLockForMaintenance(
                 sessionPath: candidate.path,
                 sessionId: candidate.session.sessionId,
-                action: "Codex subagent hide"
+                action: "Codex internal helper hide"
             ) {
-                guard let hiddenSession = try Self.codexSubagentHiddenSessionSnapshot(
+                guard let hiddenSession = try Self.codexInternalHelperHiddenSessionSnapshot(
                     path: candidate.path,
-                    codexThreads: dataSources.codexThreads
+                    internalHelperThreadIDs: internalHelperThreadIDs
                 ) else {
                     return
                 }
                 sessionManagerLogger.info(
-                    "hiding Codex subagent session \(candidate.session.sessionId, privacy: .public)"
+                    "hiding Codex internal helper session \(candidate.session.sessionId, privacy: .public)"
                 )
                 try hiddenSession.writeToFile(path: candidate.path)
             }

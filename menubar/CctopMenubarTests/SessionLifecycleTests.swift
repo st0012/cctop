@@ -153,7 +153,13 @@ final class SessionLifecycleTests: XCTestCase {
         cli.pid = nil
         try cli.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("codex-\(cliID).json"))
 
+        let helperID = "codex-helper"
+        var helper = codexTerminalSession(sessionId: helperID, projectPath: "/tmp/helper")
+        helper.pid = nil
+        try helper.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("codex-\(helperID).json"))
+
         let codexThreads = RecordingCodexThreadState(
+            internalHelpers: [helperID],
             projectNamesByThreadID: [
                 desktopID: "desktop-project",
                 cliID: "cli-project"
@@ -171,7 +177,8 @@ final class SessionLifecycleTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertEqual(codexThreads.stateIndexRequests, [[desktopID, cliID]])
+        XCTAssertEqual(codexThreads.stateIndexRequests, [[desktopID, cliID, helperID]])
+        XCTAssertEqual(codexThreads.internalHelperRequests, [])
         XCTAssertEqual(codexThreads.projectNameRequests, [])
     }
 
@@ -576,9 +583,9 @@ final class SessionLifecycleTests: XCTestCase {
             classification.displayCandidates.map(\.session.sessionId).sorted(),
             ["matched-ended-claude", "visible-claude", "visible-thread"]
         )
-        XCTAssertEqual(classification.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
+        XCTAssertEqual(classification.codexInternalHelperCandidates.map(\.session.sessionId), ["subagent-thread"])
         XCTAssertEqual(classification.archivedCodexThreadIDs, ["archived-thread"])
-        XCTAssertEqual(classification.codexSubagentThreadIDs, ["subagent-thread"])
+        XCTAssertEqual(classification.codexInternalHelperThreadIDs, ["subagent-thread"])
         XCTAssertEqual(classification.codexExecHelperThreadIDs, ["exec-helper-thread"])
         XCTAssertEqual(classification.archivedClaudeSessionIDs, ["archived-claude"])
     }
@@ -606,7 +613,7 @@ final class SessionLifecycleTests: XCTestCase {
         XCTAssertEqual(state.cleanupSources.map(\.sessionId), ["archived-thread"])
         XCTAssertEqual(state.cleanupSources.map(\.projectPath), ["/tmp/p"])
         XCTAssertEqual(state.cleanupSources.map(\.sessionName), ["Archived desktop work"])
-        XCTAssertEqual(state.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
+        XCTAssertEqual(state.codexInternalHelperCandidates.map(\.session.sessionId), ["subagent-thread"])
     }
 
     func testClassificationSnapshotMapsDispositionsToAllowedActions() {
@@ -664,7 +671,7 @@ final class SessionLifecycleTests: XCTestCase {
             ["archived-claude", "archived-thread"]
         )
         XCTAssertEqual(state.autoHiddenSessions.map(\.1.sessionId), ["auto-hidden"])
-        XCTAssertEqual(state.codexSubagentCandidates.map(\.session.sessionId), ["subagent-thread"])
+        XCTAssertEqual(state.codexInternalHelperCandidates.map(\.session.sessionId), ["subagent-thread"])
         XCTAssertEqual(state.protectedProjectPathsForCleanup, ["/tmp/p"])
     }
 
@@ -1024,7 +1031,7 @@ final class SessionLifecycleTests: XCTestCase {
             classification.displayCandidates.map(\.session.sessionId).sorted(),
             ["maybe-archived", "maybe-orphaned", "maybe-startup-only"]
         )
-        XCTAssertEqual(classification.codexSubagentCandidates.map(\.session.sessionId), [])
+        XCTAssertEqual(classification.codexInternalHelperCandidates.map(\.session.sessionId), [])
         XCTAssertEqual(classification.cleanupSources.map(\.sessionId), [])
     }
 
@@ -1089,11 +1096,14 @@ final class SessionLifecycleTests: XCTestCase {
 }
 
 private final class RecordingCodexThreadState: CodexThreadStateProviding {
+    private let internalHelpers: Set<String>
     private let projectNamesByThreadID: [String: String]
     private(set) var stateIndexRequests: [Set<String>] = []
+    private(set) var internalHelperRequests: [Set<String>] = []
     private(set) var projectNameRequests: [Set<String>] = []
 
-    init(projectNamesByThreadID: [String: String]) {
+    init(internalHelpers: Set<String> = [], projectNamesByThreadID: [String: String]) {
+        self.internalHelpers = internalHelpers
         self.projectNamesByThreadID = projectNamesByThreadID
     }
 
@@ -1101,6 +1111,7 @@ private final class RecordingCodexThreadState: CodexThreadStateProviding {
         stateIndexRequests.append(threadIDs)
         var index = CodexThreadStateIndex()
         index.existingThreadIDs = threadIDs
+        index.internalHelperThreadIDs = internalHelpers.intersection(threadIDs)
         index.projectNamesByThreadID = projectNamesByThreadID.filter { threadIDs.contains($0.key) }
         return index
     }
@@ -1113,8 +1124,9 @@ private final class RecordingCodexThreadState: CodexThreadStateProviding {
         []
     }
 
-    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
-        []
+    func internalHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        internalHelperRequests.append(threadIDs)
+        return internalHelpers.intersection(threadIDs)
     }
 
     func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {

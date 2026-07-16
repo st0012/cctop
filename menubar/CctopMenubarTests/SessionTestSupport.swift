@@ -24,6 +24,7 @@ extension XCTestCase {
         path: String,
         archivedThreads: Set<String>,
         subagentThreads: Set<String> = [],
+        delegatedThreads: Set<String> = [],
         gitOrigins: [String: String] = [:],
         cwds: [String: String] = [:],
         execHelperThreads: Set<String> = [],
@@ -54,10 +55,25 @@ extension XCTestCase {
             VALUES (\(sqlValue($0)), '', 1, 'user', NULL, NULL, 'vscode', 1, '');
             """
         }.joined(separator: "\n")
-        let subagentRows = subagentThreads.map {
+        let subagentRows = subagentThreads.map { threadID in
+            let source = """
+            {"subagent":{"thread_spawn":{"parent_thread_id":"fixture-parent","depth":1,"agent_path":null,"agent_nickname":null,"agent_role":null}}}
+            """
+            return """
+            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
+            VALUES (\(sqlValue(threadID)), '', 0, 'subagent', NULL, NULL, \(sqlValue(source)), 0, '');
+            """
+        }.joined(separator: "\n")
+        let delegatedRows = delegatedThreads.map {
             """
             INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES (\(sqlValue($0)), '', 0, 'subagent', NULL, NULL, 'vscode', 0, '');
+            VALUES (\(sqlValue($0)), '', 0, 'subagent', NULL, NULL, 'vscode', 1, '');
+            """
+        }.joined(separator: "\n")
+        let spawnEdgeRows = subagentThreads.map {
+            """
+            INSERT INTO thread_spawn_edges (parent_thread_id, child_thread_id, status)
+            VALUES ('fixture-parent', \(sqlValue($0)), 'open');
             """
         }.joined(separator: "\n")
         let metadataRows = Set(gitOrigins.keys).union(cwds.keys).map { threadID in
@@ -88,6 +104,7 @@ extension XCTestCase {
         }.joined(separator: "\n")
         let sql = """
         DROP TABLE IF EXISTS threads;
+        DROP TABLE IF EXISTS thread_spawn_edges;
         CREATE TABLE threads (
             id TEXT PRIMARY KEY,
             rollout_path TEXT NOT NULL DEFAULT '',
@@ -99,12 +116,19 @@ extension XCTestCase {
             has_user_event INTEGER NOT NULL DEFAULT 0,
             first_user_message TEXT NOT NULL DEFAULT ''
         );
+        CREATE TABLE thread_spawn_edges (
+            parent_thread_id TEXT NOT NULL,
+            child_thread_id TEXT NOT NULL PRIMARY KEY,
+            status TEXT NOT NULL
+        );
         \(archivedRows)
         \(subagentRows)
+        \(delegatedRows)
         \(metadataRows)
         \(execHelperRows)
         \(execFirstMessageRows)
         \(userExecRows)
+        \(spawnEdgeRows)
         """
         try executeSQLite(sql, path: path)
     }
@@ -239,7 +263,7 @@ struct StubCodexThreadState: CodexThreadStateProviding {
         var index = CodexThreadStateIndex()
         index.existingThreadIDs = (existing ?? threadIDs).intersection(threadIDs)
         index.archivedThreadIDs = (archived ?? []).intersection(threadIDs)
-        index.subagentThreadIDs = (subagents ?? []).intersection(threadIDs)
+        index.internalHelperThreadIDs = (subagents ?? []).intersection(threadIDs)
         index.execHelperThreadIDs = (execHelpers ?? []).intersection(threadIDs)
         index.projectNamesByThreadID = (projectNamesByThreadID ?? [:]).filter { threadIDs.contains($0.key) }
         return index
@@ -253,7 +277,7 @@ struct StubCodexThreadState: CodexThreadStateProviding {
         archived.map { $0.intersection(threadIDs) }
     }
 
-    func subagentThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+    func internalHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
         subagents.map { $0.intersection(threadIDs) }
     }
 
