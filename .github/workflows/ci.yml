@@ -27,6 +27,8 @@ jobs:
           node-version: "24"
       - name: Test opencode plugin
         run: npm --prefix plugins/opencode test
+      - name: Test Stream Deck plugin
+        run: npm --prefix plugins/streamdeck test
       - name: Test pi plugin
         run: node --test plugins/pi/test/*.test.mjs
 
@@ -61,6 +63,8 @@ jobs:
             deriveddata-${{ runner.os }}-xcode16.3-
       - name: Build menubar app
         run: xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+      - name: Test Stream Deck version bump
+        run: scripts/test-bump-streamdeck-version.sh
       - name: Test
         run: xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/
       - name: Smoke test cctop-hook

@@ -126,6 +126,9 @@ cctop/
 ├── plugins/pi/        # pi coding agent extension (TS, translates events to cctop-hook calls)
 │   ├── cctop.ts       # Extension entry point, calls cctop-hook binary
 │   └── test/          # node:test coverage for pi event translation
+├── plugins/streamdeck/ # Stream Deck output/control surface bundled with the app
+│   ├── com.st0012.cctop.sdPlugin/ # Node 24 plugin, key assets, and MK.2 profile
+│   └── test/           # protocol, rendering, state-boundary, and package tests
 ├── scripts/
 │   ├── bundle-macos.sh        # Build and bundle .app
 │   ├── sign-and-notarize.sh   # Code sign + Apple notarization
@@ -270,13 +273,20 @@ All supported clients use `cctop-hook` as the single entry point for session sta
 
 **All paths converge:** The menubar app (SessionManager file watcher) reads `~/.cctop/sessions/*.json` and displays live status regardless of source. Sessions include a `source` field identifying the harness (`"cc"` for Claude Code, `"opencode"` for opencode, `"pi"`, `"codex"`). Most integrations write PID-keyed files (`<pid>.json`); Codex writes `codex-<session_id>.json` because multiple conversations can share one host PID.
 
+**Stream Deck is downstream of the app:** The app publishes its resolved,
+ordered display projection to `~/.cctop/display-state.json`. The Stream Deck
+plugin reads only that API file; it must never inspect `sessions/`, client data,
+hooks, or recreate filtering, ordering, lifecycle, identity, or theme logic.
+Session and toggle keys send `cctop://` commands through macOS Launch Services;
+cctop validates the exact published display id and uses its normal focus path.
+
 ## Development Commands
 
 ```bash
 # Build both targets (menubar app + cctop-hook CLI)
 make build
 
-# Run all tests (opencode + pi plugin node:test suites + Swift tests)
+# Run all tests (opencode + Stream Deck + pi plugin suites + Swift tests)
 make test
 
 # Lint with swiftlint --strict
@@ -362,7 +372,7 @@ The pi extension (`plugins/pi/cctop.ts`) has an equivalent `node:test` suite und
 node --test plugins/pi/test/*.test.mjs
 ```
 
-`make test` runs the opencode and pi plugin tests before the Swift test suite; on Node older than 23.6 it skips the pi suite with a warning instead of failing. For hook event mapping changes, also run `make contract`; it verifies the hook schema, fixtures, Swift parser, and plugin hook calls stay in sync.
+`make test` runs the opencode, Stream Deck, and pi plugin tests before the Swift test suite; on Node older than 23.6 it skips the pi suite with a warning instead of failing. For hook event mapping changes, also run `make contract`; it verifies the hook schema, fixtures, Swift parser, and plugin hook calls stay in sync.
 
 For local development, you can manually copy your modified plugin to override the installed version:
 
@@ -379,7 +389,27 @@ cat ~/.cctop/sessions/*.json | jq '.source'
 
 Note: The app only installs the plugin when the user explicitly clicks "Install Plugin" — it will not overwrite your local changes automatically. However, if you click "Install Plugin" again from the UI, it will overwrite with the bundled version.
 
+## Testing the Stream Deck Plugin
+
+The bundled Node 24 plugin and MK.2 profile live under `plugins/streamdeck/`.
+Run its protocol, rendering, state-boundary, manifest, and profile checks with:
+
+```bash
+npm --prefix plugins/streamdeck test
+```
+
+Installation may replace only cctop's own
+`com.st0012.cctop.sdPlugin` directory. Never edit Stream Deck's profile database
+directly; profile import must go through Stream Deck, and removal leaves user
+profiles unchanged.
+
 ## Jump-to-Session Behavior
+
+- **Stream Deck**: Session keys ask macOS Launch Services to deliver an encoded
+  `cctop://focus?sid=...` command. cctop exact-matches the published `Session.id`
+  against its current visible sessions and calls the same `focusTerminal(session:)`
+  path as its UI. Never fall back from a missing display id to a conversation id
+  or another slot. Toggle Panel uses `cctop://toggle`.
 
 - **VS Code / Cursor**: Uses `NSWorkspace.open` with the editor's bundle ID to focus the project window. Does not shell out to `code`/`cursor` CLI (avoids PATH issues after Sparkle updates). If a `.code-workspace` file is detected in the project directory, it's passed instead of the folder path.
 - **Workspace limitation**: cctop detects workspace files by scanning the project directory at session start. If the project folder contains a `.code-workspace` file but you opened the folder directly (not via the workspace file), cctop may incorrectly open the workspace instead of focusing the folder window. VS Code does not expose which mode was used via environment variables or APIs.

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import os.log
 
@@ -16,6 +17,9 @@ class PluginManager: ObservableObject {
     @Published var codexConfigExists: Bool = false
     @Published var codexHookStatus: CodexHookStatus = .notInstalled
     @Published var codexLegacyConfigKey: Bool = false
+    @Published var sdConfigExists: Bool = false
+    @Published var sdInstalled: Bool = false
+    @Published var sdNeedsUpdate: Bool = false
 
     static let ccInstallCommand =
         "claude plugin marketplace add st0012/cctop && claude plugin install cctop"
@@ -24,8 +28,12 @@ class PluginManager: ObservableObject {
     private let ocPluginPath: URL
     private let piPluginPath: URL
     private let ccPluginCacheDir: URL
-    static let ccOrphanedMarker = ".orphaned_at"
-    static let ccPluginManifestPath = ".claude-plugin/plugin.json"
+    private let sdAppSupportDir: URL
+    private var streamDeckRestartTask: Task<Void, Never>?
+    nonisolated static let ccOrphanedMarker = ".orphaned_at"
+    nonisolated static let ccPluginManifestPath = ".claude-plugin/plugin.json"
+    static let sdPluginDirName = "com.st0012.cctop.sdPlugin"
+    static let sdAppBundleID = "com.elgato.StreamDeck"
 
     /// `homeDirectory` controls where Claude Code, opencode, and pi detection
     /// looks, so tests and previews can stage a directory (or point at a
@@ -48,9 +56,16 @@ class PluginManager: ObservableObject {
         self.ccPluginCacheDir = homeDirectory.appendingPathComponent(
             ".claude/plugins/cache/cctop/cctop"
         )
+        self.sdAppSupportDir = homeDirectory.appendingPathComponent(
+            "Library/Application Support/com.elgato.StreamDeck"
+        )
         if refreshOnInit {
             refresh()
         }
+    }
+
+    private var sdPluginDestination: URL {
+        sdAppSupportDir.appendingPathComponent("Plugins/\(Self.sdPluginDirName)")
     }
 
     func refresh() {
@@ -66,6 +81,14 @@ class PluginManager: ObservableObject {
         let piConfigDir = homeDirectory.appendingPathComponent(".pi")
         piConfigExists = fm.fileExists(atPath: piConfigDir.path)
         piInstalled = fm.fileExists(atPath: piPluginPath.path)
+
+        sdConfigExists = fm.fileExists(atPath: sdAppSupportDir.path)
+        let installedManifest = sdPluginDestination.appendingPathComponent("manifest.json")
+        sdInstalled = fm.fileExists(atPath: installedManifest.path)
+        sdNeedsUpdate = sdInstalled && Self.streamDeckInstallOutdated(
+            bundledDirectory: Self.bundledStreamDeckPluginDirectory,
+            installedDirectory: sdPluginDestination
+        )
 
         let codexDirExists = CodexPluginInstaller.codexConfigExists()
         let codexConfigText: String? = codexDirExists
@@ -179,9 +202,158 @@ class PluginManager: ObservableObject {
     func removePiPlugin() -> Bool {
         removeBundledPlugin(path: piPluginPath, name: "pi")
     }
+}
 
-    // MARK: - Private
+// MARK: - Stream Deck
 
+extension PluginManager {
+    func installStreamDeckPlugin() -> Bool {
+        defer { refresh() }
+        guard let bundled = Self.bundledStreamDeckPluginDirectory else {
+            logger.error("Missing bundled Stream Deck plugin")
+            return false
+        }
+        do {
+            try Self.replaceDirectory(at: sdPluginDestination, with: bundled)
+            logger.info("Installed cctop Stream Deck plugin")
+            restartStreamDeckIfRunning()
+            return true
+        } catch {
+            logger.error("Failed to install Stream Deck plugin: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    func removeStreamDeckPlugin() -> Bool {
+        defer { refresh() }
+        do {
+            try FileManager.default.removeItem(at: sdPluginDestination)
+            logger.info("Removed cctop Stream Deck plugin; user profiles were left unchanged")
+            restartStreamDeckIfRunning()
+            return true
+        } catch {
+            logger.error("Failed to remove Stream Deck plugin: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Opens the bundled profile with Stream Deck's importer. cctop never reads
+    /// or writes Stream Deck's profile database, so unrelated actions and profiles
+    /// remain entirely under Stream Deck's control.
+    func importStreamDeckProfile() -> Bool {
+        guard let profile = Self.bundledStreamDeckPluginDirectory?
+            .appendingPathComponent("profiles/cctop.streamDeckProfile"),
+              FileManager.default.fileExists(atPath: profile.path) else {
+            logger.error("Missing bundled Stream Deck profile")
+            return false
+        }
+        return NSWorkspace.shared.open(profile)
+    }
+
+    nonisolated static var bundledStreamDeckPluginDirectory: URL? {
+        Bundle.main.url(forResource: "com.st0012.cctop", withExtension: "sdPlugin")
+    }
+
+    nonisolated static func streamDeckInstallOutdated(
+        bundledDirectory: URL?,
+        installedDirectory: URL
+    ) -> Bool {
+        guard let bundledDirectory else { return false }
+        let fileManager = FileManager.default
+        guard let files = fileManager.enumerator(
+            at: bundledDirectory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return true
+        }
+
+        let bundledRoot = bundledDirectory.standardizedFileURL.path
+        var foundManifest = false
+        for case let bundledFile as URL in files {
+            guard (try? bundledFile.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
+                continue
+            }
+            let bundledPath = bundledFile.standardizedFileURL.path
+            guard bundledPath.hasPrefix("\(bundledRoot)/") else { return true }
+            let relativePath = String(bundledPath.dropFirst(bundledRoot.count + 1))
+            if relativePath == "manifest.json" { foundManifest = true }
+            let installedFile = installedDirectory.appendingPathComponent(relativePath)
+            guard let bundledData = try? Data(contentsOf: bundledFile),
+                  let installedData = try? Data(contentsOf: installedFile),
+                  bundledData == installedData else {
+                return true
+            }
+        }
+        return !foundManifest
+    }
+
+    /// Stage the complete plugin before changing the installed copy. If the
+    /// final move fails, restore the prior installation from its sibling backup.
+    nonisolated static func replaceDirectory(at destination: URL, with source: URL) throws {
+        let fileManager = FileManager.default
+        let parent = destination.deletingLastPathComponent()
+        try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
+        let token = UUID().uuidString
+        let staging = parent.appendingPathComponent(".\(destination.lastPathComponent).staging-\(token)")
+        let backup = parent.appendingPathComponent(".\(destination.lastPathComponent).backup-\(token)")
+
+        do {
+            try fileManager.copyItem(at: source, to: staging)
+            let hadExistingInstall = fileManager.fileExists(atPath: destination.path)
+            if hadExistingInstall {
+                try fileManager.moveItem(at: destination, to: backup)
+            }
+            do {
+                try fileManager.moveItem(at: staging, to: destination)
+                if hadExistingInstall { try? fileManager.removeItem(at: backup) }
+            } catch {
+                if hadExistingInstall, !fileManager.fileExists(atPath: destination.path) {
+                    try? fileManager.moveItem(at: backup, to: destination)
+                }
+                throw error
+            }
+        } catch {
+            try? fileManager.removeItem(at: staging)
+            throw error
+        }
+    }
+
+    private func restartStreamDeckIfRunning() {
+        guard let app = NSRunningApplication
+            .runningApplications(withBundleIdentifier: Self.sdAppBundleID).first,
+              let bundleURL = app.bundleURL else { return }
+
+        streamDeckRestartTask?.cancel()
+        app.terminate()
+        streamDeckRestartTask = Task { @MainActor in
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                let stillRunning = !NSRunningApplication
+                    .runningApplications(withBundleIdentifier: Self.sdAppBundleID).isEmpty
+                if !stillRunning {
+                    do {
+                        _ = try await NSWorkspace.shared.openApplication(
+                            at: bundleURL,
+                            configuration: NSWorkspace.OpenConfiguration()
+                        )
+                    } catch {
+                        logger.error(
+                            "Failed to restart Stream Deck: \(error.localizedDescription, privacy: .public)"
+                        )
+                    }
+                    return
+                }
+            }
+            logger.error("Timed out waiting to restart Stream Deck")
+        }
+    }
+}
+
+// MARK: - Shared plugin file operations
+
+extension PluginManager {
     private func installBundledPlugin(
         resource: String, ext: String, destination: URL, name: String
     ) -> Bool {

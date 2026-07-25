@@ -33,6 +33,7 @@ struct SettingsSection: View {
         .onAppear { notificationPermission.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             notificationPermission.refresh()
+            pluginManager.refresh()
         }
     }
 
@@ -43,6 +44,15 @@ struct SettingsSection: View {
             sectionHeader("Tools")
             settingsGroup {
                 MonitoredToolsView(pluginManager: pluginManager)
+            }
+
+            if pluginManager.sdConfigExists {
+                sectionHeader("Integrations")
+                settingsGroup {
+                    StreamDeckPluginRowView(pluginManager: pluginManager)
+                        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+                        .padding(.vertical, 2)
+                }
             }
 
             sectionHeader("Appearance")

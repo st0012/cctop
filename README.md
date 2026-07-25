@@ -171,11 +171,19 @@ Sparkle.
 
 ### 2. Connect your tools
 
-Open **Settings > Tools**. cctop shows the setup action for each detected tool:
+Open **Settings**. cctop shows setup actions for detected coding clients under
+**Tools**, and companion apps under **Integrations**:
 
 - Claude Code / Claude Desktop: click **Copy Install Command**, then run the
   two commands below in a terminal.
 - opencode and pi: click **Install Plugin**.
+- Stream Deck: under **Integrations**, click **Install Plugin**. Stream Deck
+  offers cctop's optional default profile for compatible 15-key Stream Decks; it
+  adds the first five sessions across the top row and **Toggle Panel** at row 2,
+  column 1 without switching away from your current profile. If you skip that
+  prompt, use **Import default profile** later or place the Session and Toggle
+  Panel actions manually on any supported model. To show more sessions, add
+  Session actions and set their slots to 6, 7, and so on.
 - Codex CLI / Codex Desktop: click **Install Hooks**, then start a new Codex CLI
   session and choose **Trust all and continue** when Codex reviews the hooks.
   Codex Desktop shares that trust state.
@@ -226,6 +234,12 @@ Switch themes in **Settings > Appearance > Color**.
 
 **No analytics, no telemetry, and no session upload.** Session data stays on your
 machine in `~/.cctop/sessions/` as plain JSON.
+
+cctop also publishes `~/.cctop/display-state.json` for display integrations.
+Each session entry contains only the ordered display identity, name, status,
+and resolved color needed for the keys. The file also includes its schema
+version, generation time, and cctop process-liveness metadata. The Stream Deck
+plugin does not inspect session files or any Claude, Codex, opencode, or pi data.
 
 Signed release builds use network access only for Sparkle update checks and
 downloads.

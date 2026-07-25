@@ -82,6 +82,10 @@
 		JM0000010000000000000001 /* NavigateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = JM0000020000000000000001 /* NavigateController.swift */; };
 		PC0000010000000000000001 /* PanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = PC0000020000000000000001 /* PanelCoordinator.swift */; };
 		PM0000010000000000000001 /* PluginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = PM0000020000000000000001 /* PluginManager.swift */; };
+		DSW000010000000000000001 /* DisplayStateWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = DSW000020000000000000001 /* DisplayStateWriter.swift */; };
+		DSWT00010000000000000001 /* DisplayStateWriterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DSWT00020000000000000001 /* DisplayStateWriterTests.swift */; };
+		PMSD00010000000000000001 /* PluginManagerStreamDeckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PMSD00020000000000000001 /* PluginManagerStreamDeckTests.swift */; };
+		SDR000010000000000000001 /* StreamDeckPluginRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDR000020000000000000001 /* StreamDeckPluginRowView.swift */; };
 		CIM000010000000000000001 /* CodexIntegrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CIM000020000000000000001 /* CodexIntegrationManager.swift */; };
 		CSF000010000000000000001 /* CodexSetupFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CSF000020000000000000001 /* CodexSetupFlow.swift */; };
 		CPI000010000000000000001 /* CodexPluginInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = CPI000020000000000000001 /* CodexPluginInstaller.swift */; };
@@ -224,6 +228,9 @@
 		CIMT00020000000000000001 /* CodexIntegrationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexIntegrationManagerTests.swift; sourceTree = "<group>"; };
 		CPTOML020000000000000001 /* CodexPluginTomlTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPluginTomlTests.swift; sourceTree = "<group>"; };
 		PMCCD0020000000000000001 /* PluginManagerCcDetectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManagerCcDetectionTests.swift; sourceTree = "<group>"; };
+		DSWT00020000000000000001 /* DisplayStateWriterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayStateWriterTests.swift; sourceTree = "<group>"; };
+		PMSD00020000000000000001 /* PluginManagerStreamDeckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManagerStreamDeckTests.swift; sourceTree = "<group>"; };
+		SDR000020000000000000001 /* StreamDeckPluginRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamDeckPluginRowView.swift; sourceTree = "<group>"; };
 		HH0000020000000000000001 /* HookHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookHandlerTests.swift; sourceTree = "<group>"; };
 		HT0000020000000000000001 /* HookEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookEventTests.swift; sourceTree = "<group>"; };
 		J10000020000000000000001 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
@@ -255,6 +262,7 @@
 		JM0000020000000000000001 /* NavigateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigateController.swift; sourceTree = "<group>"; };
 		PC0000020000000000000001 /* PanelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelCoordinator.swift; sourceTree = "<group>"; };
 		PM0000020000000000000001 /* PluginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PluginManager.swift; sourceTree = "<group>"; };
+		DSW000020000000000000001 /* DisplayStateWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayStateWriter.swift; sourceTree = "<group>"; };
 		CIM000020000000000000001 /* CodexIntegrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexIntegrationManager.swift; sourceTree = "<group>"; };
 		CSF000020000000000000001 /* CodexSetupFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSetupFlow.swift; sourceTree = "<group>"; };
 		CPI000020000000000000001 /* CodexPluginInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexPluginInstaller.swift; sourceTree = "<group>"; };
@@ -380,6 +388,7 @@
 				ERCT00020000000000000001 /* FocusTerminal+Recent.swift */,
 				SP0000020000000000000001 /* SparkleUpdater.swift */,
 				PM0000020000000000000001 /* PluginManager.swift */,
+				DSW000020000000000000001 /* DisplayStateWriter.swift */,
 				CIM000020000000000000001 /* CodexIntegrationManager.swift */,
 				CSF000020000000000000001 /* CodexSetupFlow.swift */,
 				CPI000020000000000000001 /* CodexPluginInstaller.swift */,
@@ -476,6 +485,7 @@
 				PVH000020000000000000001 /* PopupViewHelpers.swift */,
 				D1000000A000000000000001 /* QuitButton.swift */,
 				J10000020000000000000001 /* SettingsSection.swift */,
+				SDR000020000000000000001 /* StreamDeckPluginRowView.swift */,
 				SCTRL0020000000000000001 /* SettingsControls.swift */,
 				NROW00020000000000000001 /* NotificationSettingsRow.swift */,
 				JSPREV020000000000000001 /* SettingsSection+Preview.swift */,
@@ -532,6 +542,8 @@
 				CIMT00020000000000000001 /* CodexIntegrationManagerTests.swift */,
 				CPTOML020000000000000001 /* CodexPluginTomlTests.swift */,
 				PMCCD0020000000000000001 /* PluginManagerCcDetectionTests.swift */,
+				DSWT00020000000000000001 /* DisplayStateWriterTests.swift */,
+				PMSD00020000000000000001 /* PluginManagerStreamDeckTests.swift */,
 				HH0000020000000000000001 /* HookHandlerTests.swift */,
 				SN0000040000000000000001 /* SessionNameLookupTests.swift */,
 				FK0000020000000000000001 /* ForkSessionTests.swift */,
@@ -714,6 +726,7 @@
 				G10000030000000000000001 /* AppDelegate.swift in Sources */,
 				H10000010000000000000001 /* AppSettings.swift in Sources */,
 				J10000010000000000000001 /* SettingsSection.swift in Sources */,
+				SDR000010000000000000001 /* StreamDeckPluginRowView.swift in Sources */,
 				JSPREV010000000000000001 /* SettingsSection+Preview.swift in Sources */,
 				CDXROW010000000000000001 /* CodexPluginRowView.swift in Sources */,
 				ATH000010000000000000001 /* AppTheme.swift in Sources */,
@@ -729,6 +742,7 @@
 				CCT000010000000000000001 /* CodexConfigToml.swift in Sources */,
 				HM0000010000000000000001 /* HistoryManager.swift in Sources */,
 				JM0000010000000000000001 /* NavigateController.swift in Sources */,
+				DSW000010000000000000001 /* DisplayStateWriter.swift in Sources */,
 				PC0000010000000000000001 /* PanelCoordinator.swift in Sources */,
 				N10000010000000000000001 /* SessionStatus+UI.swift in Sources */,
 				N10000030000000000000001 /* HookEvent.swift in Sources */,
@@ -817,6 +831,8 @@
 				CIMT00010000000000000001 /* CodexIntegrationManagerTests.swift in Sources */,
 				CPTOML010000000000000001 /* CodexPluginTomlTests.swift in Sources */,
 				PMCCD0010000000000000001 /* PluginManagerCcDetectionTests.swift in Sources */,
+				DSWT00010000000000000001 /* DisplayStateWriterTests.swift in Sources */,
+				PMSD00010000000000000001 /* PluginManagerStreamDeckTests.swift in Sources */,
 				HH0000010000000000000001 /* HookHandlerTests.swift in Sources */,
 				SN0000030000000000000001 /* SessionNameLookupTests.swift in Sources */,
 				FK0000010000000000000001 /* ForkSessionTests.swift in Sources */,

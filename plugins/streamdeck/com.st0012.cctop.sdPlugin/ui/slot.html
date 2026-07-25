@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>cctop Session</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    padding: 12px 18px;
+    background: #2D2D2D;
+    color: #D8D8D8;
+    font: 12px -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    user-select: none;
+  }
+  .row { display: flex; align-items: center; gap: 10px; }
+  label { min-width: 84px; text-align: right; color: #969696; }
+  input {
+    width: 72px;
+    padding: 4px 6px;
+    background: #3D3D3D;
+    color: #D8D8D8;
+    border: 1px solid #242424;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  input:focus { outline: 1px solid #5881E0; }
+  .hint { margin: 8px 0 0 94px; color: #7A7A7A; font-size: 11px; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <label for="slot">Session slot</label>
+    <input id="slot" type="number" min="1" max="32" step="1" value="1">
+  </div>
+  <p class="hint">Add another Session action, then set this number to 6 or 7.</p>
+<script>
+  let websocket = null;
+  let actionContext = null;
+
+  function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+    actionContext = inUUID;
+    websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+    websocket.onopen = function () {
+      websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    };
+    try {
+      const info = JSON.parse(inActionInfo);
+      const slot = info?.payload?.settings?.slot;
+      if (Number.isInteger(slot) && slot >= 1) document.getElementById("slot").value = slot;
+    } catch (_error) {
+      // Keep the default slot.
+    }
+  }
+
+  document.getElementById("slot").addEventListener("change", function (event) {
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) return;
+    let slot = Number.parseInt(event.target.value, 10);
+    if (!Number.isInteger(slot) || slot < 1) slot = 1;
+    if (slot > 32) slot = 32;
+    event.target.value = slot;
+    websocket.send(JSON.stringify({
+      event: "setSettings",
+      context: actionContext,
+      payload: { slot },
+    }));
+  });
+</script>
+</body>
+</html>
