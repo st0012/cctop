@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +16,11 @@ import {
 
 const originalHome = process.env.HOME;
 const testHome = mkdtempSync(join(tmpdir(), "cctop-streamdeck-state-"));
+const currentProcessStartTime = Date.parse(execFileSync(
+  "/bin/ps",
+  ["-p", String(process.pid), "-o", "lstart="],
+  { encoding: "utf8", env: { ...process.env, LC_ALL: "C" } },
+).trim()) / 1_000;
 process.env.HOME = testHome;
 mkdirSync(join(testHome, ".cctop", "sessions"), { recursive: true });
 after(() => { process.env.HOME = originalHome; });
@@ -25,6 +31,7 @@ function validState(overrides = {}) {
     generated_at: new Date().toISOString(),
     app_running: true,
     app_pid: process.pid,
+    app_start_time: currentProcessStartTime,
     sessions: [
       { id: "one", name: "alpha", status: "working", color: "#7EAA6E" },
       { id: "two", name: "beta", status: "idle", color: "#7DAEA3" },
@@ -37,12 +44,14 @@ test("parses the versioned app projection", () => {
   const state = parseDisplayState(JSON.stringify(validState()));
   assert.equal(state.app_running, true);
   assert.equal(state.app_pid, process.pid);
+  assert.equal(state.app_start_time, currentProcessStartTime);
   assert.deepEqual(state.sessions.map((session) => session.id), ["one", "two"]);
 });
 
 test("missing, corrupt, wrong-version, and duplicate state is unavailable", () => {
   assert.deepEqual(parseDisplayState("{not json"), emptyState());
   assert.deepEqual(parseDisplayState(JSON.stringify(validState({ version: 2 }))), emptyState());
+  assert.deepEqual(parseDisplayState(JSON.stringify(validState({ app_start_time: null }))), emptyState());
   assert.deepEqual(parseDisplayState(JSON.stringify(validState({
     sessions: [validState().sessions[0], validState().sessions[0]],
   }))), emptyState());
@@ -74,7 +83,11 @@ test("dead publisher state is unavailable", () => {
 });
 
 test("recent graceful state is command-only and expires", () => {
-  const recent = parseDisplayState(JSON.stringify(validState({ app_running: false, app_pid: null })));
+  const recent = parseDisplayState(JSON.stringify(validState({
+    app_running: false,
+    app_pid: null,
+    app_start_time: null,
+  })));
   assert.equal(displaySessionForSlot(recent, 1), null);
   assert.equal(commandSessionForSlot(recent, 1).id, "one");
 
@@ -82,6 +95,7 @@ test("recent graceful state is command-only and expires", () => {
     generated_at: new Date(Date.now() - COLD_LAUNCH_GRACE_MS - 1_000).toISOString(),
     app_running: false,
     app_pid: null,
+    app_start_time: null,
   })));
   assert.equal(commandSessionForSlot(expired, 1), null);
 });
@@ -91,6 +105,17 @@ test("the plugin does not derive display state from cctop session sources", () =
     session_id: "must-not-be-read",
     status: "working",
   }));
+  assert.deepEqual(readDisplayState(), emptyState());
+});
+
+test("the reader rejects a reused PID with a different publisher identity", () => {
+  const statePath = join(testHome, ".cctop", "display-state.json");
+  writeFileSync(statePath, JSON.stringify(validState()));
+  assert.equal(readDisplayState().sessions[0].id, "one");
+
+  writeFileSync(statePath, JSON.stringify(validState({
+    app_start_time: currentProcessStartTime - 60,
+  })));
   assert.deepEqual(readDisplayState(), emptyState());
 });
 

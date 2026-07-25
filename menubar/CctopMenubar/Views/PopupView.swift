@@ -388,6 +388,7 @@ extension PopupView {
         if overlayController.active == overlay {
             closeOverlay(animated: true)
         } else {
+            if overlay == .settings { pluginManager.refresh() }
             overlayController.active = nil
             overlayController.hideContent = true
             overlayController.active = overlay

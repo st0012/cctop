@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync, watch } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -12,6 +13,7 @@ export function emptyState() {
     generated_at: null,
     app_running: false,
     app_pid: null,
+    app_start_time: null,
     sessions: [],
   };
 }
@@ -49,7 +51,13 @@ export function parseDisplayState(text) {
     return emptyState();
   }
   if (typeof raw.app_running !== "boolean" || !Array.isArray(raw.sessions)) return emptyState();
-  if (raw.app_running && (!Number.isInteger(raw.app_pid) || raw.app_pid <= 0)) return emptyState();
+  if (raw.app_running) {
+    if (!Number.isInteger(raw.app_pid) || raw.app_pid <= 0) return emptyState();
+    if (typeof raw.app_start_time !== "number" || !Number.isFinite(raw.app_start_time)
+        || raw.app_start_time <= 0) return emptyState();
+  } else if (raw.app_pid != null || raw.app_start_time != null) {
+    return emptyState();
+  }
 
   const sessions = raw.sessions.slice(0, 32).map(parseEntry);
   const ids = sessions.filter(Boolean).map((entry) => entry.id);
@@ -60,15 +68,38 @@ export function parseDisplayState(text) {
     generated_at: raw.generated_at,
     app_running: raw.app_running,
     app_pid: raw.app_running ? raw.app_pid : null,
+    app_start_time: raw.app_running ? raw.app_start_time : null,
     sessions,
   };
+}
+
+function publisherIdentityMatches(state) {
+  try {
+    const output = execFileSync(
+      "/bin/ps",
+      ["-p", String(state.app_pid), "-o", "lstart="],
+      {
+        encoding: "utf8",
+        env: { ...process.env, LC_ALL: "C" },
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 1_000,
+      },
+    ).trim();
+    const observedStartTime = Date.parse(output) / 1_000;
+    return Number.isFinite(observedStartTime)
+      && Math.floor(observedStartTime) === Math.floor(state.app_start_time);
+  } catch {
+    return false;
+  }
 }
 
 /// Read the one public projection written by cctop. The plugin deliberately
 /// never reads ~/.cctop/sessions or any client-specific state.
 export function readDisplayState() {
   try {
-    return parseDisplayState(readFileSync(displayStatePath(), "utf8"));
+    const state = parseDisplayState(readFileSync(displayStatePath(), "utf8"));
+    if (state.app_running && !publisherIdentityMatches(state)) return emptyState();
+    return state;
   } catch {
     return emptyState();
   }

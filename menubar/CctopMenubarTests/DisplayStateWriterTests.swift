@@ -18,7 +18,7 @@ final class DisplayStateWriterTests: XCTestCase {
             sessions: sessions,
             theme: .claude,
             appRunning: true,
-            appPID: 123,
+            appIdentity: DisplayState.ProcessIdentity(pid: 123, startTime: 1_000),
             now: now
         )
 
@@ -39,7 +39,7 @@ final class DisplayStateWriterTests: XCTestCase {
             sessions: [dormant, staleIdle, active],
             theme: .claude,
             appRunning: true,
-            appPID: 123,
+            appIdentity: DisplayState.ProcessIdentity(pid: 123, startTime: 1_000),
             now: now
         )
 
@@ -59,7 +59,7 @@ final class DisplayStateWriterTests: XCTestCase {
             sessions: [session],
             theme: .claude,
             appRunning: true,
-            appPID: 456,
+            appIdentity: DisplayState.ProcessIdentity(pid: 456, startTime: 1_234.5),
             now: now
         )
 
@@ -68,8 +68,12 @@ final class DisplayStateWriterTests: XCTestCase {
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: encoder.encode(snapshot)) as? [String: Any]
         )
-        XCTAssertEqual(Set(object.keys), ["version", "generated_at", "app_running", "app_pid", "sessions"])
+        XCTAssertEqual(
+            Set(object.keys),
+            ["version", "generated_at", "app_running", "app_pid", "app_start_time", "sessions"]
+        )
         XCTAssertEqual(object["app_pid"] as? Int, 456)
+        XCTAssertEqual(object["app_start_time"] as? Double, 1_234.5)
         let entry = try XCTUnwrap((object["sessions"] as? [[String: Any]])?.first)
         XCTAssertEqual(Set(entry.keys), ["id", "name", "status", "color"])
         XCTAssertEqual(entry["id"] as? String, "stable-display-id")
@@ -83,12 +87,13 @@ final class DisplayStateWriterTests: XCTestCase {
             sessions: [Session.mock(id: "stable-display-id", status: .working)],
             theme: .claude,
             appRunning: false,
-            appPID: 456,
+            appIdentity: DisplayState.ProcessIdentity(pid: 456, startTime: 1_234.5),
             now: Date()
         )
 
         XCTAssertFalse(snapshot.appRunning)
         XCTAssertNil(snapshot.appPID)
+        XCTAssertNil(snapshot.appStartTime)
         XCTAssertEqual(snapshot.sessions.map(\.id), ["stable-display-id"])
     }
 

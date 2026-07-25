@@ -33,6 +33,7 @@ struct SettingsSection: View {
         .onAppear { notificationPermission.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             notificationPermission.refresh()
+            pluginManager.refresh()
         }
     }
 

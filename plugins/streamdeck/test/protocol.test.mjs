@@ -37,6 +37,11 @@ after(() => {
 beforeEach(() => launches.splice(0));
 
 const MK2 = { id: "mk2", name: "MK.2", size: { columns: 5, rows: 3 }, type: 0 };
+const currentProcessStartTime = Date.parse(childProcess.execFileSync(
+  "/bin/ps",
+  ["-p", String(process.pid), "-o", "lstart="],
+  { encoding: "utf8", env: { ...process.env, LC_ALL: "C" } },
+).trim()) / 1_000;
 
 class RecordingSocket {
   messages = [];
@@ -52,6 +57,7 @@ function writeState(overrides = {}) {
     generated_at: new Date().toISOString(),
     app_running: true,
     app_pid: process.pid,
+    app_start_time: currentProcessStartTime,
     sessions: [
       { id: "first/id?", name: "first", status: "working", color: "#7EAA6E" },
       { id: "second", name: "second", status: "idle", color: "#7DAEA3" },
@@ -205,7 +211,7 @@ test("toggle uses the same direct cctop command boundary", async () => {
 });
 
 test("recent graceful state can cold-launch but renders unavailable while stopped", async () => {
-  writeState({ app_running: false, app_pid: null });
+  writeState({ app_running: false, app_pid: null, app_start_time: null });
   const { controller, socket } = makeController();
   controller.handleMessage(willAppear("key-1", { row: 0, column: 0 }, { slot: 1 }));
   const image = decodeURIComponent(messages(socket, "setImage")[0].payload.image);

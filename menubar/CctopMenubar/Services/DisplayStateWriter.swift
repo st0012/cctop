@@ -11,6 +11,11 @@ private let displayStateLogger = Logger(
 /// Consumers render these values verbatim; they do not inspect session files or
 /// reproduce cctop's ordering, lifecycle, identity, or theme rules.
 struct DisplayState: Encodable {
+    struct ProcessIdentity {
+        let pid: Int32
+        let startTime: TimeInterval
+    }
+
     struct Entry: Encodable, Equatable {
         let id: String
         let name: String
@@ -22,6 +27,7 @@ struct DisplayState: Encodable {
         let version: Int
         let appRunning: Bool
         let appPID: Int32?
+        let appStartTime: TimeInterval?
         let sessions: [Entry]
     }
 
@@ -29,6 +35,7 @@ struct DisplayState: Encodable {
     let generatedAt: String
     let appRunning: Bool
     let appPID: Int32?
+    let appStartTime: TimeInterval?
     let sessions: [Entry]
 
     var dedupeKey: DedupeKey {
@@ -36,6 +43,7 @@ struct DisplayState: Encodable {
             version: version,
             appRunning: appRunning,
             appPID: appPID,
+            appStartTime: appStartTime,
             sessions: sessions
         )
     }
@@ -53,11 +61,15 @@ final class DisplayStateWriter {
         // cctop instance. It must not claim liveness or overwrite the user's surface.
         guard !Self.isXcodeTestHost else { return }
         let appPID = appRunning ? ProcessInfo.processInfo.processIdentifier : nil
+        let appIdentity = appPID.flatMap { pid -> DisplayState.ProcessIdentity? in
+            guard let startTime = Session.processStartTime(pid: UInt32(pid)) else { return nil }
+            return DisplayState.ProcessIdentity(pid: pid, startTime: startTime)
+        }
         let snapshot = Self.snapshot(
             sessions: sessions,
             theme: theme,
             appRunning: appRunning,
-            appPID: appPID,
+            appIdentity: appIdentity,
             now: now
         )
         guard let data = try? Self.encoder.encode(snapshot),
@@ -83,7 +95,7 @@ final class DisplayStateWriter {
         sessions: [Session],
         theme: AppTheme,
         appRunning: Bool,
-        appPID: Int32?,
+        appIdentity: DisplayState.ProcessIdentity?,
         now: Date
     ) -> DisplayState {
         let ordered = Session.sorted(SessionDisplayPolicy.activeSessions(from: sessions, now: now))
@@ -91,7 +103,8 @@ final class DisplayStateWriter {
             version: schemaVersion,
             generatedAt: timestampFormatter.string(from: now),
             appRunning: appRunning,
-            appPID: appRunning ? appPID : nil,
+            appPID: appRunning ? appIdentity?.pid : nil,
+            appStartTime: appRunning ? appIdentity?.startTime : nil,
             sessions: ordered.map { session in
                 DisplayState.Entry(
                     id: session.id,
