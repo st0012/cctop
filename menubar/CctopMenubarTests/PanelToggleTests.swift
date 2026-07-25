@@ -21,4 +21,23 @@ final class PanelToggleTests: XCTestCase {
         XCTAssertEqual(result.state.mode, .hidden)
         XCTAssertTrue(result.actions.contains(.restorePreviousApp))
     }
+
+    func testCctopURLCommandParsesHostAndOpaqueForms() throws {
+        XCTAssertEqual(
+            AppDelegate.urlCommand(from: try XCTUnwrap(URL(string: "cctop://toggle"))),
+            "toggle"
+        )
+        XCTAssertEqual(
+            AppDelegate.urlCommand(from: try XCTUnwrap(URL(string: "cctop:toggle"))),
+            "toggle"
+        )
+    }
+
+    func testFocusTargetDecodesStableDisplayIdentity() throws {
+        let url = try XCTUnwrap(URL(string: "cctop://focus?sid=codex%3Aabc%2Fdef%3Fghi"))
+        XCTAssertEqual(AppDelegate.urlCommand(from: url), "focus")
+        XCTAssertEqual(AppDelegate.focusTargetID(from: url), "codex:abc/def?ghi")
+        XCTAssertNil(AppDelegate.focusTargetID(from: try XCTUnwrap(URL(string: "cctop://focus"))))
+        XCTAssertNil(AppDelegate.focusTargetID(from: try XCTUnwrap(URL(string: "cctop://focus?sid="))))
+    }
 }

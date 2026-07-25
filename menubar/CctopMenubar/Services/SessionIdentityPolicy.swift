@@ -43,6 +43,11 @@ enum SessionIdentityPolicy {
         }
     }
 
+    /// Match a session by the stable display id published to external control surfaces.
+    static func session(matchingDisplayID displayID: String, in sessions: [Session]) -> Session? {
+        sessions.first { $0.id == displayID }
+    }
+
     private static func notificationSessionID(for session: Session) -> String {
         if session.isCodex || session.hostClass == .desktop {
             return session.sessionId

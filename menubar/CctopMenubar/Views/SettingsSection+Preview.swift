@@ -18,6 +18,8 @@ private func previewPM() -> PluginManager {
     pm.codexInstalled = true
     pm.codexConfigExists = true
     pm.codexHookStatus = .trusted
+    pm.sdConfigExists = true
+    pm.sdInstalled = true
     return pm
 }
 

@@ -1,0 +1,13 @@
+{
+  "name": "cctop-streamdeck",
+  "version": "0.19.5",
+  "description": "cctop session controls for Elgato Stream Deck",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "license": "MIT",
+  "author": "Stan Lo",
+  "repository": "https://github.com/st0012/cctop"
+}

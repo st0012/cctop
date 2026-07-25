@@ -70,6 +70,19 @@ if ! grep -q "data-version>v$NEW_VERSION<" "$REPO_ROOT/site/index.html"; then
 fi
 echo "  Updated site/index.html"
 
+# 9. Stream Deck package metadata. Its manifest requires four numeric
+# components; match only that shape so Nodejs.Version remains untouched.
+SD_PACKAGE="$REPO_ROOT/plugins/streamdeck/package.json"
+sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$SD_PACKAGE"
+SD_MANIFEST="$REPO_ROOT/plugins/streamdeck/com.st0012.cctop.sdPlugin/manifest.json"
+perl -0pi -e 's/"Version":\s*"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"/"Version": "'"$NEW_VERSION"'.0"/' "$SD_MANIFEST"
+if ! grep -q "\"Version\": \"$NEW_VERSION.0\"" "$SD_MANIFEST" \
+    || ! grep -A1 '"Nodejs"' "$SD_MANIFEST" | grep -q '"Version": "24"'; then
+    echo "Error: failed to update Stream Deck manifest safely"
+    exit 1
+fi
+echo "  Updated Stream Deck package and manifest"
+
 echo ""
 echo "Done! Version bumped to $NEW_VERSION in all files."
 echo "Verify with: grep -r '\"$NEW_VERSION\"' packaging/ plugins/ .claude-plugin/"

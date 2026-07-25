@@ -45,6 +45,15 @@ struct SettingsSection: View {
                 MonitoredToolsView(pluginManager: pluginManager)
             }
 
+            if pluginManager.sdConfigExists {
+                sectionHeader("Integrations")
+                settingsGroup {
+                    StreamDeckPluginRowView(pluginManager: pluginManager)
+                        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+                        .padding(.vertical, 2)
+                }
+            }
+
             sectionHeader("Appearance")
             settingsGroup {
                 settingsRow("Color") {

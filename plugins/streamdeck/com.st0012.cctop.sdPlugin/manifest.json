@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "UUID": "com.st0012.cctop",
+  "Name": "cctop",
+  "Category": "cctop",
+  "CategoryIcon": "imgs/category",
+  "Author": "Stan Lo",
+  "Version": "0.19.5.0",
+  "Description": "Monitor AI coding sessions and jump to them from your Stream Deck.",
+  "Icon": "imgs/plugin-icon",
+  "CodePath": "bin/plugin.mjs",
+  "Nodejs": {
+    "Version": "24"
+  },
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "7.1"
+  },
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "13"
+    }
+  ],
+  "ApplicationsToMonitor": {
+    "mac": ["com.st0012.CctopMenubar"]
+  },
+  "Profiles": [
+    {
+      "Name": "profiles/cctop",
+      "DeviceType": 0,
+      "AutoInstall": true,
+      "DontAutoSwitchWhenInstalled": true
+    }
+  ],
+  "Actions": [
+    {
+      "UUID": "com.st0012.cctop.session",
+      "Name": "Session",
+      "Icon": "imgs/session",
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "PropertyInspectorPath": "ui/slot.html",
+      "States": [
+        {
+          "Image": "imgs/key-empty"
+        }
+      ]
+    },
+    {
+      "UUID": "com.st0012.cctop.toggle-panel",
+      "Name": "Toggle Panel",
+      "Icon": "imgs/toggle",
+      "Controllers": ["Keypad"],
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "imgs/key-toggle"
+        }
+      ]
+    }
+  ]
+}

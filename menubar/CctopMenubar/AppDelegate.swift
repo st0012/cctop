@@ -3,6 +3,7 @@ import AppKit
 import Carbon
 import Combine
 import KeyboardShortcuts
+import os.log
 import SwiftUI
 import UserNotifications
 
@@ -31,6 +32,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var focusLocation: NSPoint?
     private var cancellables: Set<AnyCancellable> = []
     private let notificationPermissionReconciler = NotificationPermissionController()
+    private let displayStateWriter = DisplayStateWriter()
+    private var pendingURL: URL?
+    private var isFullyLaunched = false
     @AppStorage("appearanceMode") var appearanceMode: String = "system"
 
     private let panelGeometry = PanelGeometryModel(store: UserDefaultsPanelPositionStore())
@@ -39,6 +43,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // MIGRATION(v0.12.0→v0.13.0): Remove legacyOriginX, legacyTopY, migrateLegacyPanelPosition
         static let legacyOriginX = "panelCustomX"
         static let legacyTopY = "panelCustomTopY"
+    }
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        registerURLHandler()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -85,9 +93,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         applyAppearance()
         registerShortcuts()
-        registerURLHandler()
         observeSessionUpdates()
         observeThemeChanges()
+
+        isFullyLaunched = true
+        if let pendingURL {
+            self.pendingURL = nil
+            handleURLCommand(pendingURL)
+        }
     }
 
     private func makePanelContentView() -> PanelContentView {
@@ -222,6 +235,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 guard let self else { return }
                 let counts = StatusCounts(sessions: sessions)
 
+                self.displayStateWriter.write(
+                    sessions: sessions,
+                    theme: ThemeManager.shared.current,
+                    appRunning: true
+                )
+
                 if counts != self.lastRenderedCounts {
                     self.refreshStatusDisplay(counts: counts)
                 }
@@ -240,10 +259,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             .dropFirst() // skip initial value
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
-                guard let self, let counts = self.lastRenderedCounts else { return }
+                guard let self else { return }
+                self.displayStateWriter.write(
+                    sessions: self.sessionManager.sessions,
+                    theme: ThemeManager.shared.current,
+                    appRunning: true
+                )
+                guard let counts = self.lastRenderedCounts else { return }
                 self.refreshStatusDisplay(counts: counts)
             }
             .store(in: &cancellables)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        guard let sessionManager else { return }
+        displayStateWriter.write(
+            sessions: sessionManager.sessions,
+            theme: ThemeManager.shared.current,
+            appRunning: false
+        )
     }
 
     @MainActor private func refreshStatusDisplay(counts: StatusCounts) {
@@ -705,13 +739,59 @@ extension AppDelegate {
     ) {
         guard let string = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
               let url = URL(string: string) else { return }
-        // Command lives in the host (cctop://toggle) or path (cctop:toggle).
-        let command = url.host ?? url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard self.isFullyLaunched else {
+                self.pendingURL = url
+                return
+            }
+            self.handleURLCommand(url)
+        }
+    }
+
+    @MainActor private func handleURLCommand(_ url: URL) {
+        guard url.scheme?.lowercased() == "cctop" else { return }
+        let command = Self.urlCommand(from: url)
         switch command {
         case "toggle":
-            DispatchQueue.main.async { [weak self] in self?.togglePanel() }
+            togglePanel()
+        case "focus":
+            guard let displayID = Self.focusTargetID(from: url) else {
+                Self.urlLogger.notice("Ignored malformed cctop focus command")
+                return
+            }
+            let visibleSessions = Session.sorted(
+                SessionDisplayPolicy.activeSessions(from: sessionManager.sessions)
+            )
+            guard let session = SessionIdentityPolicy.session(
+                matchingDisplayID: displayID,
+                in: visibleSessions
+            ) else {
+                Self.urlLogger.notice("Ignored cctop focus command for unavailable session")
+                return
+            }
+            focusTerminal(session: session)
         default:
             break
         }
     }
+
+    nonisolated static func urlCommand(from url: URL) -> String {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        if let host = components?.host, !host.isEmpty { return host }
+        return (components?.path ?? url.path)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    nonisolated static func focusTargetID(from url: URL) -> String? {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let value = components.queryItems?.first(where: { $0.name == "sid" })?.value,
+              !value.isEmpty else { return nil }
+        return value
+    }
+
+    private static let urlLogger = Logger(
+        subsystem: "com.st0012.CctopMenubar",
+        category: "URLCommands"
+    )
 }

@@ -1676,4 +1676,23 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(rotated.branch, "hotfix/rotation")
         XCTAssertEqual(rotated.terminal, newTerminal)
     }
+
+    func testExternalDisplayIdentityMatchesOnlyPublishedID() {
+        let target = Session.mock(id: "conversation-target", pid: 111)
+        let decoy = Session.mock(id: "111", pid: 222)
+
+        XCTAssertEqual(
+            SessionIdentityPolicy.session(
+                matchingDisplayID: "111",
+                in: [decoy, target]
+            )?.id,
+            target.id
+        )
+        XCTAssertNil(
+            SessionIdentityPolicy.session(
+                matchingDisplayID: "conversation-target",
+                in: [decoy, target]
+            )
+        )
+    }
 }

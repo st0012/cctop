@@ -65,6 +65,7 @@ cp "$REPO_ROOT/plugins/opencode/plugin.js" "$APP/Contents/Resources/opencode-plu
 cp "$REPO_ROOT/plugins/pi/cctop.ts" "$APP/Contents/Resources/pi-plugin.ts"
 cp "$REPO_ROOT/plugins/codex/cctop-shim.sh" "$APP/Contents/Resources/codex-shim.sh"
 cp "$REPO_ROOT/plugins/codex/hooks.json" "$APP/Contents/Resources/codex-hooks.json"
+cp -R "$REPO_ROOT/plugins/streamdeck/com.st0012.cctop.sdPlugin" "$APP/Contents/Resources/"
 
 # Ad-hoc sign (innermost first — no --deep)
 echo "==> Signing app bundle..."
