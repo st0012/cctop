@@ -22,11 +22,10 @@ rm -rf "$ASSETS"; mkdir -p "$ASSETS"   # start from a clean staging dir so a rem
 ASSET_LIST="menubar-dark menubar-navigate theme-tokyoNight-dark theme-gruvbox-dark theme-nord-light theme-claude-light status-icon"
 [ -f "$PDIR/assets.txt" ] && ASSET_LIST="$(tr '\n' ' ' < "$PDIR/assets.txt")"
 for f in $ASSET_LIST; do cp "$REPO/docs/$f.png" "$ASSETS/$f.png"; done
-# the real app icons: the full-colour AppIcon (CTA) and the menubar template logo (the pill grid,
-# tinted accent via CSS mask). Trim the template's transparent margin so it fills the grid box.
+# the real full-colour AppIcon is used for the CTA. The launch menubar pill
+# draws one live status bar directly, matching the app's single-mark system.
 XCA="$REPO/menubar/CctopMenubar/Assets.xcassets"
 cp "$XCA/AppIcon.appiconset/icon_512x512@2x.png" "$ASSETS/appicon.png"
-magick "$XCA/MenubarIcon.imageset/menubar-icon@2x.png" -trim +repage "$ASSETS/menubar-icon.png"
 # shared tool logos (agents/editors/terminals) for the STACK beat — see assets/icons/README.md
 mkdir -p "$ASSETS/icons"; cp "$REPO"/assets/icons/*.svg "$REPO"/assets/icons/*.png "$ASSETS/icons/"
 

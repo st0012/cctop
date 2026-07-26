@@ -11,16 +11,8 @@ struct CodexPluginRowView: View {
     @State private var installFailed = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Text("Codex CLI / Desktop")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.textPrimary)
-                Spacer()
-                trailingControl
-            }
-            .padding(.vertical, 7)
-
+        VStack(alignment: .leading, spacing: 0) {
+            primaryRow
             if setupFlow.isInstalling {
                 EmptyView()
             } else if pluginManager.codexHookStatus == .hooksDisabled {
@@ -45,12 +37,28 @@ struct CodexPluginRowView: View {
             }
 
             if installFailed {
-                Text("Failed \u{2014} check permissions")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.amber)
+                SettingsSecondaryRow {
+                    Text("Failed \u{2014} check permissions")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.statusAttentionText)
+                    Spacer()
+                }
                     .transition(.opacity)
             }
         }
+    }
+
+    private var primaryRow: some View {
+        HStack(spacing: 8) {
+            Text("Codex CLI / Desktop")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.textPrimary)
+            Spacer()
+            trailingControl
+        }
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 
     @ViewBuilder
@@ -94,10 +102,11 @@ struct CodexPluginRowView: View {
     }
 
     private var legacyKeyCleanupHint: some View {
-        HStack(spacing: 4) {
+        SettingsSecondaryRow(spacing: 4) {
             Image(systemName: "exclamationmark.circle.fill")
                 .font(.system(size: 9))
-                .foregroundStyle(Color.statusAttention)
+                .foregroundStyle(Color.statusAttentionText)
+                .accessibilityHidden(true)
             Text("Deprecated codex_hooks key in config.toml")
                 .font(.system(size: 10))
                 .foregroundStyle(Color.textMuted)
@@ -141,13 +150,16 @@ struct CodexPluginRowView: View {
         icon: String, iconColor: Color, text: String, textColor: Color,
         iconWeight: Font.Weight = .regular
     ) -> some View {
-        HStack(spacing: 4) {
+        SettingsSecondaryRow(spacing: 4) {
             Image(systemName: icon)
                 .font(.system(size: 9, weight: iconWeight))
                 .foregroundStyle(iconColor)
+                .accessibilityHidden(true)
             Text(text)
                 .font(.system(size: 10))
                 .foregroundStyle(textColor)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
     }
@@ -168,7 +180,7 @@ struct CodexInstallingIndicator: View {
     }
 }
 
-/// Attention-colored button that opens the manual trust walkthrough. cctop
+/// Accent action that opens the manual trust walkthrough. cctop
 /// can't trust hooks on the user's behalf — Codex owns the review flow.
 /// The parent owns `isPresented` so it can open the walkthrough itself
 /// right after an install completes.
@@ -185,10 +197,10 @@ struct CodexHookTrustButton: View {
                 Text(label)
                     .font(.system(size: 10, weight: .semibold))
             }
-            .foregroundStyle(Color.segmentActiveText)
+            .foregroundStyle(Color.accentButtonText)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(Color.statusAttention)
+            .background(Color.amber)
             .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius))
         }
         .buttonStyle(.plain)
@@ -251,7 +263,7 @@ private struct CodexHookTrustInstructions: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(number)
                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color.statusAttention)
+                .foregroundStyle(Color.statusAttentionText)
                 .frame(width: 12, alignment: .leading)
             Text(text)
                 .font(.system(size: 10))

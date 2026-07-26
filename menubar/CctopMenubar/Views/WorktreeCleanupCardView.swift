@@ -14,8 +14,8 @@ struct WorktreeCleanupCardView: View {
             selectionButton
             actionColumn
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 8)
         .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered)
         .padding(.horizontal, AppChrome.rowSelectionHorizontalInset)
         .contentShape(Rectangle())
@@ -87,15 +87,11 @@ struct WorktreeCleanupCardView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
-            .foregroundStyle(Color.statusAttention)
+            .foregroundStyle(Color.statusAttentionText)
             .frame(width: 74, height: 23)
             .background {
                 RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
                     .fill(Color.statusAttention.opacity(isRemoving ? 0.06 : 0.10))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
-                    .stroke(Color.statusAttention.opacity(0.24), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -106,16 +102,12 @@ struct WorktreeCleanupCardView: View {
     private var cleanupBadge: some View {
         Text(candidate.state.label)
             .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(badgeColor)
+            .foregroundStyle(badgeTextColor)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background {
                 Capsule()
                     .fill(badgeColor.opacity(0.10))
-            }
-            .overlay {
-                Capsule()
-                    .stroke(badgeColor.opacity(0.22), lineWidth: 1)
             }
     }
 
@@ -123,6 +115,14 @@ struct WorktreeCleanupCardView: View {
         switch candidate.state {
         case .clean: return Color.statusGreen
         case .review: return Color.statusAttention
+        case .ignored: return Color.agentBadge
+        }
+    }
+
+    private var badgeTextColor: Color {
+        switch candidate.state {
+        case .clean: return Color.statusWorkingText
+        case .review: return Color.statusAttentionText
         case .ignored: return Color.agentBadge
         }
     }

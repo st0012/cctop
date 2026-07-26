@@ -5,15 +5,15 @@ struct NotchStatusView: View {
     var themeId: String = ""
 
     var body: some View {
-        HStack(spacing: 4) {
-            GridIcon(highlighted: counts.needsAction > 0)
-                .frame(width: 11, height: 11)
-
+        Group {
             if counts.total > 0 {
                 StatusBar(counts: counts)
-                    .frame(width: 36, height: 4)
+            } else {
+                Capsule().fill(Color.white.opacity(0.52))
             }
         }
+        .frame(width: 36, height: 4)
+        .frame(height: 11)
         .id(themeId)
         .padding(.leading, 5)
         .padding(.trailing, 2)
@@ -24,31 +24,6 @@ struct NotchStatusView: View {
         .clipShape(NotchTabShape(radius: 6))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(counts.accessibilityLabel)
-    }
-}
-
-private struct GridIcon: View {
-    let highlighted: Bool
-
-    private var tint: Color {
-        highlighted ? StatusColors.accent.color : .white
-    }
-
-    var body: some View {
-        VStack(spacing: 1) {
-            HStack(spacing: 1) {
-                RoundedRectangle(cornerRadius: 0.5)
-                    .fill(tint.opacity(0.85))
-                RoundedRectangle(cornerRadius: 0.5)
-                    .fill(tint.opacity(0.85))
-            }
-            HStack(spacing: 1) {
-                RoundedRectangle(cornerRadius: 0.5)
-                    .fill(tint.opacity(0.50))
-                RoundedRectangle(cornerRadius: 0.5)
-                    .fill(tint.opacity(0.45))
-            }
-        }
     }
 }
 
@@ -64,9 +39,9 @@ private struct StatusBar: View {
                 ) { index, seg in
                     if index == segments.count - 1 {
                         // Last segment fills remaining space to avoid float rounding gaps
-                        StatusColors.color(for: seg.kind).color
+                        StatusColors.notchColor(for: seg.kind)
                     } else {
-                        StatusColors.color(for: seg.kind).color.frame(width: geo.size.width * seg.proportion)
+                        StatusColors.notchColor(for: seg.kind).frame(width: geo.size.width * seg.proportion)
                     }
                 }
             }

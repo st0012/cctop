@@ -14,6 +14,7 @@
 <meta property="og:image:height" content="630" />
 <meta property="og:image:alt" content="cctop - keep an eye on your supported AI coding sessions" />
 <meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="/assets/cctop-app-icon.svg" type="image/svg+xml" />
 <style>
   :root {
     --bg: #1a1b26;
@@ -77,7 +78,12 @@
     border-bottom: 1px solid var(--line);
   }
   .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--text); font: 750 16px/1 var(--mono); letter-spacing: -0.02em; }
-  .brand-mark { width: 5px; height: 24px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 1px rgba(255, 255, 255, .08) inset; }
+  .brand-mark { width: 26px; height: 5px; display: inline-flex; overflow: hidden; flex: 0 0 auto; border-radius: 999px; }
+  .brand-mark i { display: block; height: 100%; }
+  .brand-mark i:nth-child(1) { width: 14px; background: #8cbf6a; }
+  .brand-mark i:nth-child(2) { width: 5px; background: #e09b56; }
+  .brand-mark i:nth-child(3) { width: 3px; background: #db6e6e; }
+  .brand-mark i:nth-child(4) { width: 4px; background: #4d5058; }
   .nav-links { justify-self: center; display: flex; gap: 26px; color: var(--muted); font-size: 13px; }
   .nav-links a { white-space: nowrap; }
   .nav-links a:hover { color: var(--text); }
@@ -140,12 +146,12 @@
     color: var(--muted);
     font: 650 12px/1 var(--mono);
   }
-  .status-bars { width: 154px; height: 10px; display: flex; overflow: hidden; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .06); background: var(--bg-deep); }
+  .status-bars { width: 154px; height: 10px; display: flex; overflow: hidden; border-radius: 999px; background: var(--bg-deep); }
   .status-bars span { display: block; height: 100%; }
-  .bar-ok { width: 42%; background: var(--ok); }
-  .bar-wait { width: 18%; background: var(--attention); }
-  .bar-perm { width: 14%; background: var(--accent); }
-  .bar-idle { width: 26%; background: var(--dim); }
+  .bar-ok { width: 54.1667%; background: var(--ok); }
+  .bar-wait { width: 19.7917%; background: var(--attention); }
+  .bar-perm { width: 12.5%; background: var(--accent); }
+  .bar-idle { width: 13.5416%; background: var(--dim); }
   .hero h1 { margin: 18px 0 0; max-width: 760px; color: var(--text); font-size: clamp(42px, 6.4vw, 80px); line-height: .98; letter-spacing: -0.05em; }
   .hero p { margin: 22px 0 24px; max-width: 540px; color: var(--muted); font-size: 18px; line-height: 1.55; }
   .cta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -337,7 +343,7 @@
 
 <div class="site-shell">
   <header class="site-nav wrap">
-    <a class="brand" href="https://cctop.app/" aria-label="cctop home"><span class="brand-mark" aria-hidden="true"></span><span>cctop</span></a>
+    <a class="brand" href="https://cctop.app/" aria-label="cctop home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>cctop</span></a>
     <nav class="nav-links" aria-label="Page navigation">
       <a href="#tools">Tools</a>
       <a href="#features">Features</a>
@@ -369,7 +375,7 @@
       </div>
       <div>
         <div class="shot-frame slim">
-          <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="cctop menubar panel showing active AI coding sessions" width="640" height="820" decoding="async" fetchpriority="high" />
+          <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="cctop menubar panel showing active AI coding sessions" width="640" height="800" decoding="async" fetchpriority="high" />
         </div>
         <div class="shot-caption">Tokyo Night theme</div>
       </div>
@@ -401,10 +407,10 @@
         <div class="section-header"><div><div class="eyebrow">Features</div><h2>Glance at the menubar. Jump back when a session needs you.</h2></div><p class="section-sub">cctop turns every AI coding session into a menubar signal: green means work is moving, orange or red means one session needs attention.</p></div>
         <div class="feature-stack">
           <div class="feature-row status-feature"><div class="feature-copy"><h3>Menubar status</h3><p>The icon stays visible while you work, including a compact pill for notched MacBooks. When the color changes, you know when to open cctop and jump back.</p></div><div><div class="shot-frame"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/status-icon.png" alt="cctop status icons in the macOS menubar" loading="lazy" width="1000" height="391" decoding="async" /></div><div class="shot-caption">Healthy / needs attention / notch pill</div></div></div>
-          <div class="feature-row"><div class="feature-copy"><h3>Navigate mode</h3><p>Hit a global hotkey to overlay numbered badges on every session card, then press the number to jump instantly.</p><div class="kbd-row"><span class="kbd">1</span><span>to</span><span class="kbd">9</span><span>jump to session</span></div></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-navigate.png" alt="cctop navigate mode with numbered badges" loading="lazy" width="640" height="820" decoding="async" /></div><div class="shot-caption">Press 1-9 to jump</div></div></div>
+          <div class="feature-row"><div class="feature-copy"><h3>Navigate mode</h3><p>Hit a global hotkey to overlay numbered badges on every session card, then press the number to jump instantly.</p><div class="kbd-row"><span class="kbd">1</span><span>to</span><span class="kbd">9</span><span>jump to session</span></div></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-navigate.png" alt="cctop navigate mode with numbered badges" loading="lazy" width="640" height="784" decoding="async" /></div><div class="shot-caption">Press 1-9 to jump</div></div></div>
           <div class="feature-row reverse"><div class="feature-copy"><h3>Draggable panel</h3><p>Drag the header to reposition the panel anywhere on screen. Position persists across launches, and double-click snaps it back to the menubar anchor.</p></div><div><div class="shot-frame"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/draggable-panel-demo.gif" alt="cctop panel being dragged on screen" loading="lazy" width="680" height="442" decoding="async" /></div><div class="shot-caption">Panel position persists</div></div></div>
-          <div class="feature-row reverse"><div class="feature-copy"><h3>Worktree cleanup</h3><p>Cleanup finds ended agent worktrees that still exist on disk, especially CLI or manual worktree runs. cctop checks Git state before offering the right remove action.</p></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-cleanup.png" alt="cctop cleanup tab listing ended worktrees with Git safety state" loading="lazy" width="640" height="582" decoding="async" /></div><div class="shot-caption">Ended worktrees with Git safety checks</div></div></div>
-          <div class="feature-row"><div class="feature-copy"><h3>Recent projects</h3><p>A second tab keeps session history so you can reopen past projects easily.</p></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-recent.png" alt="cctop recent projects tab" loading="lazy" width="640" height="754" decoding="async" /></div><div class="shot-caption">Recent sessions stay close by</div></div></div>
+          <div class="feature-row reverse"><div class="feature-copy"><h3>Worktree cleanup</h3><p>Cleanup finds ended agent worktrees that still exist on disk, especially CLI or manual worktree runs. cctop checks Git state before offering the right remove action.</p></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-cleanup.png" alt="cctop cleanup tab listing ended worktrees with Git safety state" loading="lazy" width="640" height="548" decoding="async" /></div><div class="shot-caption">Ended worktrees with Git safety checks</div></div></div>
+          <div class="feature-row"><div class="feature-copy"><h3>Recent projects</h3><p>A second tab keeps session history so you can reopen past projects easily.</p></div><div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-recent.png" alt="cctop recent projects tab" loading="lazy" width="640" height="684" decoding="async" /></div><div class="shot-caption">Recent sessions stay close by</div></div></div>
         </div>
       </div>
     </section>
@@ -413,10 +419,10 @@
       <div class="wrap">
         <div class="section-header"><div><div class="eyebrow">Themes</div><h2>Four palettes, light and dark.</h2></div><p class="section-sub">Color schemes inspired by developer tools. Switch in Settings, then choose light, dark, or system mode.</p></div>
         <div class="theme-grid">
-          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-claude-dark.png" alt="Claude dark theme screenshot" loading="lazy" width="640" height="820" decoding="async" /><div class="name"><span class="swatch" style="background:#c15f3c"></span> Claude</div></div>
-          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-tokyoNight-dark.png" alt="Tokyo Night dark theme screenshot" loading="lazy" width="640" height="820" decoding="async" /><div class="name"><span class="swatch" style="background:#7aa2f7"></span> Tokyo Night</div></div>
-          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-gruvbox-dark.png" alt="Gruvbox dark theme screenshot" loading="lazy" width="640" height="820" decoding="async" /><div class="name"><span class="swatch" style="background:#b8bb26"></span> Gruvbox</div></div>
-          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-nord-dark.png" alt="Nord dark theme screenshot" loading="lazy" width="640" height="820" decoding="async" /><div class="name"><span class="swatch" style="background:#88c0d0"></span> Nord</div></div>
+          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-claude-dark.png" alt="Claude dark theme screenshot" loading="lazy" width="640" height="800" decoding="async" /><div class="name"><span class="swatch" style="background:#c15f3c"></span> Claude</div></div>
+          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-tokyoNight-dark.png" alt="Tokyo Night dark theme screenshot" loading="lazy" width="640" height="800" decoding="async" /><div class="name"><span class="swatch" style="background:#7aa2f7"></span> Tokyo Night</div></div>
+          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-gruvbox-dark.png" alt="Gruvbox dark theme screenshot" loading="lazy" width="640" height="800" decoding="async" /><div class="name"><span class="swatch" style="background:#b8bb26"></span> Gruvbox</div></div>
+          <div class="theme-card"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/theme-nord-dark.png" alt="Nord dark theme screenshot" loading="lazy" width="640" height="800" decoding="async" /><div class="name"><span class="swatch" style="background:#88c0d0"></span> Nord</div></div>
         </div>
       </div>
     </section>
@@ -431,7 +437,7 @@
               <div class="install-step"><div class="install-step-head"><span class="step-number">2</span><h3>Connect tools and integrations</h3></div><p>Open Settings. Coding clients appear under Tools; companion apps such as Stream Deck appear under Integrations.</p><ul class="setup-list"><li>Use the action shown on each row to install or update that tool's plugin or hook.</li><li>For Codex CLI / Desktop, trust installed hooks once from a Codex CLI session.</li><li>Stream Deck can optionally import cctop's default layout, or you can place its actions manually.</li><li>New or restarted sessions appear automatically in the menubar panel after setup.</li></ul></div>
             </div>
           </div>
-          <div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-light.png" alt="cctop Claude light theme screenshot" loading="lazy" width="640" height="820" decoding="async" /></div><div class="shot-caption">Claude theme / light</div></div>
+          <div><div class="shot-frame slim"><img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-light.png" alt="cctop Claude light theme screenshot" loading="lazy" width="640" height="800" decoding="async" /></div><div class="shot-caption">Claude theme / light</div></div>
         </div>
       </div>
     </section>
@@ -455,7 +461,7 @@
 
   <footer class="site-footer">
     <div class="wrap footer-grid">
-      <div><div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>cctop</span></div><div class="footer-note">A keyboard-first macOS menubar app to monitor and jump between AI coding sessions. MIT licensed.</div></div>
+      <div><div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>cctop</span></div><div class="footer-note">A keyboard-first macOS menubar app to monitor and jump between AI coding sessions. MIT licensed.</div></div>
       <nav class="footer-links" aria-label="Footer links"><div class="footer-col"><h4>Project</h4><a href="https://github.com/st0012/cctop" target="_blank" rel="noopener noreferrer">GitHub</a><a href="https://github.com/st0012/cctop/releases" target="_blank" rel="noopener noreferrer">Releases</a><a href="https://github.com/st0012/cctop/issues" target="_blank" rel="noopener noreferrer">Issues</a></div><div class="footer-col"><h4>Docs</h4><a href="https://github.com/st0012/cctop#readme" target="_blank" rel="noopener noreferrer">README</a><a href="https://github.com/st0012/cctop/blob/master/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contributing</a><a href="https://github.com/st0012/cctop/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">License</a></div><div class="footer-col"><h4>Author</h4><a href="https://st0012.dev" target="_blank" rel="noopener noreferrer">@st0012</a></div></nav>
     </div>
   </footer>

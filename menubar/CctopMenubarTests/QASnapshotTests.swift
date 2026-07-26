@@ -166,16 +166,16 @@ final class QASnapshotTests: XCTestCase {
         ThemeManager.shared.setTheme(.claude)
     }
 
-    func testMaterialBackdropReviewSnapshots() throws {
+    func testRefinedPanelContextSnapshots() throws {
         ThemeManager.shared.setTheme(.tokyoNight)
         let schemes: [(ColorScheme, String)] = [(.light, "light"), (.dark, "dark")]
         for (colorScheme, schemeName) in schemes {
-            try renderMaterialBackdropSnapshot(
+            try renderRefinedPanelContextSnapshot(
                 PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater(), pluginManager: inertPluginManager()),
-                name: "24-material-active-tokyoNight-\(schemeName)",
+                name: "24-refined-active-tokyoNight-\(schemeName)",
                 colorScheme: colorScheme
             )
-            try renderMaterialBackdropSnapshot(
+            try renderRefinedPanelContextSnapshot(
                 PopupView(
                     sessions: Session.qaShowcase,
                     recentProjects: RecentProject.mockRecents,
@@ -183,12 +183,12 @@ final class QASnapshotTests: XCTestCase {
                     pluginManager: inertPluginManager(),
                     initialTab: .recent
                 ),
-                name: "25-material-recent-tokyoNight-\(schemeName)",
+                name: "25-refined-recent-tokyoNight-\(schemeName)",
                 colorScheme: colorScheme
             )
-            try renderMaterialBackdropSnapshot(
+            try renderRefinedPanelContextSnapshot(
                 SettingsSection(updater: DisabledUpdater(), pluginManager: inertPluginManager()),
-                name: "26-material-settings-tokyoNight-\(schemeName)",
+                name: "26-refined-settings-tokyoNight-\(schemeName)",
                 colorScheme: colorScheme
             )
         }
@@ -339,13 +339,13 @@ final class QASnapshotTests: XCTestCase {
         try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
     }
 
-    private func renderMaterialBackdropSnapshot<Content: View>(
+    private func renderRefinedPanelContextSnapshot<Content: View>(
         _ content: Content,
         name: String,
         colorScheme: ColorScheme
     ) throws {
         let view = ZStack {
-            MaterialBackdropScene(colorScheme: colorScheme)
+            RefinedPanelContextScene(colorScheme: colorScheme)
             content
                 .frame(width: 320)
                 .panelSnapshotChrome()
@@ -421,7 +421,7 @@ private extension View {
     }
 }
 
-private struct MaterialBackdropScene: View {
+private struct RefinedPanelContextScene: View {
     let colorScheme: ColorScheme
 
     var body: some View {
@@ -529,12 +529,12 @@ private struct MaterialBackdropScene: View {
     private var codeLines: [String] {
         [
             "struct PanelSurfaceBackground: View {",
-            "  PanelMaterialView(blendingMode: .behindWindow)",
-            "  Color.panelBackground.opacity(0.86)",
+            "  Color.panelBackground",
             "  PanelAccentHairline(cornerRadius: 16)",
             "}",
-            "SelectionSurfaceChrome(isSelected: true)",
-            "renderMaterialBackdropSnapshot(...)",
+            "cardSelectionStyle(isSelected: true)",
+            "HeaderView(sessions: sessions)",
+            "renderPanelScreenshot(...)",
         ]
     }
 

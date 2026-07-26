@@ -1366,15 +1366,8 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(WorktreeCleanupCandidate.State.ignored(["main checkout"]).isActionable)
     }
 
-    func testPopupTabAvailabilityAlwaysIncludesRecentAndCleanupForExplicitScan() {
-        XCTAssertEqual(
-            PopupTab.availableTabs(hasIdleSessions: false, hasRecentProjects: false, hasCleanupCandidates: false),
-            [.active, .recent, .cleanup]
-        )
-        XCTAssertEqual(
-            PopupTab.availableTabs(hasIdleSessions: true, hasRecentProjects: true, hasCleanupCandidates: true),
-            [.active, .idle, .recent, .cleanup]
-        )
+    func testPopupTabAvailabilityAlwaysIncludesAllFourProductSurfaces() {
+        XCTAssertEqual(PopupTab.allCases, [.active, .idle, .recent, .cleanup])
     }
 
     func testPopupTabHelpTextDescribesCurrentBuckets() {
@@ -1426,11 +1419,12 @@ final class WorktreeCleanupTests: XCTestCase {
     }
 
     func testKeyboardTabSwitchingIncludesCleanup() {
-        let tabs: [PopupTab] = [.active, .recent, .cleanup]
+        let tabs = PopupTab.allCases
 
         XCTAssertEqual(PopupTab.switched(from: .recent, action: .nextTab, availableTabs: tabs), .cleanup)
         XCTAssertEqual(PopupTab.switched(from: .cleanup, action: .nextTab, availableTabs: tabs), .active)
         XCTAssertEqual(PopupTab.switched(from: .active, action: .previousTab, availableTabs: tabs), .cleanup)
+        XCTAssertEqual(PopupTab.switched(from: .active, action: .nextTab, availableTabs: tabs), .idle)
     }
 
     func testConfirmingCleanupSelectionTargetsCleanupDetail() {

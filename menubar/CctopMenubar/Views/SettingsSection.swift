@@ -25,11 +25,10 @@ struct SettingsSection: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: true) {
+        ScrollView(showsIndicators: false) {
             settingsContent
         }
         .frame(maxHeight: AppChrome.settingsScrollViewportHeight)
-        .background(Color.groupedContentBackground)
         .onAppear { notificationPermission.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             notificationPermission.refresh()
@@ -50,8 +49,6 @@ struct SettingsSection: View {
                 sectionHeader("Integrations")
                 settingsGroup {
                     StreamDeckPluginRowView(pluginManager: pluginManager)
-                        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-                        .padding(.vertical, 2)
                 }
             }
 
@@ -82,7 +79,9 @@ struct SettingsSection: View {
                 settingsRow("Launch at Login") {
                     Toggle("", isOn: $launchAtLogin)
                         .toggleStyle(.switch).controlSize(.mini)
+                        .tint(Color.amber)
                         .labelsHidden()
+                        .accessibilityLabel("Launch at Login")
                 }
                 .onChange(of: launchAtLogin) { newValue in
                     do {
@@ -96,17 +95,22 @@ struct SettingsSection: View {
                 fileAccessRow
             }
         }
+        .padding(6)
+        .background(Color.groupedContentBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .padding(AppChrome.settingsContentPadding)
     }
 
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 10, weight: .semibold))
+            .font(.system(size: 9.5, weight: .semibold))
             .foregroundStyle(Color.textMuted)
+            .textCase(.uppercase)
+            .tracking(0.65)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, AppChrome.settingsSectionHeaderHorizontalPadding)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            .padding(.top, 7)
+            .padding(.bottom, 4)
     }
 
     private func settingsGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
@@ -116,10 +120,6 @@ struct SettingsSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.groupedRowBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
-                .stroke(Color.groupedRowBorder, lineWidth: 1)
-        }
     }
 
     private func settingsRow<Content: View>(_ label: String, @ViewBuilder trailing: () -> Content) -> some View {
@@ -133,13 +133,14 @@ struct SettingsSection: View {
             trailing()
         }
         .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 
     private var groupedDivider: some View {
         Rectangle()
             .fill(Color.groupedRowBorder)
-            .frame(height: 1)
+            .frame(height: 0.5)
             .padding(.leading, AppChrome.settingsDividerLeadingPadding)
     }
 
@@ -158,7 +159,8 @@ struct SettingsSection: View {
             ShortcutBadge(name: .navigate)
         }
         .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 
     private var fileAccessRow: some View {
@@ -198,7 +200,8 @@ struct SettingsSection: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 
     @ViewBuilder
@@ -226,7 +229,8 @@ struct SettingsSection: View {
                             .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
                     }
                     .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 4)
+                    .frame(minHeight: 25)
                 }
                 .buttonStyle(.plain)
                 .help("Open updater for v\(version)")
@@ -259,14 +263,15 @@ struct SettingsSection: View {
                 .accessibilityLabel("Downloading update")
         }
         .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-        .padding(.vertical, 10)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 
     private var updateControlsSection: some View {
         HStack {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(Color.statusGreen)
-            Text("Up to date \u{2014} v\(currentVersion)")
+            Text("Up to date, v\(currentVersion)")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Color.textPrimary)
             Spacer()
@@ -280,7 +285,8 @@ struct SettingsSection: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-        .padding(.vertical, 10)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 
     private func disabledSection(reason: DisabledReason) -> some View {
@@ -288,7 +294,8 @@ struct SettingsSection: View {
             .font(.system(size: 10))
             .foregroundStyle(Color.textMuted)
             .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-            .padding(.vertical, 8)
+            .padding(.vertical, 4)
+            .frame(minHeight: 25)
     }
 
     private func openFileAccessSettings() {
@@ -314,23 +321,31 @@ private struct MonitoredToolsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ClaudeCodePluginRowView(pluginManager: pluginManager)
+                .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
             if pluginManager.ocConfigExists {
+                toolDivider
                 PluginRowView(name: "opencode", installed: pluginManager.ocInstalled,
                     needsUpdate: pluginManager.ocNeedsUpdate,
                     install: { pluginManager.installOpenCodePlugin() },
                     remove: { pluginManager.removeOpenCodePlugin() })
             }
             if pluginManager.piConfigExists {
+                toolDivider
                 PluginRowView(name: "pi", installed: pluginManager.piInstalled,
                     install: { pluginManager.installPiPlugin() },
                     remove: { pluginManager.removePiPlugin() })
             }
             if pluginManager.codexConfigExists {
+                toolDivider
                 CodexPluginRowView(pluginManager: pluginManager)
             }
         }
-        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-        .padding(.vertical, 2)
+    }
+
+    private var toolDivider: some View {
+        Rectangle()
+            .fill(Color.groupedRowBorder)
+            .frame(height: 0.5)
     }
 }
 
@@ -340,41 +355,52 @@ private struct PluginRowView: View {
     let install: () -> Bool; let remove: () -> Bool
     @State private var justInstalled = false; @State private var removeHovered = false
     @State private var installFailed = false
-
     var body: some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 8) {
-                Text(name).font(.system(size: 11, weight: .medium)).foregroundStyle(Color.textPrimary)
-                Spacer()
-                if justInstalled {
-                    EmptyView()
-                } else if needsUpdate {
-                    updateButton
-                } else if installed {
-                    ConnectedBadge()
-                    Button { if !remove() { flashFailed() } } label: {
-                        Text("Remove").font(.system(size: 10))
-                            .foregroundStyle(removeHovered ? Color.textPrimary : Color.textMuted)
-                    }.buttonStyle(.plain).onHover { removeHovered = $0 }
-                } else { installButton }
-            }.padding(.vertical, 7)
+        VStack(spacing: 0) {
+            primaryRow
             if justInstalled {
-                HStack(spacing: 4) {
+                SettingsSecondaryRow(spacing: 4) {
                     Image(systemName: "checkmark").font(.system(size: 10)).foregroundStyle(Color.statusGreen)
                     Text("Installed \u{2014} restart \(name) to start tracking")
                         .font(.system(size: 10)).foregroundStyle(Color.textMuted)
-                }.transition(.opacity)
+                    Spacer()
+                }
+                .transition(.opacity)
             }
             if installFailed {
-                Text("Failed \u{2014} check permissions")
-                    .font(.system(size: 10)).foregroundStyle(Color.amber).transition(.opacity)
+                SettingsSecondaryRow {
+                    Text("Failed \u{2014} check permissions")
+                        .font(.system(size: 10)).foregroundStyle(Color.statusAttentionText)
+                    Spacer()
+                }
+                .transition(.opacity)
             }
         }
     }
-
+    private var primaryRow: some View {
+        HStack(spacing: 8) {
+            Text(name).font(.system(size: 11, weight: .medium)).foregroundStyle(Color.textPrimary)
+            Spacer()
+            if justInstalled {
+                EmptyView()
+            } else if needsUpdate {
+                updateButton
+            } else if installed {
+                ConnectedBadge()
+                Button { if !remove() { flashFailed() } } label: {
+                    Text("Remove").font(.system(size: 10))
+                        .foregroundStyle(removeHovered ? Color.textPrimary : Color.textMuted)
+                }.buttonStyle(.plain).onHover { removeHovered = $0 }
+            } else {
+                installButton
+            }
+        }
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
+    }
     private var updateButton: some View { actionButton(updateLabel) }
     private var installButton: some View { actionButton(installLabel) }
-
     private func actionButton(_ label: String) -> some View {
         AmberActionButton(label: label) {
             if install() {
@@ -383,16 +409,13 @@ private struct PluginRowView: View {
             } else { flashFailed() }
         }
     }
-
     private func flashFailed() {
         installFailed = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { installFailed = false }
     }
 }
-
 private struct ClaudeCodePluginRowView: View {
     @ObservedObject var pluginManager: PluginManager
-
     var body: some View {
         HStack(spacing: 8) {
             Text("Claude Code / Desktop")
@@ -405,7 +428,8 @@ private struct ClaudeCodePluginRowView: View {
                 ClaudeCodeInstallButton()
             }
         }
-        .padding(.vertical, 7)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 }
 
@@ -447,7 +471,7 @@ struct ClaudeCodeInstallButton: View {
                 .foregroundStyle(Color.statusGreen)
             Text("Copied \u{2014} paste in terminal")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.statusGreen)
+                .foregroundStyle(Color.statusWorkingText)
         }
         .padding(.horizontal, 8).padding(.vertical, 3)
         .overlay(
@@ -457,12 +481,10 @@ struct ClaudeCodeInstallButton: View {
         .transition(.opacity)
     }
 }
-
 /// Amber pill action button shared by the plugin rows and the empty state.
 struct AmberActionButton: View {
     let label: String
     let action: () -> Void
-
     var body: some View {
         Button(action: action) {
             Text(label)
@@ -476,18 +498,3 @@ struct AmberActionButton: View {
         .buttonStyle(.plain)
     }
 }
-
-struct StatusDotBadge: View {
-    let text: String
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Circle().fill(Color.statusGreen).frame(width: 5, height: 5)
-            Text(text)
-                .font(.system(size: 10))
-                .foregroundStyle(Color.textMuted)
-        }
-    }
-}
-
-struct ConnectedBadge: View { var body: some View { StatusDotBadge(text: "Connected") } }

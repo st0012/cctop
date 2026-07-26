@@ -165,12 +165,11 @@ words, an action with no payoff, a reveal at the wrong altitude, a saggy feature
 **Fidelity to the real app**
 - **Measure, don't guess.** Highlight rects were dialed in by laying a coordinate grid over the real
   screenshot (ImageMagick `-draw` lines; gridline-counting since ghostscript/text isn't installed).
-- **Adopt the real icon assets, don't approximate them.** The menubar pill uses the cctop
-  `MenubarIcon` template (the 2×2-grid logo) accent-tinted via a CSS `mask` — `build.sh` stages it
-  (trimmed) from `menubar/CctopMenubar/Assets.xcassets/`, so if the logo changes the video follows.
-  Beside it, **one rounded bar with proportional colour segments** is drawn in DOM. This mirrors the app:
-  `MenubarIconRenderer.swift` tints the same `MenubarIcon` asset + `drawSegmentedBar`. The CTA uses the
-  real `AppIcon` (full-colour). cctop is a status-area app: the menubar has **no app menu / "File Edit"** —
+- **Adopt the real icon assets, don't approximate them.** The menubar pill draws the single
+  proportional hairline status bar directly in the DOM, in the same working / attention /
+  permission / idle order as `MenubarIconRenderer.swift`. Do not add a second glyph beside it.
+  The CTA uses the real `AppIcon` (full-colour) staged by `build.sh`. cctop is a status-area app:
+  the menubar has **no app menu / "File Edit"** —
   just the Apple logo left, the pill among wifi/battery/clock right.
 - **Accuracy over flash in copy.** "Every agent. Every editor." overclaims (cctop supports specific
   tools) → "Works with the stack you've got." The default keyboard shortcut is `⌃⌘N`, not `⌃⌘F`

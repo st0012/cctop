@@ -17,8 +17,16 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
     struct ColorPair {
         let dark: NSColor
         let light: NSColor
+
         func resolve(_ appearance: NSAppearance) -> NSColor {
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+        }
+
+        func withAlpha(dark darkAlpha: CGFloat, light lightAlpha: CGFloat) -> ColorPair {
+            ColorPair(
+                dark: dark.withAlphaComponent(darkAlpha),
+                light: light.withAlphaComponent(lightAlpha)
+            )
         }
     }
 
@@ -37,27 +45,35 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
     var claudeDesktopBadge: ColorPair { Self.claudeDesktopBadges[self]! }
     var codexDesktopBadge: ColorPair { Self.codexDesktopBadges[self]! }
 
-    var segmentText: ColorPair { textMuted }
+    var segmentBackground: ColorPair { textPrimary.withAlpha(dark: 0.06, light: 0.06) }
+    var segmentThumbBackground: ColorPair {
+        ColorPair(
+            dark: textPrimary.dark.withAlphaComponent(0.13),
+            light: NSColor.white
+        )
+    }
+    var segmentText: ColorPair { textSecondary }
     var segmentActiveText: ColorPair { textPrimary }
     var accentButtonText: ColorPair { Self.accentButtonTexts[self]! }
     var statusPermission: ColorPair { Self.permissions[self]! }
     var statusAttention: ColorPair { Self.attentions[self]! }
     var statusWorking: ColorPair { statusGreen }
+    var statusPermissionText: ColorPair { Self.permissionTexts[self]! }
+    var statusAttentionText: ColorPair { Self.attentionTexts[self]! }
+    var statusWorkingText: ColorPair { Self.workingTexts[self]! }
 
-    // Shared across all themes
+    // Shared geometry, resolved from each theme's own ink.
     var cardBackground: ColorPair { Self.sharedCard }
     var cardBorder: ColorPair { Self.sharedBorder }
-    var segmentBackground: ColorPair { Self.sharedSegBg }
     var settingsBackground: ColorPair { Self.sharedCard }
     var settingsBorder: ColorPair { Self.sharedBorder }
-    var panelMaterialOverlay: ColorPair { Self.sharedPanelMaterialOverlay }
-    var panelControlBackground: ColorPair { Self.sharedPanelControlBackground }
-    var panelControlBorder: ColorPair { Self.sharedPanelControlBorder }
-    var panelAccentBorder: ColorPair { Self.accentBorders[self]! }
-    var panelSelectionBackground: ColorPair { Self.selectionBackgrounds[self]! }
-    var groupedContentBackground: ColorPair { Self.sharedGroupedContentBackground }
-    var groupedRowBackground: ColorPair { Self.sharedGroupedRowBackground }
-    var groupedRowBorder: ColorPair { Self.sharedGroupedRowBorder }
+    var panelControlBackground: ColorPair { textPrimary.withAlpha(dark: 0.035, light: 0.026) }
+    var panelControlBorder: ColorPair { textPrimary.withAlpha(dark: 0.09, light: 0.085) }
+    var panelAccentBorder: ColorPair { textPrimary.withAlpha(dark: 0.055, light: 0.08) }
+    var panelSelectionBackground: ColorPair { textPrimary.withAlpha(dark: 0.075, light: 0.07) }
+    var groupedContentBackground: ColorPair { textPrimary.withAlpha(dark: 0.035, light: 0.035) }
+    var groupedRowBackground: ColorPair { textPrimary.withAlpha(dark: 0.055, light: 0.055) }
+    var groupedRowBorder: ColorPair { textPrimary.withAlpha(dark: 0.07, light: 0.07) }
 }
 
 // MARK: - Color tables
@@ -69,28 +85,6 @@ private extension AppTheme {
     static let sharedBorder = ColorPair(
         dark: NSColor(white: 1, alpha: 0.04), light: NSColor(white: 0, alpha: 0.04)
     )
-    static let sharedSegBg = ColorPair(
-        dark: NSColor(white: 1, alpha: 0.06), light: NSColor(white: 0, alpha: 0.04)
-    )
-    static let sharedPanelMaterialOverlay = ColorPair(
-        dark: NSColor(white: 1, alpha: 0.04), light: NSColor(white: 1, alpha: 0.18)
-    )
-    static let sharedPanelControlBackground = ColorPair(
-        dark: NSColor(white: 1, alpha: 0.035), light: NSColor(white: 0, alpha: 0.026)
-    )
-    static let sharedPanelControlBorder = ColorPair(
-        dark: NSColor(white: 1, alpha: 0.09), light: NSColor(white: 0, alpha: 0.085)
-    )
-    static let sharedGroupedContentBackground = ColorPair(
-        dark: NSColor(white: 0, alpha: 0.08), light: NSColor(white: 0, alpha: 0.026)
-    )
-    static let sharedGroupedRowBackground = ColorPair(
-        dark: NSColor(white: 1, alpha: 0.035), light: NSColor(white: 1, alpha: 0.34)
-    )
-    static let sharedGroupedRowBorder = ColorPair(
-        dark: NSColor(white: 1, alpha: 0.085), light: NSColor(white: 0, alpha: 0.085)
-    )
-
     static func hex(_ red: CGFloat, _ green: CGFloat, _ blue: CGFloat, alpha: CGFloat = 1) -> NSColor {
         NSColor(red: red / 255.0, green: green / 255.0, blue: blue / 255.0, alpha: alpha)
     }
@@ -113,7 +107,7 @@ private extension AppTheme {
     // Permission = error/red — urgent, needs approval
     static let permissions: [AppTheme: ColorPair] = [
         .claude: ColorPair(dark: hex(0xDD, 0x53, 0x53), light: hex(0xDD, 0x53, 0x53)),
-        .tokyoNight: ColorPair(dark: hex(0xF7, 0x76, 0x8E), light: hex(0x8C, 0x43, 0x51)),
+        .tokyoNight: ColorPair(dark: hex(0xF7, 0x76, 0x8E), light: hex(0xC1, 0x3A, 0x57)),
         .gruvbox: ColorPair(dark: hex(0xFB, 0x49, 0x34), light: hex(0x9D, 0x00, 0x06)),
         .nord: ColorPair(dark: hex(0xBF, 0x61, 0x6A), light: hex(0xBF, 0x61, 0x6A)),
     ]
@@ -121,7 +115,7 @@ private extension AppTheme {
     // Attention = warning/orange — waiting for input
     static let attentions: [AppTheme: ColorPair] = [
         .claude: ColorPair(dark: hex(0xC1, 0x5F, 0x3C), light: hex(0xC1, 0x5F, 0x3C)),
-        .tokyoNight: ColorPair(dark: hex(0xFF, 0x9E, 0x64), light: hex(0x96, 0x50, 0x27)),
+        .tokyoNight: ColorPair(dark: hex(0xFF, 0x9E, 0x64), light: hex(0xA8, 0x5A, 0x17)),
         .gruvbox: ColorPair(dark: hex(0xFA, 0xBD, 0x2F), light: hex(0xB5, 0x76, 0x14)),
         .nord: ColorPair(dark: hex(0xD0, 0x87, 0x70), light: hex(0xD0, 0x87, 0x70)),
     ]
@@ -129,9 +123,32 @@ private extension AppTheme {
     // Working status green
     static let greens: [AppTheme: ColorPair] = [
         .claude: ColorPair(dark: hex(0x7E, 0xAA, 0x6E), light: hex(0x4A, 0x82, 0x38)),
-        .tokyoNight: ColorPair(dark: hex(0x9E, 0xCE, 0x6A), light: hex(0x33, 0x63, 0x5C)),
+        .tokyoNight: ColorPair(dark: hex(0x9E, 0xCE, 0x6A), light: hex(0x4E, 0x70, 0x28)),
         .gruvbox: ColorPair(dark: hex(0xB8, 0xBB, 0x26), light: hex(0x42, 0x7B, 0x58)),
         .nord: ColorPair(dark: hex(0xA3, 0xBE, 0x8C), light: hex(0x4E, 0x7A, 0x35)),
+    ]
+
+    // Small semantic labels need higher contrast than the live dots and bars.
+    // These keep each palette's hue while clearing 4.5:1 against its panel.
+    static let permissionTexts: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0xE5, 0x7B, 0x7B), light: hex(0xAC, 0x41, 0x41)),
+        .tokyoNight: ColorPair(dark: hex(0xF7, 0x76, 0x8E), light: hex(0xA8, 0x32, 0x4C)),
+        .gruvbox: ColorPair(dark: hex(0xFC, 0x6F, 0x5F), light: hex(0x9D, 0x00, 0x06)),
+        .nord: ColorPair(dark: hex(0xD5, 0x98, 0x9E), light: hex(0x97, 0x4D, 0x54)),
+    ]
+
+    static let attentionTexts: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0xD1, 0x87, 0x6D), light: hex(0x9E, 0x4E, 0x31)),
+        .tokyoNight: ColorPair(dark: hex(0xFF, 0x9E, 0x64), light: hex(0x8F, 0x4D, 0x14)),
+        .gruvbox: ColorPair(dark: hex(0xFA, 0xBD, 0x2F), light: hex(0x8B, 0x5B, 0x0F)),
+        .nord: ColorPair(dark: hex(0xDA, 0xA0, 0x8E), light: hex(0x89, 0x59, 0x4A)),
+    ]
+
+    static let workingTexts: [AppTheme: ColorPair] = [
+        .claude: ColorPair(dark: hex(0x7F, 0xAB, 0x6F), light: hex(0x40, 0x71, 0x31)),
+        .tokyoNight: ColorPair(dark: hex(0x9E, 0xCE, 0x6A), light: hex(0x48, 0x67, 0x25)),
+        .gruvbox: ColorPair(dark: hex(0xB8, 0xBB, 0x26), light: hex(0x3B, 0x6F, 0x4F)),
+        .nord: ColorPair(dark: hex(0xA3, 0xBE, 0x8C), light: hex(0x45, 0x6D, 0x2F)),
     ]
 
     static let primaries: [AppTheme: ColorPair] = [
@@ -157,7 +174,7 @@ private extension AppTheme {
 
     static let dimmeds: [AppTheme: ColorPair] = [
         .claude: ColorPair(dark: hex(0x93, 0x8F, 0x84), light: hex(0x68, 0x64, 0x5D)),
-        .tokyoNight: ColorPair(dark: hex(0x69, 0x71, 0x8E), light: hex(0x83, 0x87, 0x92)),
+        .tokyoNight: ColorPair(dark: hex(0x69, 0x71, 0x8E), light: hex(0x7E, 0x82, 0x8C)),
         .gruvbox: ColorPair(dark: hex(0x88, 0x7A, 0x6E), light: hex(0x92, 0x83, 0x74)),
         .nord: ColorPair(dark: hex(0x7F, 0x8A, 0xA2), light: hex(0x4C, 0x56, 0x6A)),
     ]
@@ -167,36 +184,6 @@ private extension AppTheme {
         .tokyoNight: ColorPair(dark: hex(0x1A, 0x1B, 0x26), light: hex(0xE6, 0xE7, 0xED)),
         .gruvbox: ColorPair(dark: hex(0x28, 0x28, 0x28), light: hex(0xFB, 0xF1, 0xC7)),
         .nord: ColorPair(dark: hex(0x2E, 0x34, 0x40), light: hex(0xEC, 0xEF, 0xF4)),
-    ]
-
-    static let selectionBackgrounds: [AppTheme: ColorPair] = [
-        .claude: ColorPair(
-            dark: hex(0x33, 0x32, 0x30), light: hex(0xEC, 0xEA, 0xE3)
-        ),
-        .tokyoNight: ColorPair(
-            dark: hex(0x33, 0x32, 0x30), light: hex(0xEC, 0xEA, 0xE3)
-        ),
-        .gruvbox: ColorPair(
-            dark: hex(0x33, 0x32, 0x30), light: hex(0xEC, 0xEA, 0xE3)
-        ),
-        .nord: ColorPair(
-            dark: hex(0x33, 0x32, 0x30), light: hex(0xEC, 0xEA, 0xE3)
-        ),
-    ]
-
-    static let accentBorders: [AppTheme: ColorPair] = [
-        .claude: ColorPair(
-            dark: hex(0x4B, 0x48, 0x43), light: hex(0xD0, 0xCC, 0xC1)
-        ),
-        .tokyoNight: ColorPair(
-            dark: hex(0x4B, 0x48, 0x43), light: hex(0xD0, 0xCC, 0xC1)
-        ),
-        .gruvbox: ColorPair(
-            dark: hex(0x4B, 0x48, 0x43), light: hex(0xD0, 0xCC, 0xC1)
-        ),
-        .nord: ColorPair(
-            dark: hex(0x4B, 0x48, 0x43), light: hex(0xD0, 0xCC, 0xC1)
-        ),
     ]
 
     static let idles: [AppTheme: ColorPair] = [

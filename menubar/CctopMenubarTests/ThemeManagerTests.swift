@@ -62,13 +62,17 @@ final class ThemeManagerTests: XCTestCase {
 
         for theme in AppTheme.allCases {
             for appearance in appearances {
-                let panel = theme.panelMaterialOverlay.resolve(appearance)
-                    .flattened(over: theme.panelBackground.resolve(appearance))
+                let panel = theme.panelBackground.resolve(appearance)
                 let primary = theme.textPrimary.resolve(appearance)
                 let secondary = theme.textSecondary.resolve(appearance)
                 let muted = theme.textMuted.resolve(appearance)
                 let dimmed = theme.textDimmed.resolve(appearance)
                 let idle = theme.statusIdle.resolve(appearance)
+                let semanticTextColors = [
+                    (theme.statusPermissionText, theme.statusPermission),
+                    (theme.statusAttentionText, theme.statusAttention),
+                    (theme.statusWorkingText, theme.statusWorking),
+                ]
 
                 XCTAssertGreaterThanOrEqual(
                     primary.contrastRatio(against: panel), 4.5,
@@ -90,9 +94,22 @@ final class ThemeManagerTests: XCTestCase {
                     idle.contrastRatio(against: panel), 3.0,
                     "\(theme.displayName) idle status should stay usable in \(appearance.name.rawValue)"
                 )
+                let capsuleAlpha: CGFloat = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? 0.13 : 0.10
+                for (semanticTextColor, liveColor) in semanticTextColors {
+                    let capsuleBackground = liveColor.resolve(appearance)
+                        .withAlphaComponent(capsuleAlpha)
+                        .flattened(over: panel)
+                    XCTAssertGreaterThanOrEqual(
+                        semanticTextColor.resolve(appearance).contrastRatio(against: panel), 4.5,
+                        "\(theme.displayName) semantic status text should stay readable in \(appearance.name.rawValue)"
+                    )
+                    XCTAssertGreaterThanOrEqual(
+                        semanticTextColor.resolve(appearance).contrastRatio(against: capsuleBackground), 4.5,
+                        "\(theme.displayName) capsule status text should stay readable in \(appearance.name.rawValue)"
+                    )
+                }
 
                 let chromeRoles = [
-                    theme.panelMaterialOverlay,
                     theme.panelControlBackground,
                     theme.panelControlBorder,
                     theme.panelAccentBorder,
@@ -128,30 +145,24 @@ final class ThemeManagerTests: XCTestCase {
 
     func testAppChromeKeepsRoundedElementsOnOneRadiusAndSettingsAwayFromFooter() {
         XCTAssertEqual(AppChrome.panelCornerRadius, 16)
-        XCTAssertEqual(AppChrome.selectionCornerRadius, AppChrome.panelCornerRadius - AppChrome.rowSelectionHorizontalInset)
         XCTAssertEqual(AppChrome.selectionCornerRadius, 10)
         XCTAssertEqual(AppChrome.controlCornerRadius, AppChrome.cornerRadius)
         XCTAssertEqual(AppChrome.groupCornerRadius, AppChrome.cornerRadius)
-        XCTAssertEqual(AppChrome.settingsSectionHeaderHorizontalPadding, AppChrome.settingsRowHorizontalPadding)
-        XCTAssertEqual(AppChrome.settingsDividerLeadingPadding, AppChrome.settingsRowHorizontalPadding)
+        XCTAssertLessThan(AppChrome.settingsSectionHeaderHorizontalPadding, AppChrome.settingsRowHorizontalPadding)
+        XCTAssertEqual(AppChrome.settingsDividerLeadingPadding, 0)
         XCTAssertEqual(
             AppChrome.settingsSegmentedControlHeight,
             AppChrome.settingsSegmentHeight + AppChrome.settingsSegmentedControlPadding * 2
         )
-        XCTAssertEqual(
-            AppChrome.settingsSegmentSelectionCornerRadius,
-            AppChrome.controlCornerRadius - AppChrome.settingsSegmentedControlPadding
-        )
-        XCTAssertLessThanOrEqual(AppChrome.settingsSegmentHorizontalPadding, 6)
+        XCTAssertEqual(AppChrome.settingsSegmentedControlCornerRadius, 7)
+        XCTAssertEqual(AppChrome.settingsSegmentSelectionCornerRadius, 5)
+        XCTAssertLessThanOrEqual(AppChrome.settingsSegmentHorizontalPadding, 7)
         XCTAssertLessThanOrEqual(AppChrome.settingsSegmentSpacing, AppChrome.settingsSegmentedControlPadding)
-        XCTAssertGreaterThanOrEqual(AppChrome.settingsContentPaddingBottom, AppChrome.cornerRadius * 3)
+        XCTAssertGreaterThanOrEqual(AppChrome.settingsContentPaddingBottom, 6)
         XCTAssertGreaterThan(AppChrome.overlayMinimumContentHeight, 0)
         XCTAssertLessThan(AppChrome.overlayMinimumContentHeight, CGFloat.infinity)
         XCTAssertEqual(AppChrome.settingsOverlayVerticalPadding, 0)
-        XCTAssertEqual(
-            AppChrome.settingsScrollViewportHeight + AppChrome.settingsOverlayVerticalPadding * 2,
-            AppChrome.overlayMinimumContentHeight
-        )
+        XCTAssertGreaterThan(AppChrome.settingsScrollViewportHeight, AppChrome.overlayMinimumContentHeight)
     }
 }
 

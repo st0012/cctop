@@ -3,27 +3,29 @@ import SwiftUI
 
 enum AppChrome {
     static let cornerRadius: CGFloat = 8
-    static let rowSelectionHorizontalInset: CGFloat = 6
+    static let headerHeight: CGFloat = 40
+    static let rowSelectionHorizontalInset: CGFloat = 8
     static let panelCornerRadius: CGFloat = 16
     static let controlCornerRadius = cornerRadius
-    static let selectionCornerRadius = panelCornerRadius - rowSelectionHorizontalInset
+    static let selectionCornerRadius: CGFloat = 10
     static let groupCornerRadius = cornerRadius
     static let settingsContentPaddingHorizontal: CGFloat = 8
-    static let settingsContentPaddingTop: CGFloat = 10
-    static let settingsContentPaddingBottom: CGFloat = 28
+    static let settingsContentPaddingTop: CGFloat = 0
+    static let settingsContentPaddingBottom: CGFloat = 6
     static let settingsRowHorizontalPadding: CGFloat = 10
-    static let settingsSectionHeaderHorizontalPadding = settingsRowHorizontalPadding
-    static let settingsDividerLeadingPadding = settingsRowHorizontalPadding
-    static let settingsSegmentSpacing: CGFloat = 1
+    static let settingsSectionHeaderHorizontalPadding: CGFloat = 5
+    static let settingsDividerLeadingPadding: CGFloat = 0
+    static let settingsSegmentSpacing: CGFloat = 0
     static let settingsSegmentedControlPadding: CGFloat = 2
-    static let settingsSegmentHorizontalPadding: CGFloat = 6
-    static let settingsSegmentHeight: CGFloat = 22
+    static let settingsSegmentHorizontalPadding: CGFloat = 7
+    static let settingsSegmentHeight: CGFloat = 17
     static let settingsSegmentedControlHeight = settingsSegmentHeight + settingsSegmentedControlPadding * 2
-    static let settingsSegmentSelectionCornerRadius = controlCornerRadius - settingsSegmentedControlPadding
+    static let settingsSegmentedControlCornerRadius: CGFloat = 7
+    static let settingsSegmentSelectionCornerRadius: CGFloat = 5
     static let overlayMinimumContentHeight: CGFloat = 290
     static let overlayContentVerticalPadding: CGFloat = 8
     static let settingsOverlayVerticalPadding: CGFloat = 0
-    static let settingsScrollViewportHeight = overlayMinimumContentHeight - settingsOverlayVerticalPadding * 2
+    static let settingsScrollViewportHeight: CGFloat = 454
     static let settingsContentPadding = EdgeInsets(
         top: settingsContentPaddingTop,
         leading: settingsContentPaddingHorizontal,
@@ -45,6 +47,13 @@ extension Color {
     static var segmentBackground: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             ThemeManager.shared.current.segmentBackground.resolve(appearance)
+        })
+    }
+
+    /// Native-style segmented-control selection thumb.
+    static var segmentThumbBackground: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.segmentThumbBackground.resolve(appearance)
         })
     }
 
@@ -87,13 +96,6 @@ extension Color {
     static var panelBackground: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             ThemeManager.shared.current.panelBackground.resolve(appearance)
-        })
-    }
-
-    /// Subtle material wash layered over the panel base.
-    static var panelMaterialOverlay: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            ThemeManager.shared.current.panelMaterialOverlay.resolve(appearance)
         })
     }
 
@@ -167,6 +169,13 @@ extension Color {
         })
     }
 
+    /// Attention/waiting color adjusted for small text contrast.
+    static var statusAttentionText: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.statusAttentionText.resolve(appearance)
+        })
+    }
+
     /// Permission status (urgent, needs approval).
     static var statusPermission: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -174,10 +183,24 @@ extension Color {
         })
     }
 
+    /// Permission color adjusted for small text contrast.
+    static var statusPermissionText: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.statusPermissionText.resolve(appearance)
+        })
+    }
+
     /// Working status green.
     static var statusGreen: Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             ThemeManager.shared.current.statusGreen.resolve(appearance)
+        })
+    }
+
+    /// Working color adjusted for small text contrast.
+    static var statusWorkingText: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            ThemeManager.shared.current.statusWorkingText.resolve(appearance)
         })
     }
 

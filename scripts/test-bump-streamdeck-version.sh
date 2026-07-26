@@ -16,6 +16,8 @@ FILES=(
     plugins/streamdeck/package.json
     plugins/streamdeck/com.st0012.cctop.sdPlugin/manifest.json
     site/index.html
+    video/projects/launch/body.html
+    video/projects/launch/storyboard.html
 )
 
 mkdir -p "$TEST_ROOT/scripts"
@@ -32,5 +34,7 @@ PACKAGE="$TEST_ROOT/plugins/streamdeck/package.json"
 grep -q '"Version": "9.8.7.0"' "$MANIFEST"
 grep -A1 '"Nodejs"' "$MANIFEST" | grep -q '"Version": "24"'
 grep -q '"version": "9.8.7"' "$PACKAGE"
+grep -q 'class="version">v9.8.7<' "$TEST_ROOT/video/projects/launch/body.html"
+grep -q 'class="version">v9.8.7<' "$TEST_ROOT/video/projects/launch/storyboard.html"
 
 echo "Stream Deck version bump test passed."

@@ -70,7 +70,20 @@ if ! grep -q "data-version>v$NEW_VERSION<" "$REPO_ROOT/site/index.html"; then
 fi
 echo "  Updated site/index.html"
 
-# 9. Stream Deck package metadata. Its manifest requires four numeric
+# 9. Launch-video source fallbacks.
+for launch_source in \
+    "$REPO_ROOT/video/projects/launch/body.html" \
+    "$REPO_ROOT/video/projects/launch/storyboard.html"
+do
+    sed -i '' -E "s|v[0-9]+\\.[0-9]+\\.[0-9]+|v$NEW_VERSION|g" "$launch_source"
+    if ! grep -q "class=\"version\">v$NEW_VERSION<" "$launch_source"; then
+        echo "Error: failed to update $launch_source version fallback"
+        exit 1
+    fi
+done
+echo "  Updated launch-video source fallbacks"
+
+# 10. Stream Deck package metadata. Its manifest requires four numeric
 # components; match only that shape so Nodejs.Version remains untouched.
 SD_PACKAGE="$REPO_ROOT/plugins/streamdeck/package.json"
 sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$SD_PACKAGE"

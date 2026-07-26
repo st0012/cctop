@@ -78,7 +78,7 @@ struct WorktreeCleanupTabView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(removalNotice.title)
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(removalNotice.blocksRemoval ? Color.statusAttention : Color.textPrimary)
+                    .foregroundStyle(removalNotice.blocksRemoval ? Color.statusAttentionText : Color.textPrimary)
                 Text(removalNotice.message)
                     .font(.system(size: 10))
                     .foregroundStyle(Color.textSecondary)
@@ -92,11 +92,7 @@ struct WorktreeCleanupTabView: View {
                 RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
                     .fill(Color.statusAttention.opacity(removalNotice.blocksRemoval ? 0.08 : 0.04))
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
-                    .stroke(Color.statusAttention.opacity(removalNotice.blocksRemoval ? 0.22 : 0.12), lineWidth: 1)
-            }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, AppChrome.rowSelectionHorizontalInset)
             .padding(.top, 8)
         }
     }
@@ -112,32 +108,26 @@ struct WorktreeCleanupTabView: View {
                 .foregroundStyle(Color.textMuted)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 9)
         .padding(.vertical, 6)
-        .background(Color.panelControlBackground)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.panelControlBorder)
-                .frame(height: 1)
+        .background {
+            RoundedRectangle(cornerRadius: AppChrome.selectionCornerRadius, style: .continuous)
+                .fill(Color.panelControlBackground)
         }
+        .padding(.horizontal, AppChrome.rowSelectionHorizontalInset)
+        .padding(.bottom, 2)
     }
 
     private var cleanupList: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 0) {
+                LazyVStack(spacing: 2) {
                     ForEach(Array(candidates.enumerated()), id: \.element.id) { index, candidate in
-                        if index > 0 && selectedIndex != index && selectedIndex != index - 1 {
-                            Rectangle()
-                                .fill(Color.panelControlBorder)
-                                .frame(height: 1)
-                                .padding(.horizontal, 16)
-                        }
                         cleanupCard(candidate, isSelected: selectedIndex == index)
                             .id(candidate.id)
                     }
                 }
-                .padding(.vertical, AppChrome.listVerticalPadding)
+                .padding(.bottom, 4)
             }
             .frame(maxHeight: AppChrome.overlayMinimumContentHeight)
             .onChange(of: selectedIndex) { newIndex in

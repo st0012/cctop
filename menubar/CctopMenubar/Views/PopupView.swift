@@ -49,17 +49,13 @@ struct PopupView: View {
         pluginManager.piConfigExists && !pluginManager.piInstalled && !piBannerDismissed
     }
 
-    private var showTabs: Bool { availableTabs.count > 1 }
+    private var showTabs: Bool { availableTabs.count > 1 && overlayController.active == nil }
 
     var body: some View {
         VStack(spacing: 0) {
             HeaderView(sessions: sessions)
-                .background(Color.panelControlBackground)
-            panelDivider
             if showTabs {
                 tabPicker
-                    .background(Color.panelControlBackground)
-                panelDivider
             }
             ZStack(alignment: .top) {
                 Group {
@@ -93,9 +89,7 @@ struct PopupView: View {
             .frame(minHeight: overlayController.active != nil ? AppChrome.overlayMinimumContentHeight : 0)
             .clipped()
             .animation(.easeInOut(duration: overlayAnimationDuration), value: overlayController.active)
-            panelDivider
             footerBar
-                .background(Color.panelControlBackground)
         }
         .onReceive(navigate?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
@@ -131,30 +125,32 @@ struct PopupView: View {
 
     // MARK: - Tab picker
 
-    private var panelDivider: some View {
-        Rectangle()
-            .fill(Color.panelControlBorder)
-            .frame(height: 1)
+    private var tabPicker: some View {
+        HStack(spacing: 0) {
+            ForEach(availableTabs, id: \.self) { tab in
+                tabButton(
+                    tab.label,
+                    count: count(for: tab),
+                    tab: tab,
+                    isScanning: tab == .cleanup && cleanupIsScanning,
+                    hasAttention: tab == .cleanup && cleanupHasUnseenCandidates
+                )
+            }
+        }
+        .padding(2)
+        .background(Color.segmentBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
-    private var tabPicker: some View {
-        HStack(spacing: 6) {
-            tabButton("Active", count: sortedActiveSessions.count, tab: .active)
-            if !sortedIdleSessions.isEmpty {
-                tabButton("Idle", count: sortedIdleSessions.count, tab: .idle)
-            }
-            tabButton("Recent", count: recentTargets.count, tab: .recent)
-            tabButton(
-                "Cleanup",
-                count: actionableCleanupCandidates.count,
-                tab: .cleanup,
-                isScanning: cleanupIsScanning,
-                hasAttention: cleanupHasUnseenCandidates
-            )
-            Spacer()
+    private func count(for tab: PopupTab) -> Int {
+        switch tab {
+        case .active: return sortedActiveSessions.count
+        case .idle: return sortedIdleSessions.count
+        case .recent: return recentTargets.count
+        case .cleanup: return actionableCleanupCandidates.count
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
     }
 
     private func tabButton(
@@ -244,19 +240,13 @@ struct PopupView: View {
     ) -> some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 0) {
+                LazyVStack(spacing: 2) {
                     ForEach(Array(list.enumerated()), id: \.element.id) { index, item in
-                        if index > 0 && selectedIndex != index && selectedIndex != index - 1 {
-                            Rectangle()
-                                .fill(Color.panelControlBorder)
-                                .frame(height: 1)
-                                .padding(.horizontal, 16)
-                        }
                         row(index, item, selectedIndex == index)
                             .id(item.id)
                     }
                 }
-                .padding(.vertical, AppChrome.listVerticalPadding)
+                .padding(.bottom, AppChrome.listVerticalPadding)
             }
             .frame(maxHeight: AppChrome.overlayMinimumContentHeight)
             .onChange(of: selectedIndex) { newIndex in
@@ -276,14 +266,17 @@ extension PopupView {
     var footerBar: some View {
         HStack(spacing: 8) {
             QuitButton()
+            footerSeparator
             versionButton
             footerShortcutHints
             Spacer()
             footerUpdateStatus
             settingsGearButton
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 7)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
     }
 
     private var versionButton: some View {
@@ -291,7 +284,7 @@ extension PopupView {
         let color: Color = isActive ? .amber : (versionHovered ? .textPrimary : .textMuted)
         return Button { toggleOverlay(.about) } label: {
             Text("v\(Bundle.main.appVersion)")
-                .font(.system(size: 10))
+                .font(.system(size: 10.5))
                 .foregroundStyle(color)
                 .underline(versionHovered && !isActive)
         }
@@ -303,20 +296,29 @@ extension PopupView {
         Button { toggleOverlay(.settings) } label: {
             Image(systemName: "gearshape")
                 .font(.system(size: 14))
-                .foregroundStyle(overlayController.active == .settings ? Color.amber : Color.textMuted)
-                .frame(width: 28, height: 28)
+                .foregroundStyle(overlayController.active == .settings ? Color.textSecondary : Color.textMuted)
+                .frame(width: 20, height: 20)
                 .background(
-                    RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
-                        .fill(gearHovered ? Color.panelSelectionBackground : Color.clear)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            overlayController.active == .settings || gearHovered
+                                ? Color.panelSelectionBackground
+                                : Color.clear
+                        )
                 )
+                .contentShape(Rectangle().inset(by: -4))
         }
         .buttonStyle(.plain)
         .onHover { gearHovered = $0 }
+        .accessibilityLabel("Settings")
+        .accessibilityValue(overlayController.active == .settings ? "Open" : "Closed")
     }
 
     @ViewBuilder
     private var footerUpdateStatus: some View {
-        if let version = updater.downloadingUpdateVersion {
+        if overlayController.active == .settings {
+            EmptyView()
+        } else if let version = updater.downloadingUpdateVersion {
             FooterUpdateStatusView(state: .downloading(version: version)) {}
         } else if let version = updater.pendingUpdateVersion {
             FooterUpdateStatusView(state: .available(version: version)) {
@@ -335,11 +337,19 @@ extension PopupView {
 
     // MARK: - Helpers
 
+    private var footerSeparator: some View {
+        Text("\u{00B7}")
+            .font(.system(size: 10.5))
+            .foregroundStyle(Color.textMuted.opacity(0.52))
+            .accessibilityHidden(true)
+    }
+
     @ViewBuilder private var footerShortcutHints: some View {
         if let sc = KeyboardShortcuts.getShortcut(for: .navigate) {
+            footerSeparator
             Button { toggleOverlay(.settings) } label: {
                 Text("\(sc.description) navigate")
-                    .font(.system(size: 10))
+                    .font(.system(size: 10.5))
                     .foregroundStyle(shortcutHovered ? Color.textPrimary : Color.textSecondary)
                     .underline(shortcutHovered)
                     .lineLimit(1)
@@ -371,11 +381,7 @@ extension PopupView {
         )
     }
     private var availableTabs: [PopupTab] {
-        PopupTab.availableTabs(
-            hasIdleSessions: !sortedIdleSessions.isEmpty,
-            hasRecentProjects: !recentTargets.isEmpty,
-            hasCleanupCandidates: !actionableCleanupCandidates.isEmpty
-        )
+        PopupTab.allCases
     }
 
     private func focusSession(_ session: Session) {

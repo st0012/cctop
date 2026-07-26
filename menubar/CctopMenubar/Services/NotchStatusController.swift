@@ -5,7 +5,7 @@ import SwiftUI
 /// next to the camera notch on built-in displays. No-op on non-notch Macs.
 @MainActor
 class NotchStatusController {
-    private static let pillWidth: CGFloat = 70
+    private static let pillWidth: CGFloat = 52
     private static let pillHeight: CGFloat = 20
     /// How far the pill overlaps the notch edge, anchoring it visually.
     private static let notchOverlap: CGFloat = 9

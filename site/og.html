@@ -49,12 +49,18 @@
     color: #c0caf5;
   }
   .brand-mark {
-    width: 6px;
-    height: 32px;
+    width: 30px;
+    height: 7px;
+    display: inline-flex;
+    overflow: hidden;
+    flex: 0 0 auto;
     border-radius: 999px;
-    background: #f7768e;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
   }
+  .brand-mark i { display: block; height: 100%; }
+  .brand-mark i:nth-child(1) { flex: 14; background: #8cbf6a; }
+  .brand-mark i:nth-child(2) { flex: 5; background: #e09b56; }
+  .brand-mark i:nth-child(3) { flex: 3; background: #db6e6e; }
+  .brand-mark i:nth-child(4) { flex: 4; background: #4d5058; }
   .nav-meta {
     display: flex;
     align-items: center;
@@ -110,14 +116,13 @@
     display: flex;
     overflow: hidden;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
     background: #16161e;
   }
   .status-bars span { display: block; height: 100%; }
-  .bar-ok { width: 42%; background: #9ece6a; }
-  .bar-wait { width: 18%; background: #ff9e64; }
-  .bar-perm { width: 14%; background: #f7768e; }
-  .bar-idle { width: 26%; background: #707895; }
+  .bar-ok { width: 54.1667%; background: #9ece6a; }
+  .bar-wait { width: 19.7917%; background: #ff9e64; }
+  .bar-perm { width: 12.5%; background: #f7768e; }
+  .bar-idle { width: 13.5416%; background: #707895; }
 
   h1 {
     margin-top: 24px;
@@ -188,7 +193,7 @@
 <body>
   <div class="shell">
     <div class="nav">
-      <div class="brand"><span class="brand-mark"></span><span>cctop</span></div>
+      <div class="brand"><span class="brand-mark"><i></i><i></i><i></i><i></i></span><span>cctop</span></div>
       <div class="nav-meta"><span class="nav-chip">macOS menubar</span><span class="nav-chip hot">cctop.app</span></div>
     </div>
     <main class="hero">
@@ -209,7 +214,7 @@
       <aside>
         <div class="shot-frame">
           <div class="shot-crop">
-            <img src="https://raw.githubusercontent.com/st0012/cctop/master/docs/menubar-tokyonight-dark.png" alt="">
+            <img src="../docs/menubar-tokyonight-dark.png" alt="">
           </div>
         </div>
         <div class="caption">Tokyo Night theme</div>

@@ -486,12 +486,12 @@ The `active_subagents` field tracks currently running subagents (Agent tool). It
 
 ## Notch Status View
 
-On MacBook laptops with a camera notch, the menubar icon is often hidden behind the notch. The notch status view solves this by displaying a small black pill next to the camera notch showing a grid icon + proportional status bar. Clicking the pill toggles the main panel (same as clicking the menubar icon). The panel positions itself under whichever anchor is visible (pill or menubar icon) and clamps to screen bounds.
+On MacBook laptops with a camera notch, the menubar item is often hidden behind the notch. The notch status view solves this by displaying a small black pill next to the camera notch showing the same proportional hairline status mark. Clicking the pill toggles the main panel (same as clicking the menubar item). The panel positions itself under whichever anchor is visible (pill or menubar item) and clamps to screen bounds.
 
 ### Auto-Detection
 
 - **Notch Mac (built-in display):** Shows clickable NotchStatusPanel next to the notch when the menubar icon is occluded
-- **Non-notch / external display:** Hides notch panel; menubar icon (44px) is always visible
+- **Non-notch / external display:** Hides notch panel; 36×6 hairline menubar item is always visible
 - Detection uses `NSScreen.builtin?.hasPhysicalNotch` (checks `safeAreaInsets.top > 0`)
 - Display changes (clamshell mode, external monitor connect/disconnect) handled via `NSApplication.didChangeScreenParametersNotification`
 
@@ -499,9 +499,9 @@ On MacBook laptops with a camera notch, the menubar icon is often hidden behind 
 
 - `menubar/CctopMenubar/Extensions/NSScreen+Notch.swift` — Notch detection (`hasPhysicalNotch`, `notchSize`, `isBuiltinDisplay`)
 - `menubar/CctopMenubar/Views/NotchStatusPanel.swift` — Borderless, non-activating NSPanel (clickable, toggles main panel)
-- `menubar/CctopMenubar/Views/NotchStatusView.swift` — SwiftUI pill with grid icon + proportional status bar
+- `menubar/CctopMenubar/Views/NotchStatusView.swift` — SwiftUI pill with the proportional hairline status mark
 - `menubar/CctopMenubar/Services/NotchStatusController.swift` — Panel lifecycle (`showOnScreen`, `update`, `tearDown`)
-- `menubar/CctopMenubar/Views/MenubarIconRenderer.swift` — Renders 44px menubar icon (16px icon + 22px status bar)
+- `menubar/CctopMenubar/Views/MenubarIconRenderer.swift` — Renders the 36×6 proportional hairline menubar item
 
 ### Keyboard Shortcuts (Panel)
 
@@ -511,8 +511,8 @@ On MacBook laptops with a camera notch, the menubar icon is often hidden behind 
 | Escape | Navigate mode | Cancel navigate, restore focus |
 | Up/Down arrows | Panel open | Navigate sessions |
 | Return | Session selected | Jump to session terminal |
-| Tab | Panel open | Toggle Active/Recent tab |
-| Left/Right arrows | Panel open | Switch to Active/Recent tab |
+| Tab | Panel open | Cycle Active/Idle/Recent/Cleanup tabs |
+| Left/Right arrows | Panel open | Switch across Active/Idle/Recent/Cleanup tabs |
 | 1-9 | Navigate mode | Jump to numbered session |
 
 ## Hook Delivery Debugging

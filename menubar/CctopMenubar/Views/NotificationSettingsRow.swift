@@ -22,11 +22,15 @@ struct NotificationSettingsRow: View {
             Toggle("", isOn: toggleBinding)
                 .toggleStyle(.switch)
                 .controlSize(.mini)
+                .tint(Color.amber)
                 .labelsHidden()
+                .accessibilityLabel("Notifications")
+                .accessibilityValue(accessibilityValue)
                 .disabled(notificationPermission.state == .enabling)
         }
         .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 
     private var toggleBinding: Binding<Bool> {
@@ -64,6 +68,23 @@ struct NotificationSettingsRow: View {
         notificationPermission.state == .failed ? Color.statusAttention : Color.textMuted
     }
 
+    private var accessibilityValue: String {
+        switch notificationPermission.state {
+        case .off:
+            return "Off"
+        case .enabling:
+            return "Checking macOS permission"
+        case .enabled:
+            return "On"
+        case .pendingSystemPermission:
+            return "On, will ask on first notification"
+        case .needsSystemPermission:
+            return "Off, enable in System Settings"
+        case .failed:
+            return "Off, could not enable"
+        }
+    }
+
     @ViewBuilder
     private var action: some View {
         switch notificationPermission.state {
@@ -79,7 +100,7 @@ struct NotificationSettingsRow: View {
                 notificationPermission.enable()
             }
             .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(Color.statusAttention)
+            .foregroundStyle(Color.statusAttentionText)
             .buttonStyle(.plain)
         case .off, .enabling, .enabled, .pendingSystemPermission:
             EmptyView()
