@@ -194,8 +194,13 @@ final class SessionManagerVisibilityTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .path
-        var hidden = Session.mock(id: "hidden-directory-session", source: Session.codexSource)
-        hidden.projectPath = projectPath
+        var hidden = Session(
+            sessionId: "hidden-directory-session",
+            projectPath: projectPath,
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        hidden.source = Session.codexSource
 
         var history = hidden
         history.sessionId = "ended-hidden-directory-project"
