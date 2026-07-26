@@ -12,10 +12,12 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         let untrackedOnly: WorktreeCleanupCandidate
         let secondaryReview: WorktreeCleanupCandidate
         let longStress: WorktreeCleanupCandidate
-        let unknownSafety: WorktreeCleanupCandidate
+        let unknownBranch: WorktreeCleanupCandidate
+        let detachedHead: WorktreeCleanupCandidate
+        let hardBlocked: WorktreeCleanupCandidate
 
         var allCandidates: [WorktreeCleanupCandidate] {
-            [clean, review, untrackedOnly, secondaryReview, longStress, unknownSafety]
+            [clean, review, untrackedOnly, secondaryReview, longStress, unknownBranch, detachedHead, hardBlocked]
         }
 
         var productInputCandidates: [WorktreeCleanupCandidate] {
@@ -113,16 +115,21 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             filename: "worktree-cleanup-detail-untracked-only.png"
         )
         let unknownSize = try renderScreenshot(
-            view: cleanupPopup(candidates: scenario.productInputCandidates, selectedCandidate: scenario.unknownSafety),
+            view: cleanupPopup(candidates: scenario.productInputCandidates, selectedCandidate: scenario.unknownBranch),
             colorScheme: .dark,
-            filename: "worktree-cleanup-detail-unknown-safety.png"
+            filename: "worktree-cleanup-detail-unknown-branch.png"
+        )
+        let detachedSize = try renderScreenshot(
+            view: cleanupPopup(candidates: scenario.productInputCandidates, selectedCandidate: scenario.detachedHead),
+            colorScheme: .dark,
+            filename: "worktree-cleanup-detail-detached-head.png"
         )
         let blockedSize = try renderScreenshot(
             view: cleanupDetail(
-                candidate: scenario.untrackedOnly,
+                candidate: scenario.hardBlocked,
                 notice: WorktreeRemovalNotice(
                     title: "Removal Blocked",
-                    message: "Cleanup evidence changed. Review the updated worktree before removing.",
+                    message: "This worktree is locked. Unlock it before removing.",
                     blocksRemoval: true
                 )
             ),
@@ -146,6 +153,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         XCTAssertLessThanOrEqual(longSize.width, 320)
         XCTAssertLessThanOrEqual(untrackedOnlySize.width, 320)
         XCTAssertLessThanOrEqual(unknownSize.width, 320)
+        XCTAssertLessThanOrEqual(detachedSize.width, 320)
         XCTAssertLessThanOrEqual(blockedSize.width, 320)
         XCTAssertLessThanOrEqual(forceFailureSize.width, 320)
         XCTAssertLessThanOrEqual(cleanSize.height, 430)
@@ -153,19 +161,24 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         XCTAssertLessThanOrEqual(longSize.height, 430)
         XCTAssertLessThanOrEqual(untrackedOnlySize.height, 430)
         XCTAssertLessThanOrEqual(unknownSize.height, 430)
+        XCTAssertLessThanOrEqual(detachedSize.height, 430)
         XCTAssertLessThanOrEqual(blockedSize.height, 430)
         XCTAssertLessThanOrEqual(forceFailureSize.height, 430)
-        XCTAssertEqual(scenario.unknownSafety.formattedStorage, "Unknown")
+        XCTAssertEqual(scenario.unknownBranch.formattedStorage, "Unknown")
     }
 
     private func renderConfirmationScreenshots(for scenario: Scenario) throws {
         XCTAssertFalse(
-            scenario.secondaryReview.requiresForceWorktreeRemoval,
+            scenario.secondaryReview.requiresForceRemovalReview,
             "Normal-review confirmation proof must use a review candidate that does not require --force."
         )
         XCTAssertTrue(
-            scenario.untrackedOnly.requiresForceWorktreeRemoval,
+            scenario.untrackedOnly.requiresForceRemovalReview,
             "Force confirmation proof must use a review candidate with local file loss evidence."
+        )
+        XCTAssertTrue(
+            scenario.unknownBranch.requiresForceRemovalReview,
+            "Unknown branch confirmation proof must use the force-removal path."
         )
 
         let reviewSize = try renderScreenshot(
@@ -178,11 +191,18 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             colorScheme: .dark,
             filename: "worktree-cleanup-confirmation-force.png"
         )
+        let unknownForceSize = try renderScreenshot(
+            view: CleanupConfirmationProofView(confirmation: .review(.forceRemove(scenario.unknownBranch))),
+            colorScheme: .dark,
+            filename: "worktree-cleanup-confirmation-unknown-force.png"
+        )
 
         XCTAssertLessThanOrEqual(reviewSize.width, 320)
         XCTAssertLessThanOrEqual(forceSize.width, 320)
+        XCTAssertLessThanOrEqual(unknownForceSize.width, 320)
         XCTAssertLessThanOrEqual(reviewSize.height, 430)
         XCTAssertLessThanOrEqual(forceSize.height, 430)
+        XCTAssertLessThanOrEqual(unknownForceSize.height, 430)
     }
 
     private func renderSpecialStateScreenshots(for scenario: Scenario) throws {
@@ -262,6 +282,18 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
             view: scanningPreviousCandidates,
             colorScheme: .dark,
             filename: "worktree-cleanup-scanning-with-candidates.png"
+        )
+
+        let afterSuccessfulRemoval = WorktreeCleanupTabView(
+            candidates: [scenario.clean, scenario.secondaryReview],
+            selectedIndex: nil,
+            selectedCandidate: Binding<WorktreeCleanupCandidate?>.constant(nil),
+            onRemove: { _ in }
+        )
+        try renderScreenshot(
+            view: afterSuccessfulRemoval,
+            colorScheme: .dark,
+            filename: "worktree-cleanup-after-successful-removal.png"
         )
     }
 
@@ -367,14 +399,18 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
                 ])
             )
         )
-        let unknownSafety = unknownSafetyCandidate(now: now)
+        let unknownBranch = unknownBranchCandidate(now: now)
+        let detachedHead = detachedHeadCandidate(now: now)
+        let hardBlocked = hardBlockedCandidate(now: now)
         return Scenario(
             clean: clean,
             review: review,
             untrackedOnly: untrackedOnly,
             secondaryReview: secondaryReview,
             longStress: worstCaseReviewCleanupCandidate(now: now),
-            unknownSafety: unknownSafety
+            unknownBranch: unknownBranch,
+            detachedHead: detachedHead,
+            hardBlocked: hardBlocked
         )
     }
 
@@ -393,34 +429,77 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         )
     }
 
-    private func unknownSafetyCandidate(now: Date) -> WorktreeCleanupCandidate {
+    private func unknownBranchCandidate(now: Date) -> WorktreeCleanupCandidate {
         cleanupScenarioCandidate(
             CandidateSeed(
-                path: "/Users/st0012/projects/codex/.codex/worktrees/detached-unknown-safety",
-                sessionName: "Inspect detached worktree with unknown cleanup safety",
-                branch: "detached@unknown",
+                path: "/Users/st0012/projects/codex/.codex/worktrees/unknown-branch-with-an-intentionally-long-worktree-name",
+                sessionName: "Inspect an unknown cleanup branch with a deliberately long session title",
+                branch: WorktreeCleanupCandidate.unknownBranchDisplayName,
                 lastActiveAt: now.addingTimeInterval(-86_400 * 31),
                 storageBytes: nil,
-                state: .review([
-                    "Branch is unknown or detached",
-                    "Git status could not be read",
-                    "Main checkout path could not be verified",
-                    "Branch upstream or commit safety could not be verified",
-                    "Worktree is locked",
-                ]),
-                checks: [
-                    WorktreeCleanupCheck(label: "No active cctop sessions here", status: .ok),
-                    WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: .ok),
-                    WorktreeCleanupCheck(label: "No uncommitted tracked changes", status: .review),
-                    WorktreeCleanupCheck(label: "No untracked files", status: .review),
-                    WorktreeCleanupCheck(label: "No ignored files", status: .review),
-                    WorktreeCleanupCheck(label: "Branch has no unique local commits", status: .review),
-                    WorktreeCleanupCheck(label: "Main checkout path is known", status: .review),
-                    WorktreeCleanupCheck(label: "Worktree is not locked", status: .review),
-                    WorktreeCleanupCheck(label: "Storage size scan completed", status: .ignored),
-                ]
+                state: .review([WorktreeCleanupCandidate.branchUnknownReason]),
+                checks: branchUncertaintyChecks(storageBytes: nil)
             )
         )
+    }
+
+    private func detachedHeadCandidate(now: Date) -> WorktreeCleanupCandidate {
+        cleanupScenarioCandidate(
+            CandidateSeed(
+                path: "/Users/st0012/projects/cctop/.codex/worktrees/detached-head-3cc8390",
+                sessionName: "Remove an ended session left on a detached HEAD",
+                branch: WorktreeCleanupCandidate.unknownBranchDisplayName,
+                lastActiveAt: now.addingTimeInterval(-86_400 * 28),
+                storageBytes: 18 * 1_024 * 1_024,
+                state: .review([WorktreeCleanupCandidate.branchUnknownReason]),
+                checks: branchUncertaintyChecks(storageBytes: 18 * 1_024 * 1_024)
+            )
+        )
+    }
+
+    private func hardBlockedCandidate(now: Date) -> WorktreeCleanupCandidate {
+        cleanupScenarioCandidate(
+            CandidateSeed(
+                path: "/Users/st0012/projects/cctop/.codex/worktrees/locked-cleanup",
+                sessionName: "Locked worktree remains protected",
+                branch: "feature/locked-cleanup",
+                lastActiveAt: now.addingTimeInterval(-86_400 * 35),
+                storageBytes: 6 * 1_024 * 1_024,
+                state: .review([WorktreeCleanupCandidate.lockedReason]),
+                checks: lockedWorktreeChecks()
+            )
+        )
+    }
+
+    private func branchUncertaintyChecks(storageBytes: Int64?) -> [WorktreeCleanupCheck] {
+        cleanupSafetyChecks(
+            branchStatus: .review,
+            lockStatus: .ok,
+            storageStatus: storageBytes == nil ? .ignored : .ok
+        )
+    }
+
+    private func lockedWorktreeChecks() -> [WorktreeCleanupCheck] {
+        cleanupSafetyChecks(branchStatus: .ok, lockStatus: .review, storageStatus: .ok)
+    }
+
+    private func cleanupSafetyChecks(
+        branchStatus: WorktreeCleanupCheck.Status,
+        lockStatus: WorktreeCleanupCheck.Status,
+        storageStatus: WorktreeCleanupCheck.Status
+    ) -> [WorktreeCleanupCheck] {
+        [
+            WorktreeCleanupCheck(label: "No active cctop sessions here", status: .ok),
+            WorktreeCleanupCheck(label: "Path is a registered linked worktree", status: .ok),
+            WorktreeCleanupCheck(label: "No uncommitted tracked changes", status: .ok),
+            WorktreeCleanupCheck(label: "No index-hidden tracked files", status: .ok),
+            WorktreeCleanupCheck(label: "No untracked files", status: .ok),
+            WorktreeCleanupCheck(label: "No ignored files", status: .ok),
+            WorktreeCleanupCheck(label: "Branch has no unique local commits", status: branchStatus),
+            WorktreeCleanupCheck(label: "Main checkout path is known", status: .ok),
+            WorktreeCleanupCheck(label: "Worktree is not locked", status: lockStatus),
+            WorktreeCleanupCheck(label: "Storage size scan completed", status: storageStatus),
+        ]
     }
 
     private func overflowCandidates(now: Date = Date()) -> [WorktreeCleanupCandidate] {
@@ -533,7 +612,7 @@ private struct CleanupConfirmationProofView: View {
             .padding(16)
             Spacer(minLength: 18)
         }
-        .frame(maxWidth: .infinity, minHeight: 220)
+        .frame(maxWidth: .infinity, minHeight: 300)
     }
 }
 // swiftlint:enable type_body_length

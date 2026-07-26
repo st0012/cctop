@@ -38,7 +38,7 @@ struct WorktreeRemovalService {
             if readiness.candidate.state.reasons.contains(WorktreeCleanupCandidate.lockedReason) {
                 return .blocked(readiness.candidate, readiness.candidate.blockedRemovalReason)
             }
-            if readiness.candidate.requiresForceWorktreeRemoval {
+            if readiness.candidate.requiresForceRemovalReview {
                 return .forceRemove(readiness.candidate)
             }
             return .normalRemove(readiness.candidate)
@@ -59,7 +59,7 @@ struct WorktreeRemovalService {
             guard let readiness = removalReadiness(from: candidate) else {
                 return .refused(candidate)
             }
-            let result = runGit(removeArguments(for: readiness, force: true))
+            let result = runGit(removeArguments(for: readiness, force: candidate.requiresGitForceRemoval))
             return result.exitCode == 0 ? .removed(result) : .failed(result)
         case .blocked(let candidate, _):
             return .refused(candidate)
@@ -153,9 +153,7 @@ struct WorktreeRemovalService {
               inspection.isLinkedWorktree else {
             return .refused(preflightCandidate)
         }
-        guard let branchName = inspection.branchName else {
-            return .refused(preflightCandidate)
-        }
+        let branchName = inspection.branchName ?? WorktreeCleanupCandidate.unknownBranchDisplayName
         let finalCandidate = preflightCandidate.refreshed(with: inspection, branchName: branchName)
         if let refusal = finalCandidate.refusalCandidate(
             comparedTo: preflightCandidate,
@@ -201,7 +199,7 @@ private extension WorktreeCleanupCandidate {
         if candidate.state.reasons.contains(WorktreeCleanupCandidate.protectedFolderAccessReason) {
             // Passive protected-folder rows intentionally skip identity and file-evidence probes.
             guard worktreePath == candidate.worktreePath else { return self }
-        } else if changesWorktreeIdentity(comparedTo: candidate) || changesLocalFileReviewEvidence(comparedTo: candidate) {
+        } else if changesWorktreeIdentity(comparedTo: candidate) || changesRemovalEvidence(comparedTo: candidate) {
             return self
         }
         if state.reasons.contains(WorktreeCleanupCandidate.initializedSubmodulesReason)
@@ -234,7 +232,7 @@ private extension WorktreeCleanupCandidate {
             || branchName != candidate.branchName
     }
 
-    func changesLocalFileReviewEvidence(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
+    func changesRemovalEvidence(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
         let confirmedReasons = Set(candidate.state.reasons)
         let localFileEvidencePairs = [
             (
@@ -252,12 +250,14 @@ private extension WorktreeCleanupCandidate {
             let addedReason = state.reasons.contains(pair.reason) && !confirmedReasons.contains(pair.reason)
             return pair.preflightPreview != pair.confirmedPreview || addedReason
         }
-        return changedPreview || reviewEvidence.trackedPathSignature != candidate.reviewEvidence.trackedPathSignature
+        return changedPreview
+            || reviewEvidence.trackedPathSignature != candidate.reviewEvidence.trackedPathSignature
+            || reviewEvidence.headRevision != candidate.reviewEvidence.headRevision
     }
 
     func matchesConfirmedRemovalEvidence(comparedTo candidate: WorktreeCleanupCandidate) -> Bool {
         !changesWorktreeIdentity(comparedTo: candidate)
-            && !changesLocalFileReviewEvidence(comparedTo: candidate)
+            && !changesRemovalEvidence(comparedTo: candidate)
             && Set(state.reasons) == Set(candidate.state.reasons)
     }
 
@@ -276,9 +276,6 @@ private extension WorktreeCleanupCandidate {
         }
         if state.reasons.contains(Self.lockedReason) {
             return "This worktree is locked. Unlock it before removing."
-        }
-        if state.reasons.contains(Self.branchUnknownReason) {
-            return "The branch is unknown or detached, so cctop cannot verify branch safety."
         }
         if state.reasons.contains(Self.mainWorktreePathUnverifiedReason) {
             return "The main checkout path could not be verified, so cctop cannot run worktree removal safely."
