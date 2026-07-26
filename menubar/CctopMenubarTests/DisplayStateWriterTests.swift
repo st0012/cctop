@@ -2,7 +2,7 @@ import XCTest
 @testable import CctopMenubar
 
 final class DisplayStateWriterTests: XCTestCase {
-    func testSnapshotOrderMatchesPanelAndNavigateOrder() {
+    func testSnapshotPreservesCanonicalPanelAndNavigateOrder() {
         let now = Date()
         var permission = Session.mock(id: "a", project: "alpha", status: .waitingPermission)
         permission.lastActivity = now.addingTimeInterval(-30)
@@ -12,7 +12,7 @@ final class DisplayStateWriterTests: XCTestCase {
         workingNew.lastActivity = now.addingTimeInterval(-10)
         var idle = Session.mock(id: "d", project: "delta", status: .idle)
         idle.lastActivity = now.addingTimeInterval(-60)
-        let sessions = [idle, workingOld, workingNew, permission]
+        let sessions = [permission, workingOld, workingNew, idle]
 
         let snapshot = DisplayStateWriter.snapshot(
             sessions: sessions,
@@ -22,9 +22,9 @@ final class DisplayStateWriterTests: XCTestCase {
             now: now
         )
 
-        let expected = Session.sorted(SessionDisplayPolicy.activeSessions(from: sessions, now: now))
+        let expected = SessionDisplayPolicy.activeSessions(from: sessions, now: now)
         XCTAssertEqual(snapshot.sessions.map(\.id), expected.map(\.id))
-        XCTAssertEqual(snapshot.sessions.map(\.id), ["a", "c", "b", "d"])
+        XCTAssertEqual(snapshot.sessions.map(\.id), ["a", "b", "c", "d"])
     }
 
     func testSnapshotExcludesSessionsTheAppDoesNotDisplay() {

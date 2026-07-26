@@ -820,6 +820,77 @@ final class SessionManagerVisibilityTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionManagerPublishesOneGroupedActiveOrderThroughRealisticFileUpdates() throws {
+        let root = NSTemporaryDirectory() + "cctop-stable-active-order-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let alphaPath = (sessionsDir as NSString).appendingPathComponent("101.json")
+        let betaPath = (sessionsDir as NSString).appendingPathComponent("202.json")
+        let gammaPath = (sessionsDir as NSString).appendingPathComponent("303.json")
+        let deltaPath = (sessionsDir as NSString).appendingPathComponent("404.json")
+        var alpha = Session.mock(id: "alpha", status: .working, pid: 101, source: Session.opencodeSource)
+        alpha.lastActivity = now.addingTimeInterval(-60)
+        var beta = Session.mock(id: "beta", status: .working, pid: 202, source: Session.opencodeSource)
+        beta.lastActivity = now.addingTimeInterval(-10)
+        try alpha.writeToFile(path: alphaPath)
+        try beta.writeToFile(path: betaPath)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            processAlive: { _ in true },
+            now: { now }
+        )
+        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["101", "202"])
+
+        var gamma = Session.mock(id: "gamma", status: .waitingInput, pid: 303, source: Session.opencodeSource)
+        gamma.lastActivity = now.addingTimeInterval(-30)
+        var delta = Session.mock(id: "delta", status: .waitingInput, pid: 404, source: Session.opencodeSource)
+        delta.lastActivity = now.addingTimeInterval(-20)
+        try gamma.writeToFile(path: gammaPath)
+        try delta.writeToFile(path: deltaPath)
+        manager.loadSessions()
+        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404", "101", "202"])
+
+        alpha.status = .waitingInput
+        alpha.lastActivity = now
+        alpha.notificationMessage = "Continue?"
+        beta.status = .idle
+        beta.lastActivity = now.addingTimeInterval(-300)
+        beta.lastTool = "Bash"
+        beta.lastToolDetail = "make test"
+        try alpha.writeToFile(path: alphaPath)
+        try beta.writeToFile(path: betaPath)
+        manager.loadSessions()
+
+        let activeAfterUpdates = SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now)
+        XCTAssertEqual(activeAfterUpdates.map(\.id), ["303", "404", "101", "202"])
+        let snapshot = DisplayStateWriter.snapshot(
+            sessions: manager.sessions,
+            theme: .claude,
+            appRunning: true,
+            appIdentity: DisplayState.ProcessIdentity(pid: 999, startTime: 1_234),
+            now: now
+        )
+        XCTAssertEqual(snapshot.sessions.map(\.id), activeAfterUpdates.map(\.id))
+
+        alpha.hidden = true
+        try alpha.writeToFile(path: alphaPath)
+        manager.loadSessions()
+        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404", "202"])
+
+        beta.endedAt = now
+        try beta.writeToFile(path: betaPath)
+        manager.loadSessions()
+        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404"])
+    }
+
+    @MainActor
     func testSessionManagerKeepsUserVisibleCodexExecThreads() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-user-exec-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")

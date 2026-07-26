@@ -760,9 +760,7 @@ extension AppDelegate {
                 Self.urlLogger.notice("Ignored malformed cctop focus command")
                 return
             }
-            let visibleSessions = Session.sorted(
-                SessionDisplayPolicy.activeSessions(from: sessionManager.sessions)
-            )
+            let visibleSessions = SessionDisplayPolicy.activeSessions(from: sessionManager.sessions)
             guard let session = SessionIdentityPolicy.session(
                 matchingDisplayID: displayID,
                 in: visibleSessions

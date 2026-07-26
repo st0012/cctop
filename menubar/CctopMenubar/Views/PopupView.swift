@@ -356,7 +356,7 @@ extension PopupView {
         if isNavigateActive, let frozen = navigate?.frozenSessions, !frozen.isEmpty {
             return frozen
         }
-        return Session.sorted(SessionDisplayPolicy.activeSessions(from: sessions))
+        return SessionDisplayPolicy.activeSessions(from: sessions)
     }
     private var sortedIdleSessions: [Session] {
         Session.sorted(SessionDisplayPolicy.idleSessions(from: sessions))

@@ -6,13 +6,13 @@ class NavigateController: ObservableObject {
     let didActivateSubject = PassthroughSubject<Void, Never>()
     let didConfirmSubject = PassthroughSubject<Void, Never>()
     let navActionSubject = PassthroughSubject<PanelNavAction, Never>()
-    /// Sorted session snapshot captured when navigate activates.
+    /// Canonically ordered session snapshot captured when navigate activates.
     /// Prevents reordering while badges are visible.
     private(set) var frozenSessions: [Session] = []
     private var timeoutWork: DispatchWorkItem?
 
     func activate(sessions: [Session]) {
-        frozenSessions = Session.sorted(sessions)
+        frozenSessions = sessions
         isActive = true
         didActivateSubject.send()
     }

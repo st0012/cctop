@@ -94,9 +94,8 @@ class SessionManager: ObservableObject {
         // Publish active + dormant; finished are hidden (swept below / by GC).
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(displayCandidates)
         let now = dataSources.now()
-        let newSessions = winners
-            .filter { $0.session.lifecycle != .finished }
-            .map { adjustDisplayStatus($0.session) }
+        let loadedSessions = winners.filter { $0.session.lifecycle != .finished }.map { adjustDisplayStatus($0.session) }
+        let newSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
         let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
         syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)
         // Only publish when data actually changed, or when the presentation bucket changed
