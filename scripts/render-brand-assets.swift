@@ -155,31 +155,16 @@ private func streamDeckLockup(size: CGFloat) throws -> NSBitmapImageRep {
 
 private func hairline(width: CGFloat, height: CGFloat, color: NSColor) throws -> NSBitmapImageRep {
     try bitmap(size: NSSize(width: width, height: height)) {
-        let barHeight: CGFloat = width == 44 ? 6 : height / 3
-        let horizontalInset: CGFloat = width == 44 ? 4 : 0
+        let barHeight = height / 3
         let rect = NSRect(
-            x: horizontalInset,
+            x: 0,
             y: (height - barHeight) / 2,
-            width: width - horizontalInset * 2,
+            width: width,
             height: barHeight
         )
         color.setFill()
         NSBezierPath(roundedRect: rect, xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
     }
-}
-
-private func rgbaData(_ representation: NSBitmapImageRep) -> Data {
-    var data = Data(capacity: representation.pixelsWide * representation.pixelsHigh * 4)
-    for y in stride(from: representation.pixelsHigh - 1, through: 0, by: -1) {
-        for x in 0..<representation.pixelsWide {
-            let color = (representation.colorAt(x: x, y: y) ?? .clear).usingColorSpace(.sRGB) ?? .clear
-            data.append(UInt8((color.redComponent * 255).rounded()))
-            data.append(UInt8((color.greenComponent * 255).rounded()))
-            data.append(UInt8((color.blueComponent * 255).rounded()))
-            data.append(UInt8((color.alphaComponent * 255).rounded()))
-        }
-    }
-    return data
 }
 
 private func drawStatusBar(in rect: NSRect, mixed: Bool) {
@@ -319,17 +304,6 @@ try writePNG(streamDeckLockup(size: 512), to: streamDeckImageDirectory + "plugin
 let menubarDirectory = "menubar/CctopMenubar/Assets.xcassets/MenubarIcon.imageset/"
 try writePNG(hairline(width: 36, height: 18, color: .white), to: menubarDirectory + "menubar-icon.png")
 try writePNG(hairline(width: 72, height: 36, color: .white), to: menubarDirectory + "menubar-icon@2x.png")
-
-let tray = try hairline(width: 44, height: 44, color: .white)
-let trayAttention = try hairline(
-    width: 44,
-    height: 44,
-    color: NSColor(srgbRed: 0xDB / 255, green: 0x6E / 255, blue: 0x6E / 255, alpha: 1)
-)
-try writePNG(tray, to: "assets/tray-icon.png")
-try writePNG(trayAttention, to: "assets/tray-icon-attention.png")
-try rgbaData(tray).write(to: root.appendingPathComponent("assets/tray-icon.rgba"))
-try rgbaData(trayAttention).write(to: root.appendingPathComponent("assets/tray-icon-attention.rgba"))
 
 let appIconSVG = """
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="cctop app icon">

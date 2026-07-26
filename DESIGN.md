@@ -372,9 +372,9 @@ One horizontal hairline bar is the cctop mark. Do not pair it with the old
 The Dock/app icon uses the same silhouette on a `#0C0D0F` rounded square. At
 128 units its bar is `x=16, y=57, width=96, height=14, radius=7`; segment
 widths are 52 / 19 / 12 / 13 in `#8CBF6A`, `#E09B56`, `#DB6E6E`, and
-`#4D5058`. The rounded-square radius is 22.37%. All raster sizes and legacy
-tray exports come from `scripts/render-brand-assets.swift`; the same renderer
-writes `assets/cctop-app-icon.svg` for the site favicon.
+`#4D5058`. The rounded-square radius is 22.37%. All app-icon raster sizes come
+from `scripts/render-brand-assets.swift`; the same renderer writes
+`assets/cctop-app-icon.svg` for the site favicon.
 
 The bundled Stream Deck plugin uses a centered name lockup for its 256×256 and
 512×512 plugin-preferences artwork and default Toggle Panel key. At the key's
