@@ -820,7 +820,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
     }
 
     @MainActor
-    func testSessionManagerPublishesOneStableActiveOrderThroughRealisticFileUpdates() throws {
+    func testSessionManagerPublishesOneGroupedActiveOrderThroughRealisticFileUpdates() throws {
         let root = NSTemporaryDirectory() + "cctop-stable-active-order-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
         let historyDir = (root as NSString).appendingPathComponent("history")
@@ -832,10 +832,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let alphaPath = (sessionsDir as NSString).appendingPathComponent("101.json")
         let betaPath = (sessionsDir as NSString).appendingPathComponent("202.json")
         let gammaPath = (sessionsDir as NSString).appendingPathComponent("303.json")
+        let deltaPath = (sessionsDir as NSString).appendingPathComponent("404.json")
         var alpha = Session.mock(id: "alpha", status: .working, pid: 101, source: Session.opencodeSource)
         alpha.lastActivity = now.addingTimeInterval(-60)
-        var beta = Session.mock(id: "beta", status: .waitingPermission, pid: 202, source: Session.opencodeSource)
-        beta.lastActivity = now.addingTimeInterval(-120)
+        var beta = Session.mock(id: "beta", status: .working, pid: 202, source: Session.opencodeSource)
+        beta.lastActivity = now.addingTimeInterval(-10)
         try alpha.writeToFile(path: alphaPath)
         try beta.writeToFile(path: betaPath)
 
@@ -845,24 +846,30 @@ final class SessionManagerVisibilityTests: XCTestCase {
             processAlive: { _ in true },
             now: { now }
         )
-        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["202", "101"])
+        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["101", "202"])
 
-        alpha.status = .waitingPermission
+        var gamma = Session.mock(id: "gamma", status: .waitingInput, pid: 303, source: Session.opencodeSource)
+        gamma.lastActivity = now.addingTimeInterval(-30)
+        var delta = Session.mock(id: "delta", status: .waitingInput, pid: 404, source: Session.opencodeSource)
+        delta.lastActivity = now.addingTimeInterval(-20)
+        try gamma.writeToFile(path: gammaPath)
+        try delta.writeToFile(path: deltaPath)
+        manager.loadSessions()
+        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404", "101", "202"])
+
+        alpha.status = .waitingInput
         alpha.lastActivity = now
-        alpha.notificationMessage = "Approve command"
+        alpha.notificationMessage = "Continue?"
         beta.status = .idle
         beta.lastActivity = now.addingTimeInterval(-300)
         beta.lastTool = "Bash"
         beta.lastToolDetail = "make test"
-        var gamma = Session.mock(id: "gamma", status: .waitingInput, pid: 303, source: Session.opencodeSource)
-        gamma.lastActivity = now.addingTimeInterval(-1)
         try alpha.writeToFile(path: alphaPath)
         try beta.writeToFile(path: betaPath)
-        try gamma.writeToFile(path: gammaPath)
         manager.loadSessions()
 
         let activeAfterUpdates = SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now)
-        XCTAssertEqual(activeAfterUpdates.map(\.id), ["202", "101", "303"])
+        XCTAssertEqual(activeAfterUpdates.map(\.id), ["303", "404", "101", "202"])
         let snapshot = DisplayStateWriter.snapshot(
             sessions: manager.sessions,
             theme: .claude,
@@ -875,12 +882,12 @@ final class SessionManagerVisibilityTests: XCTestCase {
         alpha.hidden = true
         try alpha.writeToFile(path: alphaPath)
         manager.loadSessions()
-        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["202", "303"])
+        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404", "202"])
 
         beta.endedAt = now
         try beta.writeToFile(path: betaPath)
         manager.loadSessions()
-        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303"])
+        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404"])
     }
 
     @MainActor

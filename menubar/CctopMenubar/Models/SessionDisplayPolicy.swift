@@ -24,9 +24,9 @@ enum SessionDisplayPolicy {
         }
     }
 
-    /// Returns the full session array with surviving Active sessions in their published order,
-    /// newcomers appended, and the non-Active remainder untouched. The initial/newcomer order
-    /// matches the legacy status-and-recency presentation order, with stable identity as a tie-breaker.
+    /// Keeps Active status groups in priority order while preserving the relative order of peers
+    /// that remain in a group. Sessions entering a group append after its surviving members, and
+    /// the full-array return value leaves the current non-Active remainder unchanged.
     static func reconcilingActiveOrder(
         in sessions: [Session],
         preserving previousSessions: [Session],
@@ -38,19 +38,23 @@ enum SessionDisplayPolicy {
             uniquingKeysWith: { first, _ in first }
         )
         let activeKeys = Set(activeByKey.keys)
-        let retainedKeys = activeSessions(from: previousSessions, now: now)
-            .map { SessionIdentityPolicy.stableKey(for: $0) }
-            .filter(activeKeys.contains)
-        let retainedKeySet = Set(retainedKeys)
-        let newcomerKeys = activeKeys
-            .subtracting(retainedKeySet)
-            .sorted { lhsKey, rhsKey in
-                guard let lhs = activeByKey[lhsKey], let rhs = activeByKey[rhsKey] else {
-                    return lhsKey < rhsKey
-                }
-                return initialActiveOrder(lhs, precedes: rhs)
-            }
-        let orderedActive = (retainedKeys + newcomerKeys).compactMap { activeByKey[$0] }
+        var groups = Array(repeating: [Session](), count: SessionStatus.idle.sortOrder + 1)
+        var placedKeys: Set<String> = []
+
+        for previous in activeSessions(from: previousSessions, now: now) {
+            let key = SessionIdentityPolicy.stableKey(for: previous)
+            guard let current = activeByKey[key], current.status.sortOrder == previous.status.sortOrder else { continue }
+            groups[current.status.sortOrder].append(current)
+            placedKeys.insert(key)
+        }
+
+        for current in active {
+            let key = SessionIdentityPolicy.stableKey(for: current)
+            guard placedKeys.insert(key).inserted else { continue }
+            groups[current.status.sortOrder].append(current)
+        }
+
+        let orderedActive = groups.flatMap { $0 }
         let nonActive = sessions.filter { !activeKeys.contains(SessionIdentityPolicy.stableKey(for: $0)) }
         return orderedActive + nonActive
     }
@@ -67,13 +71,4 @@ enum SessionDisplayPolicy {
         return now.timeIntervalSince(session.lastActivity) > staleIdleInterval
     }
 
-    private static func initialActiveOrder(_ lhs: Session, precedes rhs: Session) -> Bool {
-        if lhs.status.sortOrder != rhs.status.sortOrder {
-            return lhs.status.sortOrder < rhs.status.sortOrder
-        }
-        if lhs.lastActivity != rhs.lastActivity {
-            return lhs.lastActivity > rhs.lastActivity
-        }
-        return SessionIdentityPolicy.stableKey(for: lhs) < SessionIdentityPolicy.stableKey(for: rhs)
-    }
 }

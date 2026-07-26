@@ -12,7 +12,7 @@ final class DisplayStateWriterTests: XCTestCase {
         workingNew.lastActivity = now.addingTimeInterval(-10)
         var idle = Session.mock(id: "d", project: "delta", status: .idle)
         idle.lastActivity = now.addingTimeInterval(-60)
-        let sessions = [workingOld, idle, permission, workingNew]
+        let sessions = [permission, workingOld, workingNew, idle]
 
         let snapshot = DisplayStateWriter.snapshot(
             sessions: sessions,
@@ -24,7 +24,7 @@ final class DisplayStateWriterTests: XCTestCase {
 
         let expected = SessionDisplayPolicy.activeSessions(from: sessions, now: now)
         XCTAssertEqual(snapshot.sessions.map(\.id), expected.map(\.id))
-        XCTAssertEqual(snapshot.sessions.map(\.id), ["b", "d", "a", "c"])
+        XCTAssertEqual(snapshot.sessions.map(\.id), ["a", "b", "c", "d"])
     }
 
     func testSnapshotExcludesSessionsTheAppDoesNotDisplay() {

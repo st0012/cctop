@@ -38,14 +38,17 @@ final class NavigateControllerTests: XCTestCase {
     }
 
     func testActivatePreservesCanonicalSessionOrder() {
-        var idle = Session.mock(id: "1", project: "alpha", status: .idle)
-        idle.lastActivity = Date().addingTimeInterval(-60)
-        let working = Session.mock(id: "2", project: "beta", status: .working)
+        let now = Date()
+        let waiting = Session.mock(id: "1", project: "alpha", status: .waitingInput)
+        var workingOld = Session.mock(id: "2", project: "beta", status: .working)
+        workingOld.lastActivity = now.addingTimeInterval(-600)
+        var workingNew = Session.mock(id: "3", project: "gamma", status: .working)
+        workingNew.lastActivity = now
+        let idle = Session.mock(id: "4", project: "delta", status: .idle)
 
-        sut.activate(sessions: [idle, working])
+        sut.activate(sessions: [waiting, workingOld, workingNew, idle])
 
-        XCTAssertEqual(sut.frozenSessions[0].projectName, "alpha")
-        XCTAssertEqual(sut.frozenSessions[1].projectName, "beta")
+        XCTAssertEqual(sut.frozenSessions.map(\.projectName), ["alpha", "beta", "gamma", "delta"])
     }
 
     func testActivateWithEmptySessions() {
@@ -198,17 +201,6 @@ final class NavigateControllerTests: XCTestCase {
     }
 
     // MARK: - Canonical order in frozen sessions
-
-    func testFrozenSessionsPreserveOrderAcrossStatuses() {
-        var idle = Session.mock(id: "1", status: .idle)
-        idle.lastActivity = Date().addingTimeInterval(-60)
-        let attention = Session.mock(id: "2", status: .waitingPermission)
-        let working = Session.mock(id: "3", status: .working)
-
-        sut.activate(sessions: [idle, attention, working])
-
-        XCTAssertEqual(sut.frozenSessions.map(\.status), [.idle, .waitingPermission, .working])
-    }
 
     func testFrozenSessionsPreserveOrderAcrossActivityTimes() {
         var older = Session.mock(id: "1", project: "older", status: .working)
