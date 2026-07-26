@@ -153,20 +153,6 @@ private func streamDeckLockup(size: CGFloat) throws -> NSBitmapImageRep {
     }
 }
 
-private func hairline(width: CGFloat, height: CGFloat, color: NSColor) throws -> NSBitmapImageRep {
-    try bitmap(size: NSSize(width: width, height: height)) {
-        let barHeight = height / 3
-        let rect = NSRect(
-            x: 0,
-            y: (height - barHeight) / 2,
-            width: width,
-            height: barHeight
-        )
-        color.setFill()
-        NSBezierPath(roundedRect: rect, xRadius: barHeight / 2, yRadius: barHeight / 2).fill()
-    }
-}
-
 private func drawStatusBar(in rect: NSRect, mixed: Bool) {
     let clip = NSBezierPath(
         roundedRect: rect,
@@ -300,10 +286,6 @@ for (filename, size) in appIconFiles {
 let streamDeckImageDirectory = "plugins/streamdeck/com.st0012.cctop.sdPlugin/imgs/"
 try writePNG(streamDeckLockup(size: 256), to: streamDeckImageDirectory + "plugin-icon.png")
 try writePNG(streamDeckLockup(size: 512), to: streamDeckImageDirectory + "plugin-icon@2x.png")
-
-let menubarDirectory = "menubar/CctopMenubar/Assets.xcassets/MenubarIcon.imageset/"
-try writePNG(hairline(width: 36, height: 18, color: .white), to: menubarDirectory + "menubar-icon.png")
-try writePNG(hairline(width: 72, height: 36, color: .white), to: menubarDirectory + "menubar-icon@2x.png")
 
 let appIconSVG = """
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="cctop app icon">
