@@ -128,18 +128,28 @@ enum RecentResumeTarget: Identifiable, Equatable {
     static func build(
         projects: [RecentProject],
         classification: SessionClassificationSnapshot,
+        excludingDesktopSessionKeys: Set<String> = [],
         limit: Int = 10
     ) -> [RecentResumeTarget] {
         let projectTargets = projects.map(RecentResumeTarget.project)
-        let desktopTargets = desktopThreadTargets(from: classification)
+        let desktopTargets = desktopThreadTargets(
+            from: classification,
+            excludingSessionKeys: excludingDesktopSessionKeys
+        )
         return Array((projectTargets + desktopTargets)
             .sorted { $0.lastSessionAt > $1.lastSessionAt }
             .prefix(limit))
     }
 
-    private static func desktopThreadTargets(from classification: SessionClassificationSnapshot) -> [RecentResumeTarget] {
+    private static func desktopThreadTargets(
+        from classification: SessionClassificationSnapshot,
+        excludingSessionKeys: Set<String>
+    ) -> [RecentResumeTarget] {
         var targetsByID: [String: RecentResumeTarget] = [:]
         for record in classification.records {
+            guard !excludingSessionKeys.contains(
+                SessionIdentityPolicy.stableKey(for: record.candidate.session)
+            ) else { continue }
             guard let sourceApp = desktopThreadSourceApp(for: record.disposition),
                   let thread = DesktopThread(session: record.candidate.session, sourceApp: sourceApp) else {
                 continue

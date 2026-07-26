@@ -732,6 +732,13 @@ final class SessionLifecycleTests: XCTestCase {
         XCTAssertFalse(targets.contains { $0.openActionLabel.contains("Thread") || ($0.inlineActionLabel?.contains("Thread") ?? false) })
         XCTAssertFalse(targets.contains { $0.showsFinderAction })
         XCTAssertFalse(targets.contains { $0.showsCopyPathAction })
+
+        let visibleAfterHidingCodex = RecentResumeTarget.build(
+            projects: [],
+            classification: classification,
+            excludingDesktopSessionKeys: [SessionIdentityPolicy.stableKey(for: codex.session)]
+        )
+        XCTAssertEqual(visibleAfterHidingCodex.map(\.title), ["Run plugin node:test suites in CI"])
     }
 
     func testRecentResumeTargetsExcludeNonArchivedDesktopHiddenReasons() {

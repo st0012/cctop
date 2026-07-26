@@ -19,6 +19,7 @@ struct PopupView: View {
     var initialTab: PopupTab = .active
     var initialCleanupCandidate: WorktreeCleanupCandidate?
     var onOpenUpdater: (() -> Void)?
+    var onHideSession: (Session) -> Void = { _ in }
     var onSelectCleanupRemovalAction: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalAction)?
     var onExecuteCleanupRemovalAction: ((WorktreeRemovalService.RemovalAction) async -> WorktreeRemovalService.RemovalResult)?
     var onCleanupTabVisible: () -> Void = {}
@@ -33,7 +34,7 @@ struct PopupView: View {
     @State var selectedCleanupCandidate: WorktreeCleanupCandidate?
     @State var cleanupRemovalNotice: WorktreeRemovalNotice?
     @State var removingCleanupCandidateID: String?
-    @State var pendingRemovalConfirmation: WorktreeRemovalConfirmation?
+    @State var pendingConfirmation: PopupConfirmation?
     @State var cleanupRemovalSelectsCandidateOnResult = true
     @State private var ocBannerInstalled = false
     @State private var lastFocusTime: Date = .distantPast
@@ -107,7 +108,7 @@ struct PopupView: View {
         .onChange(of: actionableCleanupCandidates) { _ in handleCleanupCandidatesChanged() }
         .onChange(of: cleanupIsScanning) { _ in handleCleanupScanningChanged() }
         .onChange(of: selectedCleanupCandidate?.id) { _ in notifyLayoutChanged() }
-        .alert(item: $pendingRemovalConfirmation) { removalAlert(for: $0) }
+        .alert(item: $pendingConfirmation) { confirmationAlert(for: $0) }
         .onAppear {
             selectedTab = availableTabs.contains(initialTab) ? initialTab : .active
             if selectedTab == .cleanup,
@@ -228,8 +229,11 @@ struct PopupView: View {
                 Button { copyPath(session.projectPath) } label: {
                     Label("Copy Project Path", systemImage: "doc.on.doc")
                 }
+                Divider()
+                Button { requestHideSession(session) } label: { Label("Hide Session", systemImage: "eye.slash") }
             }
             .help("Click to jump to session")
+            .accessibilityAction(named: Text("Hide Session")) { requestHideSession(session) }
         }
     }
 

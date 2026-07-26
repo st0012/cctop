@@ -86,3 +86,46 @@ enum SessionIdentityPolicy {
         return byKey.values.sorted { stableKey(for: $0.session) < stableKey(for: $1.session) }
     }
 }
+
+/// Persists manual visibility preferences independently from hook-owned session files.
+/// The stored payload is intentionally limited to opaque stable identity keys.
+struct ManualSessionVisibilityStore {
+    static let defaultsKey = "manuallyHiddenSessionStableKeys"
+    static let live = ManualSessionVisibilityStore(defaults: .standard)
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+    }
+
+    var hiddenKeys: Set<String> {
+        Set(defaults.stringArray(forKey: Self.defaultsKey) ?? [])
+    }
+
+    func isHidden(_ session: Session) -> Bool {
+        hiddenKeys.contains(SessionIdentityPolicy.stableKey(for: session))
+    }
+
+    func hide(_ session: Session) {
+        var keys = hiddenKeys
+        keys.insert(SessionIdentityPolicy.stableKey(for: session))
+        save(keys)
+    }
+
+    /// Remove keys only after the caller has completed an authoritative local inventory.
+    func prune(retaining validKeys: Set<String>) {
+        let current = hiddenKeys
+        let retained = current.intersection(validKeys)
+        guard retained != current else { return }
+        save(retained)
+    }
+
+    private func save(_ keys: Set<String>) {
+        if keys.isEmpty {
+            defaults.removeObject(forKey: Self.defaultsKey)
+        } else {
+            defaults.set(keys.sorted(), forKey: Self.defaultsKey)
+        }
+    }
+}

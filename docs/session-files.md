@@ -155,6 +155,19 @@ Use `hidden` for real session records that should remain on disk for liveness, d
 
 Do not use file deletion as the hiding signal. Delete a session file only when the session is genuinely obsolete and no longer useful as state.
 
+### Manual hiding
+
+The app's user-triggered **Hide Session** action is separate from the session
+file's `hidden` field. After confirmation, cctop stores only the session's opaque
+`SessionIdentityPolicy` stable key in local preferences; it does not rewrite the
+hook-owned JSON or persist the session title, project path, prompts, or tool data.
+
+Manual hiding removes the session from the panel, navigation, notifications, and
+Stream Deck output while the full record remains available for lifecycle and
+Cleanup tracking. There is no in-app restore. cctop prunes the preference only
+after a complete local inventory proves the session record is gone; partial or
+unreadable inventories retain it to avoid unexpectedly revealing the session.
+
 ### `is_subagent`
 
 Type: `boolean`

@@ -26,6 +26,23 @@ enum SessionNotificationAction: Equatable {
 
 @MainActor
 extension SessionManager {
+    func hideSession(_ session: Session) {
+        let stableKey = SessionIdentityPolicy.stableKey(for: session)
+        guard sessions.contains(where: { SessionIdentityPolicy.stableKey(for: $0) == stableKey }) else { return }
+
+        dataSources.manualSessionVisibility.hide(session)
+        let visibleSessions = sessions.filter {
+            SessionIdentityPolicy.stableKey(for: $0) != stableKey
+        }
+
+        syncTransitionNotifications(for: visibleSessions, oldSessions: sessions)
+        sessions = visibleSessions
+    }
+
+    func isManuallyHidden(_ session: Session) -> Bool {
+        dataSources.manualSessionVisibility.isHidden(session)
+    }
+
     func syncTransitionNotifications(for newSessions: [Session], oldSessions: [Session]) {
         for action in Self.notificationActions(
             newSessions: newSessions,
@@ -91,6 +108,11 @@ extension SessionManager {
     }
 
     func postNotification(for session: Session) {
+        let stableKey = SessionIdentityPolicy.stableKey(for: session)
+        guard !isManuallyHidden(session),
+              sessions.contains(where: { SessionIdentityPolicy.stableKey(for: $0) == stableKey }) else {
+            return
+        }
         let client = dataSources.notificationClient
         let request = Self.notificationRequest(for: session)
         client.removePending([request.identifier])

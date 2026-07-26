@@ -101,6 +101,17 @@ final class NavigateControllerTests: XCTestCase {
         XCTAssertEqual(sut.frozenSessions.count, 1)
     }
 
+    func testRemovingHiddenSessionPreservesFrozenSurvivorOrder() {
+        let first = Session.mock(id: "first", status: .waitingInput, source: Session.codexSource)
+        let hidden = Session.mock(id: "hidden", status: .working, source: Session.codexSource)
+        let last = Session.mock(id: "last", status: .idle, source: Session.codexSource)
+        sut.activate(sessions: [first, hidden, last])
+
+        sut.removeSession(withStableKey: SessionIdentityPolicy.stableKey(for: hidden))
+
+        XCTAssertEqual(sut.frozenSessions.map(\.sessionId), ["first", "last"])
+    }
+
     // MARK: - Timeout
 
     func testTimeoutFiresWhenActive() {

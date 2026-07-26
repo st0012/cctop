@@ -61,7 +61,9 @@ class SessionManager: ObservableObject {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     func loadSessions() {
+        let hiddenKeys = dataSources.manualSessionVisibility.hiddenKeys
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: sessionsDir,
             includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey]
@@ -71,7 +73,7 @@ class SessionManager: ObservableObject {
             lastLoadLogSignature = nil
             sessionFileCache.removeAll()
             sessions = []
-            publishRecentResumeTargets(historyManager.recentProjects.map(RecentResumeTarget.project))
+            if hiddenKeys.isEmpty { publishRecentResumeTargets(historyManager.recentProjects.map(RecentResumeTarget.project)) }
             return
         }
 
@@ -79,6 +81,7 @@ class SessionManager: ObservableObject {
 
         let jsonFiles = sessionJSONFiles(in: files)
         let allDecoded = decodedSessions(from: jsonFiles)
+        let inventoryComplete = allDecoded.count == jsonFiles.count
         let classification = deriveSessionClassification(from: allDecoded)
         let hidden = classification.records.filter { $0.disposition == .hidden(.persistedHidden) }
         let autoHidden = classification.autoHiddenSessions
@@ -97,7 +100,15 @@ class SessionManager: ObservableObject {
         let now = dataSources.now()
         let identifiedSessions = identifiedPublishableSessions(winners: winners, knownRecords: allDecoded)
         let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
-        let newSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
+        let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(
+            in: loadedSessions,
+            preserving: oldSessions,
+            now: now
+        )
+        let newSessions = orderedSessions.filter {
+            guard let cctopSessionID = $0.cctopSessionId else { return true }
+            return !hiddenKeys.contains(cctopSessionID)
+        }
         let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
         syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)
         // Only publish when data actually changed, or when the presentation bucket changed
@@ -120,9 +131,23 @@ class SessionManager: ObservableObject {
         // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
         archiveAndRemoveFinishedNonDesktop(classification.finishedNonDesktopCandidates, winners: winners)
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
-        _ = historyManager.rebuildRecentProjects(excludingActive: activeProjectPaths)
-        publishRecentResumeTargets(RecentResumeTarget.build(projects: historyManager.recentProjects, classification: classification))
-        refreshCleanupSources(from: classification.cleanupSources, activeProjectPaths: activeProjectPaths)
+        if inventoryComplete || hiddenKeys.isEmpty {
+            _ = historyManager.rebuildRecentProjects(excludingActive: activeProjectPaths)
+            publishRecentResumeTargets(RecentResumeTarget.build(
+                projects: historyManager.recentProjects,
+                classification: classification,
+                excludingDesktopSessionKeys: hiddenKeys
+            ))
+            refreshCleanupSources(from: classification.cleanupSources, activeProjectPaths: activeProjectPaths)
+        }
+
+        // Stable keys are safe to prune only when every local session file decoded. Preserve
+        // preferences on partial reads so transient filesystem failures cannot reveal a session.
+        if inventoryComplete {
+            dataSources.manualSessionVisibility.prune(retaining: Set(allDecoded.map {
+                SessionIdentityPolicy.stableKey(for: $0.session)
+            }))
+        }
     }
 
     private func publishRecentResumeTargets(_ targets: [RecentResumeTarget]) {

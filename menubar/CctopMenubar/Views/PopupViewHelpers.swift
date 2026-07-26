@@ -1,6 +1,38 @@
 import AppKit
 import SwiftUI
 
+struct ManualSessionHideConfirmation: Identifiable, Equatable {
+    let session: Session
+
+    var id: String {
+        "hide:\(SessionIdentityPolicy.stableKey(for: session))"
+    }
+
+    var title: String {
+        "Hide “\(session.displayName)” from cctop?"
+    }
+
+    let message = "It will disappear from the panel, notifications, Navigate mode, and Stream Deck. "
+        + "This does not stop or delete the underlying session; cctop will keep it available for lifecycle and Cleanup. "
+        + "You cannot show it again while its local session record exists."
+
+    let primaryButtonTitle = "Hide Session"
+}
+
+enum PopupConfirmation: Identifiable, Equatable {
+    case cleanup(WorktreeRemovalConfirmation)
+    case sessionHide(ManualSessionHideConfirmation)
+
+    var id: String {
+        switch self {
+        case .cleanup(let confirmation):
+            return "cleanup:\(confirmation.id)"
+        case .sessionHide(let confirmation):
+            return "session-hide:\(confirmation.id)"
+        }
+    }
+}
+
 enum PopupOverlay: Equatable {
     case settings, about
 }
@@ -230,6 +262,40 @@ struct FooterUpdateStatusView: View {
     }
 }
 
+extension PopupView {
+    func requestHideSession(_ session: Session) {
+        pendingConfirmation = .sessionHide(ManualSessionHideConfirmation(session: session))
+    }
+
+    func confirmationAlert(for confirmation: PopupConfirmation) -> Alert {
+        switch confirmation {
+        case .cleanup(let cleanupConfirmation):
+            return removalAlert(for: cleanupConfirmation)
+        case .sessionHide(let sessionConfirmation):
+            return sessionHideAlert(for: sessionConfirmation)
+        }
+    }
+
+    func sessionHideAlert(for confirmation: ManualSessionHideConfirmation) -> Alert {
+        Alert(
+            title: Text(confirmation.title),
+            message: Text(confirmation.message),
+            primaryButton: .destructive(Text(confirmation.primaryButtonTitle)) {
+                hideSession(confirmation.session)
+            },
+            secondaryButton: .cancel()
+        )
+    }
+
+    func hideSession(_ session: Session) {
+        let stableKey = SessionIdentityPolicy.stableKey(for: session)
+        guard sessions.contains(where: { SessionIdentityPolicy.stableKey(for: $0) == stableKey }) else { return }
+        onHideSession(session)
+        navigate?.removeSession(withStableKey: stableKey)
+        selectedIndex = nil
+    }
+}
+
 // MARK: - Panel content wrapper (used by AppDelegate)
 
 struct PanelContentView: View {
@@ -263,6 +329,7 @@ struct PanelContentView: View {
             navigate: navigate,
             overlayController: overlayController,
             onOpenUpdater: onOpenUpdater,
+            onHideSession: { sessionManager.hideSession($0) },
             onSelectCleanupRemovalAction: onSelectCleanupRemovalAction,
             onExecuteCleanupRemovalAction: onExecuteCleanupRemovalAction,
             onCleanupTabVisible: onCleanupTabVisible,

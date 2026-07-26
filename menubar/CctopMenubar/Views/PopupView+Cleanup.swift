@@ -52,7 +52,7 @@ extension PopupView {
                 default:
                     if let confirmation = WorktreeRemovalConfirmation.review(for: action) {
                         cleanupRemovalSelectsCandidateOnResult = selectsCandidateOnResult
-                        pendingRemovalConfirmation = confirmation
+                        pendingConfirmation = .cleanup(confirmation)
                     } else {
                         performCleanupRemovalAction(action, selectsCandidateOnResult: selectsCandidateOnResult)
                     }

@@ -30,6 +30,8 @@ project with a keystroke.
 ## Why cctop
 
 - See at a glance which coding sessions are working, idle, or waiting on you.
+- Right-click to hide a session from cctop without stopping it or deleting its data.
+  cctop asks first because you cannot show it again while its local session record exists.
 - Jump directly to the right editor window, terminal pane, desktop thread, or project.
 - Keep recent projects close without leaving a menubar app open all day.
 - Find leftover ended-session worktrees, check Git safety, and remove the ones

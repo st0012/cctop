@@ -318,6 +318,7 @@ when you glance at it from peripheral vision.
 | **Row 3 — waiting**       | 10.5 px `textSecondary` note: `notificationMessage ?? contextLine ?? "Waiting for input"`. Permission notes are 10.5 px italic `statusAttention`. |
 | Selected / hover          | `cardSelectionStyle` uses a theme-ink 7–7.5% fill, radius 10, and an 8 px horizontal inset. It has no stroke, divider, or left accent bar. |
 | Source badge visibility   | Shown only when `Set(sessions.map(\.agentBadge)).count > 1` (keyed on `agentBadge`, not `sourceLabel`, so CC + Claude Desktop counts as multiple sources) |
+| Hide interaction          | A native context-menu item and named accessibility action open the same destructive confirmation. Left-click remains jump-to-session. |
 
 #### Source badge (`SourceBadgeView.swift`) — six variants
 

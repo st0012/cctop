@@ -211,6 +211,7 @@ extension XCTestCase {
         historyDir: String,
         desktopAppConnection: DesktopAppConnectionLookup? = nil,
         processAlive: ((Session) -> Bool)? = nil,
+        manualSessionVisibility: ManualSessionVisibilityStore? = nil,
         now: (() -> Date)? = nil
     ) -> SessionManager {
         var sources = SessionDataSources.live()
@@ -220,6 +221,9 @@ extension XCTestCase {
         }
         if let processAlive {
             sources.processAlive = processAlive
+        }
+        if let manualSessionVisibility {
+            sources.manualSessionVisibility = manualSessionVisibility
         }
         if let now {
             sources.now = now
