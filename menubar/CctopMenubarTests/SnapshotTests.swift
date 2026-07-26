@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import CctopMenubar
 import SwiftUI
@@ -34,7 +35,7 @@ func renderPanelScreenshot(
     let styled = view
         .frame(width: width)
         .background {
-            PanelSurfaceBackground(usesMaterial: false)
+            PanelSurfaceBackground()
         }
         .overlay {
             PanelAccentHairline(cornerRadius: AppChrome.panelCornerRadius)
@@ -138,7 +139,7 @@ final class SnapshotTests: XCTestCase {
         let rc = NavigateController()
         rc.isActive = true
         let view = PopupView(
-            sessions: Session.qaShowcase, updater: DisabledUpdater(),
+            sessions: Array(Session.qaShowcase.prefix(4)), updater: DisabledUpdater(),
             pluginManager: inertPluginManager(), navigate: rc
         )
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-navigate.png")
@@ -638,4 +639,5 @@ final class SnapshotTests: XCTestCase {
             endedAt: endedAt
         )
     }
+
 }

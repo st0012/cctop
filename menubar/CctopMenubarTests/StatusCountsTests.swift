@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import CctopMenubar
 
@@ -74,9 +75,9 @@ final class StatusCountsTests: XCTestCase {
     func testBarSegments_permissionAndAttentionSeparate() {
         let counts = StatusCounts(permission: 1, attention: 1, working: 0, idle: 0)
         XCTAssertEqual(counts.barSegments.count, 2)
-        XCTAssertEqual(counts.barSegments[0].kind, .permission)
+        XCTAssertEqual(counts.barSegments[0].kind, .attention)
         XCTAssertEqual(counts.barSegments[0].proportion, 0.5, accuracy: 0.001)
-        XCTAssertEqual(counts.barSegments[1].kind, .attention)
+        XCTAssertEqual(counts.barSegments[1].kind, .permission)
         XCTAssertEqual(counts.barSegments[1].proportion, 0.5, accuracy: 0.001)
     }
 
@@ -94,20 +95,20 @@ final class StatusCountsTests: XCTestCase {
         XCTAssertEqual(counts.barSegments[1].proportion, 0.25, accuracy: 0.001)
     }
 
-    func testBarSegments_order_permissionAttentionWorkingIdle() {
+    func testBarSegments_orderWorkingAttentionPermissionIdle() {
         let counts = StatusCounts(permission: 1, attention: 1, working: 1, idle: 1)
         XCTAssertEqual(counts.barSegments.count, 4)
-        XCTAssertEqual(counts.barSegments[0].kind, .permission)
+        XCTAssertEqual(counts.barSegments[0].kind, .working)
         XCTAssertEqual(counts.barSegments[1].kind, .attention)
-        XCTAssertEqual(counts.barSegments[2].kind, .working)
+        XCTAssertEqual(counts.barSegments[2].kind, .permission)
         XCTAssertEqual(counts.barSegments[3].kind, .idle)
     }
 
-    func testBarSegments_attentionFirstWhenNoPermission() {
+    func testBarSegments_workingFirstWhenNoPermission() {
         let counts = StatusCounts(permission: 0, attention: 1, working: 2, idle: 1)
         XCTAssertEqual(counts.barSegments.count, 3)
-        XCTAssertEqual(counts.barSegments[0].kind, .attention)
-        XCTAssertEqual(counts.barSegments[1].kind, .working)
+        XCTAssertEqual(counts.barSegments[0].kind, .working)
+        XCTAssertEqual(counts.barSegments[1].kind, .attention)
         XCTAssertEqual(counts.barSegments[2].kind, .idle)
     }
 
@@ -248,10 +249,42 @@ final class StatusCountsTests: XCTestCase {
     /// menubar/notch colors.
     @MainActor
     func testStatusColorsResolveEachSegmentKind() {
-        XCTAssertEqual(StatusColors.color(for: .permission), StatusColors.permission)
-        XCTAssertEqual(StatusColors.color(for: .attention), StatusColors.attention)
-        XCTAssertEqual(StatusColors.color(for: .working), StatusColors.working)
-        XCTAssertEqual(StatusColors.color(for: .idle), StatusColors.idle)
-        XCTAssertNotEqual(StatusColors.permission, StatusColors.attention)
+        let appearance = NSAppearance(named: .darkAqua)!
+        let permission = StatusColors.color(for: .permission, appearance: appearance)
+        assertColor(permission, equals: ThemeManager.shared.current.statusPermission.dark)
+        assertColor(
+            StatusColors.color(for: .attention, appearance: appearance),
+            equals: ThemeManager.shared.current.statusAttention.dark
+        )
+        assertColor(
+            StatusColors.color(for: .working, appearance: appearance),
+            equals: ThemeManager.shared.current.statusWorking.dark
+        )
+        assertColor(
+            StatusColors.color(for: .idle, appearance: appearance),
+            equals: ThemeManager.shared.current.statusIdle.dark
+        )
+        XCTAssertNotEqual(
+            sRGBComponents(permission),
+            sRGBComponents(StatusColors.color(for: .attention, appearance: appearance))
+        )
+    }
+
+    private func assertColor(
+        _ actual: NSColor,
+        equals expected: NSColor,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let actualComponents = sRGBComponents(actual)
+        let expectedComponents = sRGBComponents(expected)
+        for index in actualComponents.indices {
+            XCTAssertEqual(actualComponents[index], expectedComponents[index], accuracy: 0.001, file: file, line: line)
+        }
+    }
+
+    private func sRGBComponents(_ color: NSColor) -> [CGFloat] {
+        let color = color.usingColorSpace(.sRGB) ?? color
+        return [color.redComponent, color.greenComponent, color.blueComponent, color.alphaComponent]
     }
 }

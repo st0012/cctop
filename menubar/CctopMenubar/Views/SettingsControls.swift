@@ -1,6 +1,45 @@
 import KeyboardShortcuts
 import SwiftUI
 
+struct SettingsSecondaryRow<Content: View>: View {
+    let spacing: CGFloat
+    let content: Content
+
+    init(spacing: CGFloat = 8, @ViewBuilder content: () -> Content) {
+        self.spacing = spacing
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Rectangle()
+                .fill(Color.groupedRowBorder)
+                .frame(height: 0.5)
+            HStack(spacing: spacing) {
+                content
+            }
+            .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+            .padding(.vertical, 4)
+            .frame(minHeight: 25)
+        }
+    }
+}
+
+struct StatusDotBadge: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle().fill(Color.statusGreen).frame(width: 5, height: 5)
+            Text(text)
+                .font(.system(size: 10))
+                .foregroundStyle(Color.textMuted)
+        }
+    }
+}
+
+struct ConnectedBadge: View { var body: some View { StatusDotBadge(text: "Connected") } }
+
 struct AmberSegmentedPicker<Value: Hashable>: View {
     let options: [(value: Value, label: String)]
     @Binding var selection: Value
@@ -18,12 +57,8 @@ struct AmberSegmentedPicker<Value: Hashable>: View {
         }
         .padding(AppChrome.settingsSegmentedControlPadding)
         .frame(height: AppChrome.settingsSegmentedControlHeight)
-        .background(Color.panelControlBackground)
-        .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
-                .stroke(Color.panelControlBorder, lineWidth: 1)
-        }
+        .background(Color.segmentBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppChrome.settingsSegmentedControlCornerRadius, style: .continuous))
     }
 }
 
@@ -36,7 +71,7 @@ private struct SegmentButton: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 9.5, weight: .medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
                 .allowsTightening(true)
@@ -44,17 +79,13 @@ private struct SegmentButton: View {
                 .frame(height: AppChrome.settingsSegmentHeight)
                 .foregroundStyle(foregroundColor)
                 .background {
-                    SelectionSurfaceChrome(
-                        isSelected: isSelected,
-                        isHovered: isHovered,
-                        cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius,
-                        hoverColor: Color.panelControlBackground
-                    )
-                }
-                .overlay {
                     if isSelected {
                         RoundedRectangle(cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius, style: .continuous)
-                            .stroke(Color.panelAccentBorder, lineWidth: 1)
+                            .fill(Color.segmentThumbBackground)
+                            .shadow(color: Color.black.opacity(0.18), radius: 1, y: 1)
+                    } else if isHovered {
+                        RoundedRectangle(cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius, style: .continuous)
+                            .fill(Color.panelSelectionBackground.opacity(0.62))
                     }
                 }
                 .contentShape(RoundedRectangle(cornerRadius: AppChrome.settingsSegmentSelectionCornerRadius, style: .continuous))
@@ -83,12 +114,8 @@ struct ShortcutBadge: View {
                     .foregroundStyle(isHovered ? Color.segmentActiveText : Color.textSecondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(isHovered ? Color.panelSelectionBackground : Color.panelControlBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
-                            .stroke(Color.panelControlBorder, lineWidth: 1)
-                    }
+                    .background(isHovered ? Color.panelSelectionBackground : Color.textPrimary.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             } else {
                 Text("Record Shortcut")
                     .font(.system(size: 10))

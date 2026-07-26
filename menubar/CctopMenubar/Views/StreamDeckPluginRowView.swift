@@ -8,12 +8,14 @@ struct StreamDeckPluginRowView: View {
     @State private var removeHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 0) {
             primaryRow
-            if pluginManager.sdInstalled { profileRow }
+            if pluginManager.sdInstalled {
+                rowDivider
+                profileRow
+            }
             statusMessage
         }
-        .padding(.vertical, 7)
     }
 
     private var primaryRow: some View {
@@ -31,6 +33,9 @@ struct StreamDeckPluginRowView: View {
                 installButton("Install Plugin")
             }
         }
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 
     private var profileRow: some View {
@@ -54,6 +59,9 @@ struct StreamDeckPluginRowView: View {
             .accessibilityLabel("Import cctop Stream Deck default profile")
             .accessibilityHint("Opens Stream Deck to confirm importing cctop's default profile.")
         }
+        .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+        .padding(.vertical, 4)
+        .frame(minHeight: 25)
     }
 
     private var removeButton: some View {
@@ -72,22 +80,25 @@ struct StreamDeckPluginRowView: View {
 
     @ViewBuilder private var statusMessage: some View {
         if justInstalled {
-            inlineStatus(
+            statusRow(
                 "Installed — open Stream Deck to use it",
                 icon: "checkmark",
-                color: Color.statusGreen
+                iconColor: Color.statusGreen,
+                textColor: Color.statusWorkingText
             )
         } else if pluginOperationFailed {
-            inlineStatus(
+            statusRow(
                 "Could not change Stream Deck plugin",
                 icon: "exclamationmark.triangle",
-                color: Color.amber
+                iconColor: Color.amber,
+                textColor: Color.statusAttentionText
             )
         } else if profileFailed {
-            inlineStatus(
+            statusRow(
                 "Could not open the default profile",
                 icon: "exclamationmark.triangle",
-                color: Color.amber
+                iconColor: Color.amber,
+                textColor: Color.statusAttentionText
             )
         }
     }
@@ -105,12 +116,32 @@ struct StreamDeckPluginRowView: View {
         }
     }
 
-    private func inlineStatus(_ text: String, icon: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 9))
-            Text(text).font(.system(size: 10))
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(Color.groupedRowBorder)
+            .frame(height: 0.5)
+    }
+
+    private func statusRow(
+        _ text: String,
+        icon: String,
+        iconColor: Color,
+        textColor: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            rowDivider
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 9))
+                    .foregroundStyle(iconColor)
+                Text(text)
+                    .font(.system(size: 10))
+                    .foregroundStyle(textColor)
+            }
+            .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
+            .padding(.vertical, 4)
+            .frame(minHeight: 25)
         }
-        .foregroundStyle(color)
         .transition(.opacity)
     }
 

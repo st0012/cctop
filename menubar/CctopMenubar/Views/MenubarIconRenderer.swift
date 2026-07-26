@@ -1,50 +1,39 @@
 import AppKit
 
-/// Renders the menubar icon: grid icon on the left + proportional status bar on the right.
-/// Returns a template image when no sessions are active.
+/// Renders the menubar item as the same hairline status bar used throughout cctop.
+/// With no sessions it becomes a monochrome template bar.
 @MainActor
 enum MenubarIconRenderer {
-    private static let size = NSSize(width: 44, height: 18)
-    private static let iconWidth: CGFloat = 16
-    private static let barX: CGFloat = 20
-    private static let barWidth: CGFloat = 22
-    private static let barHeight: CGFloat = 4
-    private static let barY: CGFloat = 7  // vertically centered: (18 - 4) / 2
+    private static let size = NSSize(width: 36, height: 18)
+    private static let barRect = NSRect(x: 0, y: 6, width: 36, height: 6)
 
     static func render(counts: StatusCounts) -> NSImage {
-        guard let baseIcon = NSImage(named: "MenubarIcon") else {
-            return NSImage()
-        }
-
-        if counts.total == 0 {
-            guard let img = baseIcon.copy() as? NSImage else { return NSImage() }
-            img.isTemplate = true
-            return img
-        }
-
         let image = NSImage(size: size, flipped: false) { _ in
-            // Icon on the left, full height
-            let iconRect = NSRect(x: 0, y: 1, width: iconWidth, height: iconWidth)
-            baseIcon.draw(in: iconRect)
-            iconTintColor(for: counts).set()
-            iconRect.fill(using: .sourceAtop)
-
-            // Status bar to the right of the icon
-            let barRect = NSRect(x: barX, y: barY, width: barWidth, height: barHeight)
-            drawSegmentedBar(in: barRect, counts: counts)
+            if counts.total == 0 {
+                NSColor.labelColor.setFill()
+                NSBezierPath(
+                    roundedRect: barRect,
+                    xRadius: barRect.height / 2,
+                    yRadius: barRect.height / 2
+                ).fill()
+            } else {
+                // AppKit makes the status item's effective appearance current here,
+                // so one live image follows menu-bar light/dark changes immediately.
+                drawSegmentedBar(
+                    in: barRect,
+                    counts: counts,
+                    appearance: NSAppearance.current
+                )
+            }
             return true
         }
 
-        image.isTemplate = false
+        image.isTemplate = counts.total == 0
         return image
     }
 
-    private static func iconTintColor(for counts: StatusCounts) -> NSColor {
-        counts.needsAction > 0 ? StatusColors.accent.nsColor : .labelColor
-    }
-
     private static func drawSegmentedBar(
-        in barRect: NSRect, counts: StatusCounts
+        in barRect: NSRect, counts: StatusCounts, appearance: NSAppearance
     ) {
         let path = NSBezierPath(
             roundedRect: barRect,
@@ -61,7 +50,7 @@ enum MenubarIconRenderer {
             let segWidth = index == segments.count - 1
                 ? max(0, barRect.maxX - xPos)
                 : barRect.width * seg.proportion
-            StatusColors.color(for: seg.kind).nsColor.setFill()
+            StatusColors.color(for: seg.kind, appearance: appearance).setFill()
             NSRect(
                 x: xPos, y: barRect.minY,
                 width: segWidth, height: barRect.height

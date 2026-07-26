@@ -1,59 +1,27 @@
 import AppKit
 import SwiftUI
 
-/// Shared status bar colors used by both the menubar icon renderer and the notch status view.
-/// Colors are derived from the current theme (dark variant, for visibility on any menu bar).
+/// Shared status-bar colors used by the menubar item and notch pill.
 @MainActor
 enum StatusColors {
-    static var permission: RGBColor {
-        RGBColor(nsColor: ThemeManager.shared.current.statusPermission.dark)
+    /// Resolve the current theme's semantic color for the target appearance.
+    static func color(for kind: StatusCounts.SegmentKind, appearance: NSAppearance) -> NSColor {
+        colorPair(for: kind).resolve(appearance)
     }
-    static var attention: RGBColor {
-        RGBColor(nsColor: ThemeManager.shared.current.statusAttention.dark)
-    }
-    static var working: RGBColor {
-        RGBColor(nsColor: ThemeManager.shared.current.statusWorking.dark)
-    }
-    static var idle: RGBColor {
-        RGBColor(nsColor: ThemeManager.shared.current.statusIdle.dark)
-    }
-    /// Accent — used to tint icons when sessions need attention.
-    static var accent: RGBColor { permission }
 
-    /// Resolve the current theme color for a semantic segment kind.
-    static func color(for kind: StatusCounts.SegmentKind) -> RGBColor {
+    /// The notch is always drawn on a black pill, so its live colors use the
+    /// selected theme's dark palette even when the app itself is in light mode.
+    static func notchColor(for kind: StatusCounts.SegmentKind) -> Color {
+        Color(nsColor: colorPair(for: kind).dark)
+    }
+
+    private static func colorPair(for kind: StatusCounts.SegmentKind) -> AppTheme.ColorPair {
+        let theme = ThemeManager.shared.current
         switch kind {
-        case .permission: return permission
-        case .attention: return attention
-        case .working: return working
-        case .idle: return idle
-        }
-    }
-
-    struct RGBColor: Hashable {
-        let red: Double
-        let green: Double
-        let blue: Double
-
-        init(red: Double, green: Double, blue: Double) {
-            self.red = red
-            self.green = green
-            self.blue = blue
-        }
-
-        init(nsColor color: NSColor) {
-            let srgb = color.usingColorSpace(.sRGB) ?? color
-            self.red = srgb.redComponent
-            self.green = srgb.greenComponent
-            self.blue = srgb.blueComponent
-        }
-
-        var nsColor: NSColor {
-            NSColor(red: red, green: green, blue: blue, alpha: 1)
-        }
-
-        var color: Color {
-            Color(red: red, green: green, blue: blue)
+        case .permission: return theme.statusPermission
+        case .attention: return theme.statusAttention
+        case .working: return theme.statusWorking
+        case .idle: return theme.statusIdle
         }
     }
 }

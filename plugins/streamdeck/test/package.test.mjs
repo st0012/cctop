@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const plugin = join(root, "com.st0012.cctop.sdPlugin");
+const repository = join(root, "..", "..");
 const manifest = JSON.parse(readFileSync(join(plugin, "manifest.json"), "utf8"));
 
 test("manifest targets the supported Stream Deck Node runtime", () => {
@@ -48,6 +49,51 @@ test("every manifest image and code resource is present", () => {
       assert.ok(existsSync(join(plugin, `${state.Image}.svg`)));
       assert.ok(existsSync(join(plugin, `${state.Image}@2x.svg`)));
     }
+  }
+});
+
+test("plugin identity surfaces use the canonical name lockup", () => {
+  assert.equal(manifest.Icon, "imgs/plugin-icon");
+  const pluginIcon = readFileSync(join(plugin, "imgs", "plugin-icon.png"));
+  const pluginIcon2x = readFileSync(join(plugin, "imgs", "plugin-icon@2x.png"));
+  assert.equal(pluginIcon.readUInt32BE(16), 256);
+  assert.equal(pluginIcon.readUInt32BE(20), 256);
+  assert.equal(pluginIcon2x.readUInt32BE(16), 512);
+  assert.equal(pluginIcon2x.readUInt32BE(20), 512);
+  assert.notDeepEqual(
+    pluginIcon,
+    readFileSync(join(
+      repository,
+      "menubar",
+      "CctopMenubar",
+      "Assets.xcassets",
+      "AppIcon.appiconset",
+      "icon_128x128@2x.png"
+    ))
+  );
+
+  const category = readFileSync(join(plugin, "imgs", "category.svg"), "utf8");
+  const category2x = readFileSync(join(plugin, "imgs", "category@2x.svg"), "utf8");
+  assert.equal(category2x, category);
+  assert.match(category, /clipPath id="bar"/);
+  for (const opacity of ["0.62", "0.42", "0.25"]) {
+    assert.match(category, new RegExp(`opacity="${opacity}"`));
+  }
+
+  const toggleKey = readFileSync(join(plugin, "imgs", "key-toggle.svg"), "utf8");
+  const toggleKey2x = readFileSync(join(plugin, "imgs", "key-toggle@2x.svg"), "utf8");
+  assert.equal(toggleKey2x, toggleKey);
+  assert.doesNotMatch(toggleKey, /clipPath|clip-path/);
+  assert.match(toggleKey, /<rect width="144" height="144" rx="23\.04" fill="#0C0D0F"\/>/);
+  assert.match(toggleKey, /rx="22\.29" fill="none" stroke="#FFFFFF" stroke-opacity="0\.05"/);
+  assert.match(toggleKey, /M46\.26 46\.26H73\.56V57\.18H46\.26A5\.46 5\.46 0 0 1 46\.26 46\.26Z/);
+  assert.match(toggleKey, /M93\.84 46\.26H97\.74A5\.46 5\.46 0 0 1 97\.74 57\.18H93\.84Z/);
+  assert.match(toggleKey, /<rect x="73\.56" y="46\.26" width="12\.48" height="10\.92"/);
+  assert.match(toggleKey, /<rect x="86\.04" y="46\.26" width="7\.8" height="10\.92"/);
+  assert.match(toggleKey, /font-family="SF Mono, Menlo, monospace"/);
+  assert.match(toggleKey, /font-size="23\.4" font-weight="600" letter-spacing="0\.702">cctop<\/text>/);
+  for (const color of ["#8CBF6A", "#E09B56", "#DB6E6E", "#4D5058"]) {
+    assert.match(toggleKey, new RegExp(color));
   }
 });
 

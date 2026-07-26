@@ -1,7 +1,16 @@
 import Foundation
 
-enum PopupTab {
+enum PopupTab: CaseIterable, Hashable {
     case active, idle, recent, cleanup
+
+    var label: String {
+        switch self {
+        case .active: return "Active"
+        case .idle: return "Idle"
+        case .recent: return "Recent"
+        case .cleanup: return "Cleanup"
+        }
+    }
 
     var helpText: String {
         let staleIdleDuration = Self.staleIdleDurationText
@@ -32,18 +41,6 @@ enum PopupTab {
 
     static var cleanupScanningDetail: String {
         "Checking ended-session worktrees."
-    }
-
-    static func availableTabs(
-        hasIdleSessions: Bool,
-        hasRecentProjects _: Bool,
-        hasCleanupCandidates: Bool
-    ) -> [PopupTab] {
-        var tabs: [PopupTab] = [.active]
-        if hasIdleSessions { tabs.append(.idle) }
-        tabs.append(.recent)
-        tabs.append(.cleanup)
-        return tabs
     }
 
     static func switched(

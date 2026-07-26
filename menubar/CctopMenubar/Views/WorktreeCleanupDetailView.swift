@@ -45,10 +45,6 @@ struct WorktreeCleanupDetailView: View {
                         RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
                             .fill(Color.panelControlBackground)
                     }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
-                            .stroke(Color.panelControlBorder, lineWidth: 1)
-                    }
             }
             .buttonStyle(.plain)
             .help("Back to cleanup list")
@@ -85,10 +81,6 @@ struct WorktreeCleanupDetailView: View {
         .background {
             RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
                 .fill(Color.groupedContentBackground)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
-                .stroke(Color.groupedRowBorder, lineWidth: 1)
         }
     }
 
@@ -179,7 +171,7 @@ struct WorktreeCleanupDetailView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(removalNotice.title)
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.statusAttention)
+                    .foregroundStyle(Color.statusAttentionText)
                 Text(removalNotice.message)
                     .font(.system(size: 10))
                     .foregroundStyle(Color.textSecondary)
@@ -195,24 +187,17 @@ struct WorktreeCleanupDetailView: View {
                 RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
                     .fill(Color.statusAttention.opacity(0.08))
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: AppChrome.groupCornerRadius, style: .continuous)
-                    .stroke(Color.statusAttention.opacity(0.22), lineWidth: 1)
-            }
         }
     }
 
     private var stateBadge: some View {
         Text(candidate.state.label)
             .font(.system(size: 10.5, weight: .semibold))
-            .foregroundStyle(stateColor)
+            .foregroundStyle(stateTextColor)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background {
                 Capsule().fill(stateColor.opacity(0.10))
-            }
-            .overlay {
-                Capsule().stroke(stateColor.opacity(0.22), lineWidth: 1)
             }
             .fixedSize(horizontal: true, vertical: false)
     }
@@ -262,6 +247,14 @@ struct WorktreeCleanupDetailView: View {
         switch candidate.state {
         case .clean: return Color.statusGreen
         case .review: return Color.statusAttention
+        case .ignored: return Color.agentBadge
+        }
+    }
+
+    private var stateTextColor: Color {
+        switch candidate.state {
+        case .clean: return Color.statusWorkingText
+        case .review: return Color.statusAttentionText
         case .ignored: return Color.agentBadge
         }
     }
@@ -428,10 +421,6 @@ private struct CleanupDetailActionButton: View {
                 RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
                     .fill(backgroundColor)
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
-                    .stroke(borderColor, lineWidth: 1)
-            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -442,7 +431,7 @@ private struct CleanupDetailActionButton: View {
 
     private var foregroundColor: Color {
         if isDisabled { return Color.textMuted }
-        return isPrimary ? Color.statusAttention : Color.textSecondary
+        return isPrimary ? Color.statusAttentionText : Color.textSecondary
     }
 
     private var backgroundColor: Color {
@@ -451,10 +440,6 @@ private struct CleanupDetailActionButton: View {
         return isHovered ? Color.panelSelectionBackground : Color.panelControlBackground
     }
 
-    private var borderColor: Color {
-        if isPrimary { return Color.statusAttention.opacity(0.28) }
-        return Color.panelControlBorder
-    }
 }
 
 struct WorktreeRemovalNotice: Equatable {

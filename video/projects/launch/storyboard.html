@@ -37,16 +37,13 @@
   #band .cluster{margin-left:auto;display:flex;align-items:center;gap:22px;padding-right:36px}
   #band .glyph{opacity:.6;color:var(--t2);display:flex;align-items:center}
   #band .clock{font-size:20px;color:var(--t2);letter-spacing:.5px}
-  /* cctop pill — enlarged: 2x2 accent grid (top row brighter) + ONE segmented status bar */
-  #pill{display:inline-flex;align-items:center;gap:10px;padding:8px 13px;border-radius:12px;background:rgba(0,0,0,.34)}
-  /* the real app menubar logo (MenubarIcon template), accent-tinted via mask */
-  #pill .grid{width:30px;height:30px;background:var(--accent);
-    -webkit-mask:url(.video-build/assets/menubar-icon.png) center/contain no-repeat;
-            mask:url(.video-build/assets/menubar-icon.png) center/contain no-repeat}
-  #pill .sbar{display:flex;width:84px;height:14px;border-radius:6px;overflow:hidden}
+  /* cctop menubar item — enlarged from the real single 36×6 live-status hairline */
+  #pill{display:inline-flex;align-items:center;padding:8px 13px;border-radius:12px;background:rgba(0,0,0,.34)}
+  #pill .sbar{display:flex;width:84px;height:9px;border-radius:5px;overflow:hidden}
   #pill.hero{box-shadow:0 0 0 3px rgba(247,118,142,.40),0 0 38px 10px rgba(247,118,142,.42);background:rgba(247,118,142,.13);transform:scale(1.1)}
   #pill .sbar b{display:block;height:100%}
   #pill .sbar .red{background:var(--red)}#pill .sbar .orange{background:var(--orange)}#pill .sbar .green{background:var(--green)}
+  #pill .sbar .idle{background:#69718e}
 
   /* ---------- bezeled popover panel (cropped to cards; footer removed) ---------- */
   .panel{position:absolute;overflow:hidden;border-radius:20px;border:1px solid rgba(192,202,245,.11);
@@ -69,7 +66,10 @@
 
   /* wordmark lockup */
   .mark{position:absolute;display:flex;align-items:center;gap:18px}
-  .mark .bar{width:11px;height:96px;border-radius:6px;background:var(--accent)}
+  .brandHairline{display:flex;overflow:hidden;border-radius:999px}
+  .brandHairline b{display:block;height:100%}
+  .brandHairline .b1{flex:14;background:#8CBF6A}.brandHairline .b2{flex:5;background:#E09B56}.brandHairline .b3{flex:3;background:#DB6E6E}.brandHairline .b4{flex:4;background:#4D5058}
+  .mark .brandHairline{width:96px;height:14px}
   .mark .nm{font-size:118px;font-weight:700;letter-spacing:-4px;color:#E8ECFB}
 
   /* keycaps */
@@ -120,7 +120,7 @@
     box-shadow:none}
   .cleanupChrome{height:90px;display:flex;align-items:center;gap:15px;padding:0 36px;border-bottom:1px solid rgba(192,202,245,.10)}
   .cleanupBrand{display:flex;align-items:center;gap:14px;font-size:29px;font-weight:760;color:#F1F3FA}
-  .cleanupBrand .bar{width:7px;height:31px;border-radius:5px;background:var(--accent)}
+  .cleanupBrand .brandHairline{width:40px;height:10px}
   .cleanupStatus{margin-left:auto;display:flex;gap:12px}
   .cleanupDot{height:40px;min-width:58px;border-radius:20px;border:1px solid rgba(192,202,245,.14);display:flex;align-items:center;justify-content:center;
     gap:8px;font-family:var(--mono);font-size:18px;font-weight:760;color:var(--t2);background:rgba(192,202,245,.045)}
@@ -169,8 +169,7 @@
     <span class="apple"><svg width="19" height="23" viewBox="0 0 384 512" fill="currentColor"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg></span>
     <div class="cluster">
       <div id="pill">
-        <span class="grid"></span>
-        <span class="sbar"><b class="red" style="flex:1"></b><b class="orange" style="flex:1"></b><b class="green" style="flex:3"></b></span>
+        <span class="sbar"><b class="green" style="flex:52"></b><b class="orange" style="flex:19"></b><b class="red" style="flex:12"></b><b class="idle" style="flex:13"></b></span>
       </div>
       <span class="glyph"><svg width="26" height="19" viewBox="0 0 24 18" fill="currentColor"><path d="M12 14.5a1.9 1.9 0 110 3.8 1.9 1.9 0 010-3.8zM5.2 10.6a9.6 9.6 0 0113.6 0l-2 2a6.8 6.8 0 00-9.6 0l-2-2zM1.4 6.8a15 15 0 0121.2 0l-2 2a12.2 12.2 0 00-17.2 0l-2-2z"/></svg></span>
       <span class="glyph"><svg width="34" height="16" viewBox="0 0 28 14" fill="none"><rect x="1" y="2" width="22" height="10" rx="3" stroke="currentColor" stroke-width="1.4"/><rect x="3.4" y="4.2" width="13" height="5.6" rx="1.4" fill="currentColor"/><rect x="24.4" y="5" width="2.2" height="4" rx="1" fill="currentColor"/></svg></span>
@@ -193,7 +192,7 @@
 
   <!-- ============ FRAME 1 — REVEAL ============ -->
   <div class="sframe" data-i="1">
-    <div class="mark" style="left:0;width:841px;justify-content:flex-end;top:470px"><span class="bar"></span><span class="nm">cctop</span></div>
+    <div class="mark" style="left:0;width:841px;justify-content:flex-end;top:470px"><span class="brandHairline"><b class="b1"></b><b class="b2"></b><b class="b3"></b><b class="b4"></b></span><span class="nm">cctop</span></div>
     <div style="position:absolute;left:241px;width:600px;text-align:right;top:614px;font-size:32px;font-weight:500;color:var(--t2)">Keep an eye on every coding agent.</div>
     <div class="panel" data-img="dark" style="left:905px;top:176px;width:680px;height:781px"><img src=".video-build/assets/menubar-dark.png"></div>
   </div>
@@ -257,7 +256,7 @@
     <div style="position:absolute;left:221px;width:620px;text-align:right;top:500px;font-size:29px;font-weight:560;line-height:1.34;color:var(--t2)">See what's safe, what needs review, and remove the right worktree.</div>
     <div class="cleanupCard">
       <div class="cleanupChrome">
-        <div class="cleanupBrand"><span class="bar"></span><span>cctop</span></div>
+        <div class="cleanupBrand"><span class="brandHairline"><b class="b1"></b><b class="b2"></b><b class="b3"></b><b class="b4"></b></span><span>cctop</span></div>
         <div class="cleanupStatus"><span class="cleanupDot red">1</span><span class="cleanupDot orange">1</span><span class="cleanupDot green">3</span></div>
       </div>
       <div class="cleanupTabs"><span>Active <b>5</b></span><span>Idle <b>1</b></span><span>Recent <b>5</b></span><span class="active">Cleanup <b>2</b></span></div>
@@ -295,7 +294,7 @@
       </div>
       <div class="cleanupFooter">
         <span>Quit</span>
-        <span class="version">v0.19.3</span>
+        <span class="version">v0.19.5</span>
         <span class="nav">^&#8984;F navigate</span>
         <span class="gear">&#9881;</span>
       </div>

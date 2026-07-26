@@ -9,15 +9,16 @@ struct SessionCardView: View {
     var relativeTimeNow = Date()
 
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 0) {
             titleRow
             metaRow
             thirdRowContent
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 9)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 8)
         .cardSelectionStyle(isSelected: isSelected, isHovered: isHovered)
         .padding(.horizontal, AppChrome.rowSelectionHorizontalInset)
         // Dormant = desktop host app is not running; mute it so live work reads first.
@@ -37,7 +38,7 @@ struct SessionCardView: View {
                 navigateChip(idx)
             }
             Text(session.displayName)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(
                     session.status == .idle ? Color.textSecondary : Color.textPrimary
                 )
@@ -54,65 +55,63 @@ struct SessionCardView: View {
 
             statusLabel
 
-            Text("· \(session.lastActivity.relativeDescription(asOf: relativeTimeNow))")
-                .font(.system(size: 10))
-                .foregroundStyle(timeColor)
         }
+        .frame(height: 18)
+    }
+
+    private var metaRow: some View {
+        HStack(spacing: 8) {
+            metaIdentity
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Text(session.lastActivity.relativeDescription(asOf: relativeTimeNow))
+                .font(.system(size: 10.5))
+                .monospacedDigit()
+                .foregroundStyle(timeColor)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .padding(.top, 3)
+        .frame(height: 17)
     }
 
     @ViewBuilder
-    private var metaRow: some View {
+    private var metaIdentity: some View {
         // For Desktop sessions, folder + branch are usually noise (worktree dirs,
         // "unknown" branches). Show only the Desktop app's own project label plus
         // quiet source metadata.
         if session.agentBadge.isDesktop {
-            if session.desktopProjectName != nil || showSourceBadge {
-                HStack(spacing: 5) {
-                    if let desktopProjectName = session.desktopProjectName {
-                        Text(desktopProjectName)
-                            .font(.system(size: 11.5, weight: .medium))
-                            .foregroundStyle(Color.textSecondary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                    if showSourceBadge {
-                        if session.desktopProjectName != nil {
-                            Text("·")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Color.textMuted.opacity(0.6))
-                        }
-                        SourceBadgeView(badge: session.agentBadge)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                    Spacer(minLength: 0)
-                }
+            if let desktopProjectName = session.desktopProjectName {
+                Text(desktopProjectName)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.textSecondary)
+                    .truncationMode(.tail)
+            }
+            if showSourceBadge {
+                if session.desktopProjectName != nil { metaSeparator }
+                SourceBadgeView(badge: session.agentBadge)
+                    .fixedSize(horizontal: true, vertical: false)
             }
         } else {
-            HStack(spacing: 5) {
-                // Folder shown only when sessionName is set AND differs from projectName,
-                // otherwise the headline title would already display the folder name.
-                if let name = session.sessionName, name != session.projectName {
-                    Text(session.projectName)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.textSecondary)
-                        .lineLimit(1)
-                    Text("·")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.textMuted.opacity(0.6))
-                }
-                Text(session.branch)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(Color.textMuted)
-                    .lineLimit(1)
-                if showSourceBadge {
-                    Text("·")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.textMuted.opacity(0.6))
-                    SourceBadgeView(badge: session.agentBadge)
-                }
-                Spacer(minLength: 0)
+            if let name = session.sessionName, name != session.projectName {
+                Text(session.projectName)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.textSecondary)
+                metaSeparator
+            }
+            Text(session.branch)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Color.textSecondary)
+            if showSourceBadge {
+                metaSeparator
+                SourceBadgeView(badge: session.agentBadge)
             }
         }
+    }
+
+    private var metaSeparator: some View {
+        Text("·")
+            .font(.system(size: 10))
+            .foregroundStyle(Color.textMuted.opacity(0.6))
     }
 
     @ViewBuilder
@@ -129,15 +128,15 @@ struct SessionCardView: View {
                     .truncationMode(.tail)
                 Spacer(minLength: 0)
             }
-            .padding(.top, 3)
+            .padding(.top, 4)
         } else if let note = attentionNoteText {
             Text(note)
-                .font(.system(size: session.status == .waitingPermission ? 11 : 10.5))
+                .font(.system(size: 10.5))
                 .italic(session.status == .waitingPermission)
                 .foregroundStyle(attentionNoteColor)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .padding(.top, 3)
+                .padding(.top, 4)
         }
     }
 
@@ -152,13 +151,13 @@ struct SessionCardView: View {
             case .idle:
                 statusText("Idle", color: Color.textMuted)
             case .working:
-                statusDotLabel("Working", dotColor: Color.statusGreen)
+                statusDotLabel("Working", dotColor: Color.statusGreen, textColor: Color.statusWorkingText)
             case .compacting:
                 statusDotLabel("Compacting", dotColor: Color.agentBadge)
             case .waitingPermission:
                 permissionStatusLabel
             case .waitingInput, .needsAttention:
-                statusDotLabel("Waiting", dotColor: Color.statusAttention)
+                statusDotLabel("Waiting", dotColor: Color.statusAttention, textColor: Color.statusAttentionText)
             }
         }
     }
@@ -170,33 +169,35 @@ struct SessionCardView: View {
             .fixedSize(horizontal: true, vertical: false)
     }
 
-    private func statusDotLabel(_ text: String, dotColor: Color) -> some View {
-        HStack(spacing: 5) {
+    private func statusDotLabel(_ text: String, dotColor: Color, textColor: Color? = nil) -> some View {
+        HStack(spacing: 4.5) {
             Circle()
                 .fill(dotColor)
-                .frame(width: 5, height: 5)
+                .frame(width: 6, height: 6)
             Text(text)
                 .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(Color.textSecondary)
+                .foregroundStyle(textColor ?? dotColor)
         }
         .fixedSize(horizontal: true, vertical: false)
     }
 
     private var permissionStatusLabel: some View {
-        Text("Permission")
-            .font(.system(size: 10.5, weight: .semibold))
-            .foregroundStyle(Color.statusPermission)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1.5)
-            .background {
-                RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
-                    .fill(Color.statusPermission.opacity(0.08))
+        HStack(spacing: 4.5) {
+            Circle()
+                .fill(Color.statusPermission)
+                .frame(width: 6, height: 6)
+            Text("Permission")
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(Color.statusPermissionText)
+        }
+        .padding(.leading, 6)
+        .padding(.trailing, 7)
+        .padding(.vertical, 2)
+        .background {
+            Capsule()
+                .fill(Color.statusPermission.opacity(colorScheme == .dark ? 0.13 : 0.10))
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
-                    .stroke(Color.statusPermission.opacity(0.28), lineWidth: 1)
-            }
-            .fixedSize(horizontal: true, vertical: false)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     // MARK: - Navigate chip
@@ -236,13 +237,13 @@ struct SessionCardView: View {
     }
 
     private var attentionNoteColor: Color {
-        session.status == .waitingPermission ? Color.statusAttention : Color.textSecondary
+        session.status == .waitingPermission ? Color.statusAttentionText : Color.textSecondary
     }
 
     private var timeColor: Color {
         // "just now" → accent (fresh); stale (>7d) → dimmer; otherwise muted.
         let seconds = relativeTimeNow.timeIntervalSince(session.lastActivity)
-        if seconds <= 5 { return Color.statusGreen }
+        if seconds <= 5 { return Color.statusWorkingText }
         if seconds > 7 * 86_400 { return Color.textMuted.opacity(0.55) }
         return Color.textMuted
     }

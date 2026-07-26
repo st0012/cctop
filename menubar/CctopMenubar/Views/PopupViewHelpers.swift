@@ -43,12 +43,6 @@ struct CardSelectionStyle: ViewModifier {
                 )
             }
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(Color.panelAccentBorder, lineWidth: 1)
-                }
-            }
     }
 }
 
@@ -81,72 +75,13 @@ struct PanelAccentHairline: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .stroke(accentGradient, lineWidth: 1)
-    }
-
-    private var accentGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.panelAccentBorder,
-                Color.panelControlBorder,
-                Color.statusGreen.opacity(0.08),
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-}
-
-struct PanelMaterialView: NSViewRepresentable {
-    var material: NSVisualEffectView.Material = .popover
-    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        view.isEmphasized = false
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-        nsView.state = .active
-        nsView.isEmphasized = false
-    }
-}
-
-struct PanelTintBackground: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        ZStack {
-            Color.panelBackground.opacity(panelBackgroundOpacity)
-            Color.panelMaterialOverlay.opacity(panelOverlayOpacity)
-        }
-    }
-
-    private var panelBackgroundOpacity: Double {
-        colorScheme == .dark ? 0.72 : 0.72
-    }
-
-    private var panelOverlayOpacity: Double {
-        colorScheme == .dark ? 0.72 : 0.36
+            .stroke(Color.panelAccentBorder, lineWidth: 1)
     }
 }
 
 struct PanelSurfaceBackground: View {
-    var usesMaterial = true
-
     var body: some View {
-        ZStack {
-            if usesMaterial {
-                PanelMaterialView()
-            }
-            PanelTintBackground()
-        }
+        Color.panelBackground
     }
 }
 
@@ -175,32 +110,24 @@ struct TabButtonView: View {
     let isSelected: Bool
     let action: () -> Void
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Text(label)
-                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? Color.textPrimary : Color.textMuted)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                if isScanning && count == 0 {
+                    .foregroundStyle(labelForegroundColor)
+                if isScanning {
                     ProgressView()
                         .controlSize(.mini)
+                        .tint(labelForegroundColor)
                         .frame(width: 10, height: 10)
                         .accessibilityLabel("\(label) scanning")
                 } else {
                     Text("\(count)")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(hasAttention ? Color.statusAttention : (isSelected ? Color.textPrimary : Color.textMuted))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                    if isScanning {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .frame(width: 10, height: 10)
-                            .accessibilityLabel("\(label) scanning")
-                    } else if hasAttention {
+                        .monospacedDigit()
+                        .foregroundStyle(countForegroundColor)
+                    if hasAttention {
                         Circle()
                             .fill(Color.statusAttention)
                             .frame(width: 5, height: 5)
@@ -208,27 +135,41 @@ struct TabButtonView: View {
                     }
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .fixedSize(horizontal: true, vertical: false)
+            .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .allowsTightening(true)
+            .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22)
             .background {
-                SelectionSurfaceChrome(
-                    isSelected: isSelected,
-                    isHovered: isHovered,
-                    cornerRadius: AppChrome.controlCornerRadius,
-                    hoverColor: Color.panelControlBackground
-                )
-            }
-            .overlay {
                 if isSelected {
-                    RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous)
-                        .stroke(Color.panelAccentBorder, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.segmentThumbBackground)
+                        .shadow(
+                            color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.16),
+                            radius: colorScheme == .dark ? 1 : 1.25,
+                            y: 1
+                        )
+                } else if isHovered {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.panelSelectionBackground.opacity(0.62))
                 }
             }
-            .contentShape(RoundedRectangle(cornerRadius: AppChrome.controlCornerRadius, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+    }
+
+    private var labelForegroundColor: Color {
+        if hasAttention { return Color.statusAttentionText }
+        if isSelected { return Color.textPrimary }
+        return count == 0 ? Color.textMuted.opacity(0.78) : Color.textSecondary
+    }
+
+    private var countForegroundColor: Color {
+        if hasAttention { return Color.statusAttentionText }
+        if isSelected { return Color.textSecondary }
+        return Color.textMuted.opacity(count == 0 ? 0.78 : 1)
     }
 }
 

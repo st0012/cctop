@@ -66,19 +66,48 @@ RENDER_PNG="$USER_DATA_DIR/render.png"
 CHROME_LOG="$USER_DATA_DIR/chrome.log"
 "$CHROME" \
     --headless=new \
+    --disable-background-networking \
+    --disable-component-update \
+    --disable-default-apps \
     --disable-gpu \
+    --disable-sync \
     --hide-scrollbars \
+    --metrics-recording-only \
+    --no-first-run \
     --window-size=1200,800 \
     --user-data-dir="$USER_DATA_DIR" \
     --screenshot="$RENDER_PNG" \
     --virtual-time-budget=8000 \
-    "file://$OG_HTML" >/dev/null 2>"$CHROME_LOG" || {
-    echo "Error: Chrome headless exited with non-zero status" >&2
+    "file://$OG_HTML" >/dev/null 2>"$CHROME_LOG" &
+CHROME_PID=$!
+
+SCREENSHOT_READY=0
+attempt=0
+while [ "$attempt" -lt 300 ]; do
+    if [ -s "$RENDER_PNG" ] && magick identify "$RENDER_PNG" >/dev/null 2>&1; then
+        SCREENSHOT_READY=1
+        break
+    fi
+    if ! kill -0 "$CHROME_PID" 2>/dev/null; then
+        break
+    fi
+    sleep 0.1
+    attempt=$((attempt + 1))
+done
+
+kill "$CHROME_PID" 2>/dev/null || true
+wait "$CHROME_PID" 2>/dev/null || true
+
+if [ "$SCREENSHOT_READY" -ne 1 ]; then
+    echo "Error: Chrome headless did not produce a valid screenshot" >&2
     sed 's/^/  chrome: /' "$CHROME_LOG" >&2
     exit 1
-}
+fi
 
-magick "$RENDER_PNG" -crop 1200x630+0+0 +repage "$OG_PNG" >/dev/null 2>&1 || {
+# Chrome and ImageMagick otherwise carry the render time into a PNG tIME chunk,
+# producing byte-different output from identical pixels on every run.
+magick "$RENDER_PNG" -crop 1200x630+0+0 +repage \
+    -define png:exclude-chunk=date,time "$OG_PNG" >/dev/null 2>&1 || {
     echo "Error: ImageMagick crop failed" >&2
     exit 1
 }

@@ -288,12 +288,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         statusItem.button?.setAccessibilityLabel(counts.accessibilityLabel)
     }
 
-    private func setupStatusItem() {
+    @MainActor private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            let image = NSImage(named: "MenubarIcon")
-            image?.isTemplate = true
-            button.image = image
+            button.image = MenubarIconRenderer.render(counts: .zero)
             button.action = #selector(togglePanel)
             button.target = self
         }

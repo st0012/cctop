@@ -82,13 +82,12 @@ variants. The Swift app exposes them via the semantic token API in
 | Muted text         | `textMuted`                                                | Timestamps, idle status, footer                  |
 | Dimmed text        | `textDimmed`                                               | Idle project names                               |
 | Panel background   | `panelBackground` / `--bg`                                 | Main popup panel surface                         |
-| Panel material     | `panelMaterialOverlay`                                     | Subtle material wash over the panel base         |
-| Panel chrome bg    | `panelControlBackground`                                   | Header, tabs, footer, small controls             |
-| Panel chrome border| `panelControlBorder`                                       | Hairline separators in panel chrome              |
-| Panel selection    | `panelSelectionBackground` + `panelAccentBorder`           | Flat rounded row/tab/control selection           |
+| Panel chrome bg    | `panelControlBackground`                                   | Small secondary controls                         |
+| Panel chrome border| `panelControlBorder`                                       | Hairline on secondary controls only              |
+| Panel selection    | `panelSelectionBackground`                                 | Stroke-free rounded row/tab/control selection    |
 | Grouped content    | `groupedContentBackground`                                 | Sunk background for secondary grouped views      |
 | Grouped row        | `groupedRowBackground`                                     | Settings grouped row surface                     |
-| Grouped row border | `groupedRowBorder`                                         | Group outline and inner separators               |
+| Grouped row border | `groupedRowBorder`                                         | 0.5 px inner separators only                     |
 | Card background    | `cardBackground`                                           | Legacy/utility subtle surface (empty-state cards) |
 | Card border        | `cardBorder`                                               | Legacy/utility hairline for subtle cards         |
 
@@ -108,14 +107,15 @@ working session.
 | statusPermission   | `#DD5353` | `#DD5353` |
 | statusAttention    | `#C15F3C` | `#C15F3C` |
 | statusGreen        | `#7EAA6E` | `#4A8238` |
+| permissionText     | `#E57B7B` | `#AC4141` |
+| attentionText      | `#D1876D` | `#9E4E31` |
+| workingText        | `#7FAB6F` | `#407131` |
 | textPrimary        | `#F4F3EE` | `#141413` |
 | textSecondary      | `#B1ADA1` | `#30302E` |
 | textMuted          | `#938F84` | `#68645D` |
 | textDimmed         | `#938F84` | `#68645D` |
 | panelBackground    | `#262624` | `#F4F3EE` |
 | statusIdle         | `#B1ADA1` | `#68645D` |
-| panelSelection     | `#333230` | `#ECEAE3` |
-| panelAccentBorder  | `#4B4843` | `#D0CCC1` |
 | agentBadge         | `#A256C8` | `#7A3580` |
 | opencodeBadge      | `#5C8AB8` | `#2D5A82` |
 | piBadge            | `#6EAEA8` | `#346B66` |
@@ -126,13 +126,16 @@ working session.
 | Role               | Dark      | Light     |
 |--------------------|-----------|-----------|
 | accent             | `#F7768E` | `#2959AA` |
-| statusPermission   | `#F7768E` | `#8C4351` |
-| statusAttention    | `#FF9E64` | `#965027` |
-| statusGreen        | `#9ECE6A` | `#33635C` |
+| statusPermission   | `#F7768E` | `#C13A57` |
+| statusAttention    | `#FF9E64` | `#A85A17` |
+| statusGreen        | `#9ECE6A` | `#4E7028` |
+| permissionText     | `#F7768E` | `#A8324C` |
+| attentionText      | `#FF9E64` | `#8F4D14` |
+| workingText        | `#9ECE6A` | `#486725` |
 | textPrimary        | `#C0CAF5` | `#343B59` |
 | textSecondary      | `#8E94AD` | `#363C4D` |
 | textMuted          | `#707895` | `#707280` |
-| textDimmed         | `#69718E` | `#838792` |
+| textDimmed         | `#69718E` | `#7E828C` |
 | panelBackground    | `#1A1B26` | `#E6E7ED` |
 | statusIdle         | `#69718E` | `#707280` |
 | agentBadge         | `#BB9AF7` | `#7B43BA` |
@@ -148,6 +151,9 @@ working session.
 | statusPermission   | `#FB4934` | `#9D0006` |
 | statusAttention    | `#FABD2F` | `#B57614` |
 | statusGreen        | `#B8BB26` | `#427B58` |
+| permissionText     | `#FC6F5F` | `#9D0006` |
+| attentionText      | `#FABD2F` | `#8B5B0F` |
+| workingText        | `#B8BB26` | `#3B6F4F` |
 | textPrimary        | `#EBDBB2` | `#3C3836` |
 | textSecondary      | `#A89984` | `#504945` |
 | textMuted          | `#928374` | `#7C6F64` |
@@ -167,6 +173,9 @@ working session.
 | statusPermission   | `#BF616A` | `#BF616A` |
 | statusAttention    | `#D08770` | `#D08770` |
 | statusGreen        | `#A3BE8C` | `#4E7A35` |
+| permissionText     | `#D5989E` | `#974D54` |
+| attentionText      | `#DAA08E` | `#89594A` |
+| workingText        | `#A3BE8C` | `#456D2F` |
 | textPrimary        | `#ECEFF4` | `#2E3440` |
 | textSecondary      | `#D8DEE9` | `#3B4252` |
 | textMuted          | `#8390A8` | `#4C566A` |
@@ -211,13 +220,11 @@ the Tokyo Night blue family.
 |---------------------|--------------------|--------------------|
 | `cardBackground`    | white @ 4% alpha   | black @ 2% alpha   |
 | `cardBorder`        | white @ 4% alpha   | black @ 4% alpha   |
-| `segmentBackground` | white @ 6% alpha   | black @ 4% alpha   |
-| `panelMaterialOverlay` | white @ 4% alpha | white @ 18% alpha  |
-| `panelControlBackground` | white @ 3.5% alpha | black @ 2.6% alpha |
-| `panelControlBorder` | white @ 9% alpha  | black @ 8.5% alpha |
-| `groupedContentBackground` | black @ 8% alpha | black @ 2.6% alpha |
-| `groupedRowBackground` | white @ 3.5% alpha | white @ 34% alpha |
-| `groupedRowBorder` | white @ 8.5% alpha | black @ 8.5% alpha |
+All panel chrome alphas derive from each palette's own `textPrimary` ink.
+The segmented track uses 6%; panel controls use 3.5% dark / 2.6% light;
+selection uses 7.5% dark / 7% light; the Settings well uses 3.5%; grouped
+rows use 5.5%; and inner separators use 7%. This keeps the four themes
+chromatically coherent instead of imposing a shared gray.
 
 ## 3. Typography Rules
 
@@ -237,16 +244,16 @@ body type, and never used in the app.
 
 | Size · Weight     | Usage                                                                |
 |-------------------|----------------------------------------------------------------------|
-| 14 · semibold     | Session card title (displayName) — the headline                      |
-| 13 · semibold     | Header title ("cctop")                                               |
+| 13 · semibold     | Session card title and header title                                  |
 | 12                | Empty-state copy, install banner body                                |
 | 11                | Settings labels, meta row folder                                     |
 | 11 · medium mono  | Shortcut badge ("⇧⌘N")                                               |
 | 10.5 · semibold   | Status label ("Working" / "Waiting" / "Permission")                  |
 | 10.5 mono         | Command stripe (working session row 3)                               |
 | 10                | Subagent badge, branch (mono), timestamp                             |
-| 10 · medium       | Segmented picker labels                                              |
-| 9.5 · medium      | Source badge — six variants (CC, Claude Desktop, Codex, Codex Desktop, OC, Pi) |
+| 11 · medium       | Main Active / Idle / Recent / Cleanup tab labels and counts          |
+| 9.5 · semibold    | Uppercase Settings section labels                                    |
+| 9.5 · medium      | Settings segmented picker labels and source badges                   |
 
 The 9 / 10 / 11 / 12 / 13 ladder is intentionally narrow. A panel that's
 ~320 px wide can't afford a 7-step type scale; restraint is the point.
@@ -279,9 +286,9 @@ CSS custom properties in `site/index.html` `:root`:
 ### Color × text pairing
 
 Status meaning is **always** carried by both color and text — never color
-alone. The "Working" label is gray, not green; only the proportional bar
-and status dot carry the green. This keeps the panel readable when you
-glance at it from peripheral vision.
+alone. Working, waiting, and permission pair a semantic-color dot with the
+matching word; idle and dormant stay muted. This keeps the panel readable
+when you glance at it from peripheral vision.
 
 ## 4. Component Stylings
 
@@ -291,25 +298,25 @@ glance at it from peripheral vision.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│ Session name (14 px semibold)         Status · 5s ago    │  ← row 1
-│ folder · branch · src                                    │  ← row 2 (CLI)
+│ Session name (13 px semibold)                  Status     │  ← row 1
+│ folder · branch · src                            5s ago   │  ← row 2 (CLI)
 │ › Reading SessionCardView.swift                          │  ← row 3 (working only)
 └──────────────────────────────────────────────────────────┘
 ```
 
 | Property                  | Value                                                          |
 |---------------------------|----------------------------------------------------------------|
-| Padding                   | 14 px horizontal · 9 px vertical                               |
-| **Row 1 — title**         | 14 px semibold · `textPrimary` (`textSecondary` when idle)     |
+| Padding                   | 9 px horizontal · 8 px vertical inside an 8 px selection inset |
+| **Row 1 — title**         | 13 px semibold · `textPrimary` (`textSecondary` when idle)     |
 | Navigate chip (row 1 lead)| 16×16 status-colored square, `AppChrome.controlCornerRadius`, white digit (1–9) |
 | Subagent count            | 10 px · `agentBadge` (purple)                                  |
-| Status label              | 10.5 px medium. Idle/Dormant use `textMuted`; Working/Waiting/Compacting use a 5 px status dot plus neutral `textSecondary` text; Permission uses a static outlined `statusPermission` pill. |
-| Timestamp                 | 10 px · refreshed by the shared 10 s `PopupView` relative-time timer, never by row-local timers. "Just now" (≤ 5 s) → `statusGreen`; > 7 d → `textMuted` at 0.55 |
+| Status label              | 10.5 px medium. Idle/Dormant use `textMuted`; Working/Waiting/Compacting use a 6 px live semantic dot plus the matching contrast-safe text token; Permission uses the same split inside a stroke-free 10–13% tint capsule. |
+| Timestamp                 | 10.5 px · refreshed by the shared 10 s `PopupView` relative-time timer, never by row-local timers. "Just now" (≤ 5 s) → `statusWorkingText`; > 7 d → `textMuted` at 0.55 |
 | **Row 2 — meta (CLI)**    | `folder · branch · source` — folder shown only when `sessionName != projectName`. Branch 10 px monospaced, separators muted dots. |
-| **Row 2 — meta (Desktop)**| `desktopProjectName · source`. Folder + branch are dropped because Desktop sessions often run in auto-generated worktree dirs (`focused-dirac-1baeb9`); project name is 11.5 px medium `textSecondary`, source is quiet metadata. |
+| **Row 2 — meta (Desktop)**| `desktopProjectName · source`. Folder + branch are dropped because Desktop sessions often run in auto-generated worktree dirs (`focused-dirac-1baeb9`); project name is 11 px medium `textSecondary`, source is quiet metadata. |
 | **Row 3 — working**       | Monospace command stripe with `›` prompt (`statusGreen` @ 0.7) + `Session.contextLine`; no blinking caret. |
-| **Row 3 — waiting**       | 10.5 px `textSecondary` note: `notificationMessage ?? contextLine ?? "Waiting for input"`. Permission notes remain 11 px italic `statusAttention`. |
-| Selected / hover          | `cardSelectionStyle` uses the shared flat selection surface, `AppChrome.selectionCornerRadius`, and a 6 px horizontal inset. No left accent bar. |
+| **Row 3 — waiting**       | 10.5 px `textSecondary` note: `notificationMessage ?? contextLine ?? "Waiting for input"`. Permission notes are 10.5 px italic `statusAttention`. |
+| Selected / hover          | `cardSelectionStyle` uses a theme-ink 7–7.5% fill, radius 10, and an 8 px horizontal inset. It has no stroke, divider, or left accent bar. |
 | Source badge visibility   | Shown only when `Set(sessions.map(\.agentBadge)).count > 1` (keyed on `agentBadge`, not `sourceLabel`, so CC + Claude Desktop counts as multiple sources) |
 
 #### Source badge (`SourceBadgeView.swift`) — six variants
@@ -329,23 +336,60 @@ All source labels render as neutral metadata so the project name and session sta
 
 | Property       | Value                                                              |
 |----------------|--------------------------------------------------------------------|
-| Padding        | 16 px horizontal · 12 px vertical                                  |
-| Status accent  | 3×14 px rounded rect, color = highest-priority status              |
-| Title          | 13 px semibold · `textPrimary` ("cctop")                           |
-| Trailing       | `StatusChip` row in priority order: permission → attention → working → idle |
+| Padding        | 16 / 14 / 14 / 10 px (left / top / right / bottom)                |
+| Brand mark     | 26×5 hairline in a 16 px line box with a 2 px downward optical offset to align with the title ink, segment widths 14 / 5 / 3 / 4, with mode-resolved brand colors |
+| Title          | 13 px semibold · -0.1 px tracking · 16 px line box · `textPrimary` ("cctop") |
+| Trailing       | `StatusChip` row for permission → attention → working; idle stays available in the Idle tab but is omitted from the header |
 | Drag area      | Entire header is a draggable `WindowDragArea` with custom move cursor |
 
 ### Status chip (`StatusChip.swift`)
 
 | Property      | Value                                                |
 |---------------|------------------------------------------------------|
-| Dot           | 5×5 px filled circle, status color                   |
-| Count         | 10 px in matching color                              |
-| Padding       | 6 px horizontal · 2 px vertical                      |
-| Background    | Neutral `panelControlBackground`                     |
-| Border        | `panelControlBorder` hairline                        |
-| Radius        | `AppChrome.controlCornerRadius`                     |
+| Dot           | 6×6 px filled circle, status color                   |
+| Count         | 11 px semibold tabular digits in matching color      |
+| Padding       | 6 px leading · 7 px trailing · 2.5 px vertical       |
+| Background    | Status color at 13% dark / 10% light                 |
+| Border        | None                                                  |
+| Radius        | Capsule                                               |
 | Visibility    | Hidden when count is 0                               |
+
+### Hairline brand system
+
+One horizontal hairline bar is the cctop mark. Do not pair it with the old
+2×2 grid. It has two sanctioned renderings:
+
+- Brand contexts (in-panel header, site nav, site footer, OG, and launch-video
+  wordmarks): four proportional segments. Dark surfaces use `#8CBF6A`,
+  `#E09B56`, `#DB6E6E`, and `#4D5058`; light surfaces use `#6FA14C`,
+  `#CE8036`, `#C75454`, and `#A9ADB6`. The in-panel and site marks are 26×5
+  with segment widths 14 / 5 / 3 / 4; larger marketing treatments preserve
+  those proportions.
+- Live status contexts (menubar item and notch pill): proportional working /
+  attention / permission / idle segments using real semantic colors. With no
+  live sessions, the menubar item becomes a monochrome template hairline.
+
+The Dock/app icon uses the same silhouette on a `#0C0D0F` rounded square. At
+128 units its bar is `x=16, y=57, width=96, height=14, radius=7`; segment
+widths are 52 / 19 / 12 / 13 in `#8CBF6A`, `#E09B56`, `#DB6E6E`, and
+`#4D5058`. The rounded-square radius is 22.37%. All raster sizes and legacy
+tray exports come from `scripts/render-brand-assets.swift`; the same renderer
+writes `assets/cctop-app-icon.svg` for the site favicon.
+
+The bundled Stream Deck plugin uses a centered name lockup for its 256×256 and
+512×512 plugin-preferences artwork and default Toggle Panel key. At the key's
+144-unit design size, the enlarged lockup uses a 62.4×10.92 fixed brand mark, a
+17.16 px gap, then lowercase `cctop` in 23.4 px SF Mono semibold with 3%
+tracking. Its monochrome category icon uses the four-segment opacity ladder
+required by Stream Deck. The Session and Toggle Panel action-list icons remain
+monochrome, action-specific glyphs so they stay distinguishable in Stream
+Deck's action picker. The bundled Claude Code,
+Codex, opencode, and pi integrations do not expose logo fields in their current
+direct hook/extension formats; do not invent unsupported manifest metadata.
+
+The menubar status item is 36×18 with a centered 36×6 live hairline. It
+resolves semantic colors against the status button's effective light/dark
+appearance. It contains no separate glyph.
 
 ### Notch pill (`NotchStatusView.swift`)
 
@@ -355,22 +399,22 @@ Always black, regardless of theme — it's OS chrome that meets the camera notch
 |-------------|-----------------------------------------------------------------------|
 | Background  | `Color.black` @ 90% opacity                                           |
 | Shape       | `NotchTabShape` — flat top + right, only bottom-left rounded (radius 6) |
-| Grid icon   | 11×11, 2×2 cells, tints to accent when `needsAction > 0`              |
-| Status bar  | 36×4 capsule with proportional segments                               |
+| Brand mark  | One 36×4 capsule; the old 2×2 grid is not part of the refined system   |
+| Status bar  | Live segments in working → attention → permission → idle order; monochrome when there are no sessions |
 | Padding     | 5 / 2 / 4 / 5 (l / r / t / b)                                         |
 
 ### Segmented picker (`AmberSegmentedPicker`)
 
 | Property         | Value                                                |
 |------------------|------------------------------------------------------|
-| Outer radius     | `AppChrome.controlCornerRadius`                      |
-| Inner radius     | `AppChrome.controlCornerRadius`                      |
+| Outer radius     | 7 px                                                   |
+| Inner radius     | 5 px                                                   |
 | Outer padding    | 2 px                                                 |
-| Label            | 10 px medium                                         |
-| Inner padding    | 8 px horizontal · 3 px vertical                      |
-| Outer fill       | `panelControlBackground` with `panelControlBorder` hairline |
-| Active fill      | Shared flat selection surface                        |
-| Hover fill       | `panelControlBackground`                             |
+| Label            | 9.5 px medium                                        |
+| Inner padding    | 7 px horizontal · 17 px fixed height                |
+| Outer fill       | Theme-ink 6% track, no outline                       |
+| Active fill      | Native-style thumb (`segmentThumbBackground`) with a subtle shadow, no stroke |
+| Hover fill       | Theme-derived selection tint                         |
 | Active text      | `segmentActiveText` (= `textPrimary`)                |
 | Inactive text    | `segmentText` (= `textMuted`)                        |
 | Animation        | `easeOut(0.15)`                                      |
@@ -381,16 +425,17 @@ Always black, regardless of theme — it's OS chrome that meets the camera notch
 |---------------|------------------------------------------------------|
 | Font          | 10 px medium monospaced                              |
 | Padding       | 6 px horizontal · 2 px vertical                      |
-| Background    | `panelControlBackground` (`panelSelectionBackground` on hover) |
-| Border        | `panelControlBorder` hairline                        |
-| Radius        | `AppChrome.controlCornerRadius`                      |
+| Background    | Theme-ink 8% (`panelSelectionBackground` on hover)   |
+| Border        | None                                                  |
+| Radius        | 5 px                                                  |
 
-### Tab button (Active / Idle / Recent)
+### Tab button (Active / Idle / Recent / Cleanup)
 
-Selected tab uses the shared flat selection surface; hover uses
-`panelControlBackground`. Counts render as plain text inside the selected
-capsule so the tab label stays calm and readable. 6 px horizontal padding
-between tabs.
+The four equal-width 22 px segments live in one track with 2 px inset and
+8 px outer / 6 px inner radii. The selected tab uses a native-style thumb
+and subtle shadow, never an accent stroke. Hover is fill-only. Labels and
+tabular counts are 11 px; zero counts mute, while scanning and unseen Cleanup
+states keep their existing progress/attention cues.
 
 ### Settings grouped list
 
@@ -400,29 +445,29 @@ component vocabulary.
 
 | Property            | Value                                                  |
 |---------------------|--------------------------------------------------------|
-| Content background  | `groupedContentBackground`                             |
+| Content background  | 6 px inset sunk well (`groupedContentBackground`), radius 12 |
 | Group row surface   | `groupedRowBackground`                                 |
-| Group border        | `groupedRowBorder`, 1 px                               |
+| Group border        | None; `groupedRowBorder` is only a full-width 0.5 px inner separator |
 | Group radius        | `AppChrome.groupCornerRadius`                          |
-| Settings row padding| 10 px horizontal · 8 px vertical                       |
-| Section labels      | 10 px semibold · `textMuted`; same 10 px leading inset as row content |
-| Segmented controls  | 26 px outer height · 22 px selected segment · 6 px label padding · 1 px segment gap · concentric 6 px selected radius |
+| Settings row padding| 10 px horizontal · 4 px vertical · 25 px minimum height |
+| Section labels      | 9.5 px semibold uppercase, tracked, with 5 px leading inset |
+| Scroll viewport     | Up to 454 px, then scrolls; simple states show the complete grouped surface while integration-heavy states remain bounded |
+| Segmented controls  | 21 px outer height · 17 px selected segment · 7 px label padding · no gap · 7 / 5 px radii |
 
-### Hero pill (`site/index.html` — `.hero-pill`)
+### Hero status pill (`site/index.html` — `.status-pill`)
 
-The marketing site's signature element: the menubar status icon blown up
-to hero scale. Pure black background, brand-orange `cctop_` wordmark, and a
-168×14 px proportional status bar with four segments using real status colors.
+The marketing hero pairs a quiet `cctop status` label with the live hairline
+mark at presentation scale. It uses the same fixed 52 / 19 / 12 / 13 geometry
+and working → attention → permission → idle order as the app icon.
 
 | Property    | Value                                                                 |
 |-------------|-----------------------------------------------------------------------|
-| Background  | `#000`                                                                |
-| Border      | `1px solid white@10%`                                                 |
-| Shadow      | `0 18px 36px -22px var(--accent)` (single accent-tinted glow)         |
-| Padding     | `5px 8px 5px 12px`                                                    |
-| Radius      | `999px` (full pill)                                                   |
-| Wordmark    | 12 px semibold mono · `var(--accent)` · letter-spacing `0.02em`       |
-| Bar         | 168×14, radius 999, four segments: working / attention / permission / idle |
+| Background  | `--surface` at 82%                                                     |
+| Border      | `1px solid --line-strong`                                             |
+| Padding     | 7 / 10 / 7 / 12 px                                                    |
+| Radius      | `--radius-control` (10 px)                                            |
+| Label       | 12 px semibold mono · `--muted`                                       |
+| Bar         | 154×10, radius 999, no stroke, four semantic-color segments           |
 
 ### Install card (`site/index.html` — `.install-card`)
 
@@ -472,14 +517,16 @@ site-only and reserved for sections, not components.
 
 | Property                  | Value                                          |
 |---------------------------|------------------------------------------------|
-| Width                     | Fixed (~320 px)                                |
-| Header padding            | 16 / 12 (h / v)                                |
-| Tab bar padding           | 12 / 6                                         |
-| Card padding              | 10 px inner horizontal + 6 px selection inset · 9 px vertical |
-| Footer padding            | 16 / 7                                         |
+| Width                     | Fixed 320 px                                   |
+| Outer surface             | Continuous `panelBackground`, radius 16, one subtle inner rim; no tinted header/tab/footer bands |
+| Header padding            | 16 / 14 / 14 / 10 (l / t / r / b)             |
+| Tab bar                   | 16 px horizontal margin · 8 px bottom margin · four equal 22 px segments |
+| Card padding              | 9 px inner horizontal + 8 px selection inset · 8 px vertical |
+| Footer padding            | 16 / 12 / 6 / 10 (l / r / t / b)              |
+| Footer content            | 10.5 px Quit · version · shortcut, separated by muted middle dots; 20 px neutral Settings glyph/fill with a 28 px hit target |
 | Scroll area max height    | 290 px (then scrolls)                          |
-| Active/Idle/Recent spacing| 0 (shared list renderer, `panelControlBorder` dividers padded 16 px horizontal) |
-| Settings content padding  | 8 px horizontal · 10 px top · 28 px bottom inside the scroll view |
+| Active/Idle/Recent spacing| 2 px row gap, 0 px top and 4 px bottom; no dividers |
+| Settings content padding  | 8 px horizontal · 0 px top · 6 px bottom around the sunk well |
 
 The panel reflows in **height only**; width is fixed to keep card layout
 predictable. When sessions overflow 290 px, the inner area scrolls and the
@@ -508,10 +555,10 @@ header / footer / tab bar stay anchored.
 
 Concretely:
 
-- Cards in the panel use 9 px vertical padding so a 320 px panel can fit
+- Cards in the panel use 8 px vertical padding so a 320 px panel can fit
   four sessions before scrolling.
-- Inter-card separation is a 1 px divider with 16 px horizontal padding, not
-  a margin — preserves the rhythm without inflating the panel.
+- Inter-card separation is a 2 px gap. Selection and hover are stroke-free
+  fills; there are no list dividers.
 - Status chips disappear at count 0; the layout never holds space for absent
   meaning.
 - The site uses `text-wrap: balance` / `pretty` and `max-width` on copy so
@@ -533,10 +580,9 @@ spaced 80 px and individual feature rows aligned to a 56 px column gap.
 
 ## 6. Depth & Elevation
 
-cctop has **no decorative shadows**. Hierarchy comes from radius, hairline
-borders, and surface tinting — not drop shadows. The only shadow in the
-entire system is a single accent-tinted glow under the hero pill on the
-website.
+cctop has **no decorative content shadows**. Hierarchy comes from radius and
+surface tinting. System window elevation and the tiny native segmented-thumb
+shadow are functional exceptions; the site keeps one restrained hero shadow.
 
 ### Radius scale
 
@@ -544,7 +590,9 @@ App chrome uses one normal radius token:
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `AppChrome.cornerRadius` | 8 px | Panel shell, controls, grouped settings rows, row selection, install buttons, shortcut badges |
+| `AppChrome.panelCornerRadius` | 16 px | Panel shell |
+| `AppChrome.cornerRadius` | 8 px | Secondary controls and grouped Settings rows |
+| `AppChrome.selectionCornerRadius` | 10 px | Session selection and hover |
 
 Only shape-specific elements break the token: circles, capsules, thin status
 bars, the blinking caret, and the small brand/status marks. The website keeps
@@ -559,15 +607,15 @@ not shadow.
 
 | Layer            | Treatment                                                          |
 |------------------|--------------------------------------------------------------------|
-| Panel base       | `panelBackground` + `panelMaterialOverlay`                         |
-| Header/tabs/footer | `panelControlBackground` + `panelControlBorder` hairlines        |
+| Panel base       | One continuous `panelBackground` surface with a subtle inner rim    |
+| Header/tabs/footer | Transparent over the panel; no section bands or edge-to-edge rules |
 | Card resting     | Transparent — text and status carry meaning                        |
 | Card hover       | `panelSelectionBackground` @ 62% through `cardSelectionStyle`      |
-| Card selected    | `panelSelectionBackground`, `AppChrome.selectionCornerRadius`, 6 px horizontal inset |
-| Status chip      | Neutral `panelControlBackground`; dot/count carry status color     |
-| Settings overlay | Material panel with grouped-list content, entered with `move(edge: .top)` |
+| Card selected    | `panelSelectionBackground`, `AppChrome.selectionCornerRadius`, 8 px horizontal inset |
+| Status chip      | Semantic status tint at 13% dark / 10% light; no stroke            |
+| Settings overlay | Solid continuous panel with a 6 px inset sunk grouped-list well, entered with `move(edge: .top)` |
 | Settings exit    | Custom `RollUpEffect` instead of move-out                          |
-| Divider          | `panelControlBorder` for panel lists; `groupedRowBorder` inside Settings |
+| Divider          | None in panel lists; 0.5 px `groupedRowBorder` only inside Settings groups |
 
 #### Site
 
@@ -690,7 +738,7 @@ width — but it adapts to **display configuration**:
 | Configuration                         | Behavior                                                                 |
 |---------------------------------------|--------------------------------------------------------------------------|
 | Built-in display with camera notch    | Notch pill shows next to the notch; main panel anchors to whichever (pill or menubar icon) is visible |
-| Non-notch built-in / external display | No notch pill; menubar icon (44 px) is always visible                    |
+| Non-notch built-in / external display | No notch pill; 36×6 hairline menubar item is always visible              |
 | Clamshell / display change            | `NSApplication.didChangeScreenParametersNotification` re-evaluates       |
 | Dragged off-screen                    | Panel position clamps to screen bounds on next show                      |
 | Theme switch (system or user)         | All `Color` tokens re-resolve via `NSColor(name:)` dynamic provider      |
@@ -702,11 +750,12 @@ Detection uses `NSScreen.builtin?.hasPhysicalNotch` (via
 
 ### Notch pill
 
-The pill is **always 36×4 px wide** but its segments scale proportionally
-with status counts via `StatusCounts.barSegments(forWidth:)`. Single-status
-sessions render one segment. Mixed sessions get a minimum visible slice for
-each non-zero category so a single attention-needing session in twenty
-working ones is still visible.
+The notch's outer tab remains 20 px high. Its centered hairline is **36×4 px**
+and its segments scale proportionally with status counts via
+`StatusCounts.barSegments(forWidth:)`. Single-status sessions render one
+segment. Mixed sessions get a minimum visible slice for each non-zero
+category so a single attention-needing session in twenty working ones is
+still visible.
 
 ### Site breakpoints
 

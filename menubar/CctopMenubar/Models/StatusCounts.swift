@@ -52,14 +52,14 @@ struct StatusCounts: Equatable {
     var barSegments: [(proportion: Double, kind: SegmentKind)] {
         guard total > 0 else { return [] }
         var segs: [(Double, SegmentKind)] = []
-        if permission > 0 {
-            segs.append((Double(permission) / Double(total), .permission))
+        if working > 0 {
+            segs.append((Double(working) / Double(total), .working))
         }
         if attention > 0 {
             segs.append((Double(attention) / Double(total), .attention))
         }
-        if working > 0 {
-            segs.append((Double(working) / Double(total), .working))
+        if permission > 0 {
+            segs.append((Double(permission) / Double(total), .permission))
         }
         if idle > 0 {
             segs.append((Double(idle) / Double(total), .idle))

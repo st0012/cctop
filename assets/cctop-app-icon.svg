@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="cctop app icon">
+  <defs><clipPath id="bar"><rect x="16" y="57" width="96" height="14" rx="7"/></clipPath></defs>
+  <rect width="128" height="128" rx="28.6336" fill="#0C0D0F"/>
+  <g clip-path="url(#bar)">
+    <rect x="16" y="57" width="52" height="14" fill="#8CBF6A"/>
+    <rect x="68" y="57" width="19" height="14" fill="#E09B56"/>
+    <rect x="87" y="57" width="12" height="14" fill="#DB6E6E"/>
+    <rect x="99" y="57" width="13" height="14" fill="#4D5058"/>
+  </g>
+</svg>

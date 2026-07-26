@@ -1,8 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
-  <rect width="144" height="144" fill="#251C16"/>
-  <rect x="24" y="24" width="44" height="44" rx="10" fill="#D97756"/>
-  <rect x="76" y="24" width="44" height="44" rx="10" fill="#E1D2C0"/>
-  <rect x="24" y="76" width="44" height="44" rx="10" fill="#593629"/>
-  <rect x="24" y="76" width="44" height="22" rx="10" fill="#A05A42"/>
-  <rect x="78" y="78" width="40" height="40" rx="9" fill="none" stroke="#5F4938" stroke-width="4"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" role="img" aria-label="cctop">
+  <rect width="144" height="144" rx="23.04" fill="#0C0D0F"/>
+  <rect x="0.75" y="0.75" width="142.5" height="142.5" rx="22.29" fill="none" stroke="#FFFFFF" stroke-opacity="0.05" stroke-width="1.5"/>
+  <path d="M46.26 46.26H73.56V57.18H46.26A5.46 5.46 0 0 1 46.26 46.26Z" fill="#8CBF6A"/>
+  <rect x="73.56" y="46.26" width="12.48" height="10.92" fill="#E09B56"/>
+  <rect x="86.04" y="46.26" width="7.8" height="10.92" fill="#DB6E6E"/>
+  <path d="M93.84 46.26H97.74A5.46 5.46 0 0 1 97.74 57.18H93.84Z" fill="#4D5058"/>
+  <text x="72" y="93.45" text-anchor="middle" fill="#E8ECF1" font-family="SF Mono, Menlo, monospace" font-size="23.4" font-weight="600" letter-spacing="0.702">cctop</text>
 </svg>
