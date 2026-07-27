@@ -80,6 +80,9 @@ export const cctop = async ({ directory }) => {
   const hookBin = findHookBinary();
   if (!hookBin) return {};
 
+  // Keep one process-scoped identity until every callback can route its own opencode
+  // session payload safely. Adopting only session.created/updated would let child and
+  // background events mutate whichever conversation happened to be current in memory.
   const sessionId = `opencode-${process.pid}`;
   let sessionName = null;
 

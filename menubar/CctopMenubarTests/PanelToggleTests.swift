@@ -33,11 +33,11 @@ final class PanelToggleTests: XCTestCase {
         )
     }
 
-    func testFocusTargetDecodesStableDisplayIdentity() throws {
+    func testFocusTargetDecodesCctopSessionIdentity() throws {
         let url = try XCTUnwrap(URL(string: "cctop://focus?sid=codex%3Aabc%2Fdef%3Fghi"))
         XCTAssertEqual(AppDelegate.urlCommand(from: url), "focus")
-        XCTAssertEqual(AppDelegate.focusTargetID(from: url), "codex:abc/def?ghi")
-        XCTAssertNil(AppDelegate.focusTargetID(from: try XCTUnwrap(URL(string: "cctop://focus"))))
-        XCTAssertNil(AppDelegate.focusTargetID(from: try XCTUnwrap(URL(string: "cctop://focus?sid="))))
+        XCTAssertEqual(AppDelegate.focusSessionID(from: url), "codex:abc/def?ghi")
+        XCTAssertNil(AppDelegate.focusSessionID(from: try XCTUnwrap(URL(string: "cctop://focus"))))
+        XCTAssertNil(AppDelegate.focusSessionID(from: try XCTUnwrap(URL(string: "cctop://focus?sid="))))
     }
 }

@@ -877,7 +877,12 @@ final class SessionManagerVisibilityTests: XCTestCase {
             appIdentity: DisplayState.ProcessIdentity(pid: 999, startTime: 1_234),
             now: now
         )
-        XCTAssertEqual(snapshot.sessions.map(\.id), activeAfterUpdates.map(\.id))
+        XCTAssertEqual(
+            snapshot.sessions.map(\.cctopSessionId),
+            activeAfterUpdates.map { $0.cctopSessionId ?? "" }
+        )
+        XCTAssertEqual(snapshot.sessions.count, activeAfterUpdates.count)
+        XCTAssertTrue(activeAfterUpdates.allSatisfy { Session.isValidCctopSessionId($0.cctopSessionId) })
 
         alpha.hidden = true
         try alpha.writeToFile(path: alphaPath)
@@ -888,6 +893,125 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try beta.writeToFile(path: betaPath)
         manager.loadSessions()
         XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404"])
+    }
+
+    @MainActor
+    func testLegacyIdentityMigrationRetriesAfterBusySessionLock() throws {
+        let root = NSTemporaryDirectory() + "cctop-identity-retry-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("4242.json")
+        var legacy = Session.mock(id: "legacy", pid: 4242, source: Session.opencodeSource)
+        legacy.cctopSessionId = nil
+        try legacy.writeToFile(path: sessionPath)
+
+        let readyPath = (root as NSString).appendingPathComponent("identity-lock-ready")
+        let lockHolder = try startSessionLockHolder(
+            lockPath: sessionPath + ".lock",
+            readyPath: readyPath,
+            holdSeconds: 10
+        )
+        defer { terminateProcess(lockHolder) }
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            processAlive: { _ in true }
+        )
+        XCTAssertNil(manager.sessions.first?.cctopSessionId)
+        waitForIdentityMigrationQueue(manager)
+        XCTAssertNil(try Session.fromFile(path: sessionPath).cctopSessionId)
+
+        terminateProcess(lockHolder)
+        let hookInput = try JSONDecoder().decode(HookInput.self, from: Data("""
+        {"session_id":"legacy","cwd":"/tmp/project","hook_event_name":"PreToolUse","harness_name":"opencode"}
+        """.utf8))
+        let hookDeps = HookDependencies(
+            sessionsDir: { sessionsDir },
+            environment: { [:] },
+            currentBranch: { _ in "main" },
+            process: VisibilityHookProcessProber(),
+            names: VisibilityHookNameResolver(),
+            logger: HookLogger(logsDir: (root as NSString).appendingPathComponent("logs"))
+        )
+        try HookHandler.handleHook(hookName: "PreToolUse", input: hookInput, deps: hookDeps)
+        let hookAssignedID = try XCTUnwrap(Session.fromFile(path: sessionPath).cctopSessionId)
+        manager.loadSessions()
+        waitForIdentityMigrationQueue(manager)
+
+        XCTAssertEqual(try Session.fromFile(path: sessionPath).cctopSessionId, hookAssignedID)
+        XCTAssertEqual(manager.sessions.first?.cctopSessionId, hookAssignedID)
+    }
+
+    @MainActor
+    func testLegacyDurableDuplicatesMigrateToOneCctopSessionID() throws {
+        let root = NSTemporaryDirectory() + "cctop-identity-duplicates-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let reference = "11111111-2222-4333-8444-555555555555"
+        for pid: UInt32 in [4242, 5002] {
+            var session = Session.mock(id: reference, pid: pid, source: Session.ccSource)
+            session.cctopSessionId = nil
+            session.harnessSessionId = reference
+            try session.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("\(pid).json"))
+        }
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            processAlive: { _ in true }
+        )
+        let publishedIDs = Set(manager.sessions.compactMap(\.cctopSessionId))
+        XCTAssertEqual(manager.sessions.count, 2)
+        XCTAssertEqual(publishedIDs.count, 1)
+        XCTAssertTrue(publishedIDs.allSatisfy(Session.isValidCctopSessionId))
+
+        waitForIdentityMigrationQueue(manager)
+        let persistedIDs = try Set([4242, 5002].map { pid in
+            try XCTUnwrap(Session.fromFile(path: (sessionsDir as NSString).appendingPathComponent("\(pid).json")).cctopSessionId)
+        })
+        XCTAssertEqual(persistedIDs, publishedIDs)
+    }
+
+    @MainActor
+    func testConflictingDurableLegacyIdentitiesFailClosed() throws {
+        let root = NSTemporaryDirectory() + "cctop-identity-conflict-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let reference = "11111111-2222-4333-8444-555555555555"
+        let existingIDs = [
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        ]
+        for (index, pid) in [4242, 5002, 6003].enumerated() {
+            var session = Session.mock(id: reference, pid: UInt32(pid), source: Session.ccSource)
+            session.cctopSessionId = index < existingIDs.count ? existingIDs[index] : nil
+            session.harnessSessionId = reference
+            try session.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("\(pid).json"))
+        }
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            processAlive: { _ in true }
+        )
+
+        XCTAssertNil(manager.sessions.first(where: { $0.pid == 6003 })?.cctopSessionId)
+        XCTAssertNil(try Session.fromFile(
+            path: (sessionsDir as NSString).appendingPathComponent("6003.json")
+        ).cctopSessionId)
     }
 
     @MainActor
@@ -1604,6 +1728,29 @@ final class SessionManagerVisibilityTests: XCTestCase {
         manager.garbageCollectFinished()
         XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
     }
+}
+
+@MainActor
+private func waitForIdentityMigrationQueue(_ manager: SessionManager, timeout: TimeInterval = 3) {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !manager.pendingIdentityMigrationPaths.isEmpty, Date() < deadline {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+    }
+    XCTAssertTrue(manager.pendingIdentityMigrationPaths.isEmpty)
+}
+
+private struct VisibilityHookProcessProber: ProcessProbing {
+    func parentPID() -> UInt32 { 4242 }
+    func startTime(pid: UInt32) -> TimeInterval? { 1_000 }
+    func isAlive(pid: UInt32) -> Bool { true }
+    func commandName(pid: UInt32) -> String? { nil }
+    func controllingTTY() -> String? { nil }
+}
+
+private struct VisibilityHookNameResolver: SessionNameResolving {
+    func codexThreadName(sessionId: String) -> String? { nil }
+    func claudeDesktopTitle(cliSessionId: String) -> String? { nil }
+    func transcriptSessionName(transcriptPath: String?, sessionId: String) -> String? { nil }
 }
 
 private func startSessionLockHolder(lockPath: String, readyPath: String, holdSeconds: TimeInterval) throws -> Process {

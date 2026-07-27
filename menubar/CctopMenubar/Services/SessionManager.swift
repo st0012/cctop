@@ -32,6 +32,7 @@ class SessionManager: ObservableObject {
     private var lastDisplaySignature = SessionDisplayPolicy.Signature.empty
     var lastLoadLogSignature: SessionLoadLogSignature?
     var sessionFileCache: [String: SessionFileCacheEntry] = [:]
+    var pendingIdentityMigrationPaths: Set<String> = []
     /// Lifecycle windows: desktop app liveness decides connection when available; `active` is the
     /// fallback recency threshold and `retention` controls dormant desktop cleanup.
     nonisolated static let lifecycleWindows = LifecycleWindows(active: 600, retention: 1_209_600)
@@ -94,7 +95,8 @@ class SessionManager: ObservableObject {
         // Publish active + dormant; finished are hidden (swept below / by GC).
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(displayCandidates)
         let now = dataSources.now()
-        let loadedSessions = winners.filter { $0.session.lifecycle != .finished }.map { adjustDisplayStatus($0.session) }
+        let identifiedSessions = identifiedPublishableSessions(winners: winners, knownRecords: allDecoded)
+        let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
         let newSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
         let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
         syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)

@@ -3,6 +3,8 @@ import Foundation
 extension Session {
     static func mock(
         id: String = "test-123",
+        cctopSessionId: String? = nil,
+        harnessSessionId: String? = nil,
         project: String = "cctop",
         branch: String = "main",
         sessionName: String? = nil,
@@ -20,6 +22,8 @@ extension Session {
     ) -> Session {
         var session = Session(
             sessionId: id,
+            cctopSessionId: cctopSessionId ?? "00000000-0000-4000-8000-000000000001",
+            harnessSessionId: harnessSessionId,
             projectPath: "/Users/test/projects/\(project)",
             projectName: project,
             branch: branch,

@@ -148,6 +148,8 @@
 		WCT000010000000000000001 /* WorktreeCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WCT000020000000000000001 /* WorktreeCleanupTests.swift */; };
 		SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SLP000020000000000000001 /* SessionLifecyclePolicy.swift */; };
 		SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SIP000020000000000000001 /* SessionIdentityPolicy.swift */; };
+		CSI000010000000000000001 /* CctopSessionIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CSI000030000000000000001 /* CctopSessionIdentityStore.swift */; };
+		CSI000020000000000000001 /* CctopSessionIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CSI000030000000000000001 /* CctopSessionIdentityStore.swift */; };
 		DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */; };
 		CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */; };
 		CTQ000010000000000000001 /* CodexThreadArchiveLookup+Query.swift in Sources */ = {isa = PBXBuildFile; fileRef = CTQ000020000000000000001 /* CodexThreadArchiveLookup+Query.swift */; };
@@ -190,6 +192,7 @@
 		C10000020000000000000001 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
 		SLP000020000000000000001 /* SessionLifecyclePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecyclePolicy.swift; sourceTree = "<group>"; };
 		SIP000020000000000000001 /* SessionIdentityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIdentityPolicy.swift; sourceTree = "<group>"; };
+		CSI000030000000000000001 /* CctopSessionIdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CctopSessionIdentityStore.swift; sourceTree = "<group>"; };
 		DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopAppConnectionLookup.swift; sourceTree = "<group>"; };
 		CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexThreadArchiveLookup.swift; sourceTree = "<group>"; };
 		CTQ000020000000000000001 /* CodexThreadArchiveLookup+Query.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CodexThreadArchiveLookup+Query.swift"; sourceTree = "<group>"; };
@@ -369,6 +372,7 @@
 				C10000020000000000000001 /* SessionManager.swift */,
 				SLP000020000000000000001 /* SessionLifecyclePolicy.swift */,
 				SIP000020000000000000001 /* SessionIdentityPolicy.swift */,
+				CSI000030000000000000001 /* CctopSessionIdentityStore.swift */,
 				DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */,
 				CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */,
 				CTQ000020000000000000001 /* CodexThreadArchiveLookup+Query.swift */,
@@ -698,6 +702,7 @@
 				C10000010000000000000001 /* SessionManager.swift in Sources */,
 				SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */,
 				SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */,
+				CSI000010000000000000001 /* CctopSessionIdentityStore.swift in Sources */,
 				DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */,
 				CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */,
 				CTQ000010000000000000001 /* CodexThreadArchiveLookup+Query.swift in Sources */,
@@ -795,6 +800,7 @@
 				P10000010000000000000001 /* HookMain.swift in Sources */,
 				P10000030000000000000001 /* HookInput.swift in Sources */,
 				P10000050000000000000001 /* HookHandler.swift in Sources */,
+				CSI000020000000000000001 /* CctopSessionIdentityStore.swift in Sources */,
 				HD0000020000000000000001 /* HookDependencies.swift in Sources */,
 				P10000070000000000000001 /* HookLogger.swift in Sources */,
 				SN0000010000000000000001 /* SessionNameLookup.swift in Sources */,

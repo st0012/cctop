@@ -7,6 +7,9 @@ enum HookHandler {
     // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
     private static let noPIDMaxAge: TimeInterval = 300
 
+    // Identity resolution and the lock-held transition stay together so callers cannot
+    // accidentally reorder the mapping and session-file locks.
+    // swiftlint:disable:next function_body_length
     static func handleHook(hookName: String, input: HookInput, deps: HookDependencies = .live) throws {
         let event = HookEvent.parse(hookName: hookName, notificationType: input.notificationType)
 
@@ -18,12 +21,17 @@ enum HookHandler {
         let sessionsDir = deps.sessionsDir()
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
         let pid = deps.process.parentPID()
+        let source = input.resolvedHarnessName ?? Session.ccSource
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
         let sessionPath = (sessionsDir as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
 
         let branch = deps.currentBranch(input.cwd)
         let terminal = captureTerminalInfo(env: deps.environment(), process: deps.process)
         let startTime = deps.process.startTime(pid: pid)
+        let cctopSessionId = try resolvedCctopSessionID(
+            input: input, sessionPath: sessionPath,
+            sessionsDir: sessionsDir, source: source, safeId: safeId
+        )
 
         logForeignHarnessWarning(pid: pid, input: input, hookName: hookName, label: label, deps: deps)
 
@@ -34,7 +42,9 @@ enum HookHandler {
         var didApplyHook = false
         try withSessionLock(sessionPath: sessionPath, onError: deps.logger.logError) {
             var freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
-            freshSession.source = input.resolvedHarnessName
+            freshSession.source = source
+            freshSession.cctopSessionId = cctopSessionId
+            freshSession.harnessSessionId = input.sessionId
             let loaded: (session: Session, isNewSessionFile: Bool)
             do {
                 loaded = try loadOrCreateSession(
@@ -47,8 +57,11 @@ enum HookHandler {
             var session = loaded.session
             let isNewSessionFile = loaded.isNewSessionFile
 
-            session.pid = pid
-            session.pidStartTime = startTime
+            stampFocusTarget(&session, pid: pid, startTime: startTime)
+            stampSessionIdentity(
+                &session, cctopSessionId: cctopSessionId,
+                input: input, source: source, safeId: safeId
+            )
 
             let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
             applySessionName(&session, event: event, input: input, names: deps.names)
@@ -377,17 +390,23 @@ enum HookHandler {
 extension HookHandler {
     // MARK: - Cleanup
 
+    // Target selection, identity resolution, and lock-held revalidation form one fail-closed cycle.
+    // swiftlint:disable:next function_body_length
     private static func handleSessionEnd(hookName: String, input: HookInput, deps: HookDependencies) {
         let pid = deps.process.parentPID()
         let safeId = Session.sanitizeSessionId(raw: input.sessionId)
         let sessionsDir = deps.sessionsDir()
         let primaryPath = (sessionsDir as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
+        let source = input.resolvedHarnessName ?? Session.ccSource
 
         // The end-time parent walk can resolve a different PID than at start (ancestors
         // exit during teardown), so the PID-derived path may miss the session's file or
         // hold a different conversation. Key the stamp to session_id (issue #155 P3).
-        guard let path = sessionEndTargetPath(primaryPath: primaryPath, sessionsDir: sessionsDir, safeId: safeId) else {
+        guard let target = sessionEndTarget(
+            primaryPath: primaryPath, sessionsDir: sessionsDir, safeId: safeId,
+            rawId: input.sessionId, source: source
+        ) else {
             // No file holds this session. Keep the legacy corrupt-file cleanup on the
             // primary path, but never touch another conversation's healthy file.
             try? withSessionLock(sessionPath: primaryPath, onError: deps.logger.logError) {
@@ -398,18 +417,45 @@ extension HookHandler {
             return
         }
 
+        let existingTarget = try? Session.fromFile(path: target.path)
+        let existingCctopSessionId = existingTarget.flatMap { session -> String? in
+            guard sessionEndIdentityMatch(
+                session, safeId: safeId, rawId: input.sessionId, source: source
+            ) == target.match, Session.isValidCctopSessionId(session.cctopSessionId) else { return nil }
+            return session.cctopSessionId
+        }
+        guard let cctopSessionId = existingCctopSessionId ?? resolvedCctopSessionIDForEnd(
+            input: input, sessionsDir: sessionsDir, source: source,
+            safeId: safeId, logger: deps.logger
+        ) else { return }
+
         // Stamp endedAt instead of deleting — the menubar app archives to history on next poll.
-        try? withSessionLock(sessionPath: path, onError: deps.logger.logError) {
+        try? withSessionLock(sessionPath: target.path, onError: deps.logger.logError) {
             // Re-validate under the lock: the file can change between the scan and the stamp.
-            guard var session = try? Session.fromFile(path: path), session.sessionId == safeId else { return }
+            guard var session = try? Session.fromFile(path: target.path),
+                  sessionEndIdentityMatch(
+                    session, safeId: safeId, rawId: input.sessionId, source: source
+                  ) == target.match else { return }
+            // A legacy match is allowed only while it remains the sole fallback. If an
+            // exact record appeared or another legacy candidate became visible after the
+            // first scan, fail closed instead of ending an arbitrary record.
+            if target.match == .legacy {
+                guard sessionEndTarget(
+                    primaryPath: primaryPath, sessionsDir: sessionsDir, safeId: safeId,
+                    rawId: input.sessionId, source: source
+                ) == target else { return }
+            }
             let endedAt = Date()
+            if shouldAdoptResolvedCctopSessionID(session, input: input, source: source, safeId: safeId) {
+                session.cctopSessionId = cctopSessionId
+            }
             session.endedAt = endedAt
             if hasTrustedDesktopBundle(session, sourceOverride: input.resolvedHarnessName) {
                 session.disconnectedAt = session.disconnectedAt ?? endedAt
             }
             session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
             do {
-                try session.writeToFile(path: path)
+                try session.writeToFile(path: target.path)
             } catch {
                 deps.logger.logError("\(hookName): \(error)")
                 return
@@ -418,26 +464,133 @@ extension HookHandler {
         }
     }
 
-    /// Path of the session file owning `safeId`: the PID-derived path when it matches;
-    /// otherwise the best directory match by session_id — preferring a file not yet
-    /// ended (the live conversation), then the most recently active one.
-    private static func sessionEndTargetPath(primaryPath: String, sessionsDir: String, safeId: String) -> String? {
-        if let session = try? Session.fromFile(path: primaryPath), session.sessionId == safeId {
-            return primaryPath
+    private enum SessionEndIdentityMatch: Equatable {
+        case exact
+        case legacy
+    }
+
+    private static func resolveCctopSessionID(
+        input: HookInput, sessionsDir: String, source: String, safeId: String
+    ) throws -> String {
+        try CctopSessionIdentityStore(sessionsDir: URL(fileURLWithPath: sessionsDir)).resolve(
+            source: source,
+            harnessSessionId: input.sessionId,
+            legacySessionId: safeId
+        )
+    }
+
+    private static func resolvedCctopSessionID(
+        input: HookInput, sessionPath: String, sessionsDir: String,
+        source: String, safeId: String
+    ) throws -> String {
+        if let session = try? Session.fromFile(path: sessionPath),
+           (session.source ?? Session.ccSource) == source,
+           session.harnessSessionId == input.sessionId,
+           Session.isValidCctopSessionId(session.cctopSessionId),
+           let cctopSessionId = session.cctopSessionId {
+            return cctopSessionId
         }
-        var best: (path: String, session: Session)?
+        return try resolveCctopSessionID(
+            input: input, sessionsDir: sessionsDir, source: source, safeId: safeId
+        )
+    }
+
+    private static func resolvedCctopSessionIDForEnd(
+        input: HookInput, sessionsDir: String,
+        source: String, safeId: String, logger: HookLogger
+    ) -> String? {
+        do {
+            return try resolveCctopSessionID(
+                input: input, sessionsDir: sessionsDir, source: source, safeId: safeId
+            )
+        } catch {
+            logger.logError("SessionEnd: could not resolve cctop session identity: \(error)")
+            return nil
+        }
+    }
+
+    private static func stampFocusTarget(
+        _ session: inout Session, pid: UInt32, startTime: TimeInterval?
+    ) {
+        session.pid = pid
+        session.pidStartTime = startTime
+    }
+
+    private static func stampSessionIdentity(
+        _ session: inout Session, cctopSessionId: String,
+        input: HookInput, source: String, safeId: String
+    ) {
+        if shouldAdoptResolvedCctopSessionID(session, input: input, source: source, safeId: safeId) {
+            session.cctopSessionId = cctopSessionId
+        }
+        // Stamped after a matching event loads the record so pre-field files gain the
+        // exact reference mid-life; only SessionStart may rotate conversations.
+        session.harnessSessionId = input.sessionId
+    }
+
+    private static func shouldAdoptResolvedCctopSessionID(
+        _ session: Session, input: HookInput, source: String, safeId: String
+    ) -> Bool {
+        !Session.isValidCctopSessionId(session.cctopSessionId)
+            || CctopSessionIdentityStore.durableEvidence(
+                source: source,
+                harnessSessionId: input.sessionId,
+                legacySessionId: safeId
+            ) != nil
+    }
+
+    private struct SessionEndTarget: Equatable {
+        let path: String
+        let match: SessionEndIdentityMatch
+    }
+
+    private static func sessionEndIdentityMatch(
+        _ session: Session, safeId: String, rawId: String, source: String
+    ) -> SessionEndIdentityMatch? {
+        guard session.sessionId == safeId,
+              (session.source ?? Session.ccSource) == source else { return nil }
+        guard let harnessSessionId = session.harnessSessionId else { return .legacy }
+        return harnessSessionId == rawId ? .exact : nil
+    }
+
+    /// Find the record owning an ending conversation. Exact raw/source matches win
+    /// globally; only when none exist may one unambiguous legacy record fall back to the
+    /// lossy sanitized id. The primary PID path breaks ties only between exact matches.
+    private static func sessionEndTarget(
+        primaryPath: String, sessionsDir: String, safeId: String, rawId: String, source: String
+    ) -> SessionEndTarget? {
+        var exact: [(path: String, session: Session)] = []
+        var legacyPaths: [String] = []
         forEachSession(in: sessionsDir) { path, session in
-            guard session.sessionId == safeId else { return }
-            guard let current = best else { best = (path, session); return }
-            let candidateUnended = session.endedAt == nil
-            let currentUnended = current.session.endedAt == nil
-            if candidateUnended != currentUnended {
-                if candidateUnended { best = (path, session) }
-            } else if session.lastActivity > current.session.lastActivity {
-                best = (path, session)
+            switch sessionEndIdentityMatch(session, safeId: safeId, rawId: rawId, source: source) {
+            case .exact:
+                exact.append((path, session))
+            case .legacy:
+                legacyPaths.append(path)
+            case nil:
+                break
             }
         }
-        return best?.path
+
+        if !exact.isEmpty {
+            if exact.contains(where: { $0.path == primaryPath }) {
+                return SessionEndTarget(path: primaryPath, match: .exact)
+            }
+            var best = exact[0]
+            for candidate in exact.dropFirst() {
+                let candidateUnended = candidate.session.endedAt == nil
+                let currentUnended = best.session.endedAt == nil
+                if candidateUnended != currentUnended {
+                    if candidateUnended { best = candidate }
+                } else if candidate.session.lastActivity > best.session.lastActivity {
+                    best = candidate
+                }
+            }
+            return SessionEndTarget(path: best.path, match: .exact)
+        }
+
+        guard legacyPaths.count == 1, let path = legacyPaths.first else { return nil }
+        return SessionEndTarget(path: path, match: .legacy)
     }
 
     static func cleanupSessionsForProject(
@@ -563,11 +716,16 @@ private func loadOrCreateSession(
     } catch SessionLoadError.undecodableExistingFile(_) where event == .sessionStart {
         return (fresh, true)
     }
+    let sameConversation = existing.sessionId == fresh.sessionId
+        && (existing.harnessSessionId == nil || existing.harnessSessionId == fresh.harnessSessionId)
     // PID reuse: different process start time means a new process reused this PID.
     if event == .sessionStart,
        let storedStart = existing.pidStartTime,
        let currentStart = startTime,
        abs(storedStart - currentStart) > 1.0 {
+        if existing.isCodex, fresh.isCodex, sameConversation {
+            return (existing, false)
+        }
         guard canReplaceDecodedSessionFile(existing: existing, fresh: fresh, event: event) else {
             throw SessionLoadError.decodedReplacementRefused(
                 existingSessionId: existing.sessionId,
@@ -576,10 +734,12 @@ private func loadOrCreateSession(
         }
         return (fresh, true)
     }
-    // Same PID, different session_id — a PID-keyed source (opencode/pi) reused the
-    // process for a new conversation. Drop conversation-specific state (project, name,
-    // prompt, tools, etc.) and carry over only PID liveness metadata.
-    guard existing.sessionId == fresh.sessionId else {
+    // Same PID, different session — a PID-keyed source reused the process for a new
+    // conversation. Raw references are compared when the record has one, so two
+    // conversations whose sanitized ids collide don't silently share a record; legacy
+    // records without the field can only compare sanitized ids. Drop conversation-specific
+    // state (project, name, prompt, tools, etc.) and carry over only PID liveness metadata.
+    guard sameConversation else {
         guard canReplaceDecodedSessionFile(existing: existing, fresh: fresh, event: event) else {
             throw SessionLoadError.decodedReplacementRefused(
                 existingSessionId: existing.sessionId,

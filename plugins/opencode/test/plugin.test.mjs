@@ -134,7 +134,9 @@ test("maps opencode session events to cctop lifecycle hooks", async () => {
     await plugin.hooks.event({
       event: { type: "session.updated", properties: { info: { title: "opencode session" } } },
     });
-    await plugin.hooks.event({ event: { type: "session.created" } });
+    await plugin.hooks.event({
+      event: { type: "session.created", properties: { info: { id: "ses_top" } } },
+    });
     await plugin.hooks.event({ event: { type: "session.idle" } });
     await plugin.hooks.event({ event: { type: "session.compacted" } });
     await plugin.hooks.event({ event: { type: "session.status", properties: { status: { type: "retry" } } } });
@@ -150,8 +152,41 @@ test("maps opencode session events to cctop lifecycle hooks", async () => {
       ["SessionStart", "SessionStart", "Stop", "PostCompact", "SessionError", "SessionError"],
     );
     assert.equal(calls[1].payload.session_name, "opencode session");
+    assert.equal(calls[1].payload.session_id, `opencode-${process.pid}`);
     assert.equal(calls[4].payload.error, "Retry");
     assert.equal(calls[5].payload.error, "boom");
+  } finally {
+    plugin.restore();
+  }
+});
+
+test("keeps process identity when session events carry conversation ids", async () => {
+  const plugin = await loadPlugin();
+
+  try {
+    await plugin.hooks.event({
+      event: { type: "session.created", properties: { info: { id: "ses_top", title: "top work" } } },
+    });
+    await plugin.hooks.event({
+      event: { type: "session.created", properties: { info: { id: "ses_child", parentID: "ses_top" } } },
+    });
+    await plugin.hooks.event({
+      event: { type: "session.updated", properties: { info: { id: "ses_child", parentID: "ses_top", title: "child" } } },
+    });
+    await plugin.hooks["tool.execute.after"]();
+    await plugin.hooks.event({
+      event: { type: "session.updated", properties: { info: { id: "ses_resumed", title: "older work" } } },
+    });
+    await plugin.hooks["tool.execute.after"]();
+
+    const calls = plugin.readCalls();
+    assert.deepEqual(
+      eventNames(calls),
+      ["SessionStart", "SessionStart", "SessionStart", "PostToolUse", "PostToolUse"],
+    );
+    for (const call of calls) {
+      assert.equal(call.payload.session_id, `opencode-${process.pid}`);
+    }
   } finally {
     plugin.restore();
   }

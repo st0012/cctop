@@ -4,6 +4,86 @@ cctop stores live session state as JSON files in `~/.cctop/sessions/`. The menub
 
 Session files are intentionally local and inspectable. Missing optional fields must be treated as their default values so older files continue to load.
 
+## Identity
+
+### `cctop_session_id`
+
+Type: `string` (lowercase UUID)
+
+Default: absent only on legacy records awaiting migration.
+
+`cctop_session_id` is an opaque identifier generated and owned by cctop for a
+logical session. It is random: it is never derived from the client, title,
+project path, prompt or transcript content, PID, process generation, terminal,
+window, or focus target. When a client supplies a supported durable resume
+reference, the value remains stable across cctop and client restarts on the
+same machine while cctop's local identity data remains. Otherwise it is
+permanent only for that observed record.
+
+For supported resume contracts, cctop keeps a private UUID-only mapping under
+`~/.cctop/session-identities/`. Mapping filenames hash the source-scoped client
+reference; the raw reference is not copied into this directory. Existing
+publishable session JSON files without the field are assigned an ID once and
+stamped with the same per-file locking and atomic-write rules as hook updates.
+Hidden, finished, cleanup, and history records keep their existing identity
+contracts until a current hook or later visible observation needs this field.
+Identity mappings intentionally outlive session and history cleanup and are not
+automatically pruned in this version.
+
+Deleting cctop's local session and identity data resets this continuity.
+Cross-machine sync is not supported.
+
+### `harness_session_id`
+
+Type: `string`
+
+Default: `null` when omitted.
+
+The exact unsanitized session reference supplied to `cctop-hook`, byte-for-byte.
+For integrations that expose a real conversation reference, this preserves it;
+OpenCode intentionally continues to supply its process-scoped synthetic reference
+until all of its per-session event payloads can be routed consistently. `session_id` is
+sanitized to a restricted character set and truncated to 64 characters so it can
+safely appear in file names and logs, which makes it a lossy projection of the
+hook reference; `harness_session_id` preserves the original value for resume
+lookup. It is evidence, not cctop identity. The hook stamps it after a matching event loads the record,
+so records created by pre-field hooks gain it in place. A different conversation
+may replace a PID-keyed record only through `SessionStart`-driven rotation.
+
+### Resume support
+
+| Client | Same cctop ID after reopen/resume | Evidence |
+|---|---|---|
+| Codex CLI/Desktop | Yes | The client supplies the same UUID conversation reference across process generations. |
+| Claude Code/Desktop | Yes when a UUID session reference is available | Claude session/transcript state preserves that UUID across resume. |
+| pi | Yes only when `getSessionId()` supplies a real UUID | Synthetic `pi-<pid>` fallback observations remain record-local. |
+| OpenCode | Not yet | The plugin intentionally uses a process-scoped synthetic reference until per-event session routing is reliable. |
+
+Every newly observed record still receives a `cctop_session_id`; “not yet” means
+cctop cannot promise that a later reopened observation will recover the same
+one. References are always source-scoped. cctop never infers that conversations
+from different clients contain the same content.
+
+### Stream Deck routing
+
+Display-state schema v2 publishes `cctop_session_id` for every session row.
+Stream Deck caches the ID that a key rendered, so a press cannot accidentally
+target an unrelated session that moved into the same slot. cctop then resolves
+that permanent session ID against the current canonical `SessionManager.sessions`
+order and focuses the first currently available target for that session.
+
+Panel, URL focus, DisplayStateWriter, and Stream Deck all consume that canonical
+order. The projection never independently sorts, deduplicates, or removes rows,
+so slots stay aligned with the panel even when two observations share one
+`cctop_session_id`.
+
+This version does not reconcile multiple clients or multiple simultaneous focus
+targets. If the same conversation is open in more than one place, observations
+may remain separate or several rows may share one ID and resolve to the first
+current canonical target. Cross-client equivalence and cross-machine identity
+are out of scope. Panel identity, notifications, hiding, cleanup, history, and
+other persisted preferences continue to use their existing contracts.
+
 ## Terminal Focus Metadata
 
 ### `terminal.multiplexer`

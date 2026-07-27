@@ -37,6 +37,8 @@ after(() => {
 beforeEach(() => launches.splice(0));
 
 const MK2 = { id: "mk2", name: "MK.2", size: { columns: 5, rows: 3 }, type: 0 };
+const ID_FIRST = "11111111-2222-4333-8444-555555555555";
+const ID_SECOND = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const currentProcessStartTime = Date.parse(childProcess.execFileSync(
   "/bin/ps",
   ["-p", String(process.pid), "-o", "lstart="],
@@ -53,14 +55,14 @@ class RecordingSocket {
 
 function writeState(overrides = {}) {
   const state = {
-    version: 1,
+    version: 2,
     generated_at: new Date().toISOString(),
     app_running: true,
     app_pid: process.pid,
     app_start_time: currentProcessStartTime,
     sessions: [
-      { id: "first/id?", name: "first", status: "working", color: "#7EAA6E" },
-      { id: "second", name: "second", status: "idle", color: "#7DAEA3" },
+      { cctop_session_id: ID_FIRST, name: "first", status: "working", color: "#7EAA6E" },
+      { cctop_session_id: ID_SECOND, name: "second", status: "idle", color: "#7DAEA3" },
     ],
     ...overrides,
   };
@@ -184,7 +186,7 @@ test("a session key asks Launch Services to deliver the exact encoded cctop comm
 
   assert.deepEqual(launches, [{
     file: "/usr/bin/open",
-    args: ["cctop://focus?sid=first%2Fid%3F"],
+    args: [`cctop://focus?sid=${ID_FIRST}`],
     options: { timeout: 5_000 },
   }]);
   assert.equal(messages(socket, "openUrl").length, 0);
@@ -210,6 +212,61 @@ test("toggle uses the same direct cctop command boundary", async () => {
   assert.equal(messages(socket, "openUrl").length, 0);
 });
 
+test("a press sends the id the key rendered, not the slot's later occupant", async () => {
+  writeState();
+  const { controller } = makeController();
+  controller.handleMessage(willAppear("key-1", { row: 0, column: 0 }, { slot: 1 }));
+
+  // Sessions reorder after the key image was drawn; no refresh has run yet.
+  writeState({ sessions: [
+    { cctop_session_id: ID_SECOND, name: "second", status: "working", color: "#DD5353" },
+    { cctop_session_id: ID_FIRST, name: "first", status: "idle", color: "#7DAEA3" },
+  ] });
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
+  await new Promise(setImmediate);
+
+  assert.deepEqual(launches.map((launch) => launch.args[0]), [`cctop://focus?sid=${ID_FIRST}`]);
+});
+
+test("two visible slots may share one permanent session id without shifting", async () => {
+  writeState({ sessions: [
+    { cctop_session_id: ID_FIRST, name: "first target", status: "working", color: "#7EAA6E" },
+    { cctop_session_id: ID_FIRST, name: "second target", status: "idle", color: "#7DAEA3" },
+  ] });
+  const { controller, socket } = makeController();
+  controller.handleMessage(willAppear("key-1", { row: 0, column: 0 }, { slot: 1 }));
+  controller.handleMessage(willAppear("key-2", { row: 0, column: 1 }, { slot: 2 }));
+
+  const images = messages(socket, "setImage").map((message) => decodeURIComponent(message.payload.image));
+  assert.ok(images[0].includes("first"));
+  assert.ok(images[1].includes("second"));
+
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-2" });
+  await new Promise(setImmediate);
+  assert.deepEqual(launches.map((launch) => launch.args[0]), [`cctop://focus?sid=${ID_FIRST}`]);
+});
+
+test("a cold-launch press preserves the id rendered before sessions reordered", async () => {
+  writeState();
+  const { controller } = makeController();
+  controller.handleMessage(willAppear("key-1", { row: 0, column: 0 }, { slot: 1 }));
+
+  // cctop quits and publishes a reordered graceful snapshot before the key refreshes.
+  writeState({
+    app_running: false,
+    app_pid: null,
+    app_start_time: null,
+    sessions: [
+      { cctop_session_id: ID_SECOND, name: "second", status: "working", color: "#DD5353" },
+      { cctop_session_id: ID_FIRST, name: "first", status: "idle", color: "#7DAEA3" },
+    ],
+  });
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
+  await new Promise(setImmediate);
+
+  assert.deepEqual(launches.map((launch) => launch.args[0]), [`cctop://focus?sid=${ID_FIRST}`]);
+});
+
 test("recent graceful state can cold-launch but renders unavailable while stopped", async () => {
   writeState({ app_running: false, app_pid: null, app_start_time: null });
   const { controller, socket } = makeController();
@@ -219,7 +276,7 @@ test("recent graceful state can cold-launch but renders unavailable while stoppe
 
   controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
   await new Promise(setImmediate);
-  assert.equal(launches[0].args[0], "cctop://focus?sid=first%2Fid%3F");
+  assert.equal(launches[0].args[0], `cctop://focus?sid=${ID_FIRST}`);
 });
 
 test("empty or unusable slots fail safely without launching cctop", () => {
@@ -245,8 +302,8 @@ test("settings changes, reordering, and disappearance update existing contexts",
   assert.ok(decodeURIComponent(messages(socket, "setImage").at(-1).payload.image).includes("second"));
 
   writeState({ sessions: [
-    { id: "second", name: "second now first", status: "working", color: "#DD5353" },
-    { id: "first/id?", name: "first now second", status: "idle", color: "#7DAEA3" },
+    { cctop_session_id: ID_SECOND, name: "second now first", status: "working", color: "#DD5353" },
+    { cctop_session_id: ID_FIRST, name: "first now second", status: "idle", color: "#7DAEA3" },
   ] });
   controller.refresh();
   const reorderedImage = decodeURIComponent(messages(socket, "setImage").at(-1).payload.image);

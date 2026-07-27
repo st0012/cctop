@@ -29,6 +29,7 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.lastTool, "Bash")
         XCTAssertEqual(session.pid, 12345)
         XCTAssertFalse(session.hidden)
+        XCTAssertNil(session.cctopSessionId)
     }
 
     func testDecodesHiddenSessionJSON() throws {
@@ -1101,6 +1102,7 @@ final class SessionTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(object["created_by_hook_version"] as? String, "0.16.0")
         XCTAssertEqual(object["last_written_by_hook_version"] as? String, "0.16.1")
+        XCTAssertEqual(object["cctop_session_id"] as? String, session.cctopSessionId)
     }
 
     func testMarkWrittenByHookDoesNotBackfillLegacyCreator() {
@@ -1586,6 +1588,7 @@ final class SessionTests: XCTestCase {
     private func makeFullyPopulatedSession() -> Session {
         Session(
             sessionId: "full-fixture-1",
+            harnessSessionId: "full-fixture-1|raw",
             projectPath: "/Users/test/projects/full-fixture",
             projectName: "full-fixture",
             branch: "feature/full-coverage",
@@ -1634,11 +1637,11 @@ final class SessionTests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    // 25 persisted fields + the transient `lifecycle`. If this fails, a stored property was
+    // 27 persisted fields + the transient `lifecycle`. If this fails, a stored property was
     // added or removed: wire it through CodingKeys, init(from:), the memberwise init, and
     // makeFullyPopulatedSession() above, then update this count.
     func testStoredPropertyCountTripwire() {
-        XCTAssertEqual(Mirror(reflecting: makeFullyPopulatedSession()).children.count, 26)
+        XCTAssertEqual(Mirror(reflecting: makeFullyPopulatedSession()).children.count, 28)
     }
 
     // Catches asymmetry between CodingKeys, init(from:), and the synthesized encode: a field
@@ -1677,21 +1680,224 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(rotated.terminal, newTerminal)
     }
 
-    func testExternalDisplayIdentityMatchesOnlyPublishedID() {
-        let target = Session.mock(id: "conversation-target", pid: 111)
-        let decoy = Session.mock(id: "111", pid: 222)
+    func testExternalDisplayIdentityMatchesOnlyPublishedCctopSessionID() {
+        let targetID = "11111111-2222-4333-8444-555555555555"
+        let target = Session.mock(id: "abc", cctopSessionId: targetID, harnessSessionId: "abc", pid: 111)
+        let other = Session.mock(id: "def", harnessSessionId: "def", pid: 222)
 
         XCTAssertEqual(
             SessionIdentityPolicy.session(
-                matchingDisplayID: "111",
-                in: [decoy, target]
-            )?.id,
-            target.id
+                matchingCctopSessionID: targetID,
+                in: [other, target]
+            )?.sessionId,
+            "abc"
         )
-        XCTAssertNil(
-            SessionIdentityPolicy.session(
-                matchingDisplayID: "conversation-target",
-                in: [decoy, target]
+        XCTAssertNil(SessionIdentityPolicy.session(matchingCctopSessionID: "111", in: [other, target]))
+        XCTAssertNil(SessionIdentityPolicy.session(matchingCctopSessionID: "abc", in: [other, target]))
+    }
+
+    func testRepeatedCctopSessionIDKeepsRowsAndResolvesFirstCanonicalTarget() throws {
+        let now = Date()
+        let cctopSessionID = "11111111-2222-4333-8444-555555555555"
+        var working = Session.mock(
+            id: "conv-1", cctopSessionId: cctopSessionID, harnessSessionId: "conv-1", status: .working,
+            pid: 111, pidStartTime: 1_000
+        )
+        working.lastActivity = now.addingTimeInterval(-10)
+        var idle = Session.mock(
+            id: "conv-1", cctopSessionId: cctopSessionID, harnessSessionId: "conv-1", status: .idle,
+            pid: 999, pidStartTime: 2_000
+        )
+        idle.lastActivity = now.addingTimeInterval(-5)
+
+        let snapshot = DisplayStateWriter.snapshot(
+            sessions: [idle, working],
+            theme: .claude,
+            appRunning: true,
+            appIdentity: nil,
+            now: now
+        )
+        XCTAssertEqual(snapshot.sessions.count, 2)
+
+        let ordered = SessionDisplayPolicy.activeSessions(from: [idle, working], now: now)
+        XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [cctopSessionID, cctopSessionID])
+        let resolved = try XCTUnwrap(
+            SessionIdentityPolicy.session(matchingCctopSessionID: cctopSessionID, in: ordered)
+        )
+        XCTAssertEqual(resolved.pid, ordered.first?.pid)
+    }
+
+    // MARK: - Cctop session identity
+
+    func testNewSessionsReceiveIndependentLowercaseUUIDs() throws {
+        let terminal = TerminalInfo(program: "Terminal")
+        let first = Session(sessionId: "same", projectPath: "/tmp/project", branch: "main", terminal: terminal)
+        let second = Session(sessionId: "same", projectPath: "/tmp/project", branch: "main", terminal: terminal)
+        let firstID = try XCTUnwrap(first.cctopSessionId)
+        let secondID = try XCTUnwrap(second.cctopSessionId)
+
+        XCTAssertTrue(Session.isValidCctopSessionId(firstID))
+        XCTAssertTrue(Session.isValidCctopSessionId(secondID))
+        XCTAssertNotEqual(firstID, secondID)
+        XCTAssertEqual(firstID, firstID.lowercased())
+        XCTAssertEqual(secondID, secondID.lowercased())
+    }
+
+    func testCctopSessionIDDoesNotChangeWithFocusTargetMetadata() {
+        let cctopSessionID = "11111111-2222-4333-8444-555555555555"
+        let original = Session.mock(cctopSessionId: cctopSessionID, pid: 111, pidStartTime: 1_000)
+        let resumed = Session.mock(cctopSessionId: cctopSessionID, pid: 999, pidStartTime: 2_000)
+
+        XCTAssertEqual(original.cctopSessionId, resumed.cctopSessionId)
+    }
+}
+
+final class CctopSessionIdentityStoreTests: XCTestCase {
+    private var rootURL: URL!
+    private var sessionsURL: URL!
+
+    override func setUpWithError() throws {
+        rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-identity-store-\(UUID().uuidString)", isDirectory: true)
+        sessionsURL = rootURL.appendingPathComponent("sessions", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsURL, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: rootURL)
+    }
+
+    func testDurableSourcesReuseOpaqueIdentityWithoutCrossSourceInference() throws {
+        let reference = "11111111-2222-4333-8444-555555555555"
+        let store = CctopSessionIdentityStore(sessionsDir: sessionsURL)
+
+        let codexFirst = try store.resolve(
+            source: Session.codexSource, harnessSessionId: reference, legacySessionId: reference
+        )
+        let codexAgain = try store.resolve(
+            source: Session.codexSource, harnessSessionId: reference, legacySessionId: reference
+        )
+        let claude = try store.resolve(
+            source: Session.ccSource, harnessSessionId: reference, legacySessionId: reference
+        )
+
+        XCTAssertEqual(codexFirst, codexAgain)
+        XCTAssertNotEqual(codexFirst, claude)
+        XCTAssertNotEqual(codexFirst, reference)
+        XCTAssertTrue(Session.isValidCctopSessionId(codexFirst))
+        XCTAssertTrue(Session.isValidCctopSessionId(claude))
+    }
+
+    func testUnsupportedAndSyntheticReferencesRemainRecordLocal() throws {
+        let store = CctopSessionIdentityStore(sessionsDir: sessionsURL)
+        let opencodeFirst = try store.resolve(
+            source: Session.opencodeSource, harnessSessionId: "ses_abc", legacySessionId: "ses_abc"
+        )
+        let opencodeSecond = try store.resolve(
+            source: Session.opencodeSource, harnessSessionId: "ses_abc", legacySessionId: "ses_abc"
+        )
+        let piFirst = try store.resolve(
+            source: Session.piSource, harnessSessionId: "pi-123", legacySessionId: "pi-123"
+        )
+        let piSecond = try store.resolve(
+            source: Session.piSource, harnessSessionId: "pi-123", legacySessionId: "pi-123"
+        )
+
+        XCTAssertNotEqual(opencodeFirst, opencodeSecond)
+        XCTAssertNotEqual(piFirst, piSecond)
+    }
+
+    func testPiRealUUIDReusesCctopSessionID() throws {
+        let reference = "11111111-2222-4333-8444-555555555555"
+        let store = CctopSessionIdentityStore(sessionsDir: sessionsURL)
+
+        let first = try store.resolve(
+            source: Session.piSource, harnessSessionId: reference, legacySessionId: reference
+        )
+        let resumed = try store.resolve(
+            source: Session.piSource, harnessSessionId: reference, legacySessionId: reference
+        )
+
+        XCTAssertEqual(first, resumed)
+    }
+
+    func testLegacyMissingSourceUsesClaudeResumeEvidence() throws {
+        let reference = "11111111-2222-4333-8444-555555555555"
+        let store = CctopSessionIdentityStore(sessionsDir: sessionsURL)
+
+        let legacy = try store.resolve(
+            source: nil, harnessSessionId: nil, legacySessionId: reference
+        )
+        let stamped = try store.resolve(
+            source: Session.ccSource, harnessSessionId: reference, legacySessionId: reference
+        )
+
+        XCTAssertEqual(legacy, stamped)
+    }
+
+    func testConcurrentResolutionCreatesOnePrivateMapping() throws {
+        let reference = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+        let queue = DispatchQueue(label: "cctop.identity-store.tests", attributes: .concurrent)
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var ids: [String] = []
+        var errors: [Error] = []
+
+        for _ in 0..<12 {
+            group.enter()
+            queue.async {
+                defer { group.leave() }
+                do {
+                    let id = try CctopSessionIdentityStore(sessionsDir: self.sessionsURL).resolve(
+                        source: Session.codexSource,
+                        harnessSessionId: reference,
+                        legacySessionId: reference
+                    )
+                    lock.lock()
+                    ids.append(id)
+                    lock.unlock()
+                } catch {
+                    lock.lock()
+                    errors.append(error)
+                    lock.unlock()
+                }
+            }
+        }
+        XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
+        XCTAssertTrue(errors.isEmpty)
+        XCTAssertEqual(Set(ids).count, 1)
+
+        let identityDirectory = rootURL.appendingPathComponent("session-identities", isDirectory: true)
+        let mapping = try XCTUnwrap(
+            FileManager.default.contentsOfDirectory(at: identityDirectory, includingPropertiesForKeys: nil)
+                .first { $0.pathExtension == "json" }
+        )
+        let directoryMode = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: identityDirectory.path)[.posixPermissions] as? NSNumber
+        )
+        let mappingMode = try XCTUnwrap(
+            FileManager.default.attributesOfItem(atPath: mapping.path)[.posixPermissions] as? NSNumber
+        )
+        XCTAssertEqual(directoryMode.intValue & 0o777, 0o700)
+        XCTAssertEqual(mappingMode.intValue & 0o777, 0o600)
+    }
+
+    func testCorruptMappingFailsClosedWithoutReminting() throws {
+        let reference = "11111111-2222-4333-8444-555555555555"
+        let store = CctopSessionIdentityStore(sessionsDir: sessionsURL)
+        _ = try store.resolve(
+            source: Session.codexSource, harnessSessionId: reference, legacySessionId: reference
+        )
+        let identityDirectory = rootURL.appendingPathComponent("session-identities", isDirectory: true)
+        let mapping = try XCTUnwrap(
+            FileManager.default.contentsOfDirectory(at: identityDirectory, includingPropertiesForKeys: nil)
+                .first { $0.pathExtension == "json" }
+        )
+        try Data("{}".utf8).write(to: mapping)
+
+        XCTAssertThrowsError(
+            try store.resolve(
+                source: Session.codexSource, harnessSessionId: reference, legacySessionId: reference
             )
         )
     }

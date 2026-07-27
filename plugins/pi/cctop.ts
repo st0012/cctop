@@ -76,10 +76,26 @@ export default function cctop(pi: any) {
   const hookBin = findHookBinary();
   if (!hookBin) return;
 
-  const sessionId = `pi-${process.pid}`;
+  // The synthetic id is only a fallback for pi builds whose extension context does
+  // not expose the session manager. The real session id preserves pi's exact
+  // conversation reference and rotates when the user switches sessions inside
+  // one pi process.
+  let sessionId = `pi-${process.pid}`;
   let sessionName: string | null = null;
   let cwd: string = process.cwd();
   let interactive: boolean | null = null; // null = not yet determined
+
+  function adoptSessionId(ctx: any) {
+    // Each session boundary starts from the process fallback. A missing or failing
+    // lookup must never leak the previous conversation's real id into the new one.
+    sessionId = `pi-${process.pid}`;
+    try {
+      const id = ctx?.sessionManager?.getSessionId?.();
+      if (id) sessionId = id;
+    } catch {
+      // Keep the fresh process fallback
+    }
+  }
 
   function basePayload() {
     return {
@@ -107,6 +123,7 @@ export default function cctop(pi: any) {
     if (!interactive) return;
 
     cwd = ctx?.cwd || process.cwd();
+    adoptSessionId(ctx);
     tryGetSessionName();
     callHook(hookBin, "SessionStart", basePayload());
   });
@@ -171,9 +188,10 @@ export default function cctop(pi: any) {
     callHook(hookBin, "PostCompact", basePayload());
   });
 
-  // Session switch — update name
-  pi.on("session_switch", async () => {
+  // Session switch — adopt the new session's identity and name
+  pi.on("session_switch", async (_event: any, ctx: any) => {
     if (!interactive) return;
+    adoptSessionId(ctx);
     tryGetSessionName();
     callHook(hookBin, "SessionStart", basePayload());
   });
