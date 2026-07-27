@@ -1586,6 +1586,7 @@ final class SessionTests: XCTestCase {
     private func makeFullyPopulatedSession() -> Session {
         Session(
             sessionId: "full-fixture-1",
+            harnessSessionId: "full-fixture-1|raw",
             projectPath: "/Users/test/projects/full-fixture",
             projectName: "full-fixture",
             branch: "feature/full-coverage",
@@ -1634,11 +1635,11 @@ final class SessionTests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    // 25 persisted fields + the transient `lifecycle`. If this fails, a stored property was
+    // 26 persisted fields + the transient `lifecycle`. If this fails, a stored property was
     // added or removed: wire it through CodingKeys, init(from:), the memberwise init, and
     // makeFullyPopulatedSession() above, then update this count.
     func testStoredPropertyCountTripwire() {
-        XCTAssertEqual(Mirror(reflecting: makeFullyPopulatedSession()).children.count, 26)
+        XCTAssertEqual(Mirror(reflecting: makeFullyPopulatedSession()).children.count, 27)
     }
 
     // Catches asymmetry between CodingKeys, init(from:), and the synthesized encode: a field
@@ -1677,22 +1678,132 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(rotated.terminal, newTerminal)
     }
 
-    func testExternalDisplayIdentityMatchesOnlyPublishedID() {
-        let target = Session.mock(id: "conversation-target", pid: 111)
-        let decoy = Session.mock(id: "111", pid: 222)
+    func testExternalDisplayIdentityMatchesOnlyPublishedActionID() {
+        let target = Session.mock(id: "abc", harnessSessionId: "abc", pid: 111)
+        let other = Session.mock(id: "def", harnessSessionId: "def", pid: 222)
 
         XCTAssertEqual(
             SessionIdentityPolicy.session(
-                matchingDisplayID: "111",
-                in: [decoy, target]
-            )?.id,
-            target.id
+                matchingDisplayID: SessionIdentityPolicy.actionID(for: target),
+                in: [other, target]
+            )?.sessionId,
+            "abc"
         )
-        XCTAssertNil(
-            SessionIdentityPolicy.session(
-                matchingDisplayID: "conversation-target",
-                in: [decoy, target]
+        // Pre-action-id published values (pid strings, session ids) must not match:
+        // a recycled PID could focus an unrelated session.
+        XCTAssertNil(SessionIdentityPolicy.session(matchingDisplayID: "111", in: [other, target]))
+        XCTAssertNil(SessionIdentityPolicy.session(matchingDisplayID: "abc", in: [other, target]))
+    }
+
+    func testEachVisibleProcessGenerationResolvesByItsPublishedActionID() throws {
+        let now = Date()
+        var working = Session.mock(
+            id: "conv-1", harnessSessionId: "conv-1", status: .working,
+            pid: 111, pidStartTime: 1_000
+        )
+        working.lastActivity = now.addingTimeInterval(-10)
+        var idle = Session.mock(
+            id: "conv-1", harnessSessionId: "conv-1", status: .idle,
+            pid: 999, pidStartTime: 2_000
+        )
+        idle.lastActivity = now.addingTimeInterval(-5)
+
+        let snapshot = DisplayStateWriter.snapshot(
+            sessions: [idle, working],
+            theme: .claude,
+            appRunning: true,
+            appIdentity: nil,
+            now: now
+        )
+        XCTAssertEqual(snapshot.sessions.count, 2)
+
+        let ordered = SessionDisplayPolicy.activeSessions(from: [idle, working], now: now)
+        XCTAssertEqual(snapshot.sessions.map(\.id), ordered.map { SessionIdentityPolicy.actionID(for: $0) })
+        for (published, expected) in zip(snapshot.sessions, ordered) {
+            let resolved = try XCTUnwrap(
+                SessionIdentityPolicy.session(matchingDisplayID: published.id, in: ordered)
             )
+            XCTAssertEqual(resolved.pid, expected.pid)
+        }
+    }
+
+    // MARK: - Action identity derivation
+
+    func testActionIDIsDeterministicForTheSameLiveTarget() {
+        let session = Session.mock(
+            harnessSessionId: "raw|ref", pid: 999, pidStartTime: 1_000, source: "cc"
         )
+
+        XCTAssertEqual(SessionIdentityPolicy.actionID(for: session), SessionIdentityPolicy.actionID(for: session))
+    }
+
+    func testActionIDDistinguishesProcessGenerationsForTheSameConversation() {
+        let original = Session.mock(harnessSessionId: "conv-1", pid: 111, pidStartTime: 1000)
+        let reusedPID = Session.mock(harnessSessionId: "conv-1", pid: 111, pidStartTime: 2000)
+
+        XCTAssertNotEqual(
+            SessionIdentityPolicy.actionID(for: original),
+            SessionIdentityPolicy.actionID(for: reusedPID)
+        )
+    }
+
+    func testActionIDRotatesWhenConversationChangesInSameProcess() {
+        let before = Session.mock(harnessSessionId: "conv-1", pid: 111, pidStartTime: 1000)
+        let after = Session.mock(harnessSessionId: "conv-2", pid: 111, pidStartTime: 1000)
+
+        XCTAssertNotEqual(
+            SessionIdentityPolicy.actionID(for: before),
+            SessionIdentityPolicy.actionID(for: after)
+        )
+    }
+
+    func testActionIDUsesExactReferenceNotSanitizedProjection() {
+        // Distinct raw references whose sanitized forms collide must not share an id.
+        let first = Session.mock(id: "same-sanitized", harnessSessionId: "same|sanitized", pid: 111)
+        let second = Session.mock(id: "same-sanitized", harnessSessionId: "same_sanitized", pid: 111)
+
+        XCTAssertNotEqual(
+            SessionIdentityPolicy.actionID(for: first),
+            SessionIdentityPolicy.actionID(for: second)
+        )
+    }
+
+    func testActionIDLegacyCodexFallbackMatchesStampedRecord() {
+        // A codex record written before harness_session_id existed must keep its id
+        // once a field-aware hook stamps the (identical) raw reference on the file.
+        let uuid = "11111111-2222-3333-4444-555555555555"
+        let legacy = Session.mock(id: uuid, pid: 4242, source: "codex")
+        let stamped = Session.mock(id: uuid, harnessSessionId: uuid, pid: 4242, source: "codex")
+
+        XCTAssertEqual(
+            SessionIdentityPolicy.actionID(for: legacy),
+            SessionIdentityPolicy.actionID(for: stamped)
+        )
+    }
+
+    func testActionIDLegacyProcessFallbackDistinguishesPIDReuse() {
+        let original = Session.mock(id: "conv-1", pid: 111, pidStartTime: 1000)
+        let pidReuser = Session.mock(id: "conv-1", pid: 111, pidStartTime: 2000)
+
+        XCTAssertNotEqual(
+            SessionIdentityPolicy.actionID(for: original),
+            SessionIdentityPolicy.actionID(for: pidReuser)
+        )
+    }
+
+    func testActionIDHasUniformOpaqueFormatAcrossSources() {
+        let sessions = [
+            Session.mock(harnessSessionId: "conv-1", pid: 111, source: "cc"),
+            Session.mock(harnessSessionId: "ses_abc", pid: 222, source: "opencode"),
+            Session.mock(id: "legacy-no-raw", pid: 333, pidStartTime: 1000),
+            Session.mock(id: "no-pid-no-raw", pid: nil),
+        ]
+        for session in sessions {
+            let actionID = SessionIdentityPolicy.actionID(for: session)
+            XCTAssertNotNil(
+                actionID.range(of: "^s-[0-9a-f]{32}$", options: .regularExpression),
+                "unexpected action id shape: \(actionID)"
+            )
+        }
     }
 }

@@ -107,7 +107,7 @@ final class DisplayStateWriter {
             appStartTime: appRunning ? appIdentity?.startTime : nil,
             sessions: ordered.map { session in
                 DisplayState.Entry(
-                    id: session.id,
+                    id: SessionIdentityPolicy.actionID(for: session),
                     name: session.displayName,
                     status: session.status.rawValue,
                     color: hexColor(for: session.status, theme: theme)

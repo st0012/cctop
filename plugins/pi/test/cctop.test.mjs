@@ -106,6 +106,54 @@ test("registers handlers and emits SessionStart for interactive sessions", async
   }
 });
 
+test("adopts the real pi session id and rotates it on session switch", async () => {
+  const extension = loadExtension();
+
+  try {
+    const ctxFor = (id) => ({
+      hasUI: true,
+      cwd: "/tmp/test-project",
+      sessionManager: { getSessionId: () => id },
+    });
+
+    await extension.emit("session_start", {}, ctxFor("pi-session-aaa"));
+    await extension.emit("tool_execution_end", { isError: false });
+    await extension.emit("session_switch", { reason: "resume" }, ctxFor("pi-session-bbb"));
+
+    const calls = extension.readCalls();
+    assert.deepEqual(eventNames(calls), ["SessionStart", "PostToolUse", "SessionStart"]);
+    assert.equal(calls[0].payload.session_id, "pi-session-aaa");
+    assert.equal(calls[1].payload.session_id, "pi-session-aaa");
+    assert.equal(calls[2].payload.session_id, "pi-session-bbb");
+  } finally {
+    extension.restore();
+  }
+});
+
+test("session switch resets to the process fallback when id lookup is missing or fails", async () => {
+  for (const sessionManager of [
+    {},
+    { getSessionId: () => { throw new Error("unavailable"); } },
+  ]) {
+    const extension = loadExtension();
+    try {
+      await extension.emit("session_start", {}, {
+        hasUI: true,
+        cwd: "/tmp/test-project",
+        sessionManager: { getSessionId: () => "pi-session-aaa" },
+      });
+      await extension.emit("session_switch", { reason: "new" }, { sessionManager });
+
+      const calls = extension.readCalls();
+      assert.deepEqual(eventNames(calls), ["SessionStart", "SessionStart"]);
+      assert.equal(calls[0].payload.session_id, "pi-session-aaa");
+      assert.equal(calls[1].payload.session_id, `pi-${process.pid}`);
+    } finally {
+      extension.restore();
+    }
+  }
+});
+
 test("skips all tracking when ctx.hasUI is false", async () => {
   const extension = loadExtension();
 

@@ -877,7 +877,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
             appIdentity: DisplayState.ProcessIdentity(pid: 999, startTime: 1_234),
             now: now
         )
-        XCTAssertEqual(snapshot.sessions.map(\.id), activeAfterUpdates.map(\.id))
+        XCTAssertEqual(
+            snapshot.sessions.map(\.id),
+            activeAfterUpdates.map { SessionIdentityPolicy.actionID(for: $0) }
+        )
 
         alpha.hidden = true
         try alpha.writeToFile(path: alphaPath)

@@ -212,6 +212,11 @@ enum SessionLifecycle: Int, Equatable {
 
 struct Session: Codable, Identifiable, Equatable {
     var sessionId: String
+    /// The exact unsanitized session reference supplied to the hook, byte-for-byte. `sessionId` is
+    /// sanitized and truncated for file-name safety, which makes it lossy; identity
+    /// derivation (`SessionIdentityPolicy.actionID`) needs the unmodified reference.
+    /// Nil on records written by hooks that predate the field.
+    var harnessSessionId: String?
     let projectPath: String
     let projectName: String
     var branch: String
@@ -288,6 +293,7 @@ struct Session: Codable, Identifiable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
+        case harnessSessionId = "harness_session_id"
         case projectPath = "project_path"
         case projectName = "project_name"
         case branch, status
@@ -317,6 +323,7 @@ struct Session: Codable, Identifiable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
+        harnessSessionId = try container.decodeIfPresent(String.self, forKey: .harnessSessionId)
         projectPath = try container.decode(String.self, forKey: .projectPath)
         projectName = try container.decode(String.self, forKey: .projectName)
         branch = try container.decode(String.self, forKey: .branch)
@@ -346,6 +353,7 @@ struct Session: Codable, Identifiable, Equatable {
     /// Full memberwise init (used by mocks and tests).
     init(
         sessionId: String,
+        harnessSessionId: String? = nil,
         projectPath: String,
         projectName: String,
         branch: String,
@@ -372,6 +380,7 @@ struct Session: Codable, Identifiable, Equatable {
         lastWrittenByHookVersion: String? = nil
     ) {
         self.sessionId = sessionId
+        self.harnessSessionId = harnessSessionId
         self.projectPath = projectPath
         self.projectName = projectName
         self.branch = branch

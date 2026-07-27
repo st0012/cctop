@@ -210,6 +210,22 @@ test("toggle uses the same direct cctop command boundary", async () => {
   assert.equal(messages(socket, "openUrl").length, 0);
 });
 
+test("a press sends the id the key rendered, not the slot's later occupant", async () => {
+  writeState();
+  const { controller } = makeController();
+  controller.handleMessage(willAppear("key-1", { row: 0, column: 0 }, { slot: 1 }));
+
+  // Sessions reorder after the key image was drawn; no refresh has run yet.
+  writeState({ sessions: [
+    { id: "second", name: "second", status: "working", color: "#DD5353" },
+    { id: "first/id?", name: "first", status: "idle", color: "#7DAEA3" },
+  ] });
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
+  await new Promise(setImmediate);
+
+  assert.deepEqual(launches.map((launch) => launch.args[0]), ["cctop://focus?sid=first%2Fid%3F"]);
+});
+
 test("recent graceful state can cold-launch but renders unavailable while stopped", async () => {
   writeState({ app_running: false, app_pid: null, app_start_time: null });
   const { controller, socket } = makeController();

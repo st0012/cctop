@@ -23,8 +23,11 @@ final class DisplayStateWriterTests: XCTestCase {
         )
 
         let expected = SessionDisplayPolicy.activeSessions(from: sessions, now: now)
-        XCTAssertEqual(snapshot.sessions.map(\.id), expected.map(\.id))
-        XCTAssertEqual(snapshot.sessions.map(\.id), ["a", "b", "c", "d"])
+        XCTAssertEqual(
+            snapshot.sessions.map(\.id),
+            expected.map { SessionIdentityPolicy.actionID(for: $0) }
+        )
+        XCTAssertEqual(snapshot.sessions.map(\.name), ["alpha", "bravo", "charlie", "delta"])
     }
 
     func testSnapshotExcludesSessionsTheAppDoesNotDisplay() {
@@ -43,7 +46,7 @@ final class DisplayStateWriterTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(snapshot.sessions.map(\.id), ["active"])
+        XCTAssertEqual(snapshot.sessions.map(\.id), [SessionIdentityPolicy.actionID(for: active)])
     }
 
     func testProjectionContainsOnlyAppOwnedDisplayFields() throws {
@@ -76,15 +79,20 @@ final class DisplayStateWriterTests: XCTestCase {
         XCTAssertEqual(object["app_start_time"] as? Double, 1_234.5)
         let entry = try XCTUnwrap((object["sessions"] as? [[String: Any]])?.first)
         XCTAssertEqual(Set(entry.keys), ["id", "name", "status", "color"])
-        XCTAssertEqual(entry["id"] as? String, "stable-display-id")
+        XCTAssertEqual(entry["id"] as? String, SessionIdentityPolicy.actionID(for: session))
+        // Published ids are opaque tokens: no pid, session id, or source shape leaks through.
+        XCTAssertNotNil(
+            (entry["id"] as? String)?.range(of: "^s-[0-9a-f]{32}$", options: .regularExpression)
+        )
         XCTAssertEqual(entry["name"] as? String, "fix panel drift")
         XCTAssertEqual(entry["status"] as? String, "working")
         XCTAssertEqual(entry["color"] as? String, "#7EAA6E")
     }
 
     func testStoppedSnapshotPreservesRecentTargetsButDropsProcessIdentity() {
+        let session = Session.mock(id: "stable-display-id", status: .working)
         let snapshot = DisplayStateWriter.snapshot(
-            sessions: [Session.mock(id: "stable-display-id", status: .working)],
+            sessions: [session],
             theme: .claude,
             appRunning: false,
             appIdentity: DisplayState.ProcessIdentity(pid: 456, startTime: 1_234.5),
@@ -94,7 +102,34 @@ final class DisplayStateWriterTests: XCTestCase {
         XCTAssertFalse(snapshot.appRunning)
         XCTAssertNil(snapshot.appPID)
         XCTAssertNil(snapshot.appStartTime)
-        XCTAssertEqual(snapshot.sessions.map(\.id), ["stable-display-id"])
+        XCTAssertEqual(snapshot.sessions.map(\.id), [SessionIdentityPolicy.actionID(for: session)])
+    }
+
+    func testSnapshotKeepsOneOrderedEntryPerVisibleFocusTarget() {
+        let now = Date()
+        var original = Session.mock(
+            id: "conv-1", harnessSessionId: "conv-1", project: "first",
+            status: .working, pid: 111, pidStartTime: 1_000
+        )
+        original.lastActivity = now.addingTimeInterval(-10)
+        var resumedElsewhere = Session.mock(
+            id: "conv-1", harnessSessionId: "conv-1", project: "second",
+            status: .working, pid: 999, pidStartTime: 2_000
+        )
+        resumedElsewhere.lastActivity = now.addingTimeInterval(-20)
+        let canonical = [original, resumedElsewhere]
+
+        let snapshot = DisplayStateWriter.snapshot(
+            sessions: canonical,
+            theme: .claude,
+            appRunning: true,
+            appIdentity: DisplayState.ProcessIdentity(pid: 123, startTime: 1_000),
+            now: now
+        )
+
+        XCTAssertEqual(snapshot.sessions.map(\.id), canonical.map { SessionIdentityPolicy.actionID(for: $0) })
+        XCTAssertEqual(Set(snapshot.sessions.map(\.id)).count, 2)
+        XCTAssertEqual(snapshot.sessions.map(\.name), ["first", "second"])
     }
 
     func testHexColorsUseCctopThemeVariants() {

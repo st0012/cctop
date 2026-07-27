@@ -150,6 +150,115 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.lastWrittenByHookVersion, Config.hookVersion)
     }
 
+    // The persisted session_id is sanitized for file-name safety (lossy); the raw
+    // harness reference must survive byte-for-byte for identity derivation.
+    func testHookStampsExactHarnessSessionReference() throws {
+        try handleHook("""
+        {"session_id": "raw|session:ref", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart"}
+        """, hookName: "SessionStart")
+        let session = try loadSession()
+
+        XCTAssertEqual(session.sessionId, "rawsessionref")
+        XCTAssertEqual(session.harnessSessionId, "raw|session:ref")
+    }
+
+    // Two conversations whose raw references sanitize to the same session_id must not
+    // share a record: the second SessionStart replaces the file as a new conversation.
+    func testHookRotatesRecordWhenRawReferencesCollideAfterSanitization() throws {
+        try handleHook("""
+        {"session_id": "conv|A", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart"}
+        """, hookName: "SessionStart")
+        try handleHook("""
+        {"session_id": "conv|A", "cwd": "/tmp/test-project", "hook_event_name": "UserPromptSubmit", "prompt": "hi"}
+        """, hookName: "UserPromptSubmit")
+        XCTAssertEqual(try loadSession().lastPrompt, "hi")
+
+        try handleHook("""
+        {"session_id": "convA", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart"}
+        """, hookName: "SessionStart")
+
+        let rotated = try loadSession()
+        XCTAssertEqual(rotated.sessionId, "convA")
+        XCTAssertEqual(rotated.harnessSessionId, "convA")
+        XCTAssertNil(rotated.lastPrompt)
+    }
+
+    // SessionEnd must stamp the record owning the exact raw reference, not another
+    // conversation whose raw reference sanitizes to the same session_id.
+    func testSessionEndMatchesTargetByRawReference() throws {
+        try handleHook("""
+        {"session_id": "end|A", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart"}
+        """, hookName: "SessionStart", deps: makeDeps(pid: 5001))
+        try handleHook("""
+        {"session_id": "endA", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart"}
+        """, hookName: "SessionStart", deps: makeDeps(pid: 5002))
+
+        // The end-time parent walk resolves an unrelated PID, forcing the directory scan.
+        try handleHook("""
+        {"session_id": "endA", "cwd": "/tmp/test-project", "hook_event_name": "SessionEnd"}
+        """, hookName: "SessionEnd", deps: makeDeps(pid: 5999))
+
+        XCTAssertNil(try loadSession("5001.json").endedAt)
+        XCTAssertNotNil(try loadSession("5002.json").endedAt)
+    }
+
+    func testSessionEndExactMatchWinsOverLegacyPrimaryPath() throws {
+        var legacy = Session.mock(id: "endA", pid: 4242, source: "cc")
+        legacy.harnessSessionId = nil
+        try legacy.writeToFile(path: sessionFilePath())
+
+        let exact = Session.mock(id: "endA", harnessSessionId: "endA", pid: 5002, source: "cc")
+        try exact.writeToFile(path: sessionFilePath("5002.json"))
+
+        try handleHook("""
+        {"session_id": "endA", "cwd": "/tmp/test-project", "hook_event_name": "SessionEnd", "harness_name": "cc"}
+        """, hookName: "SessionEnd")
+
+        XCTAssertNil(try loadSession().endedAt)
+        XCTAssertNotNil(try loadSession("5002.json").endedAt)
+    }
+
+    func testSessionEndDoesNotUseAmbiguousLegacyFallback() throws {
+        let first = Session.mock(id: "legacy-end", pid: 4242, source: "cc")
+        let second = Session.mock(id: "legacy-end", pid: 5002, source: "cc")
+        try first.writeToFile(path: sessionFilePath())
+        try second.writeToFile(path: sessionFilePath("5002.json"))
+
+        try handleHook("""
+        {"session_id": "legacy-end", "cwd": "/tmp/test-project", "hook_event_name": "SessionEnd", "harness_name": "cc"}
+        """, hookName: "SessionEnd")
+
+        XCTAssertNil(try loadSession().endedAt)
+        XCTAssertNil(try loadSession("5002.json").endedAt)
+    }
+
+    func testSessionEndDoesNotMatchExactReferenceFromAnotherSource() throws {
+        let opencode = Session.mock(
+            id: "shared-end", harnessSessionId: "shared-end", pid: 5002, source: "opencode"
+        )
+        try opencode.writeToFile(path: sessionFilePath("5002.json"))
+
+        try handleHook("""
+        {"session_id": "shared-end", "cwd": "/tmp/test-project", "hook_event_name": "SessionEnd", "harness_name": "cc"}
+        """, hookName: "SessionEnd")
+
+        XCTAssertNil(try loadSession("5002.json").endedAt)
+    }
+
+    // Records created by pre-field hooks gain the exact reference on their next event.
+    func testHookStampsHarnessSessionReferenceOnExistingLegacyRecord() throws {
+        try handleFixture("SessionStart")
+        var legacy = try loadSession()
+        legacy.harnessSessionId = nil
+        try legacy.writeToFile(path: sessionFilePath())
+
+        try handleHook("""
+        {"session_id": "test-session-001", "cwd": "/tmp/test-project", "hook_event_name": "PreToolUse", "tool_name": "Bash"}
+        """, hookName: "PreToolUse")
+
+        XCTAssertEqual(try loadSession().harnessSessionId, "test-session-001")
+    }
+
     func testSessionStartCapturesCmuxMultiplexerContext() throws {
         let cmuxPath = try makeExecutable(named: "cmux")
         let env = [
@@ -741,8 +850,8 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertFalse(sessionFileExists())
     }
 
-    // When two files share a session_id, the PID-derived path is authoritative.
-    func testSessionEndPrefersPidPathWhenTwoFilesShareSessionId() throws {
+    // An exact raw match at the PID-derived path wins over a legacy sanitized-id match.
+    func testSessionEndPrefersExactPrimaryOverLegacyTwin() throws {
         try handleFixture("SessionStart")
         let primary = sessionFilePath()
         let twinPath = (sessionsDir as NSString).appendingPathComponent("7777.json")
@@ -754,17 +863,21 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertNil(try Session.fromFile(path: twinPath).endedAt)
     }
 
-    // When the PID-derived path misses, the by-session_id scan must pick the live
-    // (un-ended) duplicate, not a stale already-ended one.
+    // When the PID-derived path misses, multiple exact raw/source matches prefer the
+    // live (un-ended) process generation over a stale already-ended one.
     func testSessionEndStampsUnendedDuplicateWhenPrimaryMisses() throws {
         var stale = Session.mock(id: "dup-sid", pid: 1111)
+        stale.harnessSessionId = "dup-sid"
+        stale.source = "cc"
         let staleEnd = Date(timeIntervalSince1970: 1_000)
         stale.endedAt = staleEnd
         let stalePath = (sessionsDir as NSString).appendingPathComponent("1111.json")
         try stale.writeToFile(path: stalePath)
 
         let livePath = (sessionsDir as NSString).appendingPathComponent("2222.json")
-        try Session.mock(id: "dup-sid", pid: 2222).writeToFile(path: livePath)
+        try Session.mock(
+            id: "dup-sid", harnessSessionId: "dup-sid", pid: 2222, source: "cc"
+        ).writeToFile(path: livePath)
 
         try handleHook("""
         {"session_id":"dup-sid","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"cc"}

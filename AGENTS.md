@@ -406,10 +406,13 @@ profiles unchanged.
 ## Jump-to-Session Behavior
 
 - **Stream Deck**: Session keys ask macOS Launch Services to deliver an encoded
-  `cctop://focus?sid=...` command. cctop exact-matches the published `Session.id`
-  against its current visible sessions and calls the same `focusTerminal(session:)`
-  path as its UI. Never fall back from a missing display id to a conversation id
-  or another slot. Toggle Panel uses `cctop://toggle`.
+  `cctop://focus?sid=...` command. cctop exact-matches the published action id
+  (`SessionIdentityPolicy.actionID`, an opaque derived token — see
+  [`docs/session-files.md`](docs/session-files.md)) against its current visible
+  sessions and calls the same `focusTerminal(session:)` path as its UI. Never
+  fall back from a missing display id to a conversation id, a raw PID, or
+  another slot — a stale command finds nothing rather than a wrong target.
+  Toggle Panel uses `cctop://toggle`.
 
 - **VS Code / Cursor**: Uses `NSWorkspace.open` with the editor's bundle ID to focus the project window. Does not shell out to `code`/`cursor` CLI (avoids PATH issues after Sparkle updates). If a `.code-workspace` file is detected in the project directory, it's passed instead of the folder path.
 - **Workspace limitation**: cctop detects workspace files by scanning the project directory at session start. If the project folder contains a `.code-workspace` file but you opened the folder directly (not via the workspace file), cctop may incorrectly open the workspace instead of focusing the folder window. VS Code does not expose which mode was used via environment variables or APIs.
@@ -480,7 +483,7 @@ The pi extension (`cctop.ts`) translates pi events to cctop-hook calls. Non-inte
 
 ### Session File Format
 
-Non-Codex session files are keyed by PID (`{pid}.json`). Codex files are keyed by session ID (`codex-<session_id>.json`) because multiple conversations can share one host PID. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse where PID identity applies. Desktop-hosted sessions use desktop lifecycle rules, app liveness/recency, and archive visibility checks. Each session includes `"source": "<harness>"` (`"cc"`, `"opencode"`, `"pi"`, `"codex"`). Legacy sessions without the field are treated as Claude Code.
+Non-Codex session files are keyed by PID (`{pid}.json`). Codex files are keyed by session ID (`codex-<session_id>.json`) because multiple conversations can share one host PID. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse where PID identity applies. Hooks also stamp `harness_session_id`, the exact unsanitized reference supplied to the hook. External surfaces identify each live focus target by an opaque action id derived from that reference plus process generation (see [`docs/session-files.md`](docs/session-files.md)); action ids are runtime routing values, never durable preference keys. Desktop-hosted sessions use desktop lifecycle rules, app liveness/recency, and archive visibility checks. Each session includes `"source": "<harness>"` (`"cc"`, `"opencode"`, `"pi"`, `"codex"`). Legacy sessions without the field are treated as Claude Code.
 
 The `active_subagents` field tracks currently running subagents (Agent tool). It's `nil` for sessions that haven't reported subagent events (old plugin), `[]` when no subagents are active, or an array of `{agent_id, agent_type, started_at}` objects. The menubar app shows an agent-count label (e.g. "2 agents") when the count is > 0.
 
