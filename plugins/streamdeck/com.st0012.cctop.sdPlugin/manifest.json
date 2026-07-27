@@ -5,7 +5,7 @@
   "Category": "cctop",
   "CategoryIcon": "imgs/category",
   "Author": "Stan Lo",
-  "Version": "0.19.5.0",
+  "Version": "0.20.0.0",
   "Description": "Monitor AI coding sessions and jump to them from your Stream Deck.",
   "Icon": "imgs/plugin-icon",
   "CodePath": "bin/plugin.mjs",
