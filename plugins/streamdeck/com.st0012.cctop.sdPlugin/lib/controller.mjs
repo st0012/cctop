@@ -148,20 +148,20 @@ export class StreamDeckController {
       this.alert(context);
       return;
     }
-    const state = readDisplayState();
-    if (state?.app_running === true) {
-      // Send exactly the id this key last rendered — never re-resolve the slot, or a
-      // press could target whichever session shifted into it after the image was drawn.
-      // A stale id is safely ignored by cctop; the pending re-render fixes the key.
-      if (entry.renderedSessionId) {
-        this.launch(focusURL(entry.renderedSessionId), context);
-      } else {
-        this.alert(context);
-      }
+    // Send exactly the id this key last rendered — never re-resolve the slot, or a
+    // press could target whichever session shifted into it after the image was drawn.
+    // A stale id is safely ignored by cctop; the pending re-render fixes the key.
+    if (entry.renderedSessionId) {
+      this.launch(focusURL(entry.renderedSessionId), context);
       return;
     }
-    // Nothing is rendered while cctop is down; a recent graceful-quit snapshot may
-    // still resolve the slot so the press cold-launches cctop into that session.
+    const state = readDisplayState();
+    if (state?.app_running === true) {
+      this.alert(context);
+      return;
+    }
+    // A key first shown while cctop is down has no rendered id. A recent graceful-quit
+    // snapshot may still resolve its slot so the press cold-launches that session.
     const session = commandSessionForSlot(state, entry.slot);
     const url = session ? focusURL(session.id) : null;
     if (!url) {

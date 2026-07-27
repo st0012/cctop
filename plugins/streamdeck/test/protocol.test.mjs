@@ -226,6 +226,27 @@ test("a press sends the id the key rendered, not the slot's later occupant", asy
   assert.deepEqual(launches.map((launch) => launch.args[0]), ["cctop://focus?sid=first%2Fid%3F"]);
 });
 
+test("a cold-launch press preserves the id rendered before sessions reordered", async () => {
+  writeState();
+  const { controller } = makeController();
+  controller.handleMessage(willAppear("key-1", { row: 0, column: 0 }, { slot: 1 }));
+
+  // cctop quits and publishes a reordered graceful snapshot before the key refreshes.
+  writeState({
+    app_running: false,
+    app_pid: null,
+    app_start_time: null,
+    sessions: [
+      { id: "second", name: "second", status: "working", color: "#DD5353" },
+      { id: "first/id?", name: "first", status: "idle", color: "#7DAEA3" },
+    ],
+  });
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
+  await new Promise(setImmediate);
+
+  assert.deepEqual(launches.map((launch) => launch.args[0]), ["cctop://focus?sid=first%2Fid%3F"]);
+});
+
 test("recent graceful state can cold-launch but renders unavailable while stopped", async () => {
   writeState({ app_running: false, app_pid: null, app_start_time: null });
   const { controller, socket } = makeController();
