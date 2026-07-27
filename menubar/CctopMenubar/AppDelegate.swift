@@ -754,13 +754,13 @@ extension AppDelegate {
         case "toggle":
             togglePanel()
         case "focus":
-            guard let displayID = Self.focusTargetID(from: url) else {
+            guard let cctopSessionID = Self.focusSessionID(from: url) else {
                 Self.urlLogger.notice("Ignored malformed cctop focus command")
                 return
             }
             let visibleSessions = SessionDisplayPolicy.activeSessions(from: sessionManager.sessions)
             guard let session = SessionIdentityPolicy.session(
-                matchingDisplayID: displayID,
+                matchingCctopSessionID: cctopSessionID,
                 in: visibleSessions
             ) else {
                 Self.urlLogger.notice("Ignored cctop focus command for unavailable session")
@@ -779,7 +779,7 @@ extension AppDelegate {
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 
-    nonisolated static func focusTargetID(from url: URL) -> String? {
+    nonisolated static func focusSessionID(from url: URL) -> String? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let value = components.queryItems?.first(where: { $0.name == "sid" })?.value,
               !value.isEmpty else { return nil }

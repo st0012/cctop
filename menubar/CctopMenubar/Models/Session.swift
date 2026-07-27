@@ -212,9 +212,12 @@ enum SessionLifecycle: Int, Equatable {
 
 struct Session: Codable, Identifiable, Equatable {
     var sessionId: String
-    /// The exact unsanitized session reference supplied to the hook, byte-for-byte. `sessionId` is
-    /// sanitized and truncated for file-name safety, which makes it lossy; identity
-    /// derivation (`SessionIdentityPolicy.actionID`) needs the unmodified reference.
+    /// Cctop-owned identity for this logical session. It is deliberately independent of
+    /// harness references and live focus-target metadata. Nil only on legacy records that
+    /// have not yet been migrated by the app or touched by a current hook.
+    var cctopSessionId: String?
+    /// The exact unsanitized session reference supplied to the hook, byte-for-byte.
+    /// This is lookup evidence for supported resume mappings, never cctop identity.
     /// Nil on records written by hooks that predate the field.
     var harnessSessionId: String?
     let projectPath: String
@@ -293,6 +296,7 @@ struct Session: Codable, Identifiable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
+        case cctopSessionId = "cctop_session_id"
         case harnessSessionId = "harness_session_id"
         case projectPath = "project_path"
         case projectName = "project_name"
@@ -323,6 +327,7 @@ struct Session: Codable, Identifiable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
+        cctopSessionId = try container.decodeIfPresent(String.self, forKey: .cctopSessionId)
         harnessSessionId = try container.decodeIfPresent(String.self, forKey: .harnessSessionId)
         projectPath = try container.decode(String.self, forKey: .projectPath)
         projectName = try container.decode(String.self, forKey: .projectName)
@@ -353,6 +358,7 @@ struct Session: Codable, Identifiable, Equatable {
     /// Full memberwise init (used by mocks and tests).
     init(
         sessionId: String,
+        cctopSessionId: String? = nil,
         harnessSessionId: String? = nil,
         projectPath: String,
         projectName: String,
@@ -380,6 +386,7 @@ struct Session: Codable, Identifiable, Equatable {
         lastWrittenByHookVersion: String? = nil
     ) {
         self.sessionId = sessionId
+        self.cctopSessionId = cctopSessionId
         self.harnessSessionId = harnessSessionId
         self.projectPath = projectPath
         self.projectName = projectName
@@ -413,6 +420,7 @@ struct Session: Codable, Identifiable, Equatable {
     init(sessionId: String, projectPath: String, branch: String, terminal: TerminalInfo) {
         self.init(
             sessionId: sessionId,
+            cctopSessionId: Self.makeCctopSessionId(),
             projectPath: projectPath,
             projectName: Self.extractProjectName(projectPath),
             branch: branch,
@@ -426,6 +434,15 @@ struct Session: Codable, Identifiable, Equatable {
             lastToolDetail: nil,
             notificationMessage: nil
         )
+    }
+
+    static func makeCctopSessionId() -> String {
+        UUID().uuidString.lowercased()
+    }
+
+    static func isValidCctopSessionId(_ value: String?) -> Bool {
+        guard let value, let uuid = UUID(uuidString: value) else { return false }
+        return uuid.uuidString.lowercased() == value
     }
 
     mutating func markWrittenByHook(version: String, isNewSessionFile: Bool) {

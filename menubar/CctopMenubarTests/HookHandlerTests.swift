@@ -140,6 +140,7 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.projectName, "test-project")
         XCTAssertEqual(session.pid, 4242)
         XCTAssertEqual(session.activeSubagents?.count, 0)
+        XCTAssertTrue(Session.isValidCctopSessionId(session.cctopSessionId))
     }
 
     func testNewHookSessionFileRecordsWriterMetadata() throws {
@@ -162,16 +163,75 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.harnessSessionId, "raw|session:ref")
     }
 
+    func testClaudeUUIDResumeAcrossProcessesReusesCctopSessionID() throws {
+        let reference = "11111111-2222-4333-8444-555555555555"
+        let input = """
+        {"session_id": "\(reference)", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "cc"}
+        """
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 4242, startTime: 1_000))
+        let firstCctopSessionID = try loadSession("4242.json").cctopSessionId
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 5002, startTime: 2_000))
+
+        XCTAssertEqual(
+            firstCctopSessionID,
+            try loadSession("5002.json").cctopSessionId
+        )
+    }
+
+    func testCodexResumeUpdatesFocusTargetAndPreservesCctopSessionID() throws {
+        let reference = "11111111-2222-4333-8444-555555555555"
+        let input = """
+        {"session_id": "\(reference)", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "codex"}
+        """
+        let fileName = "codex-\(reference).json"
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 4242, startTime: 1_000))
+        let first = try loadSession(fileName)
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 5002, startTime: 2_000))
+        let resumed = try loadSession(fileName)
+
+        XCTAssertEqual(resumed.cctopSessionId, first.cctopSessionId)
+        XCTAssertEqual(resumed.startedAt, first.startedAt)
+        XCTAssertEqual(resumed.pid, 5002)
+        XCTAssertEqual(resumed.pidStartTime, 2_000)
+    }
+
+    func testOpenCodeProcessObservationsRemainSeparateCctopSessions() throws {
+        let input = """
+        {"session_id": "ses_same", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "opencode"}
+        """
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 4242, startTime: 1_000))
+        let firstCctopSessionID = try loadSession("4242.json").cctopSessionId
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 5002, startTime: 2_000))
+
+        XCTAssertNotEqual(
+            firstCctopSessionID,
+            try loadSession("5002.json").cctopSessionId
+        )
+    }
+
+    func testCodexSanitizedCollisionStillFailsClosed() throws {
+        try handleHook("""
+        {"session_id": "conv|A", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "codex"}
+        """, hookName: "SessionStart")
+
+        try handleHook("""
+        {"session_id": "convA", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "codex"}
+        """, hookName: "SessionStart")
+        XCTAssertEqual(try loadSession("codex-convA.json").harnessSessionId, "conv|A")
+    }
+
     // Two conversations whose raw references sanitize to the same session_id must not
     // share a record: the second SessionStart replaces the file as a new conversation.
     func testHookRotatesRecordWhenRawReferencesCollideAfterSanitization() throws {
         try handleHook("""
         {"session_id": "conv|A", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart"}
         """, hookName: "SessionStart")
+        let originalCctopSessionID = try loadSession().cctopSessionId
         try handleHook("""
         {"session_id": "conv|A", "cwd": "/tmp/test-project", "hook_event_name": "UserPromptSubmit", "prompt": "hi"}
         """, hookName: "UserPromptSubmit")
         XCTAssertEqual(try loadSession().lastPrompt, "hi")
+        XCTAssertEqual(try loadSession().cctopSessionId, originalCctopSessionID)
 
         try handleHook("""
         {"session_id": "convA", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart"}
@@ -180,6 +240,7 @@ final class HookHandlerTests: XCTestCase {
         let rotated = try loadSession()
         XCTAssertEqual(rotated.sessionId, "convA")
         XCTAssertEqual(rotated.harnessSessionId, "convA")
+        XCTAssertNotEqual(rotated.cctopSessionId, originalCctopSessionID)
         XCTAssertNil(rotated.lastPrompt)
     }
 

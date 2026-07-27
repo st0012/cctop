@@ -1,6 +1,11 @@
 import Darwin
 import Foundation
 
+private let cctopIdentityMigrationQueue = DispatchQueue(
+    label: "com.st0012.CctopMenubar.SessionIdentityMigration",
+    qos: .utility
+)
+
 struct SessionLoadSummary: Equatable {
     let files: Int
     let decoded: Int
@@ -36,7 +41,7 @@ extension SessionManager {
         let currentPaths = Set(jsonFiles.map(\.path))
         sessionFileCache = sessionFileCache.filter { currentPaths.contains($0.key) }
 
-        return jsonFiles.compactMap { url in
+        let decoded = jsonFiles.compactMap { url -> (url: URL, session: Session)? in
             guard let fingerprint = sessionFileFingerprint(for: url) else {
                 sessionFileCache.removeValue(forKey: url.path)
                 sessionManagerLogger.warning("loadSessions: could not stat \(url.lastPathComponent, privacy: .public)")
@@ -61,6 +66,140 @@ extension SessionManager {
                 sessionFileCache.removeValue(forKey: url.path)
                 sessionManagerLogger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
                 return nil
+            }
+        }
+        return decoded
+    }
+
+    // Build one evidence index and resolve the bounded publishable set in a single pass.
+    func assigningCctopSessionIdentities(
+        to candidates: [DedupCandidate],
+        knownRecords: [(url: URL, session: Session)]
+    ) -> [Session] {
+        var records = candidates.map { (url: URL(fileURLWithPath: $0.path), session: $0.session) }
+        var idsByEvidence: [String: Set<String>] = [:]
+        for record in knownRecords where Session.isValidCctopSessionId(record.session.cctopSessionId) {
+            guard let evidence = CctopSessionIdentityStore.durableEvidence(
+                source: record.session.source,
+                harnessSessionId: record.session.harnessSessionId,
+                legacySessionId: record.session.sessionId
+            ), let cctopSessionId = record.session.cctopSessionId else { continue }
+            idsByEvidence[evidence, default: []].insert(cctopSessionId)
+        }
+
+        let identityStore = CctopSessionIdentityStore(sessionsDir: dataSources.sessionsDir)
+        for index in records.indices where !Session.isValidCctopSessionId(records[index].session.cctopSessionId) {
+            var session = records[index].session
+            let evidence = CctopSessionIdentityStore.durableEvidence(
+                source: session.source,
+                harnessSessionId: session.harnessSessionId,
+                legacySessionId: session.sessionId
+            )
+            guard let evidence else {
+                scheduleRecordLocalCctopSessionIdentityStamp(
+                    url: records[index].url,
+                    snapshot: session
+                )
+                continue
+            }
+            let knownIDs = idsByEvidence[evidence] ?? []
+            do {
+                let cctopSessionId = try identityStore.resolve(
+                    source: session.source,
+                    harnessSessionId: session.harnessSessionId,
+                    legacySessionId: session.sessionId,
+                    knownExistingIDs: knownIDs
+                )
+                session.cctopSessionId = cctopSessionId
+                records[index].session = session
+                idsByEvidence[evidence, default: []].insert(cctopSessionId)
+                cacheMigratedSession(session, at: records[index].url.path)
+                scheduleCctopSessionIdentityStamp(
+                    url: records[index].url,
+                    snapshot: records[index].session
+                )
+            } catch {
+                let fileName = records[index].url.lastPathComponent
+                let reason = error.localizedDescription
+                sessionManagerLogger.error(
+                    "loadSessions: identity migration failed for \(fileName, privacy: .public): \(reason, privacy: .public)"
+                )
+            }
+        }
+        return records.map(\.session)
+    }
+
+    private func cacheMigratedSession(_ session: Session, at path: String) {
+        guard let cached = sessionFileCache[path] else { return }
+        sessionFileCache[path] = SessionFileCacheEntry(
+            fingerprint: cached.fingerprint,
+            session: session
+        )
+    }
+
+    func identifiedPublishableSessions(
+        winners: [DedupCandidate],
+        knownRecords: [(url: URL, session: Session)]
+    ) -> [Session] {
+        let publishableWinners = winners.filter { $0.session.lifecycle != .finished }
+        return assigningCctopSessionIdentities(to: publishableWinners, knownRecords: knownRecords)
+    }
+
+    private func scheduleRecordLocalCctopSessionIdentityStamp(url: URL, snapshot: Session) {
+        guard pendingIdentityMigrationPaths.insert(url.path).inserted else { return }
+        cctopIdentityMigrationQueue.async { [weak self] in
+            do {
+                _ = try withSessionLockIfAvailable(sessionPath: url.path) {
+                    guard var current = try? Session.fromFile(path: url.path),
+                          !Session.isValidCctopSessionId(current.cctopSessionId),
+                          current.sessionId == snapshot.sessionId,
+                          current.source == snapshot.source,
+                          current.harnessSessionId == snapshot.harnessSessionId else { return }
+                    current.cctopSessionId = Session.makeCctopSessionId()
+                    try current.writeToFile(path: url.path)
+                }
+            } catch {
+                let fileName = url.lastPathComponent
+                let reason = error.localizedDescription
+                sessionManagerLogger.warning(
+                    "record-local identity stamp failed for \(fileName, privacy: .public): \(reason, privacy: .public)"
+                )
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.pendingIdentityMigrationPaths.remove(url.path)
+                self.sessionFileCache.removeValue(forKey: url.path)
+            }
+        }
+    }
+
+    private func scheduleCctopSessionIdentityStamp(url: URL, snapshot: Session) {
+        guard let cctopSessionId = snapshot.cctopSessionId,
+              pendingIdentityMigrationPaths.insert(url.path).inserted else { return }
+        cctopIdentityMigrationQueue.async { [weak self] in
+            do {
+                _ = try withSessionLockIfAvailable(sessionPath: url.path) {
+                    guard var current = try? Session.fromFile(path: url.path) else { return }
+                    if Session.isValidCctopSessionId(current.cctopSessionId) {
+                        return
+                    }
+                    guard current.sessionId == snapshot.sessionId,
+                          current.source == snapshot.source,
+                          current.harnessSessionId == snapshot.harnessSessionId else { return }
+                    current.cctopSessionId = cctopSessionId
+                    try current.writeToFile(path: url.path)
+                }
+            } catch {
+                let fileName = url.lastPathComponent
+                let reason = error.localizedDescription
+                sessionManagerLogger.warning(
+                    "identity stamp failed for \(fileName, privacy: .public): \(reason, privacy: .public)"
+                )
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.pendingIdentityMigrationPaths.remove(url.path)
+                self.sessionFileCache.removeValue(forKey: url.path)
             }
         }
     }

@@ -15,6 +15,8 @@ import {
 } from "../com.st0012.cctop.sdPlugin/lib/state.mjs";
 
 const originalHome = process.env.HOME;
+const ID_ONE = "11111111-2222-4333-8444-555555555555";
+const ID_TWO = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const testHome = mkdtempSync(join(tmpdir(), "cctop-streamdeck-state-"));
 const currentProcessStartTime = Date.parse(execFileSync(
   "/bin/ps",
@@ -27,14 +29,14 @@ after(() => { process.env.HOME = originalHome; });
 
 function validState(overrides = {}) {
   return {
-    version: 1,
+    version: 2,
     generated_at: new Date().toISOString(),
     app_running: true,
     app_pid: process.pid,
     app_start_time: currentProcessStartTime,
     sessions: [
-      { id: "one", name: "alpha", status: "working", color: "#7EAA6E" },
-      { id: "two", name: "beta", status: "idle", color: "#7DAEA3" },
+      { cctop_session_id: ID_ONE, name: "alpha", status: "working", color: "#7EAA6E" },
+      { cctop_session_id: ID_TWO, name: "beta", status: "idle", color: "#7DAEA3" },
     ],
     ...overrides,
   };
@@ -45,33 +47,38 @@ test("parses the versioned app projection", () => {
   assert.equal(state.app_running, true);
   assert.equal(state.app_pid, process.pid);
   assert.equal(state.app_start_time, currentProcessStartTime);
-  assert.deepEqual(state.sessions.map((session) => session.id), ["one", "two"]);
+  assert.deepEqual(state.sessions.map((session) => session.cctopSessionId), [ID_ONE, ID_TWO]);
 });
 
-test("missing, corrupt, wrong-version, and duplicate state is unavailable", () => {
+test("missing, corrupt, and wrong-version state is unavailable", () => {
   assert.deepEqual(parseDisplayState("{not json"), emptyState());
-  assert.deepEqual(parseDisplayState(JSON.stringify(validState({ version: 2 }))), emptyState());
+  assert.deepEqual(parseDisplayState(JSON.stringify(validState({ version: 1 }))), emptyState());
   assert.deepEqual(parseDisplayState(JSON.stringify(validState({ app_start_time: null }))), emptyState());
-  assert.deepEqual(parseDisplayState(JSON.stringify(validState({
+});
+
+test("duplicate logical session ids preserve visible slots", () => {
+  const state = parseDisplayState(JSON.stringify(validState({
     sessions: [validState().sessions[0], validState().sessions[0]],
-  }))), emptyState());
+  })));
+  assert.equal(state.sessions.length, 2);
+  assert.deepEqual(state.sessions.map((session) => session.cctopSessionId), [ID_ONE, ID_ONE]);
 });
 
 test("a malformed entry stays an empty slot instead of shifting later sessions", () => {
   const state = parseDisplayState(JSON.stringify(validState({
     sessions: [validState().sessions[0], { name: "missing identity" }, validState().sessions[1]],
   })));
-  assert.equal(state.sessions[0].id, "one");
+  assert.equal(state.sessions[0].cctopSessionId, ID_ONE);
   assert.equal(state.sessions[1], null);
-  assert.equal(state.sessions[2].id, "two");
+  assert.equal(state.sessions[2].cctopSessionId, ID_TWO);
   assert.equal(displaySessionForSlot(state, 2), null);
-  assert.equal(displaySessionForSlot(state, 3).id, "two");
+  assert.equal(displaySessionForSlot(state, 3).cctopSessionId, ID_TWO);
 });
 
 test("live process state renders and targets its exact slot", () => {
   const state = parseDisplayState(JSON.stringify(validState()));
-  assert.equal(displaySessionForSlot(state, 1).id, "one");
-  assert.equal(commandSessionForSlot(state, 2).id, "two");
+  assert.equal(displaySessionForSlot(state, 1).cctopSessionId, ID_ONE);
+  assert.equal(commandSessionForSlot(state, 2).cctopSessionId, ID_TWO);
   assert.equal(commandSessionForSlot(state, 3), null);
   assert.equal(commandSessionForSlot(state, 0), null);
 });
@@ -89,7 +96,7 @@ test("recent graceful state is command-only and expires", () => {
     app_start_time: null,
   })));
   assert.equal(displaySessionForSlot(recent, 1), null);
-  assert.equal(commandSessionForSlot(recent, 1).id, "one");
+  assert.equal(commandSessionForSlot(recent, 1).cctopSessionId, ID_ONE);
 
   const expired = parseDisplayState(JSON.stringify(validState({
     generated_at: new Date(Date.now() - COLD_LAUNCH_GRACE_MS - 1_000).toISOString(),
@@ -111,7 +118,7 @@ test("the plugin does not derive display state from cctop session sources", () =
 test("the reader rejects a reused PID with a different publisher identity", () => {
   const statePath = join(testHome, ".cctop", "display-state.json");
   writeFileSync(statePath, JSON.stringify(validState()));
-  assert.equal(readDisplayState().sessions[0].id, "one");
+  assert.equal(readDisplayState().sessions[0].cctopSessionId, ID_ONE);
 
   writeFileSync(statePath, JSON.stringify(validState({
     app_start_time: currentProcessStartTime - 60,

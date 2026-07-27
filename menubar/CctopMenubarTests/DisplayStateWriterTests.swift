@@ -23,9 +23,10 @@ final class DisplayStateWriterTests: XCTestCase {
         )
 
         let expected = SessionDisplayPolicy.activeSessions(from: sessions, now: now)
+        XCTAssertEqual(snapshot.sessions.count, expected.count)
         XCTAssertEqual(
-            snapshot.sessions.map(\.id),
-            expected.map { SessionIdentityPolicy.actionID(for: $0) }
+            snapshot.sessions.map(\.cctopSessionId),
+            expected.map { $0.cctopSessionId ?? "" }
         )
         XCTAssertEqual(snapshot.sessions.map(\.name), ["alpha", "bravo", "charlie", "delta"])
     }
@@ -46,7 +47,7 @@ final class DisplayStateWriterTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(snapshot.sessions.map(\.id), [SessionIdentityPolicy.actionID(for: active)])
+        XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [active.cctopSessionId ?? ""])
     }
 
     func testProjectionContainsOnlyAppOwnedDisplayFields() throws {
@@ -78,12 +79,9 @@ final class DisplayStateWriterTests: XCTestCase {
         XCTAssertEqual(object["app_pid"] as? Int, 456)
         XCTAssertEqual(object["app_start_time"] as? Double, 1_234.5)
         let entry = try XCTUnwrap((object["sessions"] as? [[String: Any]])?.first)
-        XCTAssertEqual(Set(entry.keys), ["id", "name", "status", "color"])
-        XCTAssertEqual(entry["id"] as? String, SessionIdentityPolicy.actionID(for: session))
-        // Published ids are opaque tokens: no pid, session id, or source shape leaks through.
-        XCTAssertNotNil(
-            (entry["id"] as? String)?.range(of: "^s-[0-9a-f]{32}$", options: .regularExpression)
-        )
+        XCTAssertEqual(Set(entry.keys), ["cctop_session_id", "name", "status", "color"])
+        XCTAssertEqual(entry["cctop_session_id"] as? String, session.cctopSessionId)
+        XCTAssertTrue(Session.isValidCctopSessionId(entry["cctop_session_id"] as? String))
         XCTAssertEqual(entry["name"] as? String, "fix panel drift")
         XCTAssertEqual(entry["status"] as? String, "working")
         XCTAssertEqual(entry["color"] as? String, "#7EAA6E")
@@ -102,18 +100,19 @@ final class DisplayStateWriterTests: XCTestCase {
         XCTAssertFalse(snapshot.appRunning)
         XCTAssertNil(snapshot.appPID)
         XCTAssertNil(snapshot.appStartTime)
-        XCTAssertEqual(snapshot.sessions.map(\.id), [SessionIdentityPolicy.actionID(for: session)])
+        XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [session.cctopSessionId ?? ""])
     }
 
     func testSnapshotKeepsOneOrderedEntryPerVisibleFocusTarget() {
         let now = Date()
+        let cctopSessionID = "11111111-2222-4333-8444-555555555555"
         var original = Session.mock(
-            id: "conv-1", harnessSessionId: "conv-1", project: "first",
+            id: "conv-1", cctopSessionId: cctopSessionID, harnessSessionId: "conv-1", project: "first",
             status: .working, pid: 111, pidStartTime: 1_000
         )
         original.lastActivity = now.addingTimeInterval(-10)
         var resumedElsewhere = Session.mock(
-            id: "conv-1", harnessSessionId: "conv-1", project: "second",
+            id: "conv-1", cctopSessionId: cctopSessionID, harnessSessionId: "conv-1", project: "second",
             status: .working, pid: 999, pidStartTime: 2_000
         )
         resumedElsewhere.lastActivity = now.addingTimeInterval(-20)
@@ -127,8 +126,25 @@ final class DisplayStateWriterTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(snapshot.sessions.map(\.id), canonical.map { SessionIdentityPolicy.actionID(for: $0) })
-        XCTAssertEqual(Set(snapshot.sessions.map(\.id)).count, 2)
+        XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [cctopSessionID, cctopSessionID])
+        XCTAssertEqual(snapshot.sessions.map(\.name), ["first", "second"])
+    }
+
+    func testMissingLegacyIdentityLeavesAnEmptySlotWithoutShiftingLaterRows() {
+        var legacy = Session.mock(id: "legacy", project: "first", status: .working)
+        legacy.cctopSessionId = nil
+        let current = Session.mock(id: "current", project: "second", status: .working)
+
+        let snapshot = DisplayStateWriter.snapshot(
+            sessions: [legacy, current],
+            theme: .claude,
+            appRunning: true,
+            appIdentity: nil,
+            now: Date()
+        )
+
+        XCTAssertEqual(snapshot.sessions.count, 2)
+        XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), ["", current.cctopSessionId ?? ""])
         XCTAssertEqual(snapshot.sessions.map(\.name), ["first", "second"])
     }
 

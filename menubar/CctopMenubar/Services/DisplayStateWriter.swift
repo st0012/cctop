@@ -17,7 +17,7 @@ struct DisplayState: Encodable {
     }
 
     struct Entry: Encodable, Equatable {
-        let id: String
+        let cctopSessionId: String
         let name: String
         let status: String
         let color: String
@@ -52,7 +52,7 @@ struct DisplayState: Encodable {
 /// Publishes cctop's resolved display model to ~/.cctop/display-state.json.
 /// This file is the Stream Deck API boundary, not an intermediate session source.
 final class DisplayStateWriter {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
 
     private var lastSnapshot: Data?
 
@@ -106,8 +106,13 @@ final class DisplayStateWriter {
             appPID: appRunning ? appIdentity?.pid : nil,
             appStartTime: appRunning ? appIdentity?.startTime : nil,
             sessions: ordered.map { session in
-                DisplayState.Entry(
-                    id: SessionIdentityPolicy.actionID(for: session),
+                // SessionManager assigns every publishable legacy record an id before
+                // reaching this boundary. Keep an invalid record in its original slot if
+                // that invariant is ever broken; the consumer renders an empty key rather
+                // than shifting later targets forward.
+                let cctopSessionId = session.cctopSessionId ?? ""
+                return DisplayState.Entry(
+                    cctopSessionId: cctopSessionId,
                     name: session.displayName,
                     status: session.status.rawValue,
                     color: hexColor(for: session.status, theme: theme)

@@ -148,11 +148,12 @@ export class StreamDeckController {
       this.alert(context);
       return;
     }
-    // Send exactly the id this key last rendered — never re-resolve the slot, or a
+    // Send exactly the permanent id this key last rendered — never re-resolve the slot, or a
     // press could target whichever session shifted into it after the image was drawn.
-    // A stale id is safely ignored by cctop; the pending re-render fixes the key.
-    if (entry.renderedSessionId) {
-      this.launch(focusURL(entry.renderedSessionId), context);
+    // The permanent id may resolve to that session's currently associated target;
+    // it can never retarget the key to an unrelated session that moved into this slot.
+    if (entry.renderedCctopSessionId) {
+      this.launch(focusURL(entry.renderedCctopSessionId), context);
       return;
     }
     const state = readDisplayState();
@@ -163,7 +164,7 @@ export class StreamDeckController {
     // A key first shown while cctop is down has no rendered id. A recent graceful-quit
     // snapshot may still resolve its slot so the press cold-launches that session.
     const session = commandSessionForSlot(state, entry.slot);
-    const url = session ? focusURL(session.id) : null;
+    const url = session ? focusURL(session.cctopSessionId) : null;
     if (!url) {
       this.alert(context);
       return;
@@ -173,7 +174,7 @@ export class StreamDeckController {
 
   renderContext(context, entry, state) {
     const session = displaySessionForSlot(state, entry.slot);
-    entry.renderedSessionId = session?.id ?? null;
+    entry.renderedCctopSessionId = session?.cctopSessionId ?? null;
     const slotLabel = Number.isInteger(entry.slot) ? entry.slot : "";
     this.send({
       event: "setImage",

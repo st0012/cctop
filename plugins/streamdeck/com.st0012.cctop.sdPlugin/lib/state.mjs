@@ -3,7 +3,7 @@ import { readFileSync, watch } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 export const STATE_FILE = "display-state.json";
 export const COLD_LAUNCH_GRACE_MS = 5 * 60 * 1000;
 
@@ -24,12 +24,13 @@ function displayStatePath() {
 
 function parseEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
-  if (typeof entry.id !== "string" || entry.id.length === 0) return null;
+  if (typeof entry.cctop_session_id !== "string"
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(entry.cctop_session_id)) return null;
   if (typeof entry.name !== "string" || entry.name.length === 0) return null;
   if (typeof entry.status !== "string" || entry.status.length === 0) return null;
   if (typeof entry.color !== "string" || !/^#[0-9a-f]{6}$/i.test(entry.color)) return null;
   return {
-    id: entry.id,
+    cctopSessionId: entry.cctop_session_id,
     name: entry.name,
     status: entry.status,
     color: entry.color,
@@ -60,8 +61,6 @@ export function parseDisplayState(text) {
   }
 
   const sessions = raw.sessions.slice(0, 32).map(parseEntry);
-  const ids = sessions.filter(Boolean).map((entry) => entry.id);
-  if (new Set(ids).size !== ids.length) return emptyState();
 
   return {
     version: STATE_VERSION,
