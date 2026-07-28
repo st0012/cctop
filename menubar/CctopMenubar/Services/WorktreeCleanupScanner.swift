@@ -30,9 +30,32 @@ struct GitWorktreeInspection: Equatable {
     let isLocked: Bool
     let mainWorktreePath: String?
     let branchName: String?
+    let headRevision: String?
     let statusEntries: [String]?
     let uniqueCommitCount: Int?
     let failureReasons: [String]
+
+    init(
+        isRegisteredWorktree: Bool,
+        isLinkedWorktree: Bool,
+        isLocked: Bool,
+        mainWorktreePath: String?,
+        branchName: String?,
+        headRevision: String? = nil,
+        statusEntries: [String]?,
+        uniqueCommitCount: Int?,
+        failureReasons: [String]
+    ) {
+        self.isRegisteredWorktree = isRegisteredWorktree
+        self.isLinkedWorktree = isLinkedWorktree
+        self.isLocked = isLocked
+        self.mainWorktreePath = mainWorktreePath
+        self.branchName = branchName
+        self.headRevision = headRevision
+        self.statusEntries = statusEntries
+        self.uniqueCommitCount = uniqueCommitCount
+        self.failureReasons = failureReasons
+    }
 }
 
 struct WorktreeCleanupScanner {
@@ -144,7 +167,8 @@ struct WorktreeCleanupScanner {
         }
 
         let inspection = inspectGit(context.path)
-        let branchName = inspection.branchName ?? context.fallbackBranch
+        let branchName = inspection.branchName
+            ?? (inspection.isRegisteredWorktree ? WorktreeCleanupCandidate.unknownBranchDisplayName : context.fallbackBranch)
         guard inspection.isRegisteredWorktree else {
             return ignoredCandidate(
                 context: context,
@@ -262,7 +286,7 @@ struct WorktreeCleanupScanner {
     private static func isCommitSafetyReason(_ reason: String) -> Bool {
         reason.localizedCaseInsensitiveContains("upstream")
             || reason.localizedCaseInsensitiveContains("commit")
-            || reason.localizedCaseInsensitiveContains("Branch is unknown")
+            || reason == WorktreeCleanupCandidate.branchUnknownReason
     }
 
     static func untrackedPaths(fromStatusEntries entries: [String]) -> [String] {
@@ -309,18 +333,16 @@ struct WorktreeCleanupScanner {
 
     static func reviewEvidence(for inspection: GitWorktreeInspection) -> WorktreeCleanupReviewEvidence {
         guard let statusEntries = inspection.statusEntries else {
-            return .empty
+            return WorktreeCleanupReviewEvidence(headRevision: inspection.headRevision)
         }
         let untrackedPreview = WorktreeCleanupUntrackedPreview(paths: untrackedPaths(fromStatusEntries: statusEntries))
         let ignoredPreview = WorktreeCleanupUntrackedPreview(paths: ignoredPaths(fromStatusEntries: statusEntries))
         let trackedPathSignature = trackedPaths(fromStatusEntries: statusEntries)
-        guard untrackedPreview != nil || ignoredPreview != nil || !trackedPathSignature.isEmpty else {
-            return .empty
-        }
         return WorktreeCleanupReviewEvidence(
             untrackedPreview: untrackedPreview,
             ignoredPreview: ignoredPreview,
-            trackedPathSignature: trackedPathSignature
+            trackedPathSignature: trackedPathSignature,
+            headRevision: inspection.headRevision
         )
     }
 

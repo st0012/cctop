@@ -86,6 +86,7 @@ struct GitWorktreeInspector {
             isLocked: entries[matchIndex].isLocked,
             mainWorktreePath: mainWorktreePath,
             branchName: branch,
+            headRevision: entries[matchIndex].headRevision,
             statusEntries: statusEntries,
             uniqueCommitCount: uniqueCommitCount,
             failureReasons: failures
@@ -206,6 +207,7 @@ struct GitWorktreeInspector {
         var entries: [GitWorktreeListEntry] = []
         var path: String?
         var branch: String?
+        var headRevision: String?
         var isPrunable = false
         var isLocked = false
 
@@ -215,12 +217,14 @@ struct GitWorktreeInspector {
                 GitWorktreeListEntry(
                     path: currentPath,
                     branchName: branch,
+                    headRevision: headRevision,
                     isPrunable: isPrunable,
                     isLocked: isLocked
                 )
             )
             path = nil
             branch = nil
+            headRevision = nil
             isPrunable = false
             isLocked = false
         }
@@ -234,6 +238,8 @@ struct GitWorktreeInspector {
                 path = String(line.dropFirst("worktree ".count))
             } else if line.hasPrefix("branch refs/heads/") {
                 branch = String(line.dropFirst("branch refs/heads/".count))
+            } else if line.hasPrefix("HEAD ") {
+                headRevision = String(line.dropFirst("HEAD ".count))
             } else if line.hasPrefix("prunable") {
                 isPrunable = true
             } else if line.hasPrefix("locked") {
@@ -317,8 +323,23 @@ struct GitWorktreeInspector {
 struct GitWorktreeListEntry: Equatable {
     let path: String
     let branchName: String?
+    let headRevision: String?
     let isPrunable: Bool
     let isLocked: Bool
+
+    init(
+        path: String,
+        branchName: String?,
+        headRevision: String? = nil,
+        isPrunable: Bool,
+        isLocked: Bool
+    ) {
+        self.path = path
+        self.branchName = branchName
+        self.headRevision = headRevision
+        self.isPrunable = isPrunable
+        self.isLocked = isLocked
+    }
 }
 
 private struct IndexHiddenTrackedEntry {
