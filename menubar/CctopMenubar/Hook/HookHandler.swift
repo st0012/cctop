@@ -732,7 +732,15 @@ private func loadOrCreateSession(
                 incomingSessionId: fresh.sessionId
             )
         }
-        return (fresh, true)
+        var replacement = fresh
+        if CctopSessionIdentityStore.durableEvidence(
+            source: fresh.source,
+            harnessSessionId: fresh.harnessSessionId,
+            legacySessionId: fresh.sessionId
+        ) == nil {
+            replacement.cctopSessionId = Session.makeCctopSessionId()
+        }
+        return (replacement, true)
     }
     // Same PID, different session — a PID-keyed source reused the process for a new
     // conversation. Raw references are compared when the record has one, so two

@@ -31,10 +31,15 @@ extension SessionManager {
               Session.isValidCctopSessionId(cctopSessionID),
               sessions.contains(where: { $0.cctopSessionId == cctopSessionID }) else { return }
 
+        let hiddenSessions = sessions.filter { $0.cctopSessionId == cctopSessionID }
+        let notificationIdentifiers = Set(
+            hiddenSessions.map(SessionIdentityPolicy.notificationRequestIdentifier)
+        ).sorted()
         dataSources.manualSessionVisibility.hide(session)
         let visibleSessions = sessions.filter { $0.cctopSessionId != cctopSessionID }
         recentResumeTargets.removeAll { $0.cctopSessionId == cctopSessionID }
-        syncTransitionNotifications(for: visibleSessions, oldSessions: sessions)
+        dataSources.notificationClient.removePending(notificationIdentifiers)
+        dataSources.notificationClient.removeDelivered(notificationIdentifiers)
         sessions = visibleSessions
     }
 
@@ -107,12 +112,43 @@ extension SessionManager {
     }
 
     func postNotification(for session: Session) {
-        guard let cctopSessionID = session.cctopSessionId,
-              Session.isValidCctopSessionId(cctopSessionID),
-              !isManuallyHidden(session),
-              SessionIdentityPolicy.session(matchingCctopSessionID: cctopSessionID, in: sessions) != nil else {
-            return
+        let currentSession: Session?
+        if let cctopSessionID = session.cctopSessionId,
+           Session.isValidCctopSessionId(cctopSessionID) {
+            let requestIdentifier = SessionIdentityPolicy.notificationRequestIdentifier(for: session)
+            let matches = sessions.filter {
+                $0.cctopSessionId == cctopSessionID
+                    && SessionIdentityPolicy.notificationRequestIdentifier(for: $0) == requestIdentifier
+            }
+            currentSession = matches.count == 1 ? matches[0] : nil
+        } else if session.cctopSessionId == nil {
+            let matches = sessions.filter { current in
+                guard let pendingPID = session.pid,
+                      current.pid == pendingPID,
+                      let pendingStart = session.pidStartTime,
+                      let currentStart = current.pidStartTime,
+                      abs(pendingStart - currentStart) <= 1.0,
+                      (session.source ?? Session.ccSource) == (current.source ?? Session.ccSource) else {
+                    return false
+                }
+                switch (session.harnessSessionId, current.harnessSessionId) {
+                case let (pendingHarnessID?, currentHarnessID?):
+                    return pendingHarnessID == currentHarnessID
+                case (nil, nil):
+                    return session.sessionId == current.sessionId
+                default:
+                    return false
+                }
+            }
+            currentSession = matches.count == 1 ? matches[0] : nil
+        } else {
+            currentSession = nil
         }
+        guard let currentSession,
+              currentSession.lifecycle == .active,
+              currentSession.shouldPostAttentionNotification,
+              !isManuallyHidden(currentSession) else { return }
+
         let client = dataSources.notificationClient
         let request = Self.notificationRequest(for: session)
         client.removePending([request.identifier])
