@@ -1,6 +1,13 @@
 import SwiftUI
 
 extension PopupView {
+    static func confirmationAfterCleanupReview(
+        _ confirmation: WorktreeRemovalConfirmation,
+        preserving current: PopupConfirmation?
+    ) -> PopupConfirmation {
+        current ?? .cleanup(confirmation)
+    }
+
     static func noticeAfterCleanupCandidatesChanged(_ notice: WorktreeRemovalNotice?) -> WorktreeRemovalNotice? {
         notice?.blocksRemoval == true ? notice : nil
     }
@@ -51,8 +58,14 @@ extension PopupView {
                     )
                 default:
                     if let confirmation = WorktreeRemovalConfirmation.review(for: action) {
-                        cleanupRemovalSelectsCandidateOnResult = selectsCandidateOnResult
-                        pendingConfirmation = .cleanup(confirmation)
+                        let nextConfirmation = Self.confirmationAfterCleanupReview(
+                            confirmation,
+                            preserving: pendingConfirmation
+                        )
+                        if nextConfirmation != pendingConfirmation {
+                            cleanupRemovalSelectsCandidateOnResult = selectsCandidateOnResult
+                            pendingConfirmation = nextConfirmation
+                        }
                     } else {
                         performCleanupRemovalAction(action, selectsCandidateOnResult: selectsCandidateOnResult)
                     }

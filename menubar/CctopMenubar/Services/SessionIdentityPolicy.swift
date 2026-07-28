@@ -3,6 +3,7 @@ import Foundation
 enum SessionIdentityPolicy {
     static let notificationSessionIDKey = "sessionID"
     static let notificationSessionPIDKey = "sessionPID"
+    static let notificationCctopSessionIDKey = "cctopSessionID"
 
     /// Stable grouping key shared by dedup and notification transition guards.
     static func stableKey(for session: Session) -> String {
@@ -20,10 +21,21 @@ enum SessionIdentityPolicy {
     }
 
     static func notificationUserInfo(for session: Session) -> [AnyHashable: Any] {
-        [
+        var userInfo: [AnyHashable: Any] = [
             notificationSessionIDKey: notificationSessionID(for: session),
             notificationSessionPIDKey: session.pid.map(String.init) ?? "",
         ]
+        if let cctopSessionID = session.cctopSessionId,
+           Session.isValidCctopSessionId(cctopSessionID) {
+            userInfo[notificationCctopSessionIDKey] = cctopSessionID
+        }
+        return userInfo
+    }
+
+    static func cctopSessionID(matchingNotificationUserInfo userInfo: [AnyHashable: Any]) -> String? {
+        guard let cctopSessionID = nonEmptyString(userInfo[notificationCctopSessionIDKey]),
+              Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+        return cctopSessionID
     }
 
     static func session(

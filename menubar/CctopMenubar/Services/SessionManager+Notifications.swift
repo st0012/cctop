@@ -5,6 +5,30 @@ struct SessionNotificationClient {
     var add: (UNNotificationRequest, @escaping (Error?) -> Void) -> Void
     var removePending: ([String]) -> Void
     var removeDelivered: ([String]) -> Void
+    var removeByCctopSessionID: (String) -> Void
+
+    init(
+        add: @escaping (UNNotificationRequest, @escaping (Error?) -> Void) -> Void,
+        removePending: @escaping ([String]) -> Void,
+        removeDelivered: @escaping ([String]) -> Void,
+        removeByCctopSessionID: @escaping (String) -> Void = { _ in }
+    ) {
+        self.add = add
+        self.removePending = removePending
+        self.removeDelivered = removeDelivered
+        self.removeByCctopSessionID = removeByCctopSessionID
+    }
+
+    static func identifiers(
+        belongingTo cctopSessionID: String,
+        in requests: [UNNotificationRequest]
+    ) -> [String] {
+        requests.compactMap { request in
+            SessionIdentityPolicy.cctopSessionID(matchingNotificationUserInfo: request.content.userInfo) == cctopSessionID
+                ? request.identifier
+                : nil
+        }
+    }
 
     static let live = SessionNotificationClient(
         add: { request, completion in
@@ -15,6 +39,22 @@ struct SessionNotificationClient {
         },
         removeDelivered: { identifiers in
             UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
+        },
+        removeByCctopSessionID: { cctopSessionID in
+            let center = UNUserNotificationCenter.current()
+            center.getPendingNotificationRequests { requests in
+                center.removePendingNotificationRequests(
+                    withIdentifiers: SessionNotificationClient.identifiers(belongingTo: cctopSessionID, in: requests)
+                )
+            }
+            center.getDeliveredNotifications { notifications in
+                center.removeDeliveredNotifications(
+                    withIdentifiers: SessionNotificationClient.identifiers(
+                        belongingTo: cctopSessionID,
+                        in: notifications.map(\.request)
+                    )
+                )
+            }
         }
     )
 }
@@ -32,14 +72,20 @@ extension SessionManager {
               sessions.contains(where: { $0.cctopSessionId == cctopSessionID }) else { return }
 
         let hiddenSessions = sessions.filter { $0.cctopSessionId == cctopSessionID }
+        let hiddenProjectPaths = Set(hiddenSessions.map { HistoryManager.canonicalRecentProjectPath($0.projectPath) })
         let notificationIdentifiers = Set(
             hiddenSessions.map(SessionIdentityPolicy.notificationRequestIdentifier)
         ).sorted()
         dataSources.manualSessionVisibility.hide(session)
         let visibleSessions = sessions.filter { $0.cctopSessionId != cctopSessionID }
-        recentResumeTargets.removeAll { $0.cctopSessionId == cctopSessionID }
+        recentResumeTargets.removeAll { target in
+            if target.cctopSessionId == cctopSessionID { return true }
+            guard case .project = target else { return false }
+            return hiddenProjectPaths.contains(HistoryManager.canonicalRecentProjectPath(target.projectPath))
+        }
         dataSources.notificationClient.removePending(notificationIdentifiers)
         dataSources.notificationClient.removeDelivered(notificationIdentifiers)
+        dataSources.notificationClient.removeByCctopSessionID(cctopSessionID)
         sessions = visibleSessions
     }
 

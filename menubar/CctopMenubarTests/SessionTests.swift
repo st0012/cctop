@@ -504,6 +504,44 @@ final class SessionTests: XCTestCase {
             userInfo[SessionIdentityPolicy.notificationSessionPIDKey] as? String,
             "12345"
         )
+        XCTAssertEqual(
+            userInfo["cctopSessionID"] as? String,
+            session.cctopSessionId
+        )
+    }
+
+    func testNotificationMetadataFindsPriorProcessObservationByPermanentIdentity() {
+        let sharedID = "11111111-1111-4111-8111-111111111111"
+        let oldObservation = Session.mock(
+            id: "old-process", cctopSessionId: sharedID,
+            status: .waitingPermission, pid: 11_111, source: Session.opencodeSource
+        )
+        let currentObservation = Session.mock(
+            id: "new-process", cctopSessionId: sharedID,
+            status: .waitingPermission, pid: 22_222, source: Session.opencodeSource
+        )
+        let unrelated = Session.mock(
+            id: "unrelated", cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            status: .waitingPermission, pid: 33_333, source: Session.opencodeSource
+        )
+        let oldRequest = SessionManager.notificationRequest(for: oldObservation)
+        let currentRequest = SessionManager.notificationRequest(for: currentObservation)
+        let unrelatedRequest = SessionManager.notificationRequest(for: unrelated)
+        let malformedContent = UNMutableNotificationContent()
+        malformedContent.userInfo = [SessionIdentityPolicy.notificationCctopSessionIDKey: "not-a-uuid"]
+        let malformedRequest = UNNotificationRequest(identifier: "malformed", content: malformedContent, trigger: nil)
+        let missingRequest = UNNotificationRequest(
+            identifier: "missing", content: UNMutableNotificationContent(), trigger: nil
+        )
+
+        XCTAssertNotEqual(oldRequest.identifier, currentRequest.identifier)
+        XCTAssertEqual(
+            SessionNotificationClient.identifiers(
+                belongingTo: sharedID,
+                in: [oldRequest, unrelatedRequest, malformedRequest, missingRequest]
+            ),
+            [oldRequest.identifier]
+        )
     }
 
     func testNotificationLookupPrefersStableSessionIDOverSharedCodexPID() {
@@ -694,6 +732,14 @@ final class SessionTests: XCTestCase {
         XCTAssertNotEqual(cleanupRoute.id, sessionRoute.id)
         XCTAssertEqual(cleanupRoute, .cleanup(cleanupConfirmation))
         XCTAssertEqual(sessionRoute, .sessionHide(sessionConfirmation))
+        XCTAssertEqual(
+            PopupView.confirmationAfterCleanupReview(cleanupConfirmation, preserving: sessionRoute),
+            sessionRoute
+        )
+        XCTAssertEqual(
+            PopupView.confirmationAfterCleanupReview(cleanupConfirmation, preserving: nil),
+            cleanupRoute
+        )
     }
 
     func testNotificationRequestDoesNotUseVisibleThreadGrouping() {
@@ -1054,6 +1100,7 @@ final class SessionTests: XCTestCase {
         final class Recorder {
             var pending: [[String]] = []
             var delivered: [[String]] = []
+            var cctopSessionIDs: [String] = []
         }
 
         let recorder = Recorder()
@@ -1062,7 +1109,8 @@ final class SessionTests: XCTestCase {
         sources.notificationClient = SessionNotificationClient(
             add: { _, completion in completion(nil) },
             removePending: { recorder.pending.append($0) },
-            removeDelivered: { recorder.delivered.append($0) }
+            removeDelivered: { recorder.delivered.append($0) },
+            removeByCctopSessionID: { recorder.cctopSessionIDs.append($0) }
         )
         let sharedID = "11111111-1111-4111-8111-111111111111"
         let first = Session.mock(
@@ -1088,6 +1136,7 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(recorder.pending.flatMap { $0 }.count, expectedIdentifiers.count)
         XCTAssertEqual(Set(recorder.delivered.flatMap { $0 }), expectedIdentifiers)
         XCTAssertEqual(recorder.delivered.flatMap { $0 }.count, expectedIdentifiers.count)
+        XCTAssertEqual(recorder.cctopSessionIDs, [sharedID])
     }
 
     @MainActor
