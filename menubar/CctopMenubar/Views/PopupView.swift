@@ -369,10 +369,8 @@ extension PopupView {
     private var isNavigateActive: Bool { navigate?.isActive ?? false }
     private var hasMultipleSources: Bool { Set(sessions.map(\.agentBadge)).count > 1 }
     private var sortedActiveSessions: [Session] {
-        if isNavigateActive, let frozen = navigate?.frozenSessions, !frozen.isEmpty {
-            return frozen
-        }
-        return SessionDisplayPolicy.activeSessions(from: sessions)
+        let current = SessionDisplayPolicy.activeSessions(from: sessions)
+        return navigate?.activeSessionSnapshot ?? current
     }
     private var sortedIdleSessions: [Session] {
         Session.sorted(SessionDisplayPolicy.idleSessions(from: sessions))

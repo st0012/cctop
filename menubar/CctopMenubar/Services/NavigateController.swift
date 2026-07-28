@@ -9,6 +9,9 @@ class NavigateController: ObservableObject {
     /// Canonically ordered session snapshot captured when navigate activates.
     /// Prevents reordering while badges are visible.
     private(set) var frozenSessions: [Session] = []
+    var activeSessionSnapshot: [Session]? {
+        isActive ? frozenSessions : nil
+    }
     private var timeoutWork: DispatchWorkItem?
 
     func activate(sessions: [Session]) {
