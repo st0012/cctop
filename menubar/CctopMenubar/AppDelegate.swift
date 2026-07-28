@@ -630,8 +630,8 @@ extension AppDelegate {
     }
 
     @MainActor private func jumpToSession(index: Int) {
-        guard index < navigateController.frozenSessions.count else { return }
-        focusTerminal(session: navigateController.frozenSessions[index])
+        guard let sessions = navigateController.activeSessionSnapshot, sessions.indices.contains(index) else { return }
+        focusTerminal(session: sessions[index])
         handleEvent(.navigateConfirmed)
     }
 

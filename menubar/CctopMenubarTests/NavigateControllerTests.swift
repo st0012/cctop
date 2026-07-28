@@ -101,6 +101,49 @@ final class NavigateControllerTests: XCTestCase {
         XCTAssertEqual(sut.frozenSessions.count, 1)
     }
 
+    func testRemovingHiddenSessionPreservesFrozenSurvivorOrder() {
+        let hiddenSessionID = "22222222-2222-4222-8222-222222222222"
+        let first = Session.mock(
+            id: "first", cctopSessionId: "11111111-1111-4111-8111-111111111111",
+            status: .waitingInput, source: Session.codexSource
+        )
+        let hidden = Session.mock(
+            id: "hidden", cctopSessionId: hiddenSessionID,
+            status: .working, source: Session.codexSource
+        )
+        let secondHiddenObservation = Session.mock(
+            id: "hidden-again", cctopSessionId: hiddenSessionID,
+            status: .idle, source: Session.codexSource
+        )
+        let last = Session.mock(
+            id: "last", cctopSessionId: "33333333-3333-4333-8333-333333333333",
+            status: .idle, source: Session.codexSource
+        )
+        sut.activate(sessions: [first, hidden, secondHiddenObservation, last])
+
+        sut.removeSession(withCctopSessionID: hiddenSessionID)
+
+        XCTAssertEqual(sut.frozenSessions.map(\.sessionId), ["first", "last"])
+    }
+
+    func testRemovingLastHiddenSessionPreservesActiveEmptySnapshot() {
+        let hiddenSessionID = "22222222-2222-4222-8222-222222222222"
+        let hidden = Session.mock(
+            id: "hidden", cctopSessionId: hiddenSessionID,
+            status: .working, source: Session.codexSource
+        )
+        sut.activate(sessions: [hidden])
+
+        sut.removeSession(withCctopSessionID: hiddenSessionID)
+
+        XCTAssertEqual(sut.activeSessionSnapshot, [])
+        XCTAssertTrue(sut.isActive)
+    }
+
+    func testInactiveControllerHasNoActiveSnapshot() {
+        XCTAssertNil(sut.activeSessionSnapshot)
+    }
+
     // MARK: - Timeout
 
     func testTimeoutFiresWhenActive() {

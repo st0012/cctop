@@ -145,6 +145,50 @@ extension SessionManager {
         return assigningCctopSessionIdentities(to: publishableWinners, knownRecords: knownRecords)
     }
 
+    func identifyingRecentDesktopRecords(
+        in classification: SessionClassificationSnapshot,
+        knownRecords: [(url: URL, session: Session)]
+    ) -> SessionClassificationSnapshot {
+        let indices = classification.records.indices.filter { index in
+            let record = classification.records[index]
+            guard !Session.isValidCctopSessionId(record.candidate.session.cctopSessionId),
+                  case .hidden(let reason) = record.disposition else { return false }
+            switch reason {
+            case .archivedCodexDesktop, .archivedClaudeDesktop:
+                return CctopSessionIdentityStore.durableEvidence(
+                    source: record.candidate.session.source,
+                    harnessSessionId: record.candidate.session.harnessSessionId,
+                    legacySessionId: record.candidate.session.sessionId
+                ) != nil
+            case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper, .codexExecHelper,
+                 .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
+                return false
+            }
+        }
+        guard !indices.isEmpty else { return classification }
+
+        let identified = assigningCctopSessionIdentities(
+            to: indices.map { classification.records[$0].candidate },
+            knownRecords: knownRecords
+        )
+        var records = classification.records
+        for (index, session) in zip(indices, identified) {
+            let record = records[index]
+            let candidate = record.candidate
+            records[index] = ClassifiedSessionRecord(
+                url: record.url,
+                candidate: DedupCandidate(
+                    session: session,
+                    lifecycleRank: candidate.lifecycleRank,
+                    mtime: candidate.mtime,
+                    path: candidate.path
+                ),
+                disposition: record.disposition
+            )
+        }
+        return SessionClassificationSnapshot(records: records, evidence: classification.evidence)
+    }
+
     private func scheduleRecordLocalCctopSessionIdentityStamp(url: URL, snapshot: Session) {
         guard pendingIdentityMigrationPaths.insert(url.path).inserted else { return }
         cctopIdentityMigrationQueue.async { [weak self] in

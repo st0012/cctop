@@ -2,6 +2,26 @@ import XCTest
 @testable import CctopMenubar
 
 extension XCTestCase {
+    func isolatedSessionDataSources(
+        prefix: String
+    ) throws -> (sources: SessionDataSources, visibility: ManualSessionVisibilityStore) {
+        let sessionsDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        let suiteName = "\(prefix)-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: sessionsDir)
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let visibility = ManualSessionVisibilityStore(defaults: defaults)
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = sessionsDir
+        sources.manualSessionVisibility = visibility
+        return (sources, visibility)
+    }
+
     func executeSQLite(_ sql: String, path: String) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
@@ -211,6 +231,7 @@ extension XCTestCase {
         historyDir: String,
         desktopAppConnection: DesktopAppConnectionLookup? = nil,
         processAlive: ((Session) -> Bool)? = nil,
+        manualSessionVisibility: ManualSessionVisibilityStore? = nil,
         now: (() -> Date)? = nil
     ) -> SessionManager {
         var sources = SessionDataSources.live()
@@ -220,6 +241,9 @@ extension XCTestCase {
         }
         if let processAlive {
             sources.processAlive = processAlive
+        }
+        if let manualSessionVisibility {
+            sources.manualSessionVisibility = manualSessionVisibility
         }
         if let now {
             sources.now = now

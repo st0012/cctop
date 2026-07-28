@@ -9,12 +9,20 @@ class NavigateController: ObservableObject {
     /// Canonically ordered session snapshot captured when navigate activates.
     /// Prevents reordering while badges are visible.
     private(set) var frozenSessions: [Session] = []
+    var activeSessionSnapshot: [Session]? {
+        isActive ? frozenSessions : nil
+    }
     private var timeoutWork: DispatchWorkItem?
 
     func activate(sessions: [Session]) {
         frozenSessions = sessions
         isActive = true
         didActivateSubject.send()
+    }
+
+    /// Remove a hidden session without disturbing the frozen order of the remaining rows.
+    func removeSession(withCctopSessionID cctopSessionID: String) {
+        frozenSessions.removeAll { $0.cctopSessionId == cctopSessionID }
     }
 
     /// Resets all navigate state.

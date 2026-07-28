@@ -3,7 +3,7 @@ import Foundation
 
 /// The external inputs SessionManager consults while deriving session state: the sessions
 /// directory, the Codex/Claude Desktop archive stores, desktop-app liveness, process liveness,
-/// the notification preference, and the clock. Production uses `.live()`; tests override
+/// notification and manual-visibility preferences, and the clock. Production uses `.live()`; tests override
 /// individual fields to run the full pipeline against temp directories, stub lookups, and a
 /// deterministic clock. One state-deriving input remains outside this seam:
 /// `adjustPermissionStatus` probes the live process tree (`proc_listchildpids`) directly.
@@ -15,6 +15,7 @@ struct SessionDataSources {
     var processAlive: (Session) -> Bool
     var notificationsEnabled: () -> Bool
     var notificationClient: SessionNotificationClient = .live
+    var manualSessionVisibility: ManualSessionVisibilityStore = .live
     var now: () -> Date
 
     /// A function rather than a stored constant so `Config.sessionsDir()` is resolved
@@ -160,6 +161,14 @@ struct SessionClassificationSnapshot {
         displayCandidates.filter {
             $0.lifecycleRank == SessionLifecycle.finished.rawValue && $0.session.hostClass != .desktop
         }
+    }
+
+    func manualHiddenFinishedProjectPaths(_ hiddenSessionIDs: Set<String>) -> Set<String> {
+        Set(finishedNonDesktopCandidates.compactMap { candidate in
+            guard let cctopSessionID = candidate.session.cctopSessionId,
+                  hiddenSessionIDs.contains(cctopSessionID) else { return nil }
+            return candidate.session.projectPath
+        })
     }
 
     /// Archived desktop conversations stay hidden and resumable in Recent, but a known

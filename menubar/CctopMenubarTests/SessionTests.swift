@@ -504,6 +504,44 @@ final class SessionTests: XCTestCase {
             userInfo[SessionIdentityPolicy.notificationSessionPIDKey] as? String,
             "12345"
         )
+        XCTAssertEqual(
+            userInfo["cctopSessionID"] as? String,
+            session.cctopSessionId
+        )
+    }
+
+    func testNotificationMetadataFindsPriorProcessObservationByPermanentIdentity() {
+        let sharedID = "11111111-1111-4111-8111-111111111111"
+        let oldObservation = Session.mock(
+            id: "old-process", cctopSessionId: sharedID,
+            status: .waitingPermission, pid: 11_111, source: Session.opencodeSource
+        )
+        let currentObservation = Session.mock(
+            id: "new-process", cctopSessionId: sharedID,
+            status: .waitingPermission, pid: 22_222, source: Session.opencodeSource
+        )
+        let unrelated = Session.mock(
+            id: "unrelated", cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            status: .waitingPermission, pid: 33_333, source: Session.opencodeSource
+        )
+        let oldRequest = SessionManager.notificationRequest(for: oldObservation)
+        let currentRequest = SessionManager.notificationRequest(for: currentObservation)
+        let unrelatedRequest = SessionManager.notificationRequest(for: unrelated)
+        let malformedContent = UNMutableNotificationContent()
+        malformedContent.userInfo = [SessionIdentityPolicy.notificationCctopSessionIDKey: "not-a-uuid"]
+        let malformedRequest = UNNotificationRequest(identifier: "malformed", content: malformedContent, trigger: nil)
+        let missingRequest = UNNotificationRequest(
+            identifier: "missing", content: UNMutableNotificationContent(), trigger: nil
+        )
+
+        XCTAssertNotEqual(oldRequest.identifier, currentRequest.identifier)
+        XCTAssertEqual(
+            SessionNotificationClient.identifiers(
+                belongingTo: sharedID,
+                in: [oldRequest, unrelatedRequest, malformedRequest, missingRequest]
+            ),
+            [oldRequest.identifier]
+        )
     }
 
     func testNotificationLookupPrefersStableSessionIDOverSharedCodexPID() {
@@ -583,6 +621,127 @@ final class SessionTests: XCTestCase {
         )
     }
 
+    func testManualSessionVisibilityPersistsOnlySortedCctopSessionIDs() throws {
+        let suiteName = "cctop-manual-visibility-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = ManualSessionVisibilityStore(defaults: defaults)
+
+        var terminal = Session(
+            sessionId: "private-terminal-conversation",
+            projectPath: "/private/project/path",
+            branch: "secret-branch",
+            terminal: TerminalInfo()
+        )
+        terminal.cctopSessionId = "11111111-1111-4111-8111-111111111111"
+        terminal.pid = 42
+        terminal.sessionName = "Private session title"
+        let codex = Session.mock(
+            id: "codex-thread",
+            cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            source: Session.codexSource
+        )
+
+        store.hide(terminal)
+        store.hide(codex)
+
+        let stored = try XCTUnwrap(defaults.stringArray(forKey: ManualSessionVisibilityStore.defaultsKey))
+        XCTAssertEqual(stored, [
+            "11111111-1111-4111-8111-111111111111",
+            "22222222-2222-4222-8222-222222222222",
+        ])
+        let payload = stored.joined(separator: "\n")
+        XCTAssertFalse(payload.contains("active:42"))
+        XCTAssertFalse(payload.contains(terminal.sessionName!))
+        XCTAssertFalse(payload.contains(terminal.projectPath))
+        XCTAssertFalse(payload.contains(terminal.branch))
+    }
+
+    func testManualSessionVisibilityPrunesOnlyMissingCctopSessionIDs() {
+        let suiteName = "cctop-manual-visibility-prune-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = ManualSessionVisibilityStore(defaults: defaults)
+        let first = Session.mock(
+            id: "first", cctopSessionId: "11111111-1111-4111-8111-111111111111"
+        )
+        let secondID = "22222222-2222-4222-8222-222222222222"
+        let second = Session.mock(id: "second", cctopSessionId: secondID)
+
+        store.hide(first)
+        store.hide(second)
+        store.prune(retaining: [secondID])
+
+        XCTAssertEqual(store.hiddenSessionIDs, [secondID])
+    }
+
+    func testManualSessionVisibilityIgnoresRowsWithoutPermanentIdentity() {
+        let suiteName = "cctop-manual-visibility-legacy-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = ManualSessionVisibilityStore(defaults: defaults)
+        var legacy = Session.mock(id: "legacy")
+        legacy.cctopSessionId = nil
+
+        store.hide(legacy)
+
+        XCTAssertFalse(store.isHidden(legacy))
+        XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.defaultsKey))
+        XCTAssertNil(ManualSessionHideConfirmation(session: legacy))
+    }
+
+    func testManualSessionHideConfirmationDescribesIrreversibleVisibleEffect() throws {
+        let session = Session.mock(
+            id: "private-session",
+            cctopSessionId: "11111111-1111-4111-8111-111111111111",
+            project: "cctop",
+            sessionName: "Investigate lifecycle",
+            source: Session.codexSource
+        )
+
+        let confirmation = try XCTUnwrap(ManualSessionHideConfirmation(session: session))
+
+        XCTAssertEqual(confirmation.id, "hide:11111111-1111-4111-8111-111111111111")
+        XCTAssertEqual(confirmation.title, "Hide “Investigate lifecycle” from cctop?")
+        XCTAssertEqual(confirmation.primaryButtonTitle, "Hide Session")
+        XCTAssertEqual(
+            confirmation.message,
+            "It will disappear from the panel, notifications, Navigate mode, and Stream Deck. "
+                + "This does not stop or delete the underlying session; cctop will keep it available for lifecycle and Cleanup. "
+                + "You cannot show it again while its local session record exists."
+        )
+        XCTAssertEqual(confirmation.session, session)
+    }
+
+    func testPopupConfirmationRoutesCleanupAndSessionHideWithDistinctIdentity() throws {
+        let cleanupConfirmation = WorktreeRemovalConfirmation.review(
+            .normalRemove(.mock(state: .review(["Worktree has untracked files"])))
+        )
+        let sessionConfirmation = try XCTUnwrap(ManualSessionHideConfirmation(
+            session: .mock(
+                id: "private-session",
+                cctopSessionId: "11111111-1111-4111-8111-111111111111",
+                source: Session.codexSource
+            )
+        ))
+        let cleanupRoute = PopupConfirmation.cleanup(cleanupConfirmation)
+        let sessionRoute = PopupConfirmation.sessionHide(sessionConfirmation)
+
+        XCTAssertEqual(cleanupRoute.id, "cleanup:\(cleanupConfirmation.id)")
+        XCTAssertEqual(sessionRoute.id, "session-hide:\(sessionConfirmation.id)")
+        XCTAssertNotEqual(cleanupRoute.id, sessionRoute.id)
+        XCTAssertEqual(cleanupRoute, .cleanup(cleanupConfirmation))
+        XCTAssertEqual(sessionRoute, .sessionHide(sessionConfirmation))
+        XCTAssertEqual(
+            PopupView.confirmationAfterCleanupReview(cleanupConfirmation, preserving: sessionRoute),
+            sessionRoute
+        )
+        XCTAssertEqual(
+            PopupView.confirmationAfterCleanupReview(cleanupConfirmation, preserving: nil),
+            cleanupRoute
+        )
+    }
+
     func testNotificationRequestDoesNotUseVisibleThreadGrouping() {
         let session = Session.mock(
             id: "claude-desktop-thread-1",
@@ -623,6 +782,7 @@ final class SessionTests: XCTestCase {
         )
         let session = Session.mock(
             id: "claude-desktop-thread-1",
+            status: .waitingPermission,
             pid: 12345,
             terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
             source: "cc"
@@ -632,6 +792,7 @@ final class SessionTests: XCTestCase {
             dataSources: sources,
             startMonitoring: false
         )
+        manager.sessions = [session]
 
         manager.postNotification(for: session)
 
@@ -643,6 +804,388 @@ final class SessionTests: XCTestCase {
                 "add:session-desktop:claude-desktop-thread-1",
             ]
         )
+    }
+
+    @MainActor
+    func testPostNotificationSkipsHiddenOrVanishedSessionDuringPermissionDelay() throws {
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-hidden-notification-\(UUID().uuidString)", isDirectory: true)
+        let sessionsDir = root.appendingPathComponent("sessions", isDirectory: true)
+        let historyDir = root.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let suiteName = "cctop-hidden-notification-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = ManualSessionVisibilityStore(defaults: defaults)
+        let session = Session.mock(
+            id: "hidden-attention", status: .waitingPermission,
+            source: Session.codexSource
+        )
+
+        let recorder = Recorder()
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = sessionsDir
+        sources.manualSessionVisibility = store
+        sources.notificationClient = SessionNotificationClient(
+            add: { request, completion in
+                recorder.events.append("add:\(request.identifier)")
+                completion(nil)
+            },
+            removePending: { _ in recorder.events.append("removePending") },
+            removeDelivered: { _ in recorder.events.append("removeDelivered") }
+        )
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: historyDir),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        var noLongerNeedsAttention = session
+        noLongerNeedsAttention.status = .working
+        manager.sessions = [noLongerNeedsAttention]
+        manager.postNotification(for: session)
+
+        manager.sessions = [session]
+        store.hide(session)
+
+        manager.postNotification(for: session)
+        store.prune(retaining: [])
+        manager.sessions = []
+        manager.postNotification(for: session)
+
+        XCTAssertEqual(recorder.events, [])
+    }
+
+    @MainActor
+    func testPostNotificationDoesNotReuseLegacyPIDIdentityDuringPermissionDelay() throws {
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let recorder = Recorder()
+        var sources = SessionDataSources.live()
+        let sessionsDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sessionsDir) }
+        sources.sessionsDir = sessionsDir
+        sources.notificationClient = SessionNotificationClient(
+            add: { _, completion in
+                recorder.events.append("add")
+                completion(nil)
+            },
+            removePending: { _ in recorder.events.append("removePending") },
+            removeDelivered: { _ in recorder.events.append("removeDelivered") }
+        )
+        let original = Session.mock(
+            id: "reused-pid", cctopSessionId: "11111111-1111-4111-8111-111111111111",
+            pid: 42_042, source: Session.ccSource
+        )
+        let replacement = Session.mock(
+            id: "reused-pid", cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            pid: 42_042, source: Session.ccSource
+        )
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        manager.sessions = [replacement]
+
+        manager.postNotification(for: original)
+
+        XCTAssertTrue(recorder.events.isEmpty)
+    }
+
+    @MainActor
+    func testPostNotificationAllowsUnstampedLegacySessionForSameProcessGeneration() throws {
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let recorder = Recorder()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-legacy-notification").sources
+        sources.notificationClient = SessionNotificationClient(
+            add: { _, completion in
+                recorder.events.append("add")
+                completion(nil)
+            },
+            removePending: { _ in recorder.events.append("removePending") },
+            removeDelivered: { _ in recorder.events.append("removeDelivered") }
+        )
+        var legacy = Session.mock(
+            id: "legacy-session", harnessSessionId: "legacy-session",
+            status: .waitingInput, pid: 42_042, pidStartTime: 1_000,
+            source: Session.opencodeSource
+        )
+        legacy.cctopSessionId = nil
+        legacy.lifecycle = .active
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        manager.sessions = [legacy]
+
+        manager.postNotification(for: legacy)
+
+        XCTAssertNil(legacy.cctopSessionId)
+        XCTAssertEqual(recorder.events, ["removePending", "removeDelivered", "add"])
+    }
+
+    @MainActor
+    func testPostNotificationRejectsUnstampedLegacySessionWithoutSameGenerationAndConversation() throws {
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let recorder = Recorder()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-legacy-notification-rejection").sources
+        sources.notificationClient = SessionNotificationClient(
+            add: { _, completion in
+                recorder.events.append("add")
+                completion(nil)
+            },
+            removePending: { _ in recorder.events.append("removePending") },
+            removeDelivered: { _ in recorder.events.append("removeDelivered") }
+        )
+        var pending = Session.mock(
+            id: "legacy-session", harnessSessionId: "legacy-session",
+            status: .waitingInput, pid: 42_042, pidStartTime: 1_000,
+            source: Session.opencodeSource
+        )
+        pending.cctopSessionId = nil
+        pending.lifecycle = .active
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        var replacement = pending
+        replacement.pidStartTime = 2_000
+        manager.sessions = [replacement]
+        manager.postNotification(for: pending)
+        XCTAssertTrue(recorder.events.isEmpty)
+
+        var otherConversation = pending.withSessionId("other-session")
+        otherConversation.harnessSessionId = "other-session"
+        manager.sessions = [otherConversation]
+        manager.postNotification(for: pending)
+        XCTAssertTrue(recorder.events.isEmpty)
+
+        var otherSource = pending
+        otherSource.source = Session.ccSource
+        manager.sessions = [otherSource]
+        manager.postNotification(for: pending)
+        XCTAssertTrue(recorder.events.isEmpty)
+
+        var missingGeneration = pending
+        missingGeneration.pidStartTime = nil
+        manager.sessions = [missingGeneration]
+        manager.postNotification(for: pending)
+        XCTAssertTrue(recorder.events.isEmpty)
+
+        var noLongerNeedsAttention = pending
+        noLongerNeedsAttention.status = .working
+        manager.sessions = [noLongerNeedsAttention]
+        manager.postNotification(for: pending)
+        XCTAssertTrue(recorder.events.isEmpty)
+        recorder.events.removeAll()
+
+        var oneSidedHarnessEvidence = pending
+        oneSidedHarnessEvidence.harnessSessionId = nil
+        manager.sessions = [oneSidedHarnessEvidence]
+        manager.postNotification(for: pending)
+        XCTAssertTrue(recorder.events.isEmpty)
+        recorder.events.removeAll()
+
+        manager.sessions = [pending, pending]
+        manager.postNotification(for: pending)
+        XCTAssertTrue(recorder.events.isEmpty)
+    }
+
+    @MainActor
+    func testPostNotificationRejectsUnstampedLegacySessionWhenCurrentObservationIsHidden() throws {
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let isolated = try isolatedSessionDataSources(prefix: "cctop-legacy-hidden-notification")
+        let visibility = isolated.visibility
+        let recorder = Recorder()
+        var sources = isolated.sources
+        sources.notificationClient = SessionNotificationClient(
+            add: { _, completion in
+                recorder.events.append("add")
+                completion(nil)
+            },
+            removePending: { _ in recorder.events.append("removePending") },
+            removeDelivered: { _ in recorder.events.append("removeDelivered") }
+        )
+        var pending = Session.mock(
+            id: "legacy-session", harnessSessionId: "legacy-session",
+            status: .waitingInput, pid: 42_042, pidStartTime: 1_000,
+            source: Session.opencodeSource
+        )
+        pending.cctopSessionId = nil
+        pending.lifecycle = .active
+        var current = pending
+        current.cctopSessionId = "11111111-1111-4111-8111-111111111111"
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        manager.sessions = [current]
+        visibility.hide(current)
+
+        manager.postNotification(for: pending)
+
+        XCTAssertTrue(recorder.events.isEmpty)
+    }
+
+    @MainActor
+    func testPostNotificationMatchesCurrentCanonicalObservationForPendingRequest() throws {
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let recorder = Recorder()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-canonical-notification").sources
+        sources.notificationClient = SessionNotificationClient(
+            add: { _, completion in
+                recorder.events.append("add")
+                completion(nil)
+            },
+            removePending: { _ in recorder.events.append("removePending") },
+            removeDelivered: { _ in recorder.events.append("removeDelivered") }
+        )
+        let sharedID = "11111111-1111-4111-8111-111111111111"
+        var working = Session.mock(
+            id: "first", cctopSessionId: sharedID,
+            status: .working, pid: 11_111, source: Session.opencodeSource
+        )
+        working.lifecycle = .active
+        var waiting = Session.mock(
+            id: "second", cctopSessionId: sharedID,
+            status: .waitingPermission, pid: 22_222, source: Session.opencodeSource
+        )
+        waiting.lifecycle = .active
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        manager.sessions = [working, waiting]
+
+        manager.postNotification(for: waiting)
+
+        XCTAssertEqual(recorder.events, ["removePending", "removeDelivered", "add"])
+        recorder.events.removeAll()
+        var staleWaitingSnapshot = working
+        staleWaitingSnapshot.status = .waitingPermission
+        manager.postNotification(for: staleWaitingSnapshot)
+        XCTAssertTrue(recorder.events.isEmpty)
+    }
+
+    @MainActor
+    func testHideSessionRemovesNotificationsForEveryDiscardedObservation() throws {
+        final class Recorder {
+            var pending: [[String]] = []
+            var delivered: [[String]] = []
+            var cctopSessionIDs: [String] = []
+        }
+
+        let recorder = Recorder()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-hide-all-notifications").sources
+        sources.notificationsEnabled = { false }
+        sources.notificationClient = SessionNotificationClient(
+            add: { _, completion in completion(nil) },
+            removePending: { recorder.pending.append($0) },
+            removeDelivered: { recorder.delivered.append($0) },
+            removeByCctopSessionID: { recorder.cctopSessionIDs.append($0) }
+        )
+        let sharedID = "11111111-1111-4111-8111-111111111111"
+        let first = Session.mock(
+            id: "first", cctopSessionId: sharedID,
+            status: .working, pid: 11_111, source: Session.opencodeSource
+        )
+        let second = Session.mock(
+            id: "second", cctopSessionId: sharedID,
+            status: .working, pid: 22_222, source: Session.opencodeSource
+        )
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        manager.sessions = [first, second]
+
+        manager.hideSession(first)
+
+        let expectedIdentifiers = Set([first, second].map(SessionIdentityPolicy.notificationRequestIdentifier))
+        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertEqual(Set(recorder.pending.flatMap { $0 }), expectedIdentifiers)
+        XCTAssertEqual(recorder.pending.flatMap { $0 }.count, expectedIdentifiers.count)
+        XCTAssertEqual(Set(recorder.delivered.flatMap { $0 }), expectedIdentifiers)
+        XCTAssertEqual(recorder.delivered.flatMap { $0 }.count, expectedIdentifiers.count)
+        XCTAssertEqual(recorder.cctopSessionIDs, [sharedID])
+    }
+
+    @MainActor
+    func testHideSessionRemovesOutstandingAttentionNotification() throws {
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-hide-notification-\(UUID().uuidString)", isDirectory: true)
+        let sessionsDir = root.appendingPathComponent("sessions", isDirectory: true)
+        let historyDir = root.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let suiteName = "cctop-hide-notification-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let recorder = Recorder()
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = sessionsDir
+        sources.manualSessionVisibility = ManualSessionVisibilityStore(defaults: defaults)
+        sources.notificationsEnabled = { false }
+        sources.notificationClient = SessionNotificationClient(
+            add: { _, completion in completion(nil) },
+            removePending: { identifiers in
+                recorder.events.append("pending:\(identifiers.joined(separator: ","))")
+            },
+            removeDelivered: { identifiers in
+                recorder.events.append("delivered:\(identifiers.joined(separator: ","))")
+            }
+        )
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: historyDir),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        var attention = Session.mock(id: "attention", status: .waitingInput, source: Session.codexSource)
+        attention.lifecycle = .active
+        manager.sessions = [attention]
+
+        manager.hideSession(attention)
+
+        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(recorder.events, [
+            "pending:session-codex:attention",
+            "delivered:session-codex:attention",
+        ])
     }
 
     func testNotificationLookupPrefersDesktopSessionIDOverPID() {

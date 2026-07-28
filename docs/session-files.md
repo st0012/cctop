@@ -81,8 +81,9 @@ This version does not reconcile multiple clients or multiple simultaneous focus
 targets. If the same conversation is open in more than one place, observations
 may remain separate or several rows may share one ID and resolve to the first
 current canonical target. Cross-client equivalence and cross-machine identity
-are out of scope. Panel identity, notifications, hiding, cleanup, history, and
-other persisted preferences continue to use their existing contracts.
+are out of scope. Manual hiding uses `cctop_session_id` as its preference key;
+notification grouping, cleanup, history, and other persisted preferences keep
+their separate contracts.
 
 ## Terminal Focus Metadata
 
@@ -154,6 +155,19 @@ When `hidden` is `true`, cctop reads the session file but does not show that ses
 Use `hidden` for real session records that should remain on disk for liveness, debugging, or ownership tracking, but should not appear as user-facing work. Current examples include Codex Desktop memory-maintenance sessions and Codex Desktop title-generation helper sessions. Future cases can use the same attribute for background or delegated review sessions, such as Codex sessions summoned by Claude for review.
 
 Do not use file deletion as the hiding signal. Delete a session file only when the session is genuinely obsolete and no longer useful as state.
+
+### Manual hiding
+
+The app's user-triggered **Hide Session** action is separate from the session
+file's `hidden` field. After confirmation, cctop stores only the session's opaque
+`cctop_session_id` in local preferences; it does not rewrite the hook-owned JSON
+or persist the session title, project path, prompts, or tool data.
+
+Manual hiding removes the session from the panel, navigation, notifications, and
+Stream Deck output while the full record remains available for lifecycle and
+Cleanup tracking. There is no in-app restore. cctop prunes the preference only
+after a complete local inventory proves the session record is gone; partial or
+unreadable inventories retain it to avoid unexpectedly revealing the session.
 
 ### `is_subagent`
 

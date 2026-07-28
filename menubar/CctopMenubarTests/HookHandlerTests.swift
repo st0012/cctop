@@ -1093,14 +1093,31 @@ final class HookHandlerTests: XCTestCase {
     /// process's conversation state.
     func testSessionStart_samePIDDifferentStartTime_dropsPreviousSessionState() throws {
         try handleFixture("SessionStart-opencode", deps: makeDeps(startTime: 1000))
+        let originalCctopSessionID = try XCTUnwrap(loadSession().cctopSessionId)
         try handleFixture("UserPromptSubmit-opencode", deps: makeDeps(startTime: 1000))
         XCTAssertEqual(try loadSession().lastPrompt, "Help me debug this")
 
         try handleFixture("SessionStart-opencode", deps: makeDeps(startTime: 2000))
 
         let session = try loadSession()
+        XCTAssertNotEqual(session.cctopSessionId, originalCctopSessionID)
         XCTAssertNil(session.lastPrompt, "conversation state must not leak across PID reuse")
         XCTAssertEqual(session.pidStartTime, 2000)
+    }
+
+    func testSessionStart_samePIDDifferentStartTime_preservesDurableClaudeIdentity() throws {
+        let reference = "11111111-2222-4333-8444-555555555555"
+        let input = """
+        {"session_id": "\(reference)", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "cc"}
+        """
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(startTime: 1_000))
+        let originalCctopSessionID = try XCTUnwrap(loadSession().cctopSessionId)
+
+        try handleHook(input, hookName: "SessionStart", deps: makeDeps(startTime: 2_000))
+
+        let resumed = try loadSession()
+        XCTAssertEqual(resumed.cctopSessionId, originalCctopSessionID)
+        XCTAssertEqual(resumed.pidStartTime, 2_000)
     }
 
     // MARK: - Git branch capture
