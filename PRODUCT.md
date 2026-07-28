@@ -76,7 +76,7 @@ Users may hide a session they no longer want to monitor, but cctop must explain
 that this only removes the session from user-facing surfaces: it does not stop
 the underlying session or delete its data. Because there is no in-app restore,
 the action requires confirmation and must say that the session cannot be shown
-again while its local record exists. Persist the preference by stable identity,
+again while its local record exists. Persist the preference by cctop's permanent session identity,
 while continuing lifecycle classification and Cleanup protection from the full
 local session inventory.
 

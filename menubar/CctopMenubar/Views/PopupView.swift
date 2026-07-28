@@ -231,12 +231,14 @@ struct PopupView: View {
                 }
                 Divider()
                 Button { requestHideSession(session) } label: { Label("Hide Session", systemImage: "eye.slash") }
+                    .disabled(!Session.isValidCctopSessionId(session.cctopSessionId))
             }
             .help("Click to jump to session")
-            .accessibilityAction(named: Text("Hide Session")) { requestHideSession(session) }
+            .accessibilityActions {
+                Button("Hide Session") { requestHideSession(session) }.disabled(!Session.isValidCctopSessionId(session.cctopSessionId))
+            }
         }
     }
-
     func panelList<Item: Identifiable, Row: View>(
         _ list: [Item],
         tab: PopupTab,

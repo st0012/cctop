@@ -88,9 +88,9 @@ enum SessionIdentityPolicy {
 }
 
 /// Persists manual visibility preferences independently from hook-owned session files.
-/// The stored payload is intentionally limited to opaque stable identity keys.
+/// The stored payload is intentionally limited to opaque cctop-owned session IDs.
 struct ManualSessionVisibilityStore {
-    static let defaultsKey = "manuallyHiddenSessionStableKeys"
+    static let defaultsKey = "manuallyHiddenCctopSessionIDs"
     static let live = ManualSessionVisibilityStore(defaults: .standard)
 
     private let defaults: UserDefaults
@@ -99,33 +99,37 @@ struct ManualSessionVisibilityStore {
         self.defaults = defaults
     }
 
-    var hiddenKeys: Set<String> {
-        Set(defaults.stringArray(forKey: Self.defaultsKey) ?? [])
+    var hiddenSessionIDs: Set<String> {
+        Set((defaults.stringArray(forKey: Self.defaultsKey) ?? []).filter(Session.isValidCctopSessionId))
     }
 
     func isHidden(_ session: Session) -> Bool {
-        hiddenKeys.contains(SessionIdentityPolicy.stableKey(for: session))
+        guard let cctopSessionID = session.cctopSessionId,
+              Session.isValidCctopSessionId(cctopSessionID) else { return false }
+        return hiddenSessionIDs.contains(cctopSessionID)
     }
 
     func hide(_ session: Session) {
-        var keys = hiddenKeys
-        keys.insert(SessionIdentityPolicy.stableKey(for: session))
-        save(keys)
+        guard let cctopSessionID = session.cctopSessionId,
+              Session.isValidCctopSessionId(cctopSessionID) else { return }
+        var sessionIDs = hiddenSessionIDs
+        sessionIDs.insert(cctopSessionID)
+        save(sessionIDs)
     }
 
-    /// Remove keys only after the caller has completed an authoritative local inventory.
-    func prune(retaining validKeys: Set<String>) {
-        let current = hiddenKeys
-        let retained = current.intersection(validKeys)
+    /// Remove IDs only after the caller has completed an authoritative local inventory.
+    func prune(retaining validSessionIDs: Set<String>) {
+        let current = hiddenSessionIDs
+        let retained = current.intersection(validSessionIDs)
         guard retained != current else { return }
         save(retained)
     }
 
-    private func save(_ keys: Set<String>) {
-        if keys.isEmpty {
+    private func save(_ sessionIDs: Set<String>) {
+        if sessionIDs.isEmpty {
             defaults.removeObject(forKey: Self.defaultsKey)
         } else {
-            defaults.set(keys.sorted(), forKey: Self.defaultsKey)
+            defaults.set(sessionIDs.sorted(), forKey: Self.defaultsKey)
         }
     }
 }

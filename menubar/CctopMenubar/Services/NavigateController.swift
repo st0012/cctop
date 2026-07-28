@@ -18,10 +18,8 @@ class NavigateController: ObservableObject {
     }
 
     /// Remove a hidden session without disturbing the frozen order of the remaining rows.
-    func removeSession(withStableKey stableKey: String) {
-        frozenSessions.removeAll {
-            SessionIdentityPolicy.stableKey(for: $0) == stableKey
-        }
+    func removeSession(withCctopSessionID cctopSessionID: String) {
+        frozenSessions.removeAll { $0.cctopSessionId == cctopSessionID }
     }
 
     /// Resets all navigate state.

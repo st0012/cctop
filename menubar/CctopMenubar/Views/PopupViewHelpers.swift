@@ -3,9 +3,17 @@ import SwiftUI
 
 struct ManualSessionHideConfirmation: Identifiable, Equatable {
     let session: Session
+    let cctopSessionID: String
+
+    init?(session: Session) {
+        guard let cctopSessionID = session.cctopSessionId,
+              Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+        self.session = session
+        self.cctopSessionID = cctopSessionID
+    }
 
     var id: String {
-        "hide:\(SessionIdentityPolicy.stableKey(for: session))"
+        "hide:\(cctopSessionID)"
     }
 
     var title: String {
@@ -264,7 +272,8 @@ struct FooterUpdateStatusView: View {
 
 extension PopupView {
     func requestHideSession(_ session: Session) {
-        pendingConfirmation = .sessionHide(ManualSessionHideConfirmation(session: session))
+        guard let confirmation = ManualSessionHideConfirmation(session: session) else { return }
+        pendingConfirmation = .sessionHide(confirmation)
     }
 
     func confirmationAlert(for confirmation: PopupConfirmation) -> Alert {
@@ -288,10 +297,11 @@ extension PopupView {
     }
 
     func hideSession(_ session: Session) {
-        let stableKey = SessionIdentityPolicy.stableKey(for: session)
-        guard sessions.contains(where: { SessionIdentityPolicy.stableKey(for: $0) == stableKey }) else { return }
+        guard let cctopSessionID = session.cctopSessionId,
+              Session.isValidCctopSessionId(cctopSessionID),
+              sessions.contains(where: { $0.cctopSessionId == cctopSessionID }) else { return }
         onHideSession(session)
-        navigate?.removeSession(withStableKey: stableKey)
+        navigate?.removeSession(withCctopSessionID: cctopSessionID)
         selectedIndex = nil
     }
 }

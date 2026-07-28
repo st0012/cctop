@@ -736,7 +736,7 @@ final class SessionLifecycleTests: XCTestCase {
         let visibleAfterHidingCodex = RecentResumeTarget.build(
             projects: [],
             classification: classification,
-            excludingDesktopSessionKeys: [SessionIdentityPolicy.stableKey(for: codex.session)]
+            excludingDesktopSessionIDs: Set([codex.session.cctopSessionId].compactMap { $0 })
         )
         XCTAssertEqual(visibleAfterHidingCodex.map(\.title), ["Run plugin node:test suites in CI"])
     }

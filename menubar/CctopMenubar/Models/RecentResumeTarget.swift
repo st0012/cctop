@@ -3,11 +3,30 @@ import Foundation
 enum RecentResumeTarget: Identifiable, Equatable {
     struct DesktopThread: Equatable {
         let sessionId: String
+        let cctopSessionId: String?
         let title: String
         let projectPath: String
         let projectName: String
         let sourceApp: HostApp
         let lastActiveAt: Date
+
+        init(
+            sessionId: String,
+            cctopSessionId: String? = nil,
+            title: String,
+            projectPath: String,
+            projectName: String,
+            sourceApp: HostApp,
+            lastActiveAt: Date
+        ) {
+            self.sessionId = sessionId
+            self.cctopSessionId = cctopSessionId
+            self.title = title
+            self.projectPath = projectPath
+            self.projectName = projectName
+            self.sourceApp = sourceApp
+            self.lastActiveAt = lastActiveAt
+        }
     }
 
     case project(RecentProject)
@@ -38,6 +57,11 @@ enum RecentResumeTarget: Identifiable, Equatable {
         case .desktopThread(let thread):
             return thread.projectPath
         }
+    }
+
+    var cctopSessionId: String? {
+        guard case .desktopThread(let thread) = self else { return nil }
+        return thread.cctopSessionId
     }
 
     var lastSessionAt: Date {
@@ -128,13 +152,13 @@ enum RecentResumeTarget: Identifiable, Equatable {
     static func build(
         projects: [RecentProject],
         classification: SessionClassificationSnapshot,
-        excludingDesktopSessionKeys: Set<String> = [],
+        excludingDesktopSessionIDs: Set<String> = [],
         limit: Int = 10
     ) -> [RecentResumeTarget] {
         let projectTargets = projects.map(RecentResumeTarget.project)
         let desktopTargets = desktopThreadTargets(
             from: classification,
-            excludingSessionKeys: excludingDesktopSessionKeys
+            excludingSessionIDs: excludingDesktopSessionIDs
         )
         return Array((projectTargets + desktopTargets)
             .sorted { $0.lastSessionAt > $1.lastSessionAt }
@@ -143,13 +167,14 @@ enum RecentResumeTarget: Identifiable, Equatable {
 
     private static func desktopThreadTargets(
         from classification: SessionClassificationSnapshot,
-        excludingSessionKeys: Set<String>
+        excludingSessionIDs: Set<String>
     ) -> [RecentResumeTarget] {
         var targetsByID: [String: RecentResumeTarget] = [:]
         for record in classification.records {
-            guard !excludingSessionKeys.contains(
-                SessionIdentityPolicy.stableKey(for: record.candidate.session)
-            ) else { continue }
+            if let cctopSessionID = record.candidate.session.cctopSessionId,
+               excludingSessionIDs.contains(cctopSessionID) {
+                continue
+            }
             guard let sourceApp = desktopThreadSourceApp(for: record.disposition),
                   let thread = DesktopThread(session: record.candidate.session, sourceApp: sourceApp) else {
                 continue
@@ -213,6 +238,7 @@ extension RecentResumeTarget.DesktopThread {
         guard !title.isEmpty else { return nil }
         self.init(
             sessionId: session.sessionId,
+            cctopSessionId: session.cctopSessionId,
             title: title,
             projectPath: session.projectPath,
             projectName: session.desktopProjectName ?? session.projectName,

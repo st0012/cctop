@@ -81,8 +81,9 @@ This version does not reconcile multiple clients or multiple simultaneous focus
 targets. If the same conversation is open in more than one place, observations
 may remain separate or several rows may share one ID and resolve to the first
 current canonical target. Cross-client equivalence and cross-machine identity
-are out of scope. Panel identity, notifications, hiding, cleanup, history, and
-other persisted preferences continue to use their existing contracts.
+are out of scope. Manual hiding uses `cctop_session_id` as its preference key;
+notification grouping, cleanup, history, and other persisted preferences keep
+their separate contracts.
 
 ## Terminal Focus Metadata
 
@@ -159,8 +160,8 @@ Do not use file deletion as the hiding signal. Delete a session file only when t
 
 The app's user-triggered **Hide Session** action is separate from the session
 file's `hidden` field. After confirmation, cctop stores only the session's opaque
-`SessionIdentityPolicy` stable key in local preferences; it does not rewrite the
-hook-owned JSON or persist the session title, project path, prompts, or tool data.
+`cctop_session_id` in local preferences; it does not rewrite the hook-owned JSON
+or persist the session title, project path, prompts, or tool data.
 
 Manual hiding removes the session from the panel, navigation, notifications, and
 Stream Deck output while the full record remains available for lifecycle and

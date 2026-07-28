@@ -583,7 +583,7 @@ final class SessionTests: XCTestCase {
         )
     }
 
-    func testManualSessionVisibilityPersistsOnlySortedStableKeys() throws {
+    func testManualSessionVisibilityPersistsOnlySortedCctopSessionIDs() throws {
         let suiteName = "cctop-manual-visibility-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -595,47 +595,75 @@ final class SessionTests: XCTestCase {
             branch: "secret-branch",
             terminal: TerminalInfo()
         )
+        terminal.cctopSessionId = "11111111-1111-4111-8111-111111111111"
         terminal.pid = 42
         terminal.sessionName = "Private session title"
-        let codex = Session.mock(id: "codex-thread", source: Session.codexSource)
+        let codex = Session.mock(
+            id: "codex-thread",
+            cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            source: Session.codexSource
+        )
 
         store.hide(terminal)
         store.hide(codex)
 
         let stored = try XCTUnwrap(defaults.stringArray(forKey: ManualSessionVisibilityStore.defaultsKey))
-        XCTAssertEqual(stored, ["active:42", "codex:codex-thread"])
+        XCTAssertEqual(stored, [
+            "11111111-1111-4111-8111-111111111111",
+            "22222222-2222-4222-8222-222222222222",
+        ])
         let payload = stored.joined(separator: "\n")
+        XCTAssertFalse(payload.contains("active:42"))
         XCTAssertFalse(payload.contains(terminal.sessionName!))
         XCTAssertFalse(payload.contains(terminal.projectPath))
         XCTAssertFalse(payload.contains(terminal.branch))
     }
 
-    func testManualSessionVisibilityPrunesOnlyMissingStableKeys() {
+    func testManualSessionVisibilityPrunesOnlyMissingCctopSessionIDs() {
         let suiteName = "cctop-manual-visibility-prune-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = ManualSessionVisibilityStore(defaults: defaults)
-        let first = Session.mock(id: "first", source: Session.codexSource)
-        let second = Session.mock(id: "second", source: Session.codexSource)
+        let first = Session.mock(
+            id: "first", cctopSessionId: "11111111-1111-4111-8111-111111111111"
+        )
+        let secondID = "22222222-2222-4222-8222-222222222222"
+        let second = Session.mock(id: "second", cctopSessionId: secondID)
 
         store.hide(first)
         store.hide(second)
-        store.prune(retaining: [SessionIdentityPolicy.stableKey(for: second)])
+        store.prune(retaining: [secondID])
 
-        XCTAssertEqual(store.hiddenKeys, [SessionIdentityPolicy.stableKey(for: second)])
+        XCTAssertEqual(store.hiddenSessionIDs, [secondID])
     }
 
-    func testManualSessionHideConfirmationDescribesIrreversibleVisibleEffect() {
+    func testManualSessionVisibilityIgnoresRowsWithoutPermanentIdentity() {
+        let suiteName = "cctop-manual-visibility-legacy-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = ManualSessionVisibilityStore(defaults: defaults)
+        var legacy = Session.mock(id: "legacy")
+        legacy.cctopSessionId = nil
+
+        store.hide(legacy)
+
+        XCTAssertFalse(store.isHidden(legacy))
+        XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.defaultsKey))
+        XCTAssertNil(ManualSessionHideConfirmation(session: legacy))
+    }
+
+    func testManualSessionHideConfirmationDescribesIrreversibleVisibleEffect() throws {
         let session = Session.mock(
             id: "private-session",
+            cctopSessionId: "11111111-1111-4111-8111-111111111111",
             project: "cctop",
             sessionName: "Investigate lifecycle",
             source: Session.codexSource
         )
 
-        let confirmation = ManualSessionHideConfirmation(session: session)
+        let confirmation = try XCTUnwrap(ManualSessionHideConfirmation(session: session))
 
-        XCTAssertEqual(confirmation.id, "hide:codex:private-session")
+        XCTAssertEqual(confirmation.id, "hide:11111111-1111-4111-8111-111111111111")
         XCTAssertEqual(confirmation.title, "Hide “Investigate lifecycle” from cctop?")
         XCTAssertEqual(confirmation.primaryButtonTitle, "Hide Session")
         XCTAssertEqual(
@@ -647,13 +675,17 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(confirmation.session, session)
     }
 
-    func testPopupConfirmationRoutesCleanupAndSessionHideWithDistinctIdentity() {
+    func testPopupConfirmationRoutesCleanupAndSessionHideWithDistinctIdentity() throws {
         let cleanupConfirmation = WorktreeRemovalConfirmation.review(
             .normalRemove(.mock(state: .review(["Worktree has untracked files"])))
         )
-        let sessionConfirmation = ManualSessionHideConfirmation(
-            session: .mock(id: "private-session", source: Session.codexSource)
-        )
+        let sessionConfirmation = try XCTUnwrap(ManualSessionHideConfirmation(
+            session: .mock(
+                id: "private-session",
+                cctopSessionId: "11111111-1111-4111-8111-111111111111",
+                source: Session.codexSource
+            )
+        ))
         let cleanupRoute = PopupConfirmation.cleanup(cleanupConfirmation)
         let sessionRoute = PopupConfirmation.sessionHide(sessionConfirmation)
 

@@ -27,14 +27,13 @@ enum SessionNotificationAction: Equatable {
 @MainActor
 extension SessionManager {
     func hideSession(_ session: Session) {
-        let stableKey = SessionIdentityPolicy.stableKey(for: session)
-        guard sessions.contains(where: { SessionIdentityPolicy.stableKey(for: $0) == stableKey }) else { return }
+        guard let cctopSessionID = session.cctopSessionId,
+              Session.isValidCctopSessionId(cctopSessionID),
+              sessions.contains(where: { $0.cctopSessionId == cctopSessionID }) else { return }
 
         dataSources.manualSessionVisibility.hide(session)
-        let visibleSessions = sessions.filter {
-            SessionIdentityPolicy.stableKey(for: $0) != stableKey
-        }
-
+        let visibleSessions = sessions.filter { $0.cctopSessionId != cctopSessionID }
+        recentResumeTargets.removeAll { $0.cctopSessionId == cctopSessionID }
         syncTransitionNotifications(for: visibleSessions, oldSessions: sessions)
         sessions = visibleSessions
     }
