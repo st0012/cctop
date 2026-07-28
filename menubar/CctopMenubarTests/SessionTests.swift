@@ -808,6 +808,47 @@ final class SessionTests: XCTestCase {
     }
 
     @MainActor
+    func testPostNotificationDoesNotReuseLegacyPIDIdentityDuringPermissionDelay() throws {
+        final class Recorder {
+            var events: [String] = []
+        }
+
+        let recorder = Recorder()
+        var sources = SessionDataSources.live()
+        let sessionsDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sessionsDir) }
+        sources.sessionsDir = sessionsDir
+        sources.notificationClient = SessionNotificationClient(
+            add: { _, completion in
+                recorder.events.append("add")
+                completion(nil)
+            },
+            removePending: { _ in recorder.events.append("removePending") },
+            removeDelivered: { _ in recorder.events.append("removeDelivered") }
+        )
+        let original = Session.mock(
+            id: "reused-pid", cctopSessionId: "11111111-1111-4111-8111-111111111111",
+            pid: 42_042, source: Session.ccSource
+        )
+        let replacement = Session.mock(
+            id: "reused-pid", cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            pid: 42_042, source: Session.ccSource
+        )
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        manager.sessions = [replacement]
+
+        manager.postNotification(for: original)
+
+        XCTAssertTrue(recorder.events.isEmpty)
+    }
+
+    @MainActor
     func testHideSessionRemovesOutstandingAttentionNotification() throws {
         final class Recorder {
             var events: [String] = []

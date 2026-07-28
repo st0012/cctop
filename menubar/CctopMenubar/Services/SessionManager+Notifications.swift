@@ -107,9 +107,10 @@ extension SessionManager {
     }
 
     func postNotification(for session: Session) {
-        let stableKey = SessionIdentityPolicy.stableKey(for: session)
-        guard !isManuallyHidden(session),
-              sessions.contains(where: { SessionIdentityPolicy.stableKey(for: $0) == stableKey }) else {
+        guard let cctopSessionID = session.cctopSessionId,
+              Session.isValidCctopSessionId(cctopSessionID),
+              !isManuallyHidden(session),
+              SessionIdentityPolicy.session(matchingCctopSessionID: cctopSessionID, in: sessions) != nil else {
             return
         }
         let client = dataSources.notificationClient
