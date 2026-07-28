@@ -228,6 +228,65 @@ final class SessionManagerVisibilityTests: XCTestCase {
     }
 
     @MainActor
+    func testManualHideKeepsFinishedProjectOutOfRecentWhenArchiveFails() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-manual-hide-archive-failure-\(UUID().uuidString)", isDirectory: true)
+        let sessionsURL = root.appendingPathComponent("sessions", isDirectory: true)
+        let historyURL = root.appendingPathComponent("history", isDirectory: true)
+        let projectPath = URL(fileURLWithPath: #filePath).deletingLastPathComponent().path
+        try FileManager.default.createDirectory(at: sessionsURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: historyURL, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: historyURL.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        let suiteName = "cctop-manual-hide-archive-failure-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let visibility = ManualSessionVisibilityStore(defaults: defaults)
+        let hiddenID = "44444444-4444-4444-8444-444444444444"
+
+        var previous = Session(
+            sessionId: "previous",
+            projectPath: projectPath,
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        previous.endedAt = Date().addingTimeInterval(-3_600)
+        try previous.writeToFile(path: historyURL.appendingPathComponent("previous.json").path)
+        let historyManager = HistoryManager(historyDir: historyURL)
+        XCTAssertEqual(historyManager.recentProjects.map(\.projectPath), [projectPath])
+
+        var finished = Session(
+            sessionId: "hidden-finished",
+            projectPath: projectPath,
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        finished.cctopSessionId = hiddenID
+        finished.pid = 44_444
+        finished.status = .working
+        let finishedURL = sessionsURL.appendingPathComponent("hidden-finished.json")
+        try finished.writeToFile(path: finishedURL.path)
+        visibility.hide(finished)
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: historyURL.path)
+
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = sessionsURL
+        sources.processAlive = { _ in false }
+        sources.manualSessionVisibility = visibility
+        let manager = SessionManager(historyManager: historyManager, dataSources: sources, startMonitoring: false)
+
+        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.recentResumeTargets.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: finishedURL.path))
+        XCTAssertEqual(visibility.hiddenSessionIDs, [hiddenID])
+        XCTAssertFalse(manager.cleanupActiveProjectPaths.contains(projectPath))
+        XCTAssertTrue(manager.cleanupSources.contains { $0.projectPath == projectPath })
+    }
+
+    @MainActor
     func testManualHideKeySurvivesIncompleteSessionInventory() throws {
         let root = NSTemporaryDirectory() + "cctop-manual-hide-partial-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")

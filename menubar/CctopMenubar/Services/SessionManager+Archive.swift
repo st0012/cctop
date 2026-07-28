@@ -163,6 +163,14 @@ struct SessionClassificationSnapshot {
         }
     }
 
+    func manualHiddenFinishedProjectPaths(_ hiddenSessionIDs: Set<String>) -> Set<String> {
+        Set(finishedNonDesktopCandidates.compactMap { candidate in
+            guard let cctopSessionID = candidate.session.cctopSessionId,
+                  hiddenSessionIDs.contains(cctopSessionID) else { return nil }
+            return candidate.session.projectPath
+        })
+    }
+
     /// Archived desktop conversations stay hidden and resumable in Recent, but a known
     /// project path can still seed worktree cleanup while preserving the session file.
     /// Non-desktop cleanup rows come from history.

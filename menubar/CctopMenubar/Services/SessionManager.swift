@@ -118,14 +118,14 @@ class SessionManager: ObservableObject {
         hideCodexInternalHelperSessions(classification.codexInternalHelperCandidates)
         clearReconnectedDesktopSessions(displayCandidates, now: now)
         stampDisconnectedDesktopSessions(displayCandidates, now: now)
-
         // Non-desktop finished sessions keep today's behavior: archive to Recent Projects and
         // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped
         // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
         archiveAndRemoveFinishedNonDesktop(classification.finishedNonDesktopCandidates, winners: winners)
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
+        let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenFinishedProjectPaths(hiddenSessionIDs))
         if inventoryComplete || hiddenSessionIDs.isEmpty {
-            _ = historyManager.rebuildRecentProjects(excludingActive: activeProjectPaths)
+            _ = historyManager.rebuildRecentProjects(excludingActive: recentExcludedPaths)
             publishRecentResumeTargets(RecentResumeTarget.build(
                 projects: historyManager.recentProjects,
                 classification: classification,
