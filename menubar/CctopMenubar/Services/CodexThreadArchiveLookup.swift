@@ -36,15 +36,21 @@ final class CodexThreadArchiveLookup {
     }
 
     /// Returns all Codex thread metadata cctop needs for `threadIDs` using one database pass.
-    /// Missing or unreadable state is unknown, so callers should fail OPEN when this returns `nil`.
+    /// `.missing` means no configured database exists, `.available` may identify per-ID unknowns
+    /// from a partial read, and `.unreadable` means no authoritative state could be loaded.
+    func stateSnapshot(matching threadIDs: Set<String>) -> CodexThreadStateSnapshot {
+        resolvedStateSnapshot(matching: threadIDs)
+    }
+
     func stateIndex(matching threadIDs: Set<String>) -> CodexThreadStateIndex? {
         guard !threadIDs.isEmpty else { return CodexThreadStateIndex() }
-        guard let snapshot = stateSnapshot(matching: threadIDs) else { return nil }
-        switch snapshot {
+        switch stateSnapshot(matching: threadIDs) {
         case .missing:
             return nil
         case .available(let index):
             return index
+        case .unreadable:
+            return nil
         }
     }
 
@@ -53,13 +59,14 @@ final class CodexThreadArchiveLookup {
     /// should fail OPEN when this returns `nil`.
     func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
         guard !threadIDs.isEmpty else { return [] }
-        guard let snapshot = stateSnapshot(matching: threadIDs) else { return nil }
-        switch snapshot {
+        switch stateSnapshot(matching: threadIDs) {
         case .missing:
             return nil
         case .available(let index):
             guard index.unknownThreadIDs.isDisjoint(with: threadIDs) else { return nil }
             return index.existingThreadIDs.intersection(threadIDs)
+        case .unreadable:
+            return nil
         }
     }
 
@@ -69,13 +76,14 @@ final class CodexThreadArchiveLookup {
     /// archived". A missing database returns `[]` (no Codex state ⇒ nothing archived), not `nil`.
     func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
         guard !threadIDs.isEmpty else { return [] }
-        guard let snapshot = stateSnapshot(matching: threadIDs) else { return nil }
-        switch snapshot {
+        switch stateSnapshot(matching: threadIDs) {
         case .missing:
             return []
         case .available(let index):
             guard index.unknownThreadIDs.isDisjoint(with: threadIDs) else { return nil }
             return index.archivedThreadIDs.intersection(threadIDs)
+        case .unreadable:
+            return nil
         }
     }
 
@@ -83,12 +91,13 @@ final class CodexThreadArchiveLookup {
     /// subagent-owned. This is display-only metadata, so callers fail OPEN on uncertainty.
     func internalHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
         guard !threadIDs.isEmpty else { return [] }
-        guard let snapshot = stateSnapshot(matching: threadIDs) else { return nil }
-        switch snapshot {
+        switch stateSnapshot(matching: threadIDs) {
         case .missing:
             return []
         case .available(let index):
             return index.internalHelperThreadIDs.intersection(threadIDs)
+        case .unreadable:
+            return nil
         }
     }
 
@@ -97,12 +106,13 @@ final class CodexThreadArchiveLookup {
     /// returns `nil` and callers should preserve any existing label.
     func projectNames(matching threadIDs: Set<String>) -> [String: String]? {
         guard !threadIDs.isEmpty else { return [:] }
-        guard let snapshot = stateSnapshot(matching: threadIDs) else { return nil }
-        switch snapshot {
+        switch stateSnapshot(matching: threadIDs) {
         case .missing:
             return [:]
         case .available(let index):
             return index.projectNamesByThreadID.filter { threadIDs.contains($0.key) }
+        case .unreadable:
+            return nil
         }
     }
 
@@ -110,12 +120,13 @@ final class CodexThreadArchiveLookup {
     /// alone also covers user-run `codex exec`, so verify the rollout originator before hiding.
     func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
         guard !threadIDs.isEmpty else { return [] }
-        guard let snapshot = stateSnapshot(matching: threadIDs) else { return nil }
-        switch snapshot {
+        switch stateSnapshot(matching: threadIDs) {
         case .missing:
             return []
         case .available(let index):
             return index.execHelperThreadIDs.intersection(threadIDs)
+        case .unreadable:
+            return nil
         }
     }
 
@@ -254,7 +265,8 @@ final class CodexThreadArchiveLookup {
 }
 
 private extension CodexThreadArchiveLookup {
-    func stateSnapshot(matching threadIDs: Set<String>) -> CodexThreadStateSnapshot? {
+    func resolvedStateSnapshot(matching threadIDs: Set<String>) -> CodexThreadStateSnapshot {
+        guard !threadIDs.isEmpty else { return .available(CodexThreadStateIndex()) }
         var remainingThreadIDs = Set(threadIDs)
         var mergedIndex = CodexThreadStateIndex()
         var foundReadableDatabase = false
@@ -262,7 +274,7 @@ private extension CodexThreadArchiveLookup {
         for path in resolvedStateDatabasePaths() where !remainingThreadIDs.isEmpty {
             guard let snapshot = stateSnapshot(at: path, matching: remainingThreadIDs) else {
                 mergedIndex.unknownThreadIDs.formUnion(remainingThreadIDs)
-                return foundReadableDatabase ? .available(mergedIndex) : nil
+                return foundReadableDatabase ? .available(mergedIndex) : .unreadable
             }
             guard case .available(let index) = snapshot else {
                 continue

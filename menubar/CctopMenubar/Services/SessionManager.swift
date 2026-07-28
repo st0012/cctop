@@ -23,6 +23,7 @@ class SessionManager: ObservableObject {
     private(set) var cleanupSources: [SessionCleanupSource] = []
     private(set) var cleanupActiveProjectPaths: Set<String> = []
     private var currentClassificationCleanupSources: [SessionCleanupSource] = []
+    var codexThreadClassificationMemory = CodexThreadClassificationMemory()
 
     private let sessionsDir: URL
     private var source: DispatchSourceFileSystemObject?

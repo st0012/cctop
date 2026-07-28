@@ -214,11 +214,19 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let missing = (root as NSString).appendingPathComponent("missing.sqlite")
-        XCTAssertEqual(CodexThreadArchiveLookup(stateDatabasePath: missing).archivedThreadIDs(matching: ["x"]), [])
+        let missingLookup = CodexThreadArchiveLookup(stateDatabasePath: missing)
+        guard case .missing = missingLookup.stateSnapshot(matching: ["x"]) else {
+            return XCTFail("Expected an explicitly missing Codex state snapshot")
+        }
+        XCTAssertEqual(missingLookup.archivedThreadIDs(matching: ["x"]), [])
 
         let corrupt = (root as NSString).appendingPathComponent("corrupt.sqlite")
         try Data("this is not a sqlite database".utf8).write(to: URL(fileURLWithPath: corrupt))
-        XCTAssertNil(CodexThreadArchiveLookup(stateDatabasePath: corrupt).archivedThreadIDs(matching: ["x"]))
+        let unreadableLookup = CodexThreadArchiveLookup(stateDatabasePath: corrupt)
+        guard case .unreadable = unreadableLookup.stateSnapshot(matching: ["x"]) else {
+            return XCTFail("Expected an explicitly unreadable Codex state snapshot")
+        }
+        XCTAssertNil(unreadableLookup.archivedThreadIDs(matching: ["x"]))
     }
 
     func testCodexThreadLookupFallsBackToLaterCandidateWhenPreferredDatabaseDoesNotContainThread() throws {
@@ -292,7 +300,9 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         try Data("this is not a sqlite database".utf8).write(to: URL(fileURLWithPath: fallbackDB))
 
         let lookup = CodexThreadArchiveLookup(stateDatabasePaths: { [preferredDB, fallbackDB] })
-        let index = try XCTUnwrap(lookup.stateIndex(matching: ["desktop-thread", "cli-thread"]))
+        guard case .available(let index) = lookup.stateSnapshot(matching: ["desktop-thread", "cli-thread"]) else {
+            return XCTFail("Expected a partial available snapshot")
+        }
 
         XCTAssertEqual(index.existingThreadIDs, ["desktop-thread"])
         XCTAssertEqual(index.archivedThreadIDs, ["desktop-thread"])

@@ -1042,6 +1042,110 @@ final class SessionLifecycleTests: XCTestCase {
         XCTAssertEqual(classification.cleanupSources.map(\.sessionId), [])
     }
 
+    @MainActor
+    func testCodexClassificationDoesNotOscillateAcrossTransientUnreadableSnapshot() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-classification-retention-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let initialIDs = Set(["archived", "missing", "internal", "exec-helper", "visible"])
+        var initial = CodexThreadStateIndex()
+        initial.existingThreadIDs = initialIDs.subtracting(["missing"])
+        initial.archivedThreadIDs = ["archived"]
+        initial.internalHelperThreadIDs = ["internal"]
+        initial.execHelperThreadIDs = ["exec-helper"]
+
+        let changedIDs = initialIDs.union(["new"])
+        var changed = CodexThreadStateIndex()
+        changed.existingThreadIDs = changedIDs
+
+        let codexState = SequencedCodexClassificationState(
+            snapshots: [.available(initial), .unreadable, .available(changed)]
+        )
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.codexThreads = codexState
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }
+        sources.processAlive = { _ in true }
+        sources.now = { now }
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        func record(_ sessionID: String, desktop: Bool = true) -> (url: URL, session: Session) {
+            var session = desktop
+                ? codexDesktopSession(sessionId: sessionID, projectPath: "/tmp/\(sessionID)")
+                : codexTerminalSession(sessionId: sessionID, projectPath: "/tmp/\(sessionID)")
+            session.lastActivity = now.addingTimeInterval(-SessionManager.codexMissingThreadGraceSeconds - 1)
+            return (
+                URL(fileURLWithPath: (sessionsDir as NSString).appendingPathComponent("codex-\(sessionID).json")),
+                session
+            )
+        }
+
+        let initialRecords = [
+            record("archived"),
+            record("missing"),
+            record("internal", desktop: false),
+            record("exec-helper"),
+            record("visible"),
+        ]
+        let first = manager.deriveSessionClassification(from: initialRecords)
+        XCTAssertEqual(first.displayCandidates.map(\.session.sessionId), ["visible"])
+
+        let second = manager.deriveSessionClassification(from: initialRecords + [record("new")])
+        XCTAssertEqual(second.displayCandidates.map(\.session.sessionId), ["visible", "new"])
+        XCTAssertEqual(second.archivedCodexThreadIDs, ["archived"])
+        XCTAssertEqual(second.missingCodexDesktopThreadIDs, ["missing"])
+        XCTAssertEqual(second.codexInternalHelperThreadIDs, ["internal"])
+        XCTAssertEqual(second.codexExecHelperThreadIDs, ["exec-helper"])
+
+        let third = manager.deriveSessionClassification(from: initialRecords + [record("new")])
+        XCTAssertEqual(
+            third.displayCandidates.map(\.session.sessionId),
+            ["archived", "missing", "internal", "exec-helper", "visible", "new"]
+        )
+        XCTAssertEqual(third.archivedCodexThreadIDs, [])
+        XCTAssertEqual(third.missingCodexDesktopThreadIDs, [])
+        XCTAssertEqual(third.codexInternalHelperThreadIDs, [])
+        XCTAssertEqual(third.codexExecHelperThreadIDs, [])
+        XCTAssertEqual(codexState.requests, [initialIDs, changedIDs, changedIDs])
+    }
+
+    func testCodexClassificationMemoryCarriesOnlyUnknownIDsAndClearsOnMissing() throws {
+        let initialIDs = Set(["changed", "retained", "known-missing"])
+        var initial = CodexThreadStateIndex()
+        initial.existingThreadIDs = ["changed", "retained"]
+        initial.archivedThreadIDs = ["changed"]
+        initial.internalHelperThreadIDs = ["retained"]
+
+        var memory = CodexThreadClassificationMemory()
+        _ = memory.effectiveIndex(from: .available(initial), matching: initialIDs)
+
+        let partialIDs = initialIDs.union(["new"])
+        var partial = CodexThreadStateIndex()
+        partial.existingThreadIDs = ["changed"]
+        partial.unknownThreadIDs = ["retained", "known-missing", "new"]
+        let effective = try XCTUnwrap(memory.effectiveIndex(from: .available(partial), matching: partialIDs))
+
+        XCTAssertEqual(effective.existingThreadIDs, ["changed", "retained"])
+        XCTAssertEqual(effective.archivedThreadIDs, [])
+        XCTAssertEqual(effective.internalHelperThreadIDs, ["retained"])
+        XCTAssertEqual(effective.unknownThreadIDs, ["new"])
+
+        XCTAssertNil(memory.effectiveIndex(from: .missing, matching: partialIDs))
+        let afterMissing = try XCTUnwrap(memory.effectiveIndex(from: .unreadable, matching: partialIDs))
+        XCTAssertEqual(afterMissing.existingThreadIDs, [])
+        XCTAssertEqual(afterMissing.internalHelperThreadIDs, [])
+        XCTAssertEqual(afterMissing.unknownThreadIDs, partialIDs)
+    }
+
     // MARK: - Lifecycle derivation via injected process liveness
 
     // Lifecycle used to be testable only by fabricating PIDs that could not exist; with liveness
@@ -1099,6 +1203,45 @@ final class SessionLifecycleTests: XCTestCase {
         var working = session
         working.status = .working
         XCTAssertEqual(SessionManager.adjustIdleTimeout(working, now: pastTimeout).status, .working)
+    }
+}
+
+private final class SequencedCodexClassificationState: CodexThreadStateProviding {
+    private var snapshots: [CodexThreadStateSnapshot]
+    private(set) var requests: [Set<String>] = []
+
+    init(snapshots: [CodexThreadStateSnapshot]) {
+        self.snapshots = snapshots
+    }
+
+    func stateSnapshot(matching threadIDs: Set<String>) -> CodexThreadStateSnapshot {
+        guard !threadIDs.isEmpty else { return .available(CodexThreadStateIndex()) }
+        requests.append(threadIDs)
+        return snapshots.removeFirst()
+    }
+
+    func stateIndex(matching threadIDs: Set<String>) -> CodexThreadStateIndex? {
+        nil
+    }
+
+    func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        nil
+    }
+
+    func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        nil
+    }
+
+    func internalHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        nil
+    }
+
+    func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
+        nil
+    }
+
+    func projectNames(matching threadIDs: Set<String>) -> [String: String]? {
+        nil
     }
 }
 
