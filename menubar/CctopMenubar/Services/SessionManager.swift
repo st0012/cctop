@@ -100,11 +100,7 @@ class SessionManager: ObservableObject {
         let now = dataSources.now()
         let identifiedSessions = identifiedPublishableSessions(winners: winners, knownRecords: allDecoded)
         let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
-        let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(
-            in: loadedSessions,
-            preserving: oldSessions,
-            now: now
-        )
+        let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
         let newSessions = orderedSessions.filter { !($0.cctopSessionId.map(hiddenSessionIDs.contains) ?? false) }
         let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
         syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)
@@ -136,10 +132,14 @@ class SessionManager: ObservableObject {
                 excludingDesktopSessionIDs: hiddenSessionIDs
             ))
             refreshCleanupSources(from: classification.cleanupSources, activeProjectPaths: activeProjectPaths)
+        } else if !activeProjectPaths.isSubset(of: cleanupActiveProjectPaths) { // Freeze items; only grow path protection.
+            refreshCleanupSources(
+                from: currentClassificationCleanupSources,
+                activeProjectPaths: cleanupActiveProjectPaths.union(activeProjectPaths)
+            )
         }
 
-        // Permanent IDs are safe to prune only when every local session file decoded. Preserve
-        // preferences on partial reads so transient filesystem failures cannot reveal a session.
+        // Prune permanent IDs only after a complete inventory; partial reads retain them to avoid revealing sessions.
         if inventoryComplete {
             let identifiedInventory = allDecoded.map(\.session) + identifiedSessions
             let validSessionIDs = Set(identifiedInventory.compactMap(\.cctopSessionId).filter(Session.isValidCctopSessionId))

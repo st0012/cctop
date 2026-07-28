@@ -187,7 +187,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
     }
 
     @MainActor
-    func testManualHidePreservesRecentAndCleanupWhenSessionDecodeBecomesIncomplete() throws {
+    func testManualHidePreservesRecentAndMergesCleanupProtectionWhenInventoryBecomesIncomplete() throws {
         let root = NSTemporaryDirectory() + "cctop-manual-hide-recent-partial-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
         let historyDir = (root as NSString).appendingPathComponent("history")
@@ -232,13 +232,37 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertTrue(manager.cleanupActiveProjectPaths.contains(projectPath))
+        let cleanupSourceIDs = manager.cleanupSources.map(\.sessionId)
+        var refreshedActivePaths: Set<String>?
+        manager.cleanupRefreshHandler = { _, activePaths in
+            refreshedActivePaths = activePaths
+        }
 
         try Data("not valid session json".utf8).write(to: hiddenURL)
+        let newActivePath = (root as NSString).appendingPathComponent("worktrees/new-active")
+        var newActive = Session(
+            sessionId: "new-active-during-partial-read",
+            projectPath: newActivePath,
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        newActive.pid = 4_206
+        newActive.status = .working
+        try newActive.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("4206.json"))
         manager.loadSessions()
 
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
-        XCTAssertTrue(manager.cleanupActiveProjectPaths.contains(projectPath))
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [projectPath, newActivePath])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), cleanupSourceIDs)
+        XCTAssertEqual(refreshedActivePaths, [projectPath, newActivePath])
         XCTAssertTrue(visibility.isHidden(hidden))
+
+        let snapshot = manager.cleanupSnapshotForRemoval()
+        XCTAssertEqual(snapshot.activeProjectPaths, [projectPath, newActivePath])
+
+        try FileManager.default.removeItem(at: hiddenURL)
+        manager.loadSessions()
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, [newActivePath])
     }
 
     @MainActor
