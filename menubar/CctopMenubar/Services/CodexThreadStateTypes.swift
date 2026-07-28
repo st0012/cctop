@@ -160,9 +160,11 @@ private struct CodexThreadSpawnSource: Decodable {
 
 /// Read-side seam over Codex's local thread state. `CodexThreadArchiveLookup` is the live
 /// SQLite-backed implementation; tests substitute in-memory stubs so classification and archive
-/// logic can run without a database on disk. `nil` means the lookup could not prove an answer,
-/// either because the store was unreadable or because absence is intentionally treated as unknown.
+/// logic can run without a database on disk. `stateSnapshot` distinguishes confirmed database
+/// absence from a transient unreadable store; the narrower optional methods retain their existing
+/// caller-specific fail-open/fail-safe meanings.
 protocol CodexThreadStateProviding {
+    func stateSnapshot(matching threadIDs: Set<String>) -> CodexThreadStateSnapshot
     func stateIndex(matching threadIDs: Set<String>) -> CodexThreadStateIndex?
     func existingThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
     func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
@@ -191,6 +193,7 @@ struct CodexThreadStateLoadResult {
 enum CodexThreadStateSnapshot {
     case missing
     case available(CodexThreadStateIndex)
+    case unreadable
 }
 
 struct CodexThreadStateIndex {
@@ -234,6 +237,59 @@ struct CodexThreadStateIndex {
     }
 }
 
+/// Display classification remembers authoritative per-thread facts across transient state-store
+/// failures. Coverage is separate from positive sets because a successfully absent thread is a
+/// meaningful "missing" classification. The memory is pruned to the current request every pass.
+struct CodexThreadClassificationMemory {
+    private var index = CodexThreadStateIndex()
+    private var resolvedThreadIDs: Set<String> = []
+
+    mutating func effectiveIndex(
+        from snapshot: CodexThreadStateSnapshot,
+        matching threadIDs: Set<String>
+    ) -> CodexThreadStateIndex? {
+        switch snapshot {
+        case .missing:
+            index = CodexThreadStateIndex()
+            resolvedThreadIDs = []
+            return nil
+        case .unreadable:
+            return retainKnownState(matching: threadIDs)
+        case .available(let authoritative):
+            return replaceResolvedState(authoritative, matching: threadIDs)
+        }
+    }
+
+    private mutating func retainKnownState(matching threadIDs: Set<String>) -> CodexThreadStateIndex {
+        let retainedThreadIDs = resolvedThreadIDs.intersection(threadIDs)
+        var effective = index.filtered(to: retainedThreadIDs)
+        effective.unknownThreadIDs = threadIDs.subtracting(retainedThreadIDs)
+        index = effective.filtered(to: retainedThreadIDs)
+        index.unknownThreadIDs = []
+        resolvedThreadIDs = retainedThreadIDs
+        return effective
+    }
+
+    private mutating func replaceResolvedState(
+        _ authoritative: CodexThreadStateIndex,
+        matching threadIDs: Set<String>
+    ) -> CodexThreadStateIndex {
+        let unknownThreadIDs = authoritative.unknownThreadIDs.intersection(threadIDs)
+        let resolvedNow = threadIDs.subtracting(unknownThreadIDs)
+        let retainedThreadIDs = unknownThreadIDs.intersection(resolvedThreadIDs)
+        let effectiveResolvedThreadIDs = resolvedNow.union(retainedThreadIDs)
+
+        var effective = authoritative.filtered(to: resolvedNow)
+        effective.merge(index.filtered(to: retainedThreadIDs))
+        effective.unknownThreadIDs = unknownThreadIDs.subtracting(retainedThreadIDs)
+
+        index = effective.filtered(to: effectiveResolvedThreadIDs)
+        index.unknownThreadIDs = []
+        resolvedThreadIDs = effectiveResolvedThreadIDs
+        return effective
+    }
+}
+
 struct CodexThreadStateRolloutTracker {
     var paths: Set<String> = []
     var fingerprints: [String: CodexThreadStateRolloutFileFingerprint] = [:]
@@ -266,6 +322,11 @@ struct CodexThreadStateFileFingerprint: Equatable, Hashable {
 let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
 extension CodexThreadStateProviding {
+    func stateSnapshot(matching threadIDs: Set<String>) -> CodexThreadStateSnapshot {
+        guard let index = stateIndex(matching: threadIDs) else { return .unreadable }
+        return .available(index)
+    }
+
     func stateIndex(matching threadIDs: Set<String>) -> CodexThreadStateIndex? {
         guard !threadIDs.isEmpty else { return CodexThreadStateIndex() }
         guard let existingThreadIDs = existingThreadIDs(matching: threadIDs) else { return nil }

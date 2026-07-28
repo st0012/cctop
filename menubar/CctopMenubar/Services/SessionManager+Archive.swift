@@ -315,19 +315,25 @@ extension SessionManager {
         now: Date
     ) -> SessionClassificationSnapshot {
         let externallyClassifiableSessions = sessions.filter { !$0.hidden && !$0.shouldAutoHide }
-        let archivedCodexThreadIDs = archivedCodexDesktopThreadIDs(in: externallyClassifiableSessions, codexThreads: codexThreads)
-        let missingCodexDesktopThreadIDs = missingCodexDesktopThreadIDs(
-            in: externallyClassifiableSessions,
-            codexThreads: codexThreads,
-            now: now
-        )
         let codexDelegationIndex = codexThreads.stateIndex(
             matching: codexThreadIDs(in: sessions)
+        )
+        let archivedCodexThreadIDs = archivedCodexDesktopThreadIDs(
+            in: externallyClassifiableSessions,
+            index: codexDelegationIndex
+        )
+        let missingCodexDesktopThreadIDs = missingCodexDesktopThreadIDs(
+            in: externallyClassifiableSessions,
+            index: codexDelegationIndex,
+            now: now
         )
         let codexInternalHelperThreadIDs = codexDelegationIndex?.internalHelperThreadIDs ?? []
         let uncertainCodexDelegationThreadIDs = codexDelegationIndex?.uncertainDelegationThreadIDs ?? []
         let contradictoryCodexDelegationThreadIDs = codexDelegationIndex?.contradictoryDelegationThreadIDs ?? []
-        let codexExecHelperThreadIDs = codexExecHelperThreadIDs(in: externallyClassifiableSessions, codexThreads: codexThreads)
+        let codexExecHelperThreadIDs = codexExecHelperThreadIDs(
+            in: externallyClassifiableSessions,
+            index: codexDelegationIndex
+        )
         let archivedClaudeSessionIDs = claudeMetadata?.archivedSessionIDs ?? []
 
         let evidence = SessionClassificationEvidence(
@@ -393,7 +399,7 @@ extension SessionManager {
 
     func deriveSessionClassification(from decoded: [(url: URL, session: Session)]) -> SessionClassificationSnapshot {
         let now = dataSources.now()
-        let codexThreads = Self.batchedCodexThreadState(
+        let codexThreads = batchedCodexThreadState(
             in: decoded.map(\.session),
             codexThreads: dataSources.codexThreads
         )
@@ -459,15 +465,17 @@ extension SessionManager {
         }
     }
 
-    private nonisolated static func batchedCodexThreadState(
+    private func batchedCodexThreadState(
         in sessions: [Session],
         codexThreads: any CodexThreadStateProviding
     ) -> FrozenCodexThreadState {
-        let threadIDs = codexThreadIDs(in: sessions)
-        guard !threadIDs.isEmpty else {
-            return FrozenCodexThreadState(index: CodexThreadStateIndex())
-        }
-        return FrozenCodexThreadState(index: codexThreads.stateIndex(matching: threadIDs))
+        let threadIDs = Self.codexThreadIDs(in: sessions)
+        let snapshot = codexThreads.stateSnapshot(matching: threadIDs)
+        let effectiveIndex = codexThreadClassificationMemory.effectiveIndex(
+            from: snapshot,
+            matching: threadIDs
+        )
+        return FrozenCodexThreadState(index: effectiveIndex)
     }
 
     private nonisolated static func codexThreadIDs(in sessions: [Session]) -> Set<String> {
@@ -478,18 +486,12 @@ extension SessionManager {
         )
     }
 
-    /// Batch snapshot for the display path. This never deletes files, so unreadable external state
-    /// fails OPEN: at worst an archived session shows for one pass.
-    nonisolated static func archivedCodexDesktopThreadIDs(
+    private nonisolated static func archivedCodexDesktopThreadIDs(
         in sessions: [Session],
-        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
+        index: CodexThreadStateIndex?
     ) -> Set<String> {
-        let threadIDs = Set(
-            sessions
-                .filter(\.isCodexDesktopHost)
-                .map(\.sessionId)
-        )
-        return codexThreads.archivedThreadIDs(matching: threadIDs) ?? []
+        let threadIDs = Set(sessions.filter(\.isCodexDesktopHost).map(\.sessionId))
+        return index?.archivedThreadIDs.intersection(threadIDs) ?? []
     }
 
     nonisolated static func isArchivedCodexDesktopSession(
@@ -501,15 +503,16 @@ extension SessionManager {
 
     /// Codex Desktop sessions should correspond to a Codex thread row. If the thread store is
     /// readable and the row is gone, the app should not publish the stale hook session.
-    nonisolated static func missingCodexDesktopThreadIDs(
+    private nonisolated static func missingCodexDesktopThreadIDs(
         in sessions: [Session],
-        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
-        now: Date = Date()
+        index: CodexThreadStateIndex?,
+        now: Date
     ) -> Set<String> {
+        guard let index else { return [] }
         let codexDesktopSessions = sessions.filter { $0.source == Session.codexSource && $0.isCodexDesktopHost }
         let threadIDs = Set(codexDesktopSessions.map(\.sessionId))
-        guard let existingThreadIDs = codexThreads.existingThreadIDs(matching: threadIDs) else { return [] }
-        let missingThreadIDs = threadIDs.subtracting(existingThreadIDs)
+        let resolvedThreadIDs = threadIDs.subtracting(index.unknownThreadIDs)
+        let missingThreadIDs = resolvedThreadIDs.subtracting(index.existingThreadIDs)
         let freshMissingThreadIDs = Set(codexDesktopSessions.compactMap { session -> String? in
             guard missingThreadIDs.contains(session.sessionId),
                   now.timeIntervalSince(session.lastActivity) <= Self.codexMissingThreadGraceSeconds else {
@@ -538,12 +541,12 @@ extension SessionManager {
 
     /// Codex Desktop can launch short-lived `codex exec` helper threads. They are useful as
     /// rollout artifacts but should not appear as user-visible cctop sessions.
-    nonisolated static func codexExecHelperThreadIDs(
+    private nonisolated static func codexExecHelperThreadIDs(
         in sessions: [Session],
-        codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
+        index: CodexThreadStateIndex?
     ) -> Set<String> {
         let threadIDs = codexThreadIDs(in: sessions)
-        return codexThreads.execHelperThreadIDs(matching: threadIDs) ?? []
+        return index?.execHelperThreadIDs.intersection(threadIDs) ?? []
     }
 
     nonisolated static func isCodexExecHelperSession(
