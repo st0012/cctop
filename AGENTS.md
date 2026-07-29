@@ -407,9 +407,12 @@ profiles unchanged.
 
 - **Stream Deck**: Session keys ask macOS Launch Services to deliver an encoded
   `cctop://focus?sid=...` command. cctop exact-matches the published permanent
-  `cctop_session_id` against its current visible sessions in canonical
-  `SessionManager.sessions` order, then calls the same `focusTerminal(session:)`
-  path as its UI. Stream Deck caches the ID the key rendered, so row reordering
+  `cctop_session_id` against its current visible sessions and focuses only a
+  unique current target; missing or ambiguous evidence fails closed. Direct panel
+  selections keep the exact selected observation. Both routes use the same
+  `FocusTarget` boundary while canonical `SessionManager.sessions` order,
+  lifecycle, and terminal/window execution remain separate. Stream Deck caches
+  the ID the key rendered, so row reordering
   cannot retarget a press to an unrelated session. Never fall back from a missing
   cctop session ID to a conversation reference, raw PID, or slot.
   Toggle Panel uses `cctop://toggle`.

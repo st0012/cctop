@@ -150,8 +150,8 @@ export class StreamDeckController {
     }
     // Send exactly the permanent id this key last rendered — never re-resolve the slot, or a
     // press could target whichever session shifted into it after the image was drawn.
-    // The permanent id may resolve to that session's currently associated target;
-    // it can never retarget the key to an unrelated session that moved into this slot.
+    // The permanent id resolves only when the app has one current target for it;
+    // it can never retarget the key to an unrelated or ambiguous session.
     if (entry.renderedCctopSessionId) {
       this.launch(focusURL(entry.renderedCctopSessionId), context);
       return;

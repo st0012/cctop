@@ -69,21 +69,25 @@ from different clients contain the same content.
 Display-state schema v2 publishes `cctop_session_id` for every session row.
 Stream Deck caches the ID that a key rendered, so a press cannot accidentally
 target an unrelated session that moved into the same slot. cctop then resolves
-that permanent session ID against the current canonical `SessionManager.sessions`
-order and focuses the first currently available target for that session.
+that permanent session ID against current observations from canonical
+`SessionManager.sessions`. It focuses only when exactly one currently available
+target matches; a missing or ambiguous match fails closed.
 
 Panel, URL focus, DisplayStateWriter, and Stream Deck all consume that canonical
 order. The projection never independently sorts, deduplicates, or removes rows,
 so slots stay aligned with the panel even when two observations share one
-`cctop_session_id`.
+`cctop_session_id`. A direct panel or keyboard selection still focuses the exact
+observation represented by the selected row, without re-resolving its permanent ID.
 
 This version does not reconcile multiple clients or multiple simultaneous focus
 targets. If the same conversation is open in more than one place, observations
-may remain separate or several rows may share one ID and resolve to the first
-current canonical target. Cross-client equivalence and cross-machine identity
-are out of scope. Manual hiding uses `cctop_session_id` as its preference key;
-notification grouping, cleanup, history, and other persisted preferences keep
-their separate contracts.
+may remain separate or several rows may share one ID; permanent-ID commands do
+not choose between those rows. Future multi-target support extends the focus-target
+resolver with an explicit selection policy rather than changing logical identity,
+lifecycle/liveness classification, canonical order, or terminal/window execution.
+Cross-client equivalence and cross-machine identity are out of scope. Manual hiding
+uses `cctop_session_id` as its preference key; notification grouping, cleanup,
+history, and other persisted preferences keep their separate contracts.
 
 ## Terminal Focus Metadata
 

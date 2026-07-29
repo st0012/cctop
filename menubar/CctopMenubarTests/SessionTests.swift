@@ -2223,23 +2223,31 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(rotated.terminal, newTerminal)
     }
 
-    func testExternalDisplayIdentityMatchesOnlyPublishedCctopSessionID() {
+    func testPermanentIDFocusTargetResolvesUniqueCurrentObservation() throws {
         let targetID = "11111111-2222-4333-8444-555555555555"
         let target = Session.mock(id: "abc", cctopSessionId: targetID, harnessSessionId: "abc", pid: 111)
         let other = Session.mock(id: "def", harnessSessionId: "def", pid: 222)
 
-        XCTAssertEqual(
-            SessionIdentityPolicy.session(
-                matchingCctopSessionID: targetID,
+        let resolved = try XCTUnwrap(
+            FocusTargetResolver.currentTarget(
+                forCctopSessionID: targetID,
                 in: [other, target]
-            )?.sessionId,
-            "abc"
+            )
         )
-        XCTAssertNil(SessionIdentityPolicy.session(matchingCctopSessionID: "111", in: [other, target]))
-        XCTAssertNil(SessionIdentityPolicy.session(matchingCctopSessionID: "abc", in: [other, target]))
+        XCTAssertEqual(resolved.observation.sessionId, "abc")
     }
 
-    func testRepeatedCctopSessionIDKeepsRowsAndResolvesFirstCanonicalTarget() throws {
+    func testPermanentIDFocusTargetFailsClosedForInvalidMissingAndStaleObservations() {
+        let currentID = "11111111-2222-4333-8444-555555555555"
+        let staleID = "22222222-3333-4444-8555-666666666666"
+        let current = Session.mock(id: "current", cctopSessionId: currentID)
+
+        XCTAssertNil(FocusTargetResolver.currentTarget(forCctopSessionID: "111", in: [current]))
+        XCTAssertNil(FocusTargetResolver.currentTarget(forCctopSessionID: staleID, in: [current]))
+        XCTAssertNil(FocusTargetResolver.currentTarget(forCctopSessionID: currentID, in: []))
+    }
+
+    func testRepeatedCctopSessionIDKeepsRowsButPermanentLookupFailsClosed() throws {
         let now = Date()
         let cctopSessionID = "11111111-2222-4333-8444-555555555555"
         var working = Session.mock(
@@ -2263,11 +2271,12 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(snapshot.sessions.count, 2)
 
         let ordered = SessionDisplayPolicy.activeSessions(from: [idle, working], now: now)
+        XCTAssertEqual(ordered.count, 2)
         XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [cctopSessionID, cctopSessionID])
-        let resolved = try XCTUnwrap(
-            SessionIdentityPolicy.session(matchingCctopSessionID: cctopSessionID, in: ordered)
-        )
-        XCTAssertEqual(resolved.pid, ordered.first?.pid)
+        XCTAssertNil(FocusTargetResolver.currentTarget(forCctopSessionID: cctopSessionID, in: ordered))
+
+        let clicked = FocusTargetResolver.exactObservation(try XCTUnwrap(ordered.last))
+        XCTAssertEqual(clicked.observation.pid, working.pid)
     }
 
     // MARK: - Cctop session identity

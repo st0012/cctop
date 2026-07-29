@@ -410,7 +410,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 matchingNotificationUserInfo: userInfo,
                 in: sessionManager.sessions
             ) {
-                focusTerminal(session: session)
+                focusTerminal(target: FocusTargetResolver.exactObservation(session))
             }
         }
         completionHandler()
@@ -631,7 +631,7 @@ extension AppDelegate {
 
     @MainActor private func jumpToSession(index: Int) {
         guard let sessions = navigateController.activeSessionSnapshot, sessions.indices.contains(index) else { return }
-        focusTerminal(session: sessions[index])
+        focusTerminal(target: FocusTargetResolver.exactObservation(sessions[index]))
         handleEvent(.navigateConfirmed)
     }
 
@@ -759,14 +759,14 @@ extension AppDelegate {
                 return
             }
             let visibleSessions = SessionDisplayPolicy.activeSessions(from: sessionManager.sessions)
-            guard let session = SessionIdentityPolicy.session(
-                matchingCctopSessionID: cctopSessionID,
+            guard let target = FocusTargetResolver.currentTarget(
+                forCctopSessionID: cctopSessionID,
                 in: visibleSessions
             ) else {
                 Self.urlLogger.notice("Ignored cctop focus command for unavailable session")
                 return
             }
-            focusTerminal(session: session)
+            focusTerminal(target: target)
         default:
             break
         }
