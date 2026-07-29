@@ -269,6 +269,12 @@ extension SessionManager {
         files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
     }
 
+    /// A pre-PID session file was keyed by a bare session UUID. Today's files are either
+    /// numeric (PID) or `codex-<uuid>`, so only genuinely old files match.
+    nonisolated static func isLegacyUUIDFilename(_ stem: String) -> Bool {
+        HostApp.isUUID(stem)
+    }
+
     func logLoadSummary(_ summary: SessionLoadSummary, classification: SessionClassificationSnapshot) {
         let signature = SessionLoadLogSignature(
             summary: summary,
