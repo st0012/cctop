@@ -191,6 +191,14 @@ Cleanup tracking. There is no in-app restore. cctop prunes the preference only
 after a complete local inventory proves the session record is gone; partial or
 unreadable inventories retain it to avoid unexpectedly revealing the session.
 
+Upgrades from the initial manual-hiding implementation migrate exact legacy
+Codex and desktop conversation matches to their permanent `cctop_session_id`
+values. If identity drift produced several exact matches, all remain hidden.
+Legacy keys survive partial reads even after their known permanent IDs migrate,
+so later observations can join the hidden set. A complete inventory retires the
+legacy keys, including process/PID keys, rather than rebinding them to a current
+session.
+
 ### `is_subagent`
 
 Type: `boolean`

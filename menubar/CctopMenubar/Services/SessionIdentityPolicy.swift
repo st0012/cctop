@@ -124,6 +124,7 @@ enum SessionIdentityPolicy {
 /// The stored payload is intentionally limited to opaque cctop-owned session IDs.
 struct ManualSessionVisibilityStore {
     static let defaultsKey = "manuallyHiddenCctopSessionIDs"
+    static let legacyDefaultsKey = "manuallyHiddenSessionStableKeys"
     static let live = ManualSessionVisibilityStore(defaults: .standard)
 
     private let defaults: UserDefaults
@@ -134,6 +135,10 @@ struct ManualSessionVisibilityStore {
 
     var hiddenSessionIDs: Set<String> {
         Set((defaults.stringArray(forKey: Self.defaultsKey) ?? []).filter(Session.isValidCctopSessionId))
+    }
+
+    var hasStoredVisibilityPreferences: Bool {
+        !hiddenSessionIDs.isEmpty || !legacyStableKeys.isEmpty
     }
 
     func isHidden(_ session: Session) -> Bool {
@@ -150,6 +155,47 @@ struct ManualSessionVisibilityStore {
         save(sessionIDs)
     }
 
+    /// Upgrade exact durable legacy matches to permanent IDs, retaining their keys until inventory is complete.
+    /// Process-scoped `active:<pid>` keys are never rebound to a new process generation.
+    @discardableResult
+    func migrateLegacyStableKeys(using sessions: [Session], inventoryComplete: Bool) -> Set<String> {
+        let legacyKeys = legacyStableKeys
+        guard !legacyKeys.isEmpty else { return hiddenSessionIDs }
+
+        var matchedKeys: Set<String> = []
+        var sessionIDsByKey: [String: Set<String>] = [:]
+        for session in sessions {
+            let key = SessionIdentityPolicy.stableKey(for: session)
+            guard legacyKeys.contains(key) else { continue }
+            matchedKeys.insert(key)
+            if let cctopSessionID = session.cctopSessionId,
+               Session.isValidCctopSessionId(cctopSessionID) {
+                sessionIDsByKey[key, default: []].insert(cctopSessionID)
+            }
+        }
+
+        var migratedSessionIDs = hiddenSessionIDs
+        var remainingLegacyKeys = legacyKeys
+        for key in legacyKeys.sorted() {
+            if key.hasPrefix("active:") {
+                if inventoryComplete { remainingLegacyKeys.remove(key) }
+                continue
+            }
+            guard matchedKeys.contains(key) else {
+                if inventoryComplete { remainingLegacyKeys.remove(key) }
+                continue
+            }
+            guard key.hasPrefix("codex:") || key.hasPrefix("desktop:"),
+                  let matches = sessionIDsByKey[key], !matches.isEmpty else { continue }
+            migratedSessionIDs.formUnion(matches)
+            if inventoryComplete { remainingLegacyKeys.remove(key) }
+        }
+
+        if migratedSessionIDs != hiddenSessionIDs { save(migratedSessionIDs) }
+        saveLegacy(remainingLegacyKeys)
+        return migratedSessionIDs
+    }
+
     /// Remove IDs only after the caller has completed an authoritative local inventory.
     func prune(retaining validSessionIDs: Set<String>) {
         let current = hiddenSessionIDs
@@ -163,6 +209,19 @@ struct ManualSessionVisibilityStore {
             defaults.removeObject(forKey: Self.defaultsKey)
         } else {
             defaults.set(sessionIDs.sorted(), forKey: Self.defaultsKey)
+        }
+    }
+
+    private var legacyStableKeys: Set<String> {
+        Set(defaults.stringArray(forKey: Self.legacyDefaultsKey) ?? [])
+    }
+
+    private func saveLegacy(_ keys: Set<String>) {
+        guard keys != legacyStableKeys else { return }
+        if keys.isEmpty {
+            defaults.removeObject(forKey: Self.legacyDefaultsKey)
+        } else {
+            defaults.set(keys.sorted(), forKey: Self.legacyDefaultsKey)
         }
     }
 }

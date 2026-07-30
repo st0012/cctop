@@ -64,7 +64,7 @@ class SessionManager: ObservableObject {
 
     // swiftlint:disable:next function_body_length
     func loadSessions() {
-        let hiddenSessionIDs = dataSources.manualSessionVisibility.hiddenSessionIDs
+        let hasStoredVisibilityPreferences = dataSources.manualSessionVisibility.hasStoredVisibilityPreferences
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: sessionsDir,
             includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey]
@@ -74,7 +74,9 @@ class SessionManager: ObservableObject {
             lastLoadLogSignature = nil
             sessionFileCache.removeAll()
             sessions = []
-            if hiddenSessionIDs.isEmpty { publishRecentResumeTargets(historyManager.recentProjects.map(RecentResumeTarget.project)) }
+            if !hasStoredVisibilityPreferences {
+                publishRecentResumeTargets(historyManager.recentProjects.map(RecentResumeTarget.project))
+            }
             return
         }
 
@@ -100,6 +102,11 @@ class SessionManager: ObservableObject {
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(displayCandidates)
         let now = dataSources.now()
         let identifiedSessions = identifiedPublishableSessions(winners: winners, knownRecords: allDecoded)
+        let identifiedInventory = allDecoded.map(\.session) + classification.records.map(\.candidate.session) + identifiedSessions
+        let hiddenSessionIDs = dataSources.manualSessionVisibility.migrateLegacyStableKeys(
+            using: identifiedInventory,
+            inventoryComplete: inventoryComplete
+        )
         let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
         let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
         let newSessions = orderedSessions.filter { !($0.cctopSessionId.map(hiddenSessionIDs.contains) ?? false) }
@@ -125,7 +132,7 @@ class SessionManager: ObservableObject {
         archiveAndRemoveFinishedNonDesktop(classification.finishedNonDesktopCandidates, winners: winners)
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenFinishedProjectPaths(hiddenSessionIDs))
-        if inventoryComplete || hiddenSessionIDs.isEmpty {
+        if inventoryComplete || !dataSources.manualSessionVisibility.hasStoredVisibilityPreferences {
             _ = historyManager.rebuildRecentProjects(excludingActive: recentExcludedPaths)
             publishRecentResumeTargets(RecentResumeTarget.build(
                 projects: historyManager.recentProjects,
@@ -142,7 +149,6 @@ class SessionManager: ObservableObject {
 
         // Prune permanent IDs only after a complete inventory; partial reads retain them to avoid revealing sessions.
         if inventoryComplete {
-            let identifiedInventory = allDecoded.map(\.session) + classification.records.map(\.candidate.session) + identifiedSessions
             let validSessionIDs = Set(identifiedInventory.compactMap(\.cctopSessionId).filter(Session.isValidCctopSessionId))
             dataSources.manualSessionVisibility.prune(retaining: validSessionIDs)
         }
