@@ -112,7 +112,7 @@ class SessionManager: ObservableObject {
             inventoryComplete: inventoryComplete
         )
         let unresolvedLegacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
-        let unresolvedLegacyCleanupSources = classification.unresolvedLegacyFinishedCleanupSources(
+        let unresolvedLegacyCleanupSources = classification.unresolvedLegacyCleanupSources(
             winners: winners,
             legacyKeys: unresolvedLegacyKeys
         )

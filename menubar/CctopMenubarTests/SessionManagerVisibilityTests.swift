@@ -206,6 +206,108 @@ final class SessionManagerVisibilityTests: XCTestCase {
     }
 
     @MainActor
+    func testUnresolvedArchivedCodexLegacyHideKeepsCleanupAvailable() throws {
+        let root = NSTemporaryDirectory() + "cctop-unresolved-legacy-archived-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let identityBlockerPath = (root as NSString).appendingPathComponent("session-identities")
+        try Data("not a directory".utf8).write(to: URL(fileURLWithPath: identityBlockerPath))
+        let threadID = "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
+        let projectPath = (root as NSString).appendingPathComponent("project")
+        var session = codexDesktopSession(sessionId: threadID, projectPath: projectPath)
+        session.cctopSessionId = nil
+        session.harnessSessionId = threadID
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-\(threadID).json")
+        try session.writeToFile(path: sessionPath)
+
+        let suiteName = "cctop-unresolved-legacy-archived-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
+        let visibility = ManualSessionVisibilityStore(defaults: defaults)
+
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.codexThreads = StubCodexThreadState(existing: [threadID], archived: [threadID])
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }
+        sources.processAlive = { _ in true }
+        sources.manualSessionVisibility = visibility
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.recentResumeTargets.isEmpty)
+        XCTAssertEqual(
+            manager.cleanupSources.filter { $0.sessionId == threadID }.map(\.projectPath),
+            [projectPath]
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+        XCTAssertTrue(visibility.hiddenSessionIDs.isEmpty)
+        XCTAssertEqual(
+            defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
+            ["codex:\(threadID)"]
+        )
+
+        manager.loadSessions()
+
+        XCTAssertTrue(manager.recentResumeTargets.isEmpty)
+        XCTAssertEqual(manager.cleanupSources.filter { $0.sessionId == threadID }.count, 1)
+    }
+
+    @MainActor
+    func testPartialInventoryKeepsIdentifiedArchivedLegacyHideInCleanup() throws {
+        let root = NSTemporaryDirectory() + "cctop-partial-legacy-archived-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let threadID = "cccccccc-dddd-4eee-8fff-000000000000"
+        let projectPath = (root as NSString).appendingPathComponent("project")
+        let session = codexDesktopSession(sessionId: threadID, projectPath: projectPath)
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-\(threadID).json")
+        try session.writeToFile(path: sessionPath)
+        try Data("not valid session json".utf8).write(
+            to: URL(fileURLWithPath: (sessionsDir as NSString).appendingPathComponent("broken.json"))
+        )
+
+        let suiteName = "cctop-partial-legacy-archived-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
+        let visibility = ManualSessionVisibilityStore(defaults: defaults)
+
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.codexThreads = StubCodexThreadState(existing: [threadID], archived: [threadID])
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }
+        sources.processAlive = { _ in true }
+        sources.manualSessionVisibility = visibility
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.recentResumeTargets.isEmpty)
+        XCTAssertEqual(manager.cleanupSources.filter { $0.sessionId == threadID }.map(\.projectPath), [projectPath])
+        XCTAssertTrue(visibility.isHidden(session))
+        XCTAssertEqual(
+            defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
+            ["codex:\(threadID)"]
+        )
+    }
+
+    @MainActor
     func testUnresolvedLegacyFinishedSessionKeepsEvidenceAndRecentFrozen() throws {
         let root = NSTemporaryDirectory() + "cctop-unresolved-legacy-finished-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")

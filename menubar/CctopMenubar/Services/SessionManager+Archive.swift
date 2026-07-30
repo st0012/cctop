@@ -171,21 +171,31 @@ struct SessionClassificationSnapshot {
         })
     }
 
-    func unresolvedLegacyFinishedCleanupSources(
+    func unresolvedLegacyCleanupSources(
         winners: [DedupCandidate],
         legacyKeys: Set<String>
     ) -> [SessionCleanupSource] {
-        winners.compactMap { candidate in
-            let session = candidate.session
-            guard candidate.lifecycleRank == SessionLifecycle.finished.rawValue,
-                  session.hostClass != .desktop,
-                  !Session.isValidCctopSessionId(session.cctopSessionId),
+        let archivedSources = records.compactMap { record -> SessionCleanupSource? in
+            let session = record.candidate.session
+            guard case .hidden(let reason) = record.disposition,
+                  reason.emitsCleanupSource,
                   legacyKeys.contains(SessionIdentityPolicy.stableKey(for: session)),
                   session.hasCleanupSourcePath else {
                 return nil
             }
             return SessionCleanupSource(session: session)
         }
+        let finishedNonDesktopSources = winners.compactMap { candidate -> SessionCleanupSource? in
+            let session = candidate.session
+            guard candidate.lifecycleRank == SessionLifecycle.finished.rawValue,
+                  session.hostClass != .desktop,
+                  legacyKeys.contains(SessionIdentityPolicy.stableKey(for: session)),
+                  session.hasCleanupSourcePath else {
+                return nil
+            }
+            return SessionCleanupSource(session: session)
+        }
+        return archivedSources + finishedNonDesktopSources
     }
 
     /// Archived desktop conversations stay hidden and resumable in Recent, but a known
