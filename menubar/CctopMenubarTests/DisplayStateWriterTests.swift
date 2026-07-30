@@ -2,6 +2,99 @@ import XCTest
 @testable import CctopMenubar
 
 final class DisplayStateWriterTests: XCTestCase {
+    func testDiagnosticSnapshotReadsCurrentOwnerAndRequestedIdentityCount() {
+        let requestedID = "11111111-2222-4333-8444-555555555555"
+        let data = Data(
+            """
+            {
+              "version": 2,
+              "generated_at": "2026-07-30T00:00:00.000Z",
+              "app_running": true,
+              "app_pid": 456,
+              "app_start_time": 1234.5,
+              "sessions": [
+                {"cctop_session_id": "\(requestedID)"},
+                {"cctop_session_id": "22222222-3333-4444-8555-666666666666"},
+                {"cctop_session_id": "\(requestedID)"}
+              ]
+            }
+            """.utf8
+        )
+
+        let snapshot = DisplayStateWriter.diagnosticSnapshot(
+            from: data,
+            forCctopSessionID: requestedID,
+            currentProcessIdentity: DisplayState.ProcessIdentity(pid: 456, startTime: 1_234.5)
+        )
+
+        XCTAssertEqual(snapshot.readStatus, .available)
+        XCTAssertEqual(snapshot.version, 2)
+        XCTAssertEqual(snapshot.generatedAt, "2026-07-30T00:00:00.000Z")
+        XCTAssertEqual(snapshot.sessionCount, 3)
+        XCTAssertEqual(snapshot.requestedIDMatchCount, 2)
+        XCTAssertEqual(snapshot.ownerMatchesCurrentProcess, true)
+    }
+
+    func testDiagnosticSnapshotIdentifiesForeignOwner() {
+        let data = Data(
+            """
+            {
+              "version": 2,
+              "generated_at": "2026-07-30T00:00:00.000Z",
+              "app_running": true,
+              "app_pid": 999,
+              "app_start_time": 2000,
+              "sessions": []
+            }
+            """.utf8
+        )
+
+        let snapshot = DisplayStateWriter.diagnosticSnapshot(
+            from: data,
+            forCctopSessionID: "11111111-2222-4333-8444-555555555555",
+            currentProcessIdentity: DisplayState.ProcessIdentity(pid: 456, startTime: 1_234.5)
+        )
+
+        XCTAssertEqual(snapshot.readStatus, .available)
+        XCTAssertEqual(snapshot.ownerMatchesCurrentProcess, false)
+    }
+
+    func testDiagnosticSnapshotReportsMissingAndMalformedState() {
+        let requestedID = "11111111-2222-4333-8444-555555555555"
+
+        let missing = DisplayStateWriter.diagnosticSnapshot(
+            from: nil,
+            forCctopSessionID: requestedID,
+            currentProcessIdentity: nil
+        )
+        let malformed = DisplayStateWriter.diagnosticSnapshot(
+            from: Data("{}".utf8),
+            forCctopSessionID: requestedID,
+            currentProcessIdentity: nil
+        )
+        let injectedTimestamp = DisplayStateWriter.diagnosticSnapshot(
+            from: Data(
+                """
+                {
+                  "version": 2,
+                  "generated_at": "not-a-timestamp\\nprivate_field=injected",
+                  "app_running": true,
+                  "app_pid": 456,
+                  "app_start_time": 1234.5,
+                  "sessions": []
+                }
+                """.utf8
+            ),
+            forCctopSessionID: requestedID,
+            currentProcessIdentity: nil
+        )
+
+        XCTAssertEqual(missing.readStatus, .missing)
+        XCTAssertEqual(malformed.readStatus, .malformed)
+        XCTAssertEqual(injectedTimestamp.readStatus, .malformed)
+        XCTAssertNil(injectedTimestamp.generatedAt)
+    }
+
     func testSnapshotPreservesCanonicalPanelAndNavigateOrder() {
         let now = Date()
         var permission = Session.mock(id: "a", project: "alpha", status: .waitingPermission)

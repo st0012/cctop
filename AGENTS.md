@@ -407,15 +407,21 @@ profiles unchanged.
 
 - **Stream Deck**: Session keys ask macOS Launch Services to deliver an encoded
   `cctop://focus?sid=...` command. cctop exact-matches the published permanent
-  `cctop_session_id` against its current visible sessions and focuses only a
-  unique current target; missing or ambiguous evidence fails closed. Direct panel
-  selections keep the exact selected observation. Both routes use the same
-  `FocusTarget` boundary while canonical `SessionManager.sessions` order,
-  lifecycle, and terminal/window execution remain separate. Stream Deck caches
-  the ID the key rendered, so row reordering
+  `cctop_session_id` against its current visible sessions and focuses the first
+  match in canonical `SessionManager.sessions`/panel order. If no current target
+  exists, cctop logs privacy-safe stale-state evidence, performs one synchronous
+  canonical reload and one re-resolution, then fails closed if the target is still
+  missing. Direct panel selections keep the exact selected observation; lifecycle,
+  liveness, canonical ordering, and terminal/window execution remain separate.
+  Stream Deck caches the ID the key rendered, so row reordering
   cannot retarget a press to an unrelated session. Never fall back from a missing
   cctop session ID to a conversation reference, raw PID, or slot.
   Toggle Panel uses `cctop://toggle`.
+
+  The current resolver intentionally has a single-target policy: simultaneous
+  matching observations do not receive user-selectable routing and the first
+  canonical row wins. Future multi-target support extends that resolver policy;
+  it does not change logical identity or the canonical session projection.
 
 - **VS Code / Cursor**: Uses `NSWorkspace.open` with the editor's bundle ID to focus the project window. Does not shell out to `code`/`cursor` CLI (avoids PATH issues after Sparkle updates). If a `.code-workspace` file is detected in the project directory, it's passed instead of the folder path.
 - **Workspace limitation**: cctop detects workspace files by scanning the project directory at session start. If the project folder contains a `.code-workspace` file but you opened the folder directly (not via the workspace file), cctop may incorrectly open the workspace instead of focusing the folder window. VS Code does not expose which mode was used via environment variables or APIs.

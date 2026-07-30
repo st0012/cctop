@@ -70,8 +70,11 @@ Display-state schema v2 publishes `cctop_session_id` for every session row.
 Stream Deck caches the ID that a key rendered, so a press cannot accidentally
 target an unrelated session that moved into the same slot. cctop then resolves
 that permanent session ID against current observations from canonical
-`SessionManager.sessions`. It focuses only when exactly one currently available
-target matches; a missing or ambiguous match fails closed.
+`SessionManager.sessions`. It focuses the first matching current observation in
+canonical panel order. If no current observation matches, cctop records a
+privacy-safe stale-state diagnostic, performs exactly one synchronous canonical
+reload and one re-resolution, then fails closed if the target is still missing.
+It never falls back to a client conversation reference, PID, or display slot.
 
 Panel, URL focus, DisplayStateWriter, and Stream Deck all consume that canonical
 order. The projection never independently sorts, deduplicates, or removes rows,
@@ -81,10 +84,12 @@ observation represented by the selected row, without re-resolving its permanent 
 
 This version does not reconcile multiple clients or multiple simultaneous focus
 targets. If the same conversation is open in more than one place, observations
-may remain separate or several rows may share one ID; permanent-ID commands do
-not choose between those rows. Future multi-target support extends the focus-target
-resolver with an explicit selection policy rather than changing logical identity,
-lifecycle/liveness classification, canonical order, or terminal/window execution.
+may remain separate or several rows may share one ID; permanent-ID commands use
+the first matching row in canonical panel order. This is the temporary
+single-target policy, not a user-selectable multi-target design. Future support
+extends the resolver with an explicit selection policy rather than changing
+logical identity, lifecycle/liveness classification, canonical order, or
+terminal/window execution.
 Cross-client equivalence and cross-machine identity are out of scope. Manual hiding
 uses `cctop_session_id` as its preference key; notification grouping, cleanup,
 history, and other persisted preferences keep their separate contracts.

@@ -49,6 +49,65 @@ struct DisplayState: Encodable {
     }
 }
 
+struct DisplayStateDiagnosticSnapshot: Equatable {
+    enum ReadStatus: String {
+        case available
+        case missing
+        case unreadable
+        case malformed
+    }
+
+    let readStatus: ReadStatus
+    let version: Int?
+    let generatedAt: String?
+    let appRunning: Bool?
+    let appPID: Int32?
+    let appStartTime: TimeInterval?
+    let sessionCount: Int?
+    let requestedIDMatchCount: Int?
+    let ownerMatchesCurrentProcess: Bool?
+
+    static func unavailable(_ readStatus: ReadStatus) -> Self {
+        Self(
+            readStatus: readStatus,
+            version: nil,
+            generatedAt: nil,
+            appRunning: nil,
+            appPID: nil,
+            appStartTime: nil,
+            sessionCount: nil,
+            requestedIDMatchCount: nil,
+            ownerMatchesCurrentProcess: nil
+        )
+    }
+}
+
+private struct DisplayStateDiagnosticEntry: Decodable {
+    let cctopSessionId: String
+
+    enum CodingKeys: String, CodingKey {
+        case cctopSessionId = "cctop_session_id"
+    }
+}
+
+private struct DisplayStateDiagnosticPayload: Decodable {
+    let version: Int
+    let generatedAt: String
+    let appRunning: Bool
+    let appPID: Int32?
+    let appStartTime: TimeInterval?
+    let sessions: [DisplayStateDiagnosticEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case generatedAt = "generated_at"
+        case appRunning = "app_running"
+        case appPID = "app_pid"
+        case appStartTime = "app_start_time"
+        case sessions
+    }
+}
+
 /// Publishes cctop's resolved display model to ~/.cctop/display-state.json.
 /// This file is the Stream Deck API boundary, not an intermediate session source.
 final class DisplayStateWriter {
@@ -121,6 +180,63 @@ final class DisplayStateWriter {
         )
     }
 
+    static func currentDiagnosticSnapshot(forCctopSessionID cctopSessionID: String) -> DisplayStateDiagnosticSnapshot {
+        let processPID = ProcessInfo.processInfo.processIdentifier
+        let processIdentity = Session.processStartTime(pid: UInt32(processPID)).map {
+            DisplayState.ProcessIdentity(pid: processPID, startTime: $0)
+        }
+        guard FileManager.default.fileExists(atPath: defaultStateURL.path) else {
+            return diagnosticSnapshot(
+                from: nil,
+                forCctopSessionID: cctopSessionID,
+                currentProcessIdentity: processIdentity
+            )
+        }
+        guard let data = try? Data(contentsOf: defaultStateURL) else {
+            return .unavailable(.unreadable)
+        }
+        return diagnosticSnapshot(
+            from: data,
+            forCctopSessionID: cctopSessionID,
+            currentProcessIdentity: processIdentity
+        )
+    }
+
+    static func diagnosticSnapshot(
+        from data: Data?,
+        forCctopSessionID cctopSessionID: String,
+        currentProcessIdentity: DisplayState.ProcessIdentity?
+    ) -> DisplayStateDiagnosticSnapshot {
+        guard let data else { return .unavailable(.missing) }
+        guard let payload = try? diagnosticDecoder.decode(DisplayStateDiagnosticPayload.self, from: data) else {
+            return .unavailable(.malformed)
+        }
+        guard let generatedAt = timestampFormatter.date(from: payload.generatedAt) else {
+            return .unavailable(.malformed)
+        }
+        let ownerMatchesCurrentProcess: Bool?
+        if payload.appRunning,
+           let appPID = payload.appPID,
+           let appStartTime = payload.appStartTime,
+           let currentProcessIdentity {
+            ownerMatchesCurrentProcess = appPID == currentProcessIdentity.pid
+                && abs(appStartTime - currentProcessIdentity.startTime) < 0.001
+        } else {
+            ownerMatchesCurrentProcess = nil
+        }
+        return DisplayStateDiagnosticSnapshot(
+            readStatus: .available,
+            version: payload.version,
+            generatedAt: timestampFormatter.string(from: generatedAt),
+            appRunning: payload.appRunning,
+            appPID: payload.appPID,
+            appStartTime: payload.appStartTime,
+            sessionCount: payload.sessions.count,
+            requestedIDMatchCount: payload.sessions.count { $0.cctopSessionId == cctopSessionID },
+            ownerMatchesCurrentProcess: ownerMatchesCurrentProcess
+        )
+    }
+
     /// Hardware keys always use the same dark status palette as cctop's other
     /// persistent surfaces, including the compacting badge color.
     static func hexColor(for status: SessionStatus, theme: AppTheme) -> String {
@@ -155,6 +271,8 @@ final class DisplayStateWriter {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         return encoder
     }()
+
+    private static let diagnosticDecoder = JSONDecoder()
 
     private static let timestampFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
