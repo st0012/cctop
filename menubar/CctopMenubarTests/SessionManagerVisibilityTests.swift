@@ -264,6 +264,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         XCTAssertTrue(manager.sessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
+        XCTAssertEqual(
+            manager.cleanupSources.filter { $0.sessionId == threadID }.map(\.projectPath),
+            [projectPath]
+        )
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: historyDir), ["history.json"])
         XCTAssertTrue(visibility.hiddenSessionIDs.isEmpty)
@@ -274,6 +278,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         manager.loadSessions()
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
+        XCTAssertEqual(manager.cleanupSources.filter { $0.sessionId == threadID }.count, 1)
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: historyDir), ["history.json"])
 
@@ -2284,7 +2289,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         let threadID = "66666666-7777-4888-8999-aaaaaaaaaaaa"
         let old = Date(timeIntervalSinceNow: -SessionManager.lifecycleWindows.retention - 86_400)
-        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-\(threadID).json")
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(threadID).json")
         var session = codexDesktopSession(sessionId: threadID, projectPath: "/tmp/unresolved-legacy-desktop")
         session.cctopSessionId = nil
         session.harnessSessionId = threadID
@@ -2318,6 +2323,46 @@ final class SessionManagerVisibilityTests: XCTestCase {
             defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
             ["codex:\(threadID)"]
         )
+
+        defaults.removeObject(forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
+        manager.garbageCollectFinished()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
+    }
+
+    @MainActor
+    func testGarbageCollectRetainsUnreadableLegacyUUIDWhileDurableKeyIsUnresolved() throws {
+        let root = NSTemporaryDirectory() + "cctop-unreadable-legacy-uuid-gc-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent(
+            "77777777-8888-4999-8aaa-bbbbbbbbbbbb.json"
+        )
+        try Data("not valid session json".utf8).write(to: URL(fileURLWithPath: sessionPath))
+
+        let suiteName = "cctop-unreadable-legacy-uuid-gc-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set(["codex:unresolved"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
+        let visibility = ManualSessionVisibilityStore(defaults: defaults)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            manualSessionVisibility: visibility
+        )
+
+        manager.garbageCollectFinished()
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+
+        defaults.removeObject(forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
+        manager.garbageCollectFinished()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
     }
 
     // GC keeps a finished Claude Desktop file while its session metadata is archived, then reaps

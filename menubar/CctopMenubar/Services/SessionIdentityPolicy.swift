@@ -169,6 +169,7 @@ struct ManualSessionVisibilityStore {
         guard !legacyKeys.isEmpty else { return hiddenSessionIDs }
 
         var matchedKeys: Set<String> = []
+        var unresolvedMatchedKeys: Set<String> = []
         var sessionIDsByKey: [String: Set<String>] = [:]
         for session in sessions {
             let key = SessionIdentityPolicy.stableKey(for: session)
@@ -177,6 +178,8 @@ struct ManualSessionVisibilityStore {
             if let cctopSessionID = session.cctopSessionId,
                Session.isValidCctopSessionId(cctopSessionID) {
                 sessionIDsByKey[key, default: []].insert(cctopSessionID)
+            } else {
+                unresolvedMatchedKeys.insert(key)
             }
         }
 
@@ -194,7 +197,9 @@ struct ManualSessionVisibilityStore {
             guard key.hasPrefix("codex:") || key.hasPrefix("desktop:"),
                   let matches = sessionIDsByKey[key], !matches.isEmpty else { continue }
             migratedSessionIDs.formUnion(matches)
-            if inventoryComplete { remainingLegacyKeys.remove(key) }
+            if inventoryComplete && !unresolvedMatchedKeys.contains(key) {
+                remainingLegacyKeys.remove(key)
+            }
         }
 
         if migratedSessionIDs != hiddenSessionIDs { save(migratedSessionIDs) }

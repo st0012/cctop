@@ -171,6 +171,23 @@ struct SessionClassificationSnapshot {
         })
     }
 
+    func unresolvedLegacyFinishedCleanupSources(
+        winners: [DedupCandidate],
+        legacyKeys: Set<String>
+    ) -> [SessionCleanupSource] {
+        winners.compactMap { candidate in
+            let session = candidate.session
+            guard candidate.lifecycleRank == SessionLifecycle.finished.rawValue,
+                  session.hostClass != .desktop,
+                  !Session.isValidCctopSessionId(session.cctopSessionId),
+                  legacyKeys.contains(SessionIdentityPolicy.stableKey(for: session)),
+                  session.hasCleanupSourcePath else {
+                return nil
+            }
+            return SessionCleanupSource(session: session)
+        }
+    }
+
     /// Archived desktop conversations stay hidden and resumable in Recent, but a known
     /// project path can still seed worktree cleanup while preserving the session file.
     /// Non-desktop cleanup rows come from history.
@@ -236,6 +253,29 @@ extension SessionManager {
     func hasUnresolvedLegacyIdentity(_ session: Session, keys: Set<String>) -> Bool {
         !Session.isValidCctopSessionId(session.cctopSessionId)
             && keys.contains(SessionIdentityPolicy.stableKey(for: session))
+    }
+
+    func sweepLegacyUUIDFileIfNeeded(_ url: URL, unresolvedLegacyKeys: Set<String>) -> Bool {
+        guard Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) else { return false }
+        if unresolvedLegacyKeys.isEmpty {
+            try? FileManager.default.removeItem(at: url) // Pre-PID legacy file; no live writer to race.
+        } else if let data = try? Data(contentsOf: url),
+                  let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data),
+                  !hasUnresolvedLegacyIdentity(session, keys: unresolvedLegacyKeys) {
+            try? FileManager.default.removeItem(at: url)
+        }
+        return true
+    }
+
+    func mergingCleanupSources(
+        _ retained: [SessionCleanupSource],
+        with replacements: [SessionCleanupSource]
+    ) -> [SessionCleanupSource] {
+        retained.filter { source in
+            !replacements.contains {
+                $0.sessionId == source.sessionId && $0.projectPath == source.projectPath
+            }
+        } + replacements
     }
 
     private func archiveAndRemove(_ candidate: DedupCandidate) {

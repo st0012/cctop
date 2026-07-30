@@ -106,12 +106,16 @@ class SessionManager: ObservableObject {
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(displayCandidates)
         let now = dataSources.now()
         let identifiedSessions = identifiedPublishableSessions(winners: winners, knownRecords: allDecoded)
-        let identifiedInventory = allDecoded.map(\.session) + classification.records.map(\.candidate.session) + identifiedSessions
+        let identifiedInventory = classification.records.map(\.candidate.session) + identifiedSessions
         let hiddenSessionIDs = dataSources.manualSessionVisibility.migrateLegacyStableKeys(
             using: identifiedInventory,
             inventoryComplete: inventoryComplete
         )
         let unresolvedLegacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
+        let unresolvedLegacyCleanupSources = classification.unresolvedLegacyFinishedCleanupSources(
+            winners: winners,
+            legacyKeys: unresolvedLegacyKeys
+        )
         let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
         let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
         let newSessions = orderedSessions.filter { session in
@@ -154,11 +158,16 @@ class SessionManager: ObservableObject {
                 excludingDesktopSessionIDs: hiddenSessionIDs
             ))
             refreshCleanupSources(from: classification.cleanupSources, activeProjectPaths: activeProjectPaths)
-        } else if !activeProjectPaths.isSubset(of: cleanupActiveProjectPaths) { // Freeze items; only grow path protection.
-            refreshCleanupSources(
-                from: currentClassificationCleanupSources,
-                activeProjectPaths: cleanupActiveProjectPaths.union(activeProjectPaths)
+        } else { // Freeze existing items, add unresolved finished evidence, and only grow path protection.
+            let frozenCleanupSources = mergingCleanupSources(
+                currentClassificationCleanupSources,
+                with: unresolvedLegacyCleanupSources
             )
+            let frozenActiveProjectPaths = cleanupActiveProjectPaths.union(activeProjectPaths)
+            if frozenCleanupSources != currentClassificationCleanupSources
+                || frozenActiveProjectPaths != cleanupActiveProjectPaths {
+                refreshCleanupSources(from: frozenCleanupSources, activeProjectPaths: frozenActiveProjectPaths)
+            }
         }
 
         // Prune permanent IDs only after a complete inventory; partial reads retain them to avoid revealing sessions.
@@ -297,10 +306,7 @@ class SessionManager: ObservableObject {
         preloadDesktopArchiveStateForFinishedSessions(in: jsonFiles, now: now)
         var removedAny = false
         for url in jsonFiles {
-            if Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) {
-                try? fm.removeItem(at: url)   // pre-PID legacy file; no live writer to race
-                continue
-            }
+            if sweepLegacyUUIDFileIfNeeded(url, unresolvedLegacyKeys: unresolvedLegacyKeys) { continue }
             withSessionLockForMaintenance(
                 sessionPath: url.path,
                 sessionId: url.deletingPathExtension().lastPathComponent,
