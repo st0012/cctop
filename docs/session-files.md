@@ -197,7 +197,9 @@ values. If identity drift produced several exact matches, all remain hidden.
 Legacy keys survive partial reads even after their known permanent IDs migrate,
 so later observations can join the hidden set. A complete inventory retires the
 legacy keys, including process/PID keys, rather than rebinding them to a current
-session.
+session. Until an exact Codex or desktop match receives a valid permanent ID,
+that durable legacy key remains a fail-closed display fallback and its finished
+session record is retained. Process/PID keys never participate in this fallback.
 
 ### `is_subagent`
 

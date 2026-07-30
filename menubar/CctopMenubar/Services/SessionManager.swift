@@ -85,7 +85,11 @@ class SessionManager: ObservableObject {
         let jsonFiles = sessionJSONFiles(in: files)
         let allDecoded = decodedSessions(from: jsonFiles)
         let inventoryComplete = allDecoded.count == jsonFiles.count
-        let classification = identifyingRecentDesktopRecords(in: deriveSessionClassification(from: allDecoded), knownRecords: allDecoded)
+        var classification = identifyingRecentDesktopRecords(
+            in: deriveSessionClassification(from: allDecoded),
+            knownRecords: allDecoded
+        )
+        classification = identifyingLegacyManualHiddenRecords(in: classification, knownRecords: allDecoded)
         let hidden = classification.records.filter { $0.disposition == .hidden(.persistedHidden) }
         let autoHidden = classification.autoHiddenSessions
         let displayCandidates = classification.displayCandidates
@@ -107,9 +111,14 @@ class SessionManager: ObservableObject {
             using: identifiedInventory,
             inventoryComplete: inventoryComplete
         )
+        let unresolvedLegacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
         let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
         let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
-        let newSessions = orderedSessions.filter { !($0.cctopSessionId.map(hiddenSessionIDs.contains) ?? false) }
+        let newSessions = orderedSessions.filter { session in
+            let hiddenByPermanentID = session.cctopSessionId.map(hiddenSessionIDs.contains) ?? false
+            let hiddenByLegacyKey = unresolvedLegacyKeys.contains(SessionIdentityPolicy.stableKey(for: session))
+            return !hiddenByPermanentID && !hiddenByLegacyKey
+        }
         let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
         syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)
         // Only publish when data actually changed, or when the presentation bucket changed
@@ -129,10 +138,15 @@ class SessionManager: ObservableObject {
         // Non-desktop finished sessions keep today's behavior: archive to Recent Projects and
         // remove now (no Recent-Projects lag). Desktop files are retained while dormant and reaped
         // only by the slow, lock-held GC. No dormant file is ever deleted on this fast path.
-        archiveAndRemoveFinishedNonDesktop(classification.finishedNonDesktopCandidates, winners: winners)
+        archiveAndRemoveFinishedNonDesktop(
+            classification.finishedNonDesktopCandidates,
+            winners: winners,
+            unresolvedLegacyKeys: unresolvedLegacyKeys
+        )
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenFinishedProjectPaths(hiddenSessionIDs))
-        if inventoryComplete || !dataSources.manualSessionVisibility.hasStoredVisibilityPreferences {
+        if (inventoryComplete && unresolvedLegacyKeys.isEmpty)
+            || !dataSources.manualSessionVisibility.hasStoredVisibilityPreferences {
             _ = historyManager.rebuildRecentProjects(excludingActive: recentExcludedPaths)
             publishRecentResumeTargets(RecentResumeTarget.build(
                 projects: historyManager.recentProjects,
@@ -211,36 +225,6 @@ class SessionManager: ObservableObject {
         return "maintenance"
     }
 
-    private func archiveAndRemoveFinishedNonDesktop(_ candidates: [DedupCandidate], winners: [DedupCandidate]) {
-        let winnerPaths = Set(winners.map(\.path))
-        for candidate in candidates {
-            // A finished dedup winner is a real completed non-desktop session, so keep today's
-            // Recent Projects behavior. A finished duplicate loser is stale migration debris;
-            // remove it without archiving so it cannot later surface as a separate session.
-            if winnerPaths.contains(candidate.path) {
-                archiveAndRemove(candidate)
-            } else {
-                removeStaleDuplicate(candidate)
-            }
-        }
-    }
-
-    private func archiveAndRemove(_ candidate: DedupCandidate) {
-        let session = candidate.session
-        // A dead non-desktop process holds no lock, so removing its .json needs no flock. Remove
-        // the .json ONLY — never the .lock (unlinking a lock a hook still holds splits the inode).
-        if historyManager.archiveSession(session) {
-            try? FileManager.default.removeItem(atPath: candidate.path)
-        } else {
-            sessionManagerLogger.warning("skipping removal of \(session.sessionId, privacy: .public) — archive failed")
-        }
-    }
-
-    private func removeStaleDuplicate(_ candidate: DedupCandidate) {
-        sessionManagerLogger.info("removing stale duplicate session file \(candidate.path, privacy: .public)")
-        try? FileManager.default.removeItem(atPath: candidate.path)
-    }
-
     private func clearReconnectedDesktopSessions(_ candidates: [DedupCandidate], now: Date) {
         for candidate in candidates {
             guard candidate.session.hostClass == .desktop,
@@ -308,6 +292,7 @@ class SessionManager: ObservableObject {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
         let now = dataSources.now()
+        let unresolvedLegacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
         preloadDesktopArchiveStateForFinishedSessions(in: jsonFiles, now: now)
         var removedAny = false
@@ -326,6 +311,7 @@ class SessionManager: ObservableObject {
                     return   // decode failure → never treat as finished
                 }
                 guard !session.hidden, !session.shouldAutoHide else { return }
+                guard !hasUnresolvedLegacyIdentity(session, keys: unresolvedLegacyKeys) else { return }
                 let hostClass = session.hostClass
                 guard hostClass == .desktop else { return }   // non-desktop handled on the fast path
                 let life = SessionLifecyclePolicy.lifecycle(

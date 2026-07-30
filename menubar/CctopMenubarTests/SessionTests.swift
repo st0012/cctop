@@ -704,6 +704,10 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(partialIDs, [codexID, desktopID])
         XCTAssertEqual(store.hiddenSessionIDs, [codexID, desktopID])
         XCTAssertEqual(
+            store.unresolvedDurableLegacyKeys,
+            ["codex:durable-codex", "codex:missing", "desktop:durable-desktop"]
+        )
+        XCTAssertEqual(
             defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
             ["active:42", "codex:durable-codex", "codex:missing", "desktop:durable-desktop"]
         )
@@ -714,6 +718,7 @@ final class SessionTests: XCTestCase {
         )
 
         XCTAssertEqual(completeIDs, [codexID, desktopID])
+        XCTAssertTrue(store.unresolvedDurableLegacyKeys.isEmpty)
         XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.legacyDefaultsKey))
     }
 

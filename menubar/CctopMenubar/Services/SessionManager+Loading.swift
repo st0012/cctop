@@ -198,6 +198,42 @@ extension SessionManager {
         return SessionClassificationSnapshot(records: records, evidence: classification.evidence)
     }
 
+    func identifyingLegacyManualHiddenRecords(
+        in classification: SessionClassificationSnapshot,
+        knownRecords: [(url: URL, session: Session)]
+    ) -> SessionClassificationSnapshot {
+        let legacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
+        guard !legacyKeys.isEmpty else { return classification }
+
+        let indices = classification.records.indices.filter { index in
+            let session = classification.records[index].candidate.session
+            return !Session.isValidCctopSessionId(session.cctopSessionId)
+                && legacyKeys.contains(SessionIdentityPolicy.stableKey(for: session))
+        }
+        guard !indices.isEmpty else { return classification }
+
+        let identified = assigningCctopSessionIdentities(
+            to: indices.map { classification.records[$0].candidate },
+            knownRecords: knownRecords
+        )
+        var records = classification.records
+        for (index, session) in zip(indices, identified) {
+            let record = records[index]
+            let candidate = record.candidate
+            records[index] = ClassifiedSessionRecord(
+                url: record.url,
+                candidate: DedupCandidate(
+                    session: session,
+                    lifecycleRank: candidate.lifecycleRank,
+                    mtime: candidate.mtime,
+                    path: candidate.path
+                ),
+                disposition: record.disposition
+            )
+        }
+        return SessionClassificationSnapshot(records: records, evidence: classification.evidence)
+    }
+
     private func scheduleRecordLocalCctopSessionIdentityStamp(url: URL, snapshot: Session) {
         guard pendingIdentityMigrationPaths.insert(url.path).inserted else { return }
         cctopIdentityMigrationQueue.async { [weak self] in

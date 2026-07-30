@@ -141,6 +141,12 @@ struct ManualSessionVisibilityStore {
         !hiddenSessionIDs.isEmpty || !legacyStableKeys.isEmpty
     }
 
+    /// Exact durable legacy keys that still need a permanent identity before they can be retired.
+    /// Process-scoped keys never participate in display fallback because a PID can be reused.
+    var unresolvedDurableLegacyKeys: Set<String> {
+        legacyStableKeys.filter(Self.isDurableLegacyKey)
+    }
+
     func isHidden(_ session: Session) -> Bool {
         guard let cctopSessionID = session.cctopSessionId,
               Session.isValidCctopSessionId(cctopSessionID) else { return false }
@@ -214,6 +220,10 @@ struct ManualSessionVisibilityStore {
 
     private var legacyStableKeys: Set<String> {
         Set(defaults.stringArray(forKey: Self.legacyDefaultsKey) ?? [])
+    }
+
+    private static func isDurableLegacyKey(_ key: String) -> Bool {
+        key.hasPrefix("codex:") || key.hasPrefix("desktop:")
     }
 
     private func saveLegacy(_ keys: Set<String>) {

@@ -214,6 +214,46 @@ private extension Session {
 }
 
 extension SessionManager {
+    func archiveAndRemoveFinishedNonDesktop(
+        _ candidates: [DedupCandidate],
+        winners: [DedupCandidate],
+        unresolvedLegacyKeys: Set<String>
+    ) {
+        let winnerPaths = Set(winners.map(\.path))
+        for candidate in candidates {
+            guard !hasUnresolvedLegacyIdentity(candidate.session, keys: unresolvedLegacyKeys) else { continue }
+            // A finished dedup winner is a real completed non-desktop session, so keep today's
+            // Recent Projects behavior. A finished duplicate loser is stale migration debris;
+            // remove it without archiving so it cannot later surface as a separate session.
+            if winnerPaths.contains(candidate.path) {
+                archiveAndRemove(candidate)
+            } else {
+                removeStaleDuplicate(candidate)
+            }
+        }
+    }
+
+    func hasUnresolvedLegacyIdentity(_ session: Session, keys: Set<String>) -> Bool {
+        !Session.isValidCctopSessionId(session.cctopSessionId)
+            && keys.contains(SessionIdentityPolicy.stableKey(for: session))
+    }
+
+    private func archiveAndRemove(_ candidate: DedupCandidate) {
+        let session = candidate.session
+        // A dead non-desktop process holds no lock, so removing its .json needs no flock. Remove
+        // the .json ONLY — never the .lock (unlinking a lock a hook still holds splits the inode).
+        if historyManager.archiveSession(session) {
+            try? FileManager.default.removeItem(atPath: candidate.path)
+        } else {
+            sessionManagerLogger.warning("skipping removal of \(session.sessionId, privacy: .public) — archive failed")
+        }
+    }
+
+    private func removeStaleDuplicate(_ candidate: DedupCandidate) {
+        sessionManagerLogger.info("removing stale duplicate session file \(candidate.path, privacy: .public)")
+        try? FileManager.default.removeItem(atPath: candidate.path)
+    }
+
     nonisolated static func desktopAppRunningByBundleID(
         in sessions: [Session],
         lookup: DesktopAppConnectionLookup
