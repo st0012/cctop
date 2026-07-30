@@ -722,42 +722,8 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.legacyDefaultsKey))
     }
 
-    func testManualSessionVisibilityCollectsLateExactMatchBeforeRetiringLegacyKey() {
+    func testManualSessionVisibilityRetainsAmbiguousLegacyKey() {
         let suiteName = "cctop-manual-visibility-ambiguous-legacy-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set(["codex:ambiguous"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
-        let store = ManualSessionVisibilityStore(defaults: defaults)
-        let first = Session.mock(
-            id: "ambiguous",
-            cctopSessionId: "11111111-1111-4111-8111-111111111111",
-            source: Session.codexSource
-        )
-        let second = Session.mock(
-            id: "ambiguous",
-            cctopSessionId: "22222222-2222-4222-8222-222222222222",
-            source: Session.codexSource
-        )
-
-        let partialIDs = store.migrateLegacyStableKeys(using: [first], inventoryComplete: false)
-
-        XCTAssertEqual(partialIDs, ["11111111-1111-4111-8111-111111111111"])
-        XCTAssertEqual(
-            defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
-            ["codex:ambiguous"]
-        )
-
-        let completeIDs = store.migrateLegacyStableKeys(using: [first, second], inventoryComplete: true)
-
-        XCTAssertEqual(completeIDs, [
-            "11111111-1111-4111-8111-111111111111",
-            "22222222-2222-4222-8222-222222222222",
-        ])
-        XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.legacyDefaultsKey))
-    }
-
-    func testManualSessionVisibilityRetainsLegacyKeyUntilEveryExactMatchHasPermanentIdentity() {
-        let suiteName = "cctop-manual-visibility-partly-identified-legacy-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(["codex:ambiguous"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
@@ -768,22 +734,24 @@ final class SessionTests: XCTestCase {
         var second = Session.mock(id: "ambiguous", cctopSessionId: secondID, source: Session.codexSource)
         second.cctopSessionId = nil
 
-        let partlyIdentifiedIDs = store.migrateLegacyStableKeys(
-            using: [first, second],
-            inventoryComplete: true
+        let partialIDs = store.migrateLegacyStableKeys(using: [first], inventoryComplete: false)
+
+        XCTAssertEqual(partialIDs, [firstID])
+        XCTAssertEqual(
+            defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
+            ["codex:ambiguous"]
         )
 
-        XCTAssertEqual(partlyIdentifiedIDs, [firstID])
+        let unresolvedIDs = store.migrateLegacyStableKeys(using: [first, second], inventoryComplete: true)
+
+        XCTAssertEqual(unresolvedIDs, [firstID])
         XCTAssertEqual(store.unresolvedDurableLegacyKeys, ["codex:ambiguous"])
 
         second.cctopSessionId = secondID
-        let fullyIdentifiedIDs = store.migrateLegacyStableKeys(
-            using: [first, second],
-            inventoryComplete: true
-        )
+        let ambiguousIDs = store.migrateLegacyStableKeys(using: [first, second], inventoryComplete: true)
 
-        XCTAssertEqual(fullyIdentifiedIDs, [firstID, secondID])
-        XCTAssertTrue(store.unresolvedDurableLegacyKeys.isEmpty)
+        XCTAssertEqual(ambiguousIDs, [firstID])
+        XCTAssertEqual(store.unresolvedDurableLegacyKeys, ["codex:ambiguous"])
     }
 
     func testManualSessionVisibilityIgnoresRowsWithoutPermanentIdentity() {

@@ -171,33 +171,6 @@ struct SessionClassificationSnapshot {
         })
     }
 
-    func unresolvedLegacyCleanupSources(
-        winners: [DedupCandidate],
-        legacyKeys: Set<String>
-    ) -> [SessionCleanupSource] {
-        let archivedSources = records.compactMap { record -> SessionCleanupSource? in
-            let session = record.candidate.session
-            guard case .hidden(let reason) = record.disposition,
-                  reason.emitsCleanupSource,
-                  legacyKeys.contains(SessionIdentityPolicy.stableKey(for: session)),
-                  session.hasCleanupSourcePath else {
-                return nil
-            }
-            return SessionCleanupSource(session: session)
-        }
-        let finishedNonDesktopSources = winners.compactMap { candidate -> SessionCleanupSource? in
-            let session = candidate.session
-            guard candidate.lifecycleRank == SessionLifecycle.finished.rawValue,
-                  session.hostClass != .desktop,
-                  legacyKeys.contains(SessionIdentityPolicy.stableKey(for: session)),
-                  session.hasCleanupSourcePath else {
-                return nil
-            }
-            return SessionCleanupSource(session: session)
-        }
-        return archivedSources + finishedNonDesktopSources
-    }
-
     /// Archived desktop conversations stay hidden and resumable in Recent, but a known
     /// project path can still seed worktree cleanup while preserving the session file.
     /// Non-desktop cleanup rows come from history.
@@ -241,6 +214,22 @@ private extension Session {
 }
 
 extension SessionManager {
+    func retainedFinishedNonDesktopCleanupSources(
+        winners: [DedupCandidate],
+        unresolvedLegacyKeys: Set<String>
+    ) -> [SessionCleanupSource] {
+        winners.compactMap { candidate in
+            let session = candidate.session
+            guard candidate.lifecycleRank == SessionLifecycle.finished.rawValue,
+                  session.hostClass != .desktop,
+                  shouldRetainManualHideEvidence(session, unresolvedLegacyKeys: unresolvedLegacyKeys),
+                  session.hasCleanupSourcePath else {
+                return nil
+            }
+            return SessionCleanupSource(session: session)
+        }
+    }
+
     func archiveAndRemoveFinishedNonDesktop(
         _ candidates: [DedupCandidate],
         winners: [DedupCandidate],
@@ -248,7 +237,10 @@ extension SessionManager {
     ) {
         let winnerPaths = Set(winners.map(\.path))
         for candidate in candidates {
-            guard !hasUnresolvedLegacyIdentity(candidate.session, keys: unresolvedLegacyKeys) else { continue }
+            guard !shouldRetainManualHideEvidence(
+                candidate.session,
+                unresolvedLegacyKeys: unresolvedLegacyKeys
+            ) else { continue }
             // A finished dedup winner is a real completed non-desktop session, so keep today's
             // Recent Projects behavior. A finished duplicate loser is stale migration debris;
             // remove it without archiving so it cannot later surface as a separate session.
@@ -260,18 +252,18 @@ extension SessionManager {
         }
     }
 
-    func hasUnresolvedLegacyIdentity(_ session: Session, keys: Set<String>) -> Bool {
-        !Session.isValidCctopSessionId(session.cctopSessionId)
-            && keys.contains(SessionIdentityPolicy.stableKey(for: session))
+    func shouldRetainManualHideEvidence(_ session: Session, unresolvedLegacyKeys: Set<String>) -> Bool {
+        dataSources.manualSessionVisibility.isHidden(session)
+            || unresolvedLegacyKeys.contains(SessionIdentityPolicy.stableKey(for: session))
     }
 
     func sweepLegacyUUIDFileIfNeeded(_ url: URL, unresolvedLegacyKeys: Set<String>) -> Bool {
         guard Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) else { return false }
-        if unresolvedLegacyKeys.isEmpty {
+        if !dataSources.manualSessionVisibility.hasStoredHideEvidence {
             try? FileManager.default.removeItem(at: url) // Pre-PID legacy file; no live writer to race.
         } else if let data = try? Data(contentsOf: url),
                   let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data),
-                  !hasUnresolvedLegacyIdentity(session, keys: unresolvedLegacyKeys) {
+                  !shouldRetainManualHideEvidence(session, unresolvedLegacyKeys: unresolvedLegacyKeys) {
             try? FileManager.default.removeItem(at: url)
         }
         return true

@@ -190,20 +190,19 @@ Stream Deck output while the full record remains available for lifecycle and
 Cleanup tracking. There is no in-app restore. cctop prunes the preference only
 after a complete local inventory proves the session record is gone; partial or
 unreadable inventories retain it to avoid unexpectedly revealing the session.
+Finished manually hidden records remain exempt from lifecycle cleanup, including
+after legacy preferences migrate, so their permanent identity evidence stays
+available until the record is removed externally.
 
-Upgrades from the initial manual-hiding implementation migrate exact legacy
-Codex and desktop conversation matches to their permanent `cctop_session_id`
-values. If identity drift produced several exact matches, all remain hidden.
-Legacy keys survive partial reads even after their known permanent IDs migrate,
-so later observations can join the hidden set. A complete inventory retires the
-legacy keys, including process/PID keys, rather than rebinding them to a current
-session. Until an exact Codex or desktop match receives a valid permanent ID,
-that durable legacy key remains a fail-closed display fallback and its finished
-session record is retained. Retained finished non-desktop dedup winners and archived
-desktop records remain available to Cleanup without entering Recent Projects. Unreadable pre-PID files
-also survive cleanup while any durable legacy key remains unresolved because
-they cannot yet be proven unrelated. Process/PID keys never participate in this
-fallback.
+Upgrades migrate an exact, unambiguous legacy Codex or desktop key to its
+permanent `cctop_session_id` before building the visible projection. Partial
+inventories retain the legacy key after adding a known permanent ID; missing or
+ambiguous matches also remain unresolved so later observations stay hidden.
+Complete inventories retire migrated and proven-missing keys. Process/PID keys
+are retired rather than rebound. Retained finished non-desktop winners and
+archived desktop records remain available to Cleanup without entering Recent
+Projects. Unreadable pre-PID files survive while stored manual-hide evidence
+prevents proving them unrelated.
 
 ### `is_subagent`
 

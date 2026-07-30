@@ -137,12 +137,12 @@ struct ManualSessionVisibilityStore {
         Set((defaults.stringArray(forKey: Self.defaultsKey) ?? []).filter(Session.isValidCctopSessionId))
     }
 
-    var hasStoredVisibilityPreferences: Bool {
-        !hiddenSessionIDs.isEmpty || !legacyStableKeys.isEmpty
+    var hasStoredHideEvidence: Bool {
+        !hiddenSessionIDs.isEmpty || !unresolvedDurableLegacyKeys.isEmpty
     }
 
-    /// Exact durable legacy keys that still need a permanent identity before they can be retired.
-    /// Process-scoped keys never participate in display fallback because a PID can be reused.
+    /// Durable legacy keys retained as display fallback until a complete, unambiguous inventory.
+    /// A partial inventory may already have contributed a permanent ID. Process keys never participate.
     var unresolvedDurableLegacyKeys: Set<String> {
         legacyStableKeys.filter(Self.isDurableLegacyKey)
     }
@@ -161,22 +161,19 @@ struct ManualSessionVisibilityStore {
         save(sessionIDs)
     }
 
-    /// Upgrade exact durable legacy matches to permanent IDs, retaining their keys until inventory is complete.
-    /// Process-scoped `active:<pid>` keys are never rebound to a new process generation.
+    /// Upgrade exact, unambiguous durable matches and retain partial or ambiguous keys as fallback.
+    /// Process-scoped `active:<pid>` keys are retired rather than rebound to a new process generation.
     @discardableResult
     func migrateLegacyStableKeys(using sessions: [Session], inventoryComplete: Bool) -> Set<String> {
         let legacyKeys = legacyStableKeys
         guard !legacyKeys.isEmpty else { return hiddenSessionIDs }
 
-        var matchedKeys: Set<String> = []
         var unresolvedMatchedKeys: Set<String> = []
         var sessionIDsByKey: [String: Set<String>] = [:]
         for session in sessions {
             let key = SessionIdentityPolicy.stableKey(for: session)
             guard legacyKeys.contains(key) else { continue }
-            matchedKeys.insert(key)
-            if let cctopSessionID = session.cctopSessionId,
-               Session.isValidCctopSessionId(cctopSessionID) {
+            if let cctopSessionID = SessionIdentityPolicy.logicalIdentity(for: session).cctopSessionID {
                 sessionIDsByKey[key, default: []].insert(cctopSessionID)
             } else {
                 unresolvedMatchedKeys.insert(key)
@@ -186,18 +183,18 @@ struct ManualSessionVisibilityStore {
         var migratedSessionIDs = hiddenSessionIDs
         var remainingLegacyKeys = legacyKeys
         for key in legacyKeys.sorted() {
-            if key.hasPrefix("active:") {
+            guard Self.isDurableLegacyKey(key) else {
                 if inventoryComplete { remainingLegacyKeys.remove(key) }
                 continue
             }
-            guard matchedKeys.contains(key) else {
-                if inventoryComplete { remainingLegacyKeys.remove(key) }
-                continue
+
+            let matches = sessionIDsByKey[key] ?? []
+            let isUnambiguous = matches.count == 1 && !unresolvedMatchedKeys.contains(key)
+            if isUnambiguous, let match = matches.first {
+                migratedSessionIDs.insert(match)
             }
-            guard key.hasPrefix("codex:") || key.hasPrefix("desktop:"),
-                  let matches = sessionIDsByKey[key], !matches.isEmpty else { continue }
-            migratedSessionIDs.formUnion(matches)
-            if inventoryComplete && !unresolvedMatchedKeys.contains(key) {
+            let isProvenMissing = matches.isEmpty && !unresolvedMatchedKeys.contains(key)
+            if inventoryComplete && (isUnambiguous || isProvenMissing) {
                 remainingLegacyKeys.remove(key)
             }
         }

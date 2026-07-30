@@ -64,7 +64,7 @@ class SessionManager: ObservableObject {
 
     // swiftlint:disable:next function_body_length
     func loadSessions() {
-        let hasStoredVisibilityPreferences = dataSources.manualSessionVisibility.hasStoredVisibilityPreferences
+        let hasStoredHideEvidence = dataSources.manualSessionVisibility.hasStoredHideEvidence
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: sessionsDir,
             includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey]
@@ -74,7 +74,7 @@ class SessionManager: ObservableObject {
             lastLoadLogSignature = nil
             sessionFileCache.removeAll()
             sessions = []
-            if !hasStoredVisibilityPreferences {
+            if !hasStoredHideEvidence {
                 publishRecentResumeTargets(historyManager.recentProjects.map(RecentResumeTarget.project))
             }
             return
@@ -85,11 +85,10 @@ class SessionManager: ObservableObject {
         let jsonFiles = sessionJSONFiles(in: files)
         let allDecoded = decodedSessions(from: jsonFiles)
         let inventoryComplete = allDecoded.count == jsonFiles.count
-        var classification = identifyingRecentDesktopRecords(
+        let classification = identifyingPersistedRecords(
             in: deriveSessionClassification(from: allDecoded),
             knownRecords: allDecoded
         )
-        classification = identifyingLegacyManualHiddenRecords(in: classification, knownRecords: allDecoded)
         let hidden = classification.records.filter { $0.disposition == .hidden(.persistedHidden) }
         let autoHidden = classification.autoHiddenSessions
         let displayCandidates = classification.displayCandidates
@@ -105,24 +104,30 @@ class SessionManager: ObservableObject {
         // Publish active + dormant; finished are hidden (swept below / by GC).
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(displayCandidates)
         let now = dataSources.now()
-        let identifiedSessions = identifiedPublishableSessions(winners: winners, knownRecords: allDecoded)
-        let identifiedInventory = classification.records.map(\.candidate.session) + identifiedSessions
+        let identifiedCandidates = identifiedPublishableCandidates(winners: winners, knownRecords: allDecoded)
+        let identifiedInventory = classification.records.map(\.candidate.session) + identifiedCandidates.map(\.session)
         let hiddenSessionIDs = dataSources.manualSessionVisibility.migrateLegacyStableKeys(
             using: identifiedInventory,
             inventoryComplete: inventoryComplete
         )
         let unresolvedLegacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
-        let unresolvedLegacyCleanupSources = classification.unresolvedLegacyCleanupSources(
+        let retainedFinishedCleanupSources = retainedFinishedNonDesktopCleanupSources(
             winners: winners,
-            legacyKeys: unresolvedLegacyKeys
+            unresolvedLegacyKeys: unresolvedLegacyKeys
         )
-        let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
-        let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
-        let newSessions = orderedSessions.filter { session in
+        let observedCleanupSources = classification.cleanupSources + retainedFinishedCleanupSources
+        let visibleCandidates = identifiedCandidates.filter { candidate in
+            let session = candidate.session
             let hiddenByPermanentID = session.cctopSessionId.map(hiddenSessionIDs.contains) ?? false
             let hiddenByLegacyKey = unresolvedLegacyKeys.contains(SessionIdentityPolicy.stableKey(for: session))
             return !hiddenByPermanentID && !hiddenByLegacyKey
         }
+        let identifiedSessions = SessionIdentityPolicy
+            .dedupedCandidatesByLogicalIdentity(visibleCandidates)
+            .map(\.session)
+        let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
+        let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
+        let newSessions = orderedSessions
         let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
         syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)
         // Only publish when data actually changed, or when the presentation bucket changed
@@ -149,19 +154,20 @@ class SessionManager: ObservableObject {
         )
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenFinishedProjectPaths(hiddenSessionIDs))
-        if (inventoryComplete && unresolvedLegacyKeys.isEmpty)
-            || !dataSources.manualSessionVisibility.hasStoredVisibilityPreferences {
+        let shouldFreezeVisibilityProjections = !unresolvedLegacyKeys.isEmpty
+            || (!inventoryComplete && !hiddenSessionIDs.isEmpty)
+        if !shouldFreezeVisibilityProjections {
             _ = historyManager.rebuildRecentProjects(excludingActive: recentExcludedPaths)
             publishRecentResumeTargets(RecentResumeTarget.build(
                 projects: historyManager.recentProjects,
                 classification: classification,
                 excludingDesktopSessionIDs: hiddenSessionIDs
             ))
-            refreshCleanupSources(from: classification.cleanupSources, activeProjectPaths: activeProjectPaths)
+            refreshCleanupSources(from: observedCleanupSources, activeProjectPaths: activeProjectPaths)
         } else { // Freeze existing items, add unresolved finished evidence, and only grow path protection.
             let frozenCleanupSources = mergingCleanupSources(
                 currentClassificationCleanupSources,
-                with: unresolvedLegacyCleanupSources
+                with: observedCleanupSources
             )
             let frozenActiveProjectPaths = cleanupActiveProjectPaths.union(activeProjectPaths)
             if frozenCleanupSources != currentClassificationCleanupSources
@@ -317,7 +323,7 @@ class SessionManager: ObservableObject {
                     return   // decode failure → never treat as finished
                 }
                 guard !session.hidden, !session.shouldAutoHide else { return }
-                guard !hasUnresolvedLegacyIdentity(session, keys: unresolvedLegacyKeys) else { return }
+                guard !shouldRetainManualHideEvidence(session, unresolvedLegacyKeys: unresolvedLegacyKeys) else { return }
                 let hostClass = session.hostClass
                 guard hostClass == .desktop else { return }   // non-desktop handled on the fast path
                 let life = SessionLifecyclePolicy.lifecycle(
