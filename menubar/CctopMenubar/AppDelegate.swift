@@ -768,12 +768,12 @@ extension AppDelegate {
                 focusTerminal(session: session)
                 return
             }
-            logFocusTargetDiagnostic(
-                phase: "pre_refresh",
-                outcome: "stale_detected",
+            let displayState = DisplayStateWriter.currentPublishedState()
+            logFocusTargetMissBeforeRefresh(
                 requestedID: cctopSessionID,
                 canonicalSessions: initialSessions,
-                refreshElapsedMilliseconds: nil
+                activeSessions: initialActiveSessions,
+                displayState: displayState
             )
 
             let refreshStart = ProcessInfo.processInfo.systemUptime
@@ -785,11 +785,11 @@ extension AppDelegate {
                 forCctopSessionID: cctopSessionID,
                 in: refreshedActiveSessions
             )
-            logFocusTargetDiagnostic(
-                phase: "post_refresh",
+            logFocusTargetRefreshOutcome(
                 outcome: resolvedSession == nil ? "final_missing" : "recovered_after_refresh",
                 requestedID: cctopSessionID,
                 canonicalSessions: refreshedSessions,
+                activeSessions: refreshedActiveSessions,
                 refreshElapsedMilliseconds: refreshElapsedMilliseconds
             )
             guard let resolvedSession else { return }
@@ -813,149 +813,66 @@ extension AppDelegate {
         return value
     }
 
-    @MainActor private func logFocusTargetDiagnostic(
-        phase: String,
-        outcome: String,
+    private func logFocusTargetMissBeforeRefresh(
         requestedID: String,
         canonicalSessions: [Session],
-        refreshElapsedMilliseconds: Double?
+        activeSessions: [Session],
+        displayState: DisplayState?
     ) {
-        let activeSessions = SessionDisplayPolicy.activeSessions(from: canonicalSessions)
-        let displayState = DisplayStateWriter.currentDiagnosticSnapshot(forCctopSessionID: requestedID)
-        let requestEvidence = focusTargetRequestFields(
-            phase: phase,
-            outcome: outcome,
-            refreshElapsedMilliseconds: refreshElapsedMilliseconds
-        ).joined(separator: " ")
-        let sessionEvidence = ([
-            "event=focus_target_session",
-            "phase=\(phase)"
-        ] + focusTargetSessionFields(
-            requestedID: requestedID,
-            canonicalSessions: canonicalSessions,
-            activeSessions: activeSessions
-        )).joined(separator: " ")
-        let loadEvidence = ([
-            "event=focus_target_load",
-            "phase=\(phase)"
-        ] + focusTargetLoadFields(sessionManager.lastLoadLogSignature)).joined(separator: " ")
-        let displayStateEvidence = ([
-            "event=focus_target_display_state",
-            "phase=\(phase)"
-        ] + focusTargetDisplayStateFields(displayState)).joined(separator: " ")
-        let bundlePath = Bundle.main.bundleURL.path
-        let originEvidence = "event=focus_target_origin phase=\(phase)"
-        let identityEvidence = "event=focus_target_request phase=\(phase)"
-        Self.urlLogger.error("\(requestEvidence, privacy: .public)")
-        Self.urlLogger.error("\(sessionEvidence, privacy: .public)")
-        Self.urlLogger.error("\(loadEvidence, privacy: .public)")
-        Self.urlLogger.error("\(displayStateEvidence, privacy: .public)")
-        Self.urlLogger.error(
-            "\(identityEvidence, privacy: .public) requested_cctop_session_id=\(requestedID, privacy: .private(mask: .hash))"
-        )
-        Self.urlLogger.error(
-            "\(originEvidence, privacy: .public) bundle_path=\(bundlePath, privacy: .private(mask: .hash))"
-        )
-    }
-
-    private func focusTargetRequestFields(
-        phase: String,
-        outcome: String,
-        refreshElapsedMilliseconds: Double?
-    ) -> [String] {
         let processPID = ProcessInfo.processInfo.processIdentifier
         let processStartTime = Session.processStartTime(pid: UInt32(processPID))
         let appVersion = Bundle.main.appVersion.isEmpty ? "unavailable" : Bundle.main.appVersion
-        let appBuild = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unavailable"
-        let bundleIdentifier = Bundle.main.bundleIdentifier ?? "unavailable"
-        return [
-            "event=focus_target_stale",
-            "route=cctop_url",
-            "source=launch_services",
-            "phase=\(phase)",
-            "outcome=\(outcome)",
-            "app_version=\(appVersion)",
-            "app_build=\(appBuild)",
-            "app_bundle_identifier=\(bundleIdentifier)",
-            "app_pid=\(processPID)",
-            "app_start_time=\(focusTargetDiagnosticValue(processStartTime))",
-            "refresh_elapsed_ms=\(refreshElapsedMilliseconds.map { String(format: "%.3f", $0) } ?? "not_attempted")"
-        ]
+        let canonicalMatches = canonicalSessions.filter { $0.cctopSessionId == requestedID }
+        let processStartValue = processStartTime.map { String($0) } ?? "unavailable"
+        let displayGeneratedAt = displayState?.generatedAt ?? "unavailable"
+        let displayOwnerPID = displayState.flatMap(\.appPID).map { String($0) } ?? "unavailable"
+        let displayOwnerStartTime = displayState.flatMap(\.appStartTime).map { String($0) } ?? "unavailable"
+        let displaySessionCount = displayState.map { String($0.sessions.count) } ?? "unavailable"
+        let displayMatchCount = displayState.map {
+            String($0.sessions.count { $0.cctopSessionId == requestedID })
+        } ?? "unavailable"
+
+        Self.urlLogger.notice(
+            """
+            event=focus_target_stale route=cctop_url source=launch_services phase=pre_refresh outcome=stale_detected \
+            requested_cctop_session_id=\(requestedID, privacy: .private(mask: .hash)) \
+            app_version=\(appVersion, privacy: .public) app_pid=\(processPID, privacy: .public) \
+            app_start_time=\(processStartValue, privacy: .public) \
+            canonical_observation_count=\(canonicalSessions.count, privacy: .public) \
+            focus_eligible_observation_count=\(activeSessions.count, privacy: .public) \
+            requested_id_canonical_matches=\(canonicalMatches.count, privacy: .public) \
+            display_state_generated_at=\(displayGeneratedAt, privacy: .public) \
+            display_state_owner_pid=\(displayOwnerPID, privacy: .public) \
+            display_state_owner_start_time=\(displayOwnerStartTime, privacy: .public) \
+            display_state_session_count=\(displaySessionCount, privacy: .public) \
+            display_state_requested_id_matches=\(displayMatchCount, privacy: .public)
+            """
+        )
     }
 
-    private func focusTargetSessionFields(
+    private func logFocusTargetRefreshOutcome(
+        outcome: String,
         requestedID: String,
         canonicalSessions: [Session],
-        activeSessions: [Session]
-    ) -> [String] {
-        let canonicalMatches = canonicalSessions.filter { $0.cctopSessionId == requestedID }
+        activeSessions: [Session],
+        refreshElapsedMilliseconds: Double
+    ) {
+        let canonicalMatchCount = canonicalSessions.count { $0.cctopSessionId == requestedID }
         let activeMatchCount = activeSessions.count { $0.cctopSessionId == requestedID }
-        let projectionState: String
-        if activeMatchCount > 0 {
-            projectionState = "active"
-        } else if canonicalMatches.isEmpty {
-            projectionState = "absent"
-        } else {
-            projectionState = "outside_active"
-        }
-        let knownSources = Set([Session.codexSource, Session.ccSource, Session.opencodeSource, Session.piSource])
-        return [
-            "canonical_observation_count=\(canonicalSessions.count)",
-            "canonical_active_observation_count=\(canonicalSessions.count { $0.lifecycle == .active })",
-            "focus_eligible_observation_count=\(activeSessions.count)",
-            "requested_id_canonical_matches=\(canonicalMatches.count)",
-            "requested_id_active_matches=\(activeMatchCount)",
-            "requested_id_projection_state=\(projectionState)",
-            "match_lifecycle_active=\(canonicalMatches.count { $0.lifecycle == .active })",
-            "match_lifecycle_dormant=\(canonicalMatches.count { $0.lifecycle == .dormant })",
-            "match_lifecycle_finished=\(canonicalMatches.count { $0.lifecycle == .finished })",
-            "match_status_idle=\(canonicalMatches.count { $0.status == .idle })",
-            "match_status_working=\(canonicalMatches.count { $0.status == .working })",
-            "match_status_compacting=\(canonicalMatches.count { $0.status == .compacting })",
-            "match_status_waiting_permission=\(canonicalMatches.count { $0.status == .waitingPermission })",
-            "match_status_waiting_input=\(canonicalMatches.count { $0.status == .waitingInput })",
-            "match_status_needs_attention=\(canonicalMatches.count { $0.status == .needsAttention })",
-            "match_source_codex=\(canonicalMatches.count { $0.source == Session.codexSource })",
-            "match_source_claude=\(canonicalMatches.count { $0.source == nil || $0.source == Session.ccSource })",
-            "match_source_opencode=\(canonicalMatches.count { $0.source == Session.opencodeSource })",
-            "match_source_pi=\(canonicalMatches.count { $0.source == Session.piSource })",
-            "match_source_other=\(canonicalMatches.count { $0.source.map { !knownSources.contains($0) } ?? false })"
-        ]
-    }
+        let elapsed = String(format: "%.3f", refreshElapsedMilliseconds)
 
-    private func focusTargetLoadFields(_ loadSignature: SessionLoadLogSignature?) -> [String] {
-        [
-            "load_files=\(focusTargetDiagnosticValue(loadSignature?.summary.files))",
-            "load_decoded=\(focusTargetDiagnosticValue(loadSignature?.summary.decoded))",
-            "load_display_candidates=\(focusTargetDiagnosticValue(loadSignature?.summary.live))",
-            "load_persisted_hidden=\(focusTargetDiagnosticValue(loadSignature?.summary.hidden))",
-            "load_auto_hidden=\(focusTargetDiagnosticValue(loadSignature?.summary.autoHidden))",
-            "load_codex_archived=\(focusTargetDiagnosticValue(loadSignature?.archivedCodexThreadIDs))",
-            "load_codex_missing_state=\(focusTargetDiagnosticValue(loadSignature?.missingCodexDesktopThreadIDs))",
-            "load_codex_internal=\(focusTargetDiagnosticValue(loadSignature?.codexInternalHelperThreadIDs))",
-            "load_codex_uncertain=\(focusTargetDiagnosticValue(loadSignature?.uncertainCodexDelegationThreadIDs))",
-            "load_codex_contradictory=\(focusTargetDiagnosticValue(loadSignature?.contradictoryCodexDelegationThreadIDs))",
-            "load_codex_exec=\(focusTargetDiagnosticValue(loadSignature?.codexExecHelperThreadIDs))",
-            "load_claude_archived=\(focusTargetDiagnosticValue(loadSignature?.archivedClaudeSessionIDs))"
-        ]
-    }
-
-    private func focusTargetDisplayStateFields(_ displayState: DisplayStateDiagnosticSnapshot) -> [String] {
-        [
-            "display_state_read=\(displayState.readStatus.rawValue)",
-            "display_state_version=\(focusTargetDiagnosticValue(displayState.version))",
-            "display_state_generated_at=\(focusTargetDiagnosticValue(displayState.generatedAt))",
-            "display_state_app_running=\(focusTargetDiagnosticValue(displayState.appRunning))",
-            "display_state_owner_pid=\(focusTargetDiagnosticValue(displayState.appPID))",
-            "display_state_owner_start_time=\(focusTargetDiagnosticValue(displayState.appStartTime))",
-            "display_state_owner_matches_app=\(focusTargetDiagnosticValue(displayState.ownerMatchesCurrentProcess))",
-            "display_state_session_count=\(focusTargetDiagnosticValue(displayState.sessionCount))",
-            "display_state_requested_id_matches=\(focusTargetDiagnosticValue(displayState.requestedIDMatchCount))"
-        ]
-    }
-
-    private func focusTargetDiagnosticValue<T>(_ optional: T?) -> String {
-        optional.map { String(describing: $0) } ?? "unavailable"
+        Self.urlLogger.notice(
+            """
+            event=focus_target_stale route=cctop_url source=launch_services phase=post_refresh \
+            outcome=\(outcome, privacy: .public) \
+            requested_cctop_session_id=\(requestedID, privacy: .private(mask: .hash)) \
+            refresh_elapsed_ms=\(elapsed, privacy: .public) \
+            canonical_observation_count=\(canonicalSessions.count, privacy: .public) \
+            focus_eligible_observation_count=\(activeSessions.count, privacy: .public) \
+            requested_id_canonical_matches=\(canonicalMatchCount, privacy: .public) \
+            requested_id_active_matches=\(activeMatchCount, privacy: .public)
+            """
+        )
     }
 
     private static let urlLogger = Logger(
