@@ -2253,6 +2253,28 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(FocusTargetResolver.currentSession(forCctopSessionID: currentID, in: []))
     }
 
+    func testLogicalFocusResolverUsesFirstCanonicalPermanentObservation() {
+        let cctopSessionID = "11111111-2222-4333-8444-555555555555"
+        let first = Session.mock(id: "first", cctopSessionId: cctopSessionID, pid: 111)
+        let second = Session.mock(id: "second", cctopSessionId: cctopSessionID, pid: 222)
+        let identity = SessionIdentityPolicy.logicalIdentity(for: first)
+
+        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [first, second])?.pid, 111)
+        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [second, first])?.pid, 222)
+    }
+
+    func testLogicalFocusResolverKeepsLegacyFallbackUniqueAndFailsClosedWhenAmbiguous() {
+        var first = Session.mock(id: "first", pid: 111, source: Session.opencodeSource)
+        first.cctopSessionId = nil
+        var duplicate = Session.mock(id: "duplicate", pid: 111, source: Session.opencodeSource)
+        duplicate.cctopSessionId = nil
+        let identity = SessionIdentityPolicy.logicalIdentity(for: first)
+
+        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [first])?.sessionId, "first")
+        XCTAssertNil(FocusTargetResolver.currentSession(for: identity, in: [first, duplicate]))
+        XCTAssertNil(FocusTargetResolver.currentSession(for: identity, in: []))
+    }
+
     func testRepeatedCctopSessionIDKeepsRowsAndResolvesFirstCanonicalObservation() {
         let now = Date()
         let cctopSessionID = "11111111-2222-4333-8444-555555555555"

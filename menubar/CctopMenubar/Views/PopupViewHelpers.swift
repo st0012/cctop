@@ -301,8 +301,8 @@ extension PopupView {
               Session.isValidCctopSessionId(cctopSessionID),
               sessions.contains(where: { $0.cctopSessionId == cctopSessionID }) else { return }
         onHideSession(session)
-        navigate?.removeSession(withCctopSessionID: cctopSessionID)
         selectedIndex = nil
+        selectedSessionIdentity = nil
     }
 }
 

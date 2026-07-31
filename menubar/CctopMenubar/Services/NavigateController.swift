@@ -6,29 +6,29 @@ class NavigateController: ObservableObject {
     let didActivateSubject = PassthroughSubject<Void, Never>()
     let didConfirmSubject = PassthroughSubject<Void, Never>()
     let navActionSubject = PassthroughSubject<PanelNavAction, Never>()
-    /// Canonically ordered session snapshot captured when navigate activates.
-    /// Prevents reordering while badges are visible.
-    private(set) var frozenSessions: [Session] = []
-    var activeSessionSnapshot: [Session]? {
-        isActive ? frozenSessions : nil
+    /// Canonically ordered logical identities captured when navigate activates.
+    /// Array positions remain the numbered slots even when an observation disappears.
+    private(set) var frozenSessionIdentities: [SessionIdentityPolicy.LogicalIdentity] = []
+    var activeSessionIdentitySnapshot: [SessionIdentityPolicy.LogicalIdentity]? {
+        isActive ? frozenSessionIdentities : nil
     }
     private var timeoutWork: DispatchWorkItem?
 
     func activate(sessions: [Session]) {
-        frozenSessions = sessions
+        frozenSessionIdentities = sessions.map(SessionIdentityPolicy.logicalIdentity)
         isActive = true
         didActivateSubject.send()
     }
 
-    /// Remove a hidden session without disturbing the frozen order of the remaining rows.
-    func removeSession(withCctopSessionID cctopSessionID: String) {
-        frozenSessions.removeAll { $0.cctopSessionId == cctopSessionID }
+    func sessionIdentity(at index: Int) -> SessionIdentityPolicy.LogicalIdentity? {
+        guard isActive, frozenSessionIdentities.indices.contains(index) else { return nil }
+        return frozenSessionIdentities[index]
     }
 
     /// Resets all navigate state.
     func deactivate() {
         isActive = false
-        frozenSessions = []
+        frozenSessionIdentities = []
         cancelTimeout()
     }
 

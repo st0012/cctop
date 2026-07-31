@@ -142,7 +142,16 @@ extension SessionManager {
         knownRecords: [(url: URL, session: Session)]
     ) -> [Session] {
         let publishableWinners = winners.filter { $0.session.lifecycle != .finished }
-        return assigningCctopSessionIdentities(to: publishableWinners, knownRecords: knownRecords)
+        let identified = assigningCctopSessionIdentities(to: publishableWinners, knownRecords: knownRecords)
+        let identifiedCandidates = zip(publishableWinners, identified).map { candidate, session in
+            DedupCandidate(
+                session: session,
+                lifecycleRank: candidate.lifecycleRank,
+                mtime: candidate.mtime,
+                path: candidate.path
+            )
+        }
+        return SessionIdentityPolicy.dedupedCandidatesByLogicalIdentity(identifiedCandidates).map(\.session)
     }
 
     func identifyingRecentDesktopRecords(
@@ -255,13 +264,6 @@ extension SessionManager {
             modifiedSeconds: Int(info.st_mtimespec.tv_sec),
             modifiedNanoseconds: Int(info.st_mtimespec.tv_nsec),
             fileSize: Int64(info.st_size)
-        )
-    }
-
-    func currentStatusesByStableKey() -> [String: SessionStatus] {
-        Dictionary(
-            sessions.map { (SessionIdentityPolicy.stableKey(for: $0), $0.status) },
-            uniquingKeysWith: { first, _ in first }
         )
     }
 

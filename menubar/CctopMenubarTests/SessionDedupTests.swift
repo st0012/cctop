@@ -23,28 +23,47 @@ final class SessionDedupTests: XCTestCase {
         XCTAssertEqual(cc.id, "31349")
     }
 
-    /// A transient migration window can leave two files for the same conversation (the old
-    /// PID-keyed file plus the new codex-<id> file), so the loaded list can contain two
-    /// sessions with the same id. dedupedByID must collapse them (keeping the freshest)
-    /// so nothing keyed by id — SwiftUI identity, the status map — ever sees a duplicate.
-    func testDedupedByIDCollapsesDuplicateIDsKeepingFreshest() {
-        var old = Session(sessionId: "conv-a", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
-        old.source = "codex"; old.pid = 31349
-        old.sessionName = "stale"
-        old.lastActivity = Date(timeIntervalSinceNow: -120)
+    func testLogicalIdentityPrefersPermanentIDAndFallsBackForLegacyRecords() {
+        let sharedID = "11111111-1111-4111-8111-111111111111"
+        let first = Session.mock(id: "first", cctopSessionId: sharedID, pid: 100, source: Session.opencodeSource)
+        let replacement = Session.mock(id: "replacement", cctopSessionId: sharedID, pid: 200, source: Session.opencodeSource)
+        var legacy = Session.mock(id: "legacy", pid: 300, source: Session.opencodeSource)
+        legacy.cctopSessionId = nil
+        var invalid = legacy
+        invalid.cctopSessionId = "not-a-uuid"
 
-        var fresh = Session(sessionId: "conv-a", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
-        fresh.source = "codex"; fresh.pid = 31349
-        fresh.sessionName = "current"
-        fresh.lastActivity = Date()
+        XCTAssertEqual(
+            SessionIdentityPolicy.logicalIdentity(for: first),
+            SessionIdentityPolicy.logicalIdentity(for: replacement)
+        )
+        XCTAssertEqual(
+            SessionIdentityPolicy.logicalIdentity(for: legacy),
+            SessionIdentityPolicy.logicalIdentity(for: invalid)
+        )
+        XCTAssertNotEqual(
+            SessionIdentityPolicy.logicalIdentity(for: first),
+            SessionIdentityPolicy.logicalIdentity(for: legacy)
+        )
+    }
 
-        var other = Session(sessionId: "conv-b", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
-        other.source = "codex"; other.pid = 31349
+    func testLogicalDedupKeepsFirstRowPositionAndPreferredObservation() {
+        let sharedID = "11111111-1111-4111-8111-111111111111"
+        let old = candidate(
+            sessionId: "old", pid: 100, bundleId: nil, lifecycleRank: 1,
+            lastActivity: Date(timeIntervalSince1970: 10), path: "/old.json"
+        ) { $0.cctopSessionId = sharedID }
+        let other = candidate(
+            sessionId: "other", pid: 200, bundleId: nil, lifecycleRank: 0,
+            path: "/other.json"
+        )
+        let current = candidate(
+            sessionId: "current", pid: 300, bundleId: nil, lifecycleRank: 0,
+            lastActivity: Date(timeIntervalSince1970: 20), path: "/current.json"
+        ) { $0.cctopSessionId = sharedID }
 
-        let result = SessionIdentityPolicy.dedupedByDisplayID([old, fresh, other])
-        // Two distinct ids survive; the duplicate id keeps the most recently active entry.
-        XCTAssertEqual(result.map(\.id).sorted(), ["conv-a", "conv-b"])
-        XCTAssertEqual(result.first { $0.id == "conv-a" }?.sessionName, "current")
+        let result = SessionIdentityPolicy.dedupedCandidatesByLogicalIdentity([old, other, current])
+
+        XCTAssertEqual(result.map(\.session.pid), [300, 200])
     }
 
     // MARK: - Desktop dedup by session_id (Phase 1, total order)

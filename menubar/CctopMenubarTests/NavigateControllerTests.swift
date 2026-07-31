@@ -18,7 +18,7 @@ final class NavigateControllerTests: XCTestCase {
 
     func testInitialState() {
         XCTAssertFalse(sut.isActive)
-        XCTAssertTrue(sut.frozenSessions.isEmpty)
+        XCTAssertTrue(sut.frozenSessionIdentities.isEmpty)
     }
 
     // MARK: - Activate
@@ -34,7 +34,7 @@ final class NavigateControllerTests: XCTestCase {
             Session.mock(id: "2", project: "beta", status: .working),
         ]
         sut.activate(sessions: sessions)
-        XCTAssertEqual(sut.frozenSessions.count, 2)
+        XCTAssertEqual(sut.frozenSessionIdentities.count, 2)
     }
 
     func testActivatePreservesCanonicalSessionOrder() {
@@ -48,13 +48,16 @@ final class NavigateControllerTests: XCTestCase {
 
         sut.activate(sessions: [waiting, workingOld, workingNew, idle])
 
-        XCTAssertEqual(sut.frozenSessions.map(\.projectName), ["alpha", "beta", "gamma", "delta"])
+        XCTAssertEqual(
+            sut.frozenSessionIdentities,
+            [waiting, workingOld, workingNew, idle].map { SessionIdentityPolicy.logicalIdentity(for: $0) }
+        )
     }
 
     func testActivateWithEmptySessions() {
         sut.activate(sessions: [])
         XCTAssertTrue(sut.isActive)
-        XCTAssertTrue(sut.frozenSessions.isEmpty)
+        XCTAssertTrue(sut.frozenSessionIdentities.isEmpty)
     }
 
     // MARK: - Deactivate
@@ -68,7 +71,7 @@ final class NavigateControllerTests: XCTestCase {
     func testDeactivateClearsFrozenSessions() {
         sut.activate(sessions: [.mock(), .mock(id: "2")])
         sut.deactivate()
-        XCTAssertTrue(sut.frozenSessions.isEmpty)
+        XCTAssertTrue(sut.frozenSessionIdentities.isEmpty)
     }
 
     func testDeactivateCancelsTimeout() {
@@ -85,7 +88,7 @@ final class NavigateControllerTests: XCTestCase {
     func testDeactivateFromInactiveStateIsNoOp() {
         sut.deactivate()
         XCTAssertFalse(sut.isActive)
-        XCTAssertTrue(sut.frozenSessions.isEmpty)
+        XCTAssertTrue(sut.frozenSessionIdentities.isEmpty)
     }
 
     // MARK: - Frozen sessions are a snapshot
@@ -98,50 +101,95 @@ final class NavigateControllerTests: XCTestCase {
 
         // Mutating the original array shouldn't affect frozen sessions
         sessions.append(.mock(id: "2", project: "beta", status: .idle))
-        XCTAssertEqual(sut.frozenSessions.count, 1)
+        XCTAssertEqual(sut.frozenSessionIdentities.count, 1)
     }
 
-    func testRemovingHiddenSessionPreservesFrozenSurvivorOrder() {
-        let hiddenSessionID = "22222222-2222-4222-8222-222222222222"
+    func testFrozenSlotResolvesReplacementCurrentObservation() throws {
+        let sharedID = "22222222-2222-4222-8222-222222222222"
+        let first = Session.mock(
+            id: "first", cctopSessionId: sharedID,
+            status: .working, pid: 100, source: Session.opencodeSource
+        )
+        let replacement = Session.mock(
+            id: "replacement", cctopSessionId: sharedID,
+            status: .waitingInput, pid: 200, source: Session.opencodeSource
+        )
+        sut.activate(sessions: [first])
+
+        let identity = try XCTUnwrap(sut.sessionIdentity(at: 0))
+        let resolved = FocusTargetResolver.currentSession(for: identity, in: [replacement])
+
+        XCTAssertEqual(resolved?.pid, 200)
+    }
+
+    func testFrozenLegacySlotResolvesSameStableKeyAfterPermanentIDStamp() throws {
+        var legacy = Session.mock(
+            id: "legacy", status: .working, pid: 100, source: Session.opencodeSource
+        )
+        legacy.cctopSessionId = nil
+        sut.activate(sessions: [legacy])
+
+        var stamped = legacy
+        stamped.cctopSessionId = "22222222-2222-4222-8222-222222222222"
+        let identity = try XCTUnwrap(sut.sessionIdentity(at: 0))
+        let resolved = FocusTargetResolver.currentSession(for: identity, in: [stamped])
+
+        XCTAssertEqual(resolved?.cctopSessionId, stamped.cctopSessionId)
+        XCTAssertEqual(resolved?.pid, 100)
+        XCTAssertNil(FocusTargetResolver.currentSession(for: identity, in: [stamped, stamped]))
+    }
+
+    func testMissingFrozenSlotDoesNotRetargetLaterSlot() throws {
         let first = Session.mock(
             id: "first", cctopSessionId: "11111111-1111-4111-8111-111111111111",
-            status: .waitingInput, source: Session.codexSource
-        )
-        let hidden = Session.mock(
-            id: "hidden", cctopSessionId: hiddenSessionID,
             status: .working, source: Session.codexSource
         )
-        let secondHiddenObservation = Session.mock(
-            id: "hidden-again", cctopSessionId: hiddenSessionID,
-            status: .idle, source: Session.codexSource
+        let second = Session.mock(
+            id: "second", cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            status: .working, source: Session.codexSource
         )
-        let last = Session.mock(
-            id: "last", cctopSessionId: "33333333-3333-4333-8333-333333333333",
-            status: .idle, source: Session.codexSource
-        )
-        sut.activate(sessions: [first, hidden, secondHiddenObservation, last])
+        sut.activate(sessions: [first, second])
 
-        sut.removeSession(withCctopSessionID: hiddenSessionID)
+        let firstIdentity = try XCTUnwrap(sut.sessionIdentity(at: 0))
+        let secondIdentity = try XCTUnwrap(sut.sessionIdentity(at: 1))
 
-        XCTAssertEqual(sut.frozenSessions.map(\.sessionId), ["first", "last"])
+        XCTAssertNil(FocusTargetResolver.currentSession(for: firstIdentity, in: [second]))
+        XCTAssertEqual(FocusTargetResolver.currentSession(for: secondIdentity, in: [second])?.sessionId, "second")
     }
 
-    func testRemovingLastHiddenSessionPreservesActiveEmptySnapshot() {
-        let hiddenSessionID = "22222222-2222-4222-8222-222222222222"
-        let hidden = Session.mock(
-            id: "hidden", cctopSessionId: hiddenSessionID,
+    @MainActor
+    func testPopupRowsPreserveFrozenSlotAndBindReplacementObservation() throws {
+        let missing = Session.mock(
+            id: "missing", cctopSessionId: "11111111-1111-4111-8111-111111111111",
             status: .working, source: Session.codexSource
         )
-        sut.activate(sessions: [hidden])
+        let original = Session.mock(
+            id: "original", cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            status: .working, pid: 100, source: Session.codexSource
+        )
+        let replacement = Session.mock(
+            id: "replacement", cctopSessionId: original.cctopSessionId,
+            status: .waitingInput, pid: 200, source: Session.codexSource
+        )
+        sut.activate(sessions: [missing, original])
 
-        sut.removeSession(withCctopSessionID: hiddenSessionID)
+        let view = PopupView(
+            sessions: [replacement],
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(),
+            navigate: sut
+        )
+        let row = try XCTUnwrap(view.activeSessionRows.first)
 
-        XCTAssertEqual(sut.activeSessionSnapshot, [])
-        XCTAssertTrue(sut.isActive)
+        XCTAssertEqual(view.activeSessionRows.count, 1)
+        XCTAssertEqual(row.slot, 1)
+        XCTAssertEqual(row.id, SessionIdentityPolicy.logicalIdentity(for: original))
+        XCTAssertEqual(row.session, replacement)
     }
 
     func testInactiveControllerHasNoActiveSnapshot() {
-        XCTAssertNil(sut.activeSessionSnapshot)
+        XCTAssertNil(sut.activeSessionIdentitySnapshot)
+        XCTAssertNil(sut.sessionIdentity(at: 0))
     }
 
     // MARK: - Timeout
@@ -221,13 +269,13 @@ final class NavigateControllerTests: XCTestCase {
         sut.activate(sessions: sessions)
 
         XCTAssertTrue(sut.isActive)
-        XCTAssertEqual(sut.frozenSessions.count, 2)
+        XCTAssertEqual(sut.frozenSessionIdentities.count, 2)
 
         // Deactivate resets all state
         sut.deactivate()
 
         XCTAssertFalse(sut.isActive)
-        XCTAssertTrue(sut.frozenSessions.isEmpty)
+        XCTAssertTrue(sut.frozenSessionIdentities.isEmpty)
     }
 
     func testMultipleActivateDeactivateCycles() {
@@ -235,11 +283,11 @@ final class NavigateControllerTests: XCTestCase {
             let sessions = [Session.mock(id: "\(i)", status: .working)]
             sut.activate(sessions: sessions)
             XCTAssertTrue(sut.isActive)
-            XCTAssertEqual(sut.frozenSessions.count, 1)
+            XCTAssertEqual(sut.frozenSessionIdentities.count, 1)
 
             sut.deactivate()
             XCTAssertFalse(sut.isActive)
-            XCTAssertTrue(sut.frozenSessions.isEmpty)
+            XCTAssertTrue(sut.frozenSessionIdentities.isEmpty)
         }
     }
 
@@ -253,7 +301,9 @@ final class NavigateControllerTests: XCTestCase {
 
         sut.activate(sessions: [older, newer])
 
-        XCTAssertEqual(sut.frozenSessions[0].projectName, "older")
-        XCTAssertEqual(sut.frozenSessions[1].projectName, "newer")
+        XCTAssertEqual(
+            sut.frozenSessionIdentities,
+            [older, newer].map { SessionIdentityPolicy.logicalIdentity(for: $0) }
+        )
     }
 }

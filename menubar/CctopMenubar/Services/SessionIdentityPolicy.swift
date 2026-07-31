@@ -1,6 +1,16 @@
 import Foundation
 
 enum SessionIdentityPolicy {
+    enum LogicalIdentity: Hashable {
+        case permanent(UUID)
+        case legacy(String)
+
+        var cctopSessionID: String? {
+            guard case .permanent(let id) = self else { return nil }
+            return id.uuidString.lowercased()
+        }
+    }
+
     static let notificationSessionIDKey = "sessionID"
     static let notificationSessionPIDKey = "sessionPID"
     static let notificationCctopSessionIDKey = "cctopSessionID"
@@ -14,6 +24,17 @@ enum SessionIdentityPolicy {
             return "desktop:\(session.sessionId)"
         }
         return "active:\(session.id)"
+    }
+
+    /// Panel identity prefers cctop's permanent UUID. Legacy records retain the existing
+    /// source- and host-aware key until a permanent ID becomes available.
+    static func logicalIdentity(for session: Session) -> LogicalIdentity {
+        if let cctopSessionID = session.cctopSessionId,
+           Session.isValidCctopSessionId(cctopSessionID),
+           let id = UUID(uuidString: cctopSessionID) {
+            return .permanent(id)
+        }
+        return .legacy(stableKey(for: session))
     }
 
     static func notificationRequestIdentifier(for session: Session) -> String {
@@ -67,19 +88,6 @@ enum SessionIdentityPolicy {
         return string
     }
 
-    /// Collapse duplicate display ids during migration, keeping the most recently active copy.
-    static func dedupedByDisplayID(_ sessions: [Session]) -> [Session] {
-        var byID: [String: Session] = [:]
-        for session in sessions {
-            let id = session.id
-            if let existing = byID[id], existing.lastActivity >= session.lastActivity {
-                continue
-            }
-            byID[id] = session
-        }
-        return byID.values.sorted { $0.id < $1.id }
-    }
-
     /// Collapse multiple files for one conversation only for hosts with stable conversation identity.
     static func dedupedCandidatesByStableKey(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
         var byKey: [String: DedupCandidate] = [:]
@@ -89,6 +97,26 @@ enum SessionIdentityPolicy {
             byKey[key] = candidate
         }
         return byKey.values.sorted { stableKey(for: $0.session) < stableKey(for: $1.session) }
+    }
+
+    /// Collapse visible observations that resolve to one logical panel row. The first
+    /// occurrence owns the row position while the lifecycle policy chooses its observation.
+    static func dedupedCandidatesByLogicalIdentity(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
+        var result: [DedupCandidate] = []
+        var indexByIdentity: [LogicalIdentity: Int] = [:]
+
+        for candidate in candidates {
+            let identity = logicalIdentity(for: candidate.session)
+            if let index = indexByIdentity[identity] {
+                if SessionLifecyclePolicy.prefers(candidate, over: result[index]) {
+                    result[index] = candidate
+                }
+            } else {
+                indexByIdentity[identity] = result.count
+                result.append(candidate)
+            }
+        }
+        return result
     }
 }
 
