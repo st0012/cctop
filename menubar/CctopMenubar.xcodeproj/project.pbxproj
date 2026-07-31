@@ -22,6 +22,7 @@
 		D10000050000000000000001 /* SessionCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000060000000000000001 /* SessionCardView.swift */; };
 		SBV000010000000000000001 /* SourceBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SBV000020000000000000001 /* SourceBadgeView.swift */; };
 		D10000070000000000000001 /* PopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000080000000000000001 /* PopupView.swift */; };
+		PVS000010000000000000001 /* PopupView+Sessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = PVS000020000000000000001 /* PopupView+Sessions.swift */; };
 		PVH000010000000000000001 /* PopupViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = PVH000020000000000000001 /* PopupViewHelpers.swift */; };
 		PVR000010000000000000001 /* PopupView+Recent.swift in Sources */ = {isa = PBXBuildFile; fileRef = PVR000020000000000000001 /* PopupView+Recent.swift */; };
 		D10000090000000000000001 /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000A000000000000001 /* QuitButton.swift */; };
@@ -211,6 +212,7 @@
 		D10000060000000000000001 /* SessionCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCardView.swift; sourceTree = "<group>"; };
 		SBV000020000000000000001 /* SourceBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceBadgeView.swift; sourceTree = "<group>"; };
 		D10000080000000000000001 /* PopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupView.swift; sourceTree = "<group>"; };
+		PVS000020000000000000001 /* PopupView+Sessions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PopupView+Sessions.swift"; sourceTree = "<group>"; };
 		PVH000020000000000000001 /* PopupViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupViewHelpers.swift; sourceTree = "<group>"; };
 		FTR000020000000000000001 /* FocusTargetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTargetResolver.swift; sourceTree = "<group>"; };
 		E10000020000000000000001 /* FocusTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminal.swift; sourceTree = "<group>"; };
@@ -485,6 +487,7 @@
 				D10000060000000000000001 /* SessionCardView.swift */,
 				SBV000020000000000000001 /* SourceBadgeView.swift */,
 				D10000080000000000000001 /* PopupView.swift */,
+				PVS000020000000000000001 /* PopupView+Sessions.swift */,
 				PNV000020000000000000001 /* PopupNavigation.swift */,
 				PES000020000000000000001 /* PopupView+EmptyState.swift */,
 				PCU000020000000000000001 /* PopupView+Cleanup.swift */,
@@ -722,6 +725,7 @@
 				D10000050000000000000001 /* SessionCardView.swift in Sources */,
 				SBV000010000000000000001 /* SourceBadgeView.swift in Sources */,
 				D10000070000000000000001 /* PopupView.swift in Sources */,
+				PVS000010000000000000001 /* PopupView+Sessions.swift in Sources */,
 				PVH000010000000000000001 /* PopupViewHelpers.swift in Sources */,
 				D10000090000000000000001 /* QuitButton.swift in Sources */,
 				FTR000010000000000000001 /* FocusTargetResolver.swift in Sources */,

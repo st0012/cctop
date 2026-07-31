@@ -1500,7 +1500,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             processAlive: { _ in true }
         )
         let publishedIDs = Set(manager.sessions.compactMap(\.cctopSessionId))
-        XCTAssertEqual(manager.sessions.count, 2)
+        XCTAssertEqual(manager.sessions.count, 1)
         XCTAssertEqual(publishedIDs.count, 1)
         XCTAssertTrue(publishedIDs.allSatisfy(Session.isValidCctopSessionId))
 

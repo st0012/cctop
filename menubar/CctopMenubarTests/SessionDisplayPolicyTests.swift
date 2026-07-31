@@ -36,7 +36,10 @@ final class SessionDisplayPolicyTests: XCTestCase {
 
         XCTAssertEqual(
             SessionDisplayPolicy.signature(for: sessions, now: now),
-            .init(activeIDs: ["fresh"], idleIDs: ["stale", "dormant"])
+            .init(
+                activeIDs: [SessionIdentityPolicy.logicalIdentity(for: sessions[0])],
+                idleIDs: sessions[1...].map { SessionIdentityPolicy.logicalIdentity(for: $0) }
+            )
         )
     }
 
@@ -231,6 +234,57 @@ final class SessionDisplayPolicyTests: XCTestCase {
             SessionIdentityPolicy.stableKey(for: previous[0]),
             SessionIdentityPolicy.stableKey(for: result[0])
         )
+    }
+
+    func testReconciledActiveOrderUsesPermanentIdentityAcrossObservationReplacementAndStatusMovement() {
+        let now = Date(timeIntervalSince1970: 95_000)
+        let sharedID = "11111111-1111-4111-8111-111111111111"
+        var logicalSession = Session.mock(
+            id: "old-observation", cctopSessionId: sharedID,
+            status: .working, pid: 100, source: Session.opencodeSource
+        )
+        let workingPeer = Session.mock(id: "peer", status: .working, pid: 200, source: Session.opencodeSource)
+        let previous = [logicalSession, workingPeer]
+
+        logicalSession = Session.mock(
+            id: "new-observation", cctopSessionId: sharedID,
+            status: .waitingInput, pid: 300, source: Session.opencodeSource
+        )
+        let result = SessionDisplayPolicy.reconcilingActiveOrder(
+            in: [workingPeer, logicalSession], preserving: previous, now: now
+        )
+
+        XCTAssertEqual(result.map(\.pid), [300, 200])
+        XCTAssertEqual(
+            result.map { SessionIdentityPolicy.logicalIdentity(for: $0) },
+            [
+                SessionIdentityPolicy.logicalIdentity(for: logicalSession),
+                SessionIdentityPolicy.logicalIdentity(for: workingPeer),
+            ]
+        )
+    }
+
+    func testReconciledActiveOrderDoesNotReplayDuplicatePreviousLogicalRows() {
+        let now = Date(timeIntervalSince1970: 96_000)
+        let sharedID = "11111111-1111-4111-8111-111111111111"
+        let previousFirst = Session.mock(
+            id: "old-first", cctopSessionId: sharedID,
+            status: .working, pid: 100, source: Session.opencodeSource
+        )
+        let previousSecond = Session.mock(
+            id: "old-second", cctopSessionId: sharedID,
+            status: .working, pid: 200, source: Session.opencodeSource
+        )
+        let current = Session.mock(
+            id: "current", cctopSessionId: sharedID,
+            status: .working, pid: 300, source: Session.opencodeSource
+        )
+
+        let result = SessionDisplayPolicy.reconcilingActiveOrder(
+            in: [current], preserving: [previousFirst, previousSecond], now: now
+        )
+
+        XCTAssertEqual(result.map(\.pid), [300])
     }
 
     private func activeIdle(id: String, lastActivity: Date) -> Session {

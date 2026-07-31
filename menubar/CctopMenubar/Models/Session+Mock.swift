@@ -22,7 +22,7 @@ extension Session {
     ) -> Session {
         var session = Session(
             sessionId: id,
-            cctopSessionId: cctopSessionId ?? "00000000-0000-4000-8000-000000000001",
+            cctopSessionId: cctopSessionId ?? makeCctopSessionId(),
             harnessSessionId: harnessSessionId,
             projectPath: "/Users/test/projects/\(project)",
             projectName: project,

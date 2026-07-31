@@ -78,6 +78,7 @@ extension PopupView {
 
     func handleSelectedTabChanged(_ newTab: PopupTab) {
         selectedIndex = nil
+        selectedSessionIdentity = nil
         if newTab == .cleanup {
             onCleanupTabVisible()
         } else {

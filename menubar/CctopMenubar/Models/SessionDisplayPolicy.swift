@@ -4,8 +4,8 @@ import Foundation
 /// This does not change lifecycle or cleanup semantics.
 enum SessionDisplayPolicy {
     struct Signature: Equatable {
-        let activeIDs: [String]
-        let idleIDs: [String]
+        let activeIDs: [SessionIdentityPolicy.LogicalIdentity]
+        let idleIDs: [SessionIdentityPolicy.LogicalIdentity]
 
         static let empty = Signature(activeIDs: [], idleIDs: [])
     }
@@ -34,35 +34,37 @@ enum SessionDisplayPolicy {
     ) -> [Session] {
         let active = activeSessions(from: sessions, now: now)
         let activeByKey = Dictionary(
-            active.map { (SessionIdentityPolicy.stableKey(for: $0), $0) },
+            active.map { (SessionIdentityPolicy.logicalIdentity(for: $0), $0) },
             uniquingKeysWith: { first, _ in first }
         )
         let activeKeys = Set(activeByKey.keys)
         var groups = Array(repeating: [Session](), count: SessionStatus.idle.sortOrder + 1)
-        var placedKeys: Set<String> = []
+        var placedKeys: Set<SessionIdentityPolicy.LogicalIdentity> = []
 
         for previous in activeSessions(from: previousSessions, now: now) {
-            let key = SessionIdentityPolicy.stableKey(for: previous)
-            guard let current = activeByKey[key], current.status.sortOrder == previous.status.sortOrder else { continue }
+            let key = SessionIdentityPolicy.logicalIdentity(for: previous)
+            guard !placedKeys.contains(key),
+                  let current = activeByKey[key],
+                  current.status.sortOrder == previous.status.sortOrder else { continue }
             groups[current.status.sortOrder].append(current)
             placedKeys.insert(key)
         }
 
         for current in active {
-            let key = SessionIdentityPolicy.stableKey(for: current)
+            let key = SessionIdentityPolicy.logicalIdentity(for: current)
             guard placedKeys.insert(key).inserted else { continue }
             groups[current.status.sortOrder].append(current)
         }
 
         let orderedActive = groups.flatMap { $0 }
-        let nonActive = sessions.filter { !activeKeys.contains(SessionIdentityPolicy.stableKey(for: $0)) }
+        let nonActive = sessions.filter { !activeKeys.contains(SessionIdentityPolicy.logicalIdentity(for: $0)) }
         return orderedActive + nonActive
     }
 
     static func signature(for sessions: [Session], now: Date = Date()) -> Signature {
         Signature(
-            activeIDs: activeSessions(from: sessions, now: now).map(\.id),
-            idleIDs: idleSessions(from: sessions, now: now).map(\.id)
+            activeIDs: activeSessions(from: sessions, now: now).map(SessionIdentityPolicy.logicalIdentity),
+            idleIDs: idleSessions(from: sessions, now: now).map(SessionIdentityPolicy.logicalIdentity)
         )
     }
 

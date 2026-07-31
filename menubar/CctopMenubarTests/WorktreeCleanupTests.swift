@@ -1445,8 +1445,6 @@ final class WorktreeCleanupTests: XCTestCase {
             for: .cleanup,
             index: 0,
             in: PopupSelectionContext(
-                activeSessions: [],
-                idleSessions: [],
                 recentProjects: [],
                 cleanupCandidates: [candidate]
             )
@@ -1547,8 +1545,6 @@ final class WorktreeCleanupTests: XCTestCase {
             for: .cleanup,
             index: 0,
             in: PopupSelectionContext(
-                activeSessions: [],
-                idleSessions: [],
                 recentProjects: [],
                 cleanupCandidates: [candidate]
             )

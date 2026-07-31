@@ -33,6 +33,12 @@ automatically pruned in this version.
 Deleting cctop's local session and identity data resets this continuity.
 Cross-machine sync is not supported.
 
+Panel and keyboard navigation use this permanent ID as their logical identity.
+For a legacy record whose ID is still absent or invalid, they temporarily fall
+back to cctop's existing source- and host-aware session key. That fallback is
+never persisted as a replacement ID; indirect focus is allowed only when its
+current match is unique, otherwise the action fails closed.
+
 ### `harness_session_id`
 
 Type: `string`
@@ -76,20 +82,27 @@ privacy-safe stale-state diagnostic, performs exactly one synchronous canonical
 reload and one re-resolution, then fails closed if the target is still missing.
 It never falls back to a client conversation reference, PID, or display slot.
 
-Panel, URL focus, DisplayStateWriter, and Stream Deck all consume that canonical
-order. The projection never independently sorts, deduplicates, or removes rows,
-so slots stay aligned with the panel even when two observations share one
-`cctop_session_id`. A direct panel or keyboard selection still focuses the exact
-observation represented by the selected row, without re-resolving its permanent ID.
+`SessionManager` collapses visible observations with the same logical identity
+into one panel row before applying its existing status-group ordering. The first
+logical row position is retained while the existing lifecycle preference chooses
+the current observation. Panel, URL focus, DisplayStateWriter, and Stream Deck
+then consume that canonical order. DisplayStateWriter never independently sorts,
+deduplicates, or removes manager rows, so its slots remain a one-to-one projection.
 
-This version does not reconcile multiple clients or multiple simultaneous focus
-targets. If the same conversation is open in more than one place, observations
-may remain separate or several rows may share one ID; permanent-ID commands use
-the first matching row in canonical panel order. This is the temporary
-single-target policy, not a user-selectable multi-target design. Future support
-extends the resolver with an explicit selection policy rather than changing
-logical identity, lifecycle/liveness classification, canonical order, or
-terminal/window execution.
+A direct pointer or context-menu action focuses the exact current observation
+rendered in that row. Keyboard selection instead retains logical identity and
+resolves it against current panel observations, so reloads, focus-target changes,
+and status-group movement cannot retarget selection by row index. Navigate-mode
+number slots freeze those identities at activation; a missing identity leaves its
+original number unusable rather than shifting a later conversation into that slot.
+
+This version does not offer user-selectable routing among multiple simultaneous
+focus targets. Observations sharing one ID form one logical panel row, and a
+permanent-ID resolver supplied with multiple current observations uses the first
+match in canonical panel order. This is the temporary single-target policy.
+Future support extends the resolver with an explicit selection policy rather than
+changing logical identity, lifecycle/liveness classification, canonical order,
+or terminal/window execution.
 Cross-client equivalence and cross-machine identity are out of scope. Manual hiding
 uses `cctop_session_id` as its preference key; notification grouping, cleanup,
 history, and other persisted preferences keep their separate contracts.

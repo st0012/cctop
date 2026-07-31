@@ -26,8 +26,9 @@ struct PopupView: View {
     var onCleanupTabHidden: () -> Void = {}
     /// Called (async on main) whenever content layout changes so the host can resize the panel.
     var onLayoutChanged: () -> Void = {}
-    @State private var selectedTab: PopupTab = .active
+    @State var selectedTab: PopupTab = .active
     @State var selectedIndex: Int?
+    @State var selectedSessionIdentity: SessionIdentityPolicy.LogicalIdentity?
     @State private var gearHovered = false
     @State private var versionHovered = false
     @State private var shortcutHovered = false
@@ -94,6 +95,7 @@ struct PopupView: View {
         }
         .onReceive(navigate?.didActivateSubject.eraseToAnyPublisher() ?? Empty().eraseToAnyPublisher()) { _ in
             selectedIndex = nil
+            selectedSessionIdentity = nil
             if selectedTab != .active { selectedTab = .active }
             if overlayController.active != nil { closeOverlay(animated: false) }
         }
@@ -195,7 +197,7 @@ struct PopupView: View {
                             installAction: { pluginManager.installPiPlugin() },
                             installed: $piBannerInstalled, dismissed: $piBannerDismissed)
                     }
-                    sessionList(sortedActiveSessions, tab: .active, showNavigateNumbers: true)
+                    sessionList(activeSessionRows, tab: .active, showNavigateNumbers: true)
                 }
             }
         }
@@ -206,37 +208,7 @@ struct PopupView: View {
         if sortedIdleSessions.isEmpty {
             noIdleSessionsContent
         } else {
-            sessionList(sortedIdleSessions, tab: .idle)
-        }
-    }
-    private func sessionList(_ list: [Session], tab: PopupTab, showNavigateNumbers: Bool = false) -> some View {
-        panelList(list, tab: tab) { index, session, isSelected in
-            SessionCardView(
-                session: session,
-                navigateIndex: showNavigateNumbers && isNavigateActive ? index + 1 : nil,
-                showSourceBadge: hasMultipleSources,
-                isSelected: isSelected,
-                relativeTimeNow: relativeTimeNow
-            )
-            .onTapGesture { focusSession(session) }
-            .contextMenu {
-                Button { focusSession(session) } label: {
-                    Label("Jump to Terminal", systemImage: "terminal")
-                }
-                Button { openInFinder(path: session.projectPath) } label: {
-                    Label("Open in Finder", systemImage: "folder")
-                }
-                Button { copyPath(session.projectPath) } label: {
-                    Label("Copy Project Path", systemImage: "doc.on.doc")
-                }
-                Divider()
-                Button { requestHideSession(session) } label: { Label("Hide Session", systemImage: "eye.slash") }
-                    .disabled(!Session.isValidCctopSessionId(session.cctopSessionId))
-            }
-            .help("Click to jump to session")
-            .accessibilityActions {
-                Button("Hide Session") { requestHideSession(session) }.disabled(!Session.isValidCctopSessionId(session.cctopSessionId))
-            }
+            sessionList(idleSessionRows, tab: .idle)
         }
     }
     func panelList<Item: Identifiable, Row: View>(
@@ -366,15 +338,6 @@ extension PopupView {
             .layoutPriority(-1)
         } else { EmptyView() }
     }
-    private var isNavigateActive: Bool { navigate?.isActive ?? false }
-    private var hasMultipleSources: Bool { Set(sessions.map(\.agentBadge)).count > 1 }
-    private var sortedActiveSessions: [Session] {
-        let current = SessionDisplayPolicy.activeSessions(from: sessions)
-        return navigate?.activeSessionSnapshot ?? current
-    }
-    private var sortedIdleSessions: [Session] {
-        Session.sorted(SessionDisplayPolicy.idleSessions(from: sessions))
-    }
     var actionableCleanupCandidates: [WorktreeCleanupCandidate] {
         cleanupCandidates.filter(\.state.isActionable)
     }
@@ -388,7 +351,7 @@ extension PopupView {
         PopupTab.allCases
     }
 
-    private func focusSession(_ session: Session) {
+    func focusSession(_ session: Session) {
         guard Date().timeIntervalSince(lastFocusTime) > 0.5 else { return }
         lastFocusTime = Date()
         focusTerminal(session: session)
@@ -420,31 +383,43 @@ extension PopupView {
         case .up: moveSelection(by: -1)
         case .down: moveSelection(by: 1)
         case .confirm: confirmSelection()
-        case .escape, .reset: selectedIndex = nil
+        case .escape, .reset:
+            selectedIndex = nil
+            selectedSessionIdentity = nil
         case .toggleTab, .previousTab, .nextTab: switchTab(to: action)
         }
     }
 
     private func moveSelection(by delta: Int) {
-        let count: Int
         switch selectedTab {
-        case .active: count = sortedActiveSessions.count
-        case .idle: count = sortedIdleSessions.count
-        case .recent: count = recentTargets.count
-        case .cleanup: count = actionableCleanupCandidates.count
+        case .active:
+            moveSessionSelection(by: delta, in: activeSessionRows)
+            return
+        case .idle:
+            moveSessionSelection(by: delta, in: idleSessionRows)
+            return
+        case .recent:
+            moveIndexedSelection(by: delta, count: recentTargets.count)
+        case .cleanup:
+            moveIndexedSelection(by: delta, count: actionableCleanupCandidates.count)
         }
+    }
+
+    private func moveIndexedSelection(by delta: Int, count: Int) {
         guard count > 0 else { return }
         selectedIndex = selectedIndex.map { ($0 + delta + count) % count } ?? (delta > 0 ? 0 : count - 1)
     }
 
     private func confirmSelection() {
+        if selectedTab == .active || selectedTab == .idle {
+            confirmSessionSelection()
+            return
+        }
         guard let index = selectedIndex else { return }
         guard let target = PopupSelectionTarget.target(
             for: selectedTab,
             index: index,
             in: PopupSelectionContext(
-                activeSessions: sortedActiveSessions,
-                idleSessions: sortedIdleSessions,
                 recentProjects: recentProjects,
                 recentResumeTargets: recentTargets,
                 cleanupCandidates: actionableCleanupCandidates
@@ -453,8 +428,6 @@ extension PopupView {
             return
         }
         switch target {
-        case .activeSession(let session), .idleSession(let session):
-            focusSession(session)
         case .recentTarget(let target):
             openRecentResumeTarget(target)
             NSApp.deactivate()
