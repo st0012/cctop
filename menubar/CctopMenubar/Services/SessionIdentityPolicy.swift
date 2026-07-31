@@ -55,13 +55,6 @@ enum SessionIdentityPolicy {
         }
     }
 
-    /// Match a session by the permanent cctop-owned id published to external control
-    /// surfaces. Exact match only. When several live observations share one logical id,
-    /// canonical SessionManager order selects the currently associated focus target.
-    static func session(matchingCctopSessionID cctopSessionID: String, in sessions: [Session]) -> Session? {
-        sessions.first { $0.cctopSessionId == cctopSessionID }
-    }
-
     private static func notificationSessionID(for session: Session) -> String {
         if session.isCodex || session.hostClass == .desktop {
             return session.sessionId

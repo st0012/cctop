@@ -2,6 +2,35 @@ import XCTest
 @testable import CctopMenubar
 
 final class DisplayStateWriterTests: XCTestCase {
+    func testDisplayStateDecodingPreservesOwnerAndSessionIdentity() throws {
+        let requestedID = "11111111-2222-4333-8444-555555555555"
+        let data = Data(
+            """
+            {
+              "version": 2,
+              "generated_at": "2026-07-30T00:00:00.000Z",
+              "app_running": true,
+              "app_pid": 456,
+              "app_start_time": 1234.5,
+              "sessions": [
+                {
+                  "cctop_session_id": "\(requestedID)", "name": "one",
+                  "status": "working", "color": "#111111"
+                }
+              ]
+            }
+            """.utf8
+        )
+
+        let decoder = JSONDecoder()
+        let state = try decoder.decode(DisplayState.self, from: data)
+
+        XCTAssertEqual(state.version, 2)
+        XCTAssertEqual(state.appPID, 456)
+        XCTAssertEqual(state.appStartTime, 1_234.5)
+        XCTAssertEqual(state.sessions.first?.cctopSessionId, requestedID)
+    }
+
     func testSnapshotPreservesCanonicalPanelAndNavigateOrder() {
         let now = Date()
         var permission = Session.mock(id: "a", project: "alpha", status: .waitingPermission)

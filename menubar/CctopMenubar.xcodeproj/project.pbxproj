@@ -25,6 +25,7 @@
 		PVH000010000000000000001 /* PopupViewHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = PVH000020000000000000001 /* PopupViewHelpers.swift */; };
 		PVR000010000000000000001 /* PopupView+Recent.swift in Sources */ = {isa = PBXBuildFile; fileRef = PVR000020000000000000001 /* PopupView+Recent.swift */; };
 		D10000090000000000000001 /* QuitButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1000000A000000000000001 /* QuitButton.swift */; };
+		FTR000010000000000000001 /* FocusTargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = FTR000020000000000000001 /* FocusTargetResolver.swift */; };
 		E10000010000000000000001 /* FocusTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000001 /* FocusTerminal.swift */; };
 		EAPPRESTORE0010000000001 /* FocusTerminal+AppRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */; };
 		ECMUX001000000000000001 /* FocusTerminal+Cmux.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECMUX002000000000000001 /* FocusTerminal+Cmux.swift */; };
@@ -211,6 +212,7 @@
 		SBV000020000000000000001 /* SourceBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceBadgeView.swift; sourceTree = "<group>"; };
 		D10000080000000000000001 /* PopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupView.swift; sourceTree = "<group>"; };
 		PVH000020000000000000001 /* PopupViewHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupViewHelpers.swift; sourceTree = "<group>"; };
+		FTR000020000000000000001 /* FocusTargetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTargetResolver.swift; sourceTree = "<group>"; };
 		E10000020000000000000001 /* FocusTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminal.swift; sourceTree = "<group>"; };
 		EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+AppRestore.swift"; sourceTree = "<group>"; };
 		ECMUX002000000000000001 /* FocusTerminal+Cmux.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+Cmux.swift"; sourceTree = "<group>"; };
@@ -385,6 +387,7 @@
 				SMN000020000000000000001 /* SessionManager+Notifications.swift */,
 				NPC000020000000000000001 /* NotificationPermissionController.swift */,
 				HM0000020000000000000001 /* HistoryManager.swift */,
+				FTR000020000000000000001 /* FocusTargetResolver.swift */,
 				E10000020000000000000001 /* FocusTerminal.swift */,
 				EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */,
 				ECMUX002000000000000001 /* FocusTerminal+Cmux.swift */,
@@ -721,6 +724,7 @@
 				D10000070000000000000001 /* PopupView.swift in Sources */,
 				PVH000010000000000000001 /* PopupViewHelpers.swift in Sources */,
 				D10000090000000000000001 /* QuitButton.swift in Sources */,
+				FTR000010000000000000001 /* FocusTargetResolver.swift in Sources */,
 				E10000010000000000000001 /* FocusTerminal.swift in Sources */,
 				EAPPRESTORE0010000000001 /* FocusTerminal+AppRestore.swift in Sources */,
 				ECMUX001000000000000001 /* FocusTerminal+Cmux.swift in Sources */,

@@ -39,16 +39,21 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
 /// Resolve which strategy to use for jumping to a session, optionally using
 /// freshly resolved multiplexer metadata for legacy live sessions.
 /// Pure function — no AppKit side effects, fully testable.
-func resolveFocusStrategy(session: Session, multiplexerOverride: MultiplexerInfo?) -> FocusStrategy {
+func resolveFocusStrategy(
+    session: Session,
+    multiplexerOverride: MultiplexerInfo?,
+    isCodexDesktopAppServerTarget: Bool = false
+) -> FocusStrategy {
     guard let terminal = session.terminal else {
         return .openInFinder(session.projectPath)
     }
     let multiplexer = multiplexerOverride ?? terminal.multiplexer
 
-    // Prefer trusted bundle_id (from __CFBundleIdentifier) over program name: it
-    // identifies VS Code forks that all set TERM_PROGRAM=vscode. Explicit non-desktop
+    // Positive live Codex Desktop evidence outranks stale persisted host metadata.
+    // Otherwise prefer trusted bundle_id over program name; explicit non-desktop
     // harnesses ignore leaked AI desktop bundle IDs before this fallback.
-    let hostApp = session.trustedHostApp
+    let hostApp = (session.isCodex && isCodexDesktopAppServerTarget ? HostApp.codexDesktop : nil)
+        ?? session.trustedHostApp
         ?? (multiplexer?.isCmux == true ? .cmux : HostApp.from(editorName: terminal.program))
     let target = session.workspaceFile ?? session.projectPath
 
@@ -119,8 +124,15 @@ private let focusQueue = DispatchQueue(label: "cctop.focus-terminal", qos: .user
 func focusTerminal(session: Session) {
     focusQueue.async {
         let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
-        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride)
-        let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride)
+        let isCodexDesktopAppServerTarget = session.isCodex && session.pid.flatMap {
+            pid_t(exactly: $0)
+        }.map {
+            CodexDesktopRuntimeProbe().isCurrentDesktopAppServer(pid: $0)
+        } == true
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride,
+                                            isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget)
+        let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride,
+                                                  isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget)
         executeFocusStrategy(strategy)
         if let mux = muxStrategy {
             executeMultiplexerFocus(mux)

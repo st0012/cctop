@@ -10,17 +10,25 @@ private let displayStateLogger = Logger(
 /// The versioned projection cctop publishes for external display surfaces.
 /// Consumers render these values verbatim; they do not inspect session files or
 /// reproduce cctop's ordering, lifecycle, identity, or theme rules.
-struct DisplayState: Encodable {
+struct DisplayState: Codable {
     struct ProcessIdentity {
         let pid: Int32
         let startTime: TimeInterval
     }
 
-    struct Entry: Encodable, Equatable {
+    struct Entry: Codable, Equatable {
         let cctopSessionId: String
         let name: String
         let status: String
         let color: String
+
+        // swiftlint:disable:next nesting
+        enum CodingKeys: String, CodingKey {
+            case cctopSessionId = "cctop_session_id"
+            case name
+            case status
+            case color
+        }
     }
 
     struct DedupeKey: Encodable {
@@ -37,6 +45,15 @@ struct DisplayState: Encodable {
     let appPID: Int32?
     let appStartTime: TimeInterval?
     let sessions: [Entry]
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case generatedAt = "generated_at"
+        case appRunning = "app_running"
+        case appPID = "app_pid"
+        case appStartTime = "app_start_time"
+        case sessions
+    }
 
     var dedupeKey: DedupeKey {
         DedupeKey(
@@ -121,6 +138,20 @@ final class DisplayStateWriter {
         )
     }
 
+    static func currentPublishedState() -> DisplayState? {
+        guard let data = try? Data(contentsOf: defaultStateURL),
+              let state = try? decoder.decode(DisplayState.self, from: data),
+              let generatedAt = timestampFormatter.date(from: state.generatedAt) else { return nil }
+        return DisplayState(
+            version: state.version,
+            generatedAt: timestampFormatter.string(from: generatedAt),
+            appRunning: state.appRunning,
+            appPID: state.appPID,
+            appStartTime: state.appStartTime,
+            sessions: state.sessions
+        )
+    }
+
     /// Hardware keys always use the same dark status palette as cctop's other
     /// persistent surfaces, including the compacting badge color.
     static func hexColor(for status: SessionStatus, theme: AppTheme) -> String {
@@ -155,6 +186,8 @@ final class DisplayStateWriter {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         return encoder
     }()
+
+    private static let decoder = JSONDecoder()
 
     private static let timestampFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
