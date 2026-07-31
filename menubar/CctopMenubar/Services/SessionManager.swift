@@ -159,6 +159,9 @@ class SessionManager: ObservableObject {
         )
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenProjectPaths(hiddenSessionIDs))
+        let publishedSessionIDs = Set(newSessions.compactMap {
+            SessionIdentityPolicy.logicalIdentity(for: $0).cctopSessionID
+        })
         let shouldFreezeVisibilityProjections = !unresolvedLegacyKeys.isEmpty
             || (!inventoryComplete && !hiddenSessionIDs.isEmpty)
         if !shouldFreezeVisibilityProjections {
@@ -166,7 +169,7 @@ class SessionManager: ObservableObject {
             publishRecentResumeTargets(RecentResumeTarget.build(
                 projects: historyManager.recentProjects,
                 classification: classification,
-                excludingDesktopSessionIDs: hiddenSessionIDs
+                excludingDesktopSessionIDs: hiddenSessionIDs.union(publishedSessionIDs)
             ))
             refreshCleanupSources(from: observedCleanupSources, activeProjectPaths: activeProjectPaths)
         } else { // Freeze existing items, add unresolved finished evidence, and only grow path protection.

@@ -742,6 +742,157 @@ final class SessionLifecycleTests: XCTestCase {
         XCTAssertEqual(visibleAfterHidingCodex.map(\.title), ["Run plugin node:test suites in CI"])
     }
 
+    func testRecentResumeTargetsUsePermanentIdentityAndDeterministicArchivedObservation() throws {
+        let permanentID = "11111111-1111-4111-8111-111111111111"
+        let preferredSessionID = "preferred-archived-observation"
+        let otherSessionID = "other-archived-observation"
+        let preferred = candidate(
+            sessionId: preferredSessionID,
+            pid: 1,
+            bundleId: HostAppBundleID.claudeDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.ccSource,
+            lastActivity: Date(timeIntervalSince1970: 3_000),
+            mtime: Date(timeIntervalSince1970: 4_000),
+            path: "/a-preferred.json"
+        ) { session in
+            session.cctopSessionId = permanentID
+            session.sessionName = "Preferred archived observation"
+            session.desktopProjectName = "Preferred project"
+        }
+        let other = candidate(
+            sessionId: otherSessionID,
+            pid: 2,
+            bundleId: HostAppBundleID.claudeDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.ccSource,
+            lastActivity: Date(timeIntervalSince1970: 3_000),
+            mtime: Date(timeIntervalSince1970: 4_000),
+            path: "/z-other.json"
+        ) { session in
+            session.cctopSessionId = permanentID
+            session.sessionName = "Other archived observation"
+            session.desktopProjectName = "Other project"
+        }
+        let metadata = ClaudeDesktopSessionMetadataSnapshot(
+            matchedSessionIDs: [preferredSessionID, otherSessionID],
+            archivedSessionIDs: [preferredSessionID, otherSessionID],
+            isAuthoritative: true
+        )
+
+        let forward = RecentResumeTarget.build(
+            projects: [],
+            classification: SessionManager.sessionClassificationSnapshot(
+                in: [preferred, other],
+                claudeMetadata: metadata
+            )
+        )
+        let reversed = RecentResumeTarget.build(
+            projects: [],
+            classification: SessionManager.sessionClassificationSnapshot(
+                in: [other, preferred],
+                claudeMetadata: metadata
+            )
+        )
+
+        XCTAssertEqual(forward, reversed)
+        XCTAssertEqual(forward.count, 1)
+        let target = try XCTUnwrap(forward.first)
+        XCTAssertEqual(target.id, "desktop:\(permanentID)")
+        guard case .desktopThread(let thread) = target else {
+            return XCTFail("Expected one archived desktop target")
+        }
+        XCTAssertEqual(thread.sessionId, preferredSessionID)
+        XCTAssertEqual(thread.cctopSessionId, permanentID)
+        XCTAssertEqual(thread.title, "Preferred archived observation")
+        XCTAssertEqual(thread.projectName, "Preferred project")
+        XCTAssertEqual(thread.sourceApp, .claudeDesktop)
+        XCTAssertEqual(
+            resolveRecentResumeTargetOpenStrategy(target: target),
+            .activateByBundleID(HostApp.claudeDesktop.bundleID!)
+        )
+    }
+
+    func testRecentResumeTargetPermanentIdentityIsStableAcrossObservationMetadataChanges() throws {
+        let permanentID = "22222222-2222-4222-8222-222222222222"
+        let sessionID = "archived-observation"
+        func target(title: String, projectName: String) throws -> RecentResumeTarget {
+            let archived = candidate(
+                sessionId: sessionID,
+                pid: 1,
+                bundleId: HostAppBundleID.codexDesktop,
+                lifecycleRank: SessionLifecycle.dormant.rawValue,
+                source: Session.codexSource,
+                path: "/archived.json"
+            ) { session in
+                session.cctopSessionId = permanentID
+                session.sessionName = title
+                session.desktopProjectName = projectName
+            }
+            let classification = SessionManager.sessionClassificationSnapshot(
+                in: [archived],
+                codexThreads: StubCodexThreadState(archived: [sessionID])
+            )
+            let targets = RecentResumeTarget.build(projects: [], classification: classification)
+            XCTAssertEqual(targets.count, 1)
+            return try XCTUnwrap(targets.first)
+        }
+
+        let original = try target(title: "Original title", projectName: "Original project")
+        let updated = try target(title: "Updated title", projectName: "Updated project")
+
+        XCTAssertEqual(original.id, "desktop:\(permanentID)")
+        XCTAssertEqual(updated.id, original.id)
+        XCTAssertNotEqual(updated.title, original.title)
+        guard case .desktopThread(let originalThread) = original,
+              case .desktopThread(let updatedThread) = updated else {
+            return XCTFail("Expected archived desktop targets")
+        }
+        XCTAssertNotEqual(updatedThread.projectName, originalThread.projectName)
+    }
+
+    func testRecentResumeTargetsKeepLegacyIdentityFallbackWithoutValidPermanentID() {
+        let nilID = candidate(
+            sessionId: "legacy-without-id",
+            pid: 1,
+            bundleId: HostAppBundleID.claudeDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.ccSource,
+            path: "/legacy-without-id.json"
+        ) { session in
+            session.cctopSessionId = nil
+            session.sessionName = "Legacy without ID"
+        }
+        let invalidID = candidate(
+            sessionId: "legacy-invalid-id",
+            pid: 2,
+            bundleId: HostAppBundleID.claudeDesktop,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            source: Session.ccSource,
+            path: "/legacy-invalid-id.json"
+        ) { session in
+            session.cctopSessionId = "not-a-permanent-id"
+            session.sessionName = "Legacy invalid ID"
+        }
+        let metadata = ClaudeDesktopSessionMetadataSnapshot(
+            matchedSessionIDs: [nilID.session.sessionId, invalidID.session.sessionId],
+            archivedSessionIDs: [nilID.session.sessionId, invalidID.session.sessionId],
+            isAuthoritative: true
+        )
+        let classification = SessionManager.sessionClassificationSnapshot(
+            in: [nilID, invalidID],
+            claudeMetadata: metadata
+        )
+
+        XCTAssertEqual(
+            Set(RecentResumeTarget.build(projects: [], classification: classification).map(\.id)),
+            [
+                "desktop:Claude Desktop:legacy-without-id",
+                "desktop:Claude Desktop:legacy-invalid-id",
+            ]
+        )
+    }
+
     func testRecentResumeTargetsExcludeNonArchivedDesktopHiddenReasons() {
         let missing = candidate(
             sessionId: "missing-thread",
@@ -871,6 +1022,7 @@ final class SessionLifecycleTests: XCTestCase {
             RecentResumeTarget.project(project).metadataText,
             "Codex \u{00B7} 2 sessions \u{00B7} /Users/dev/projects/a-very-long-parent-path/billing-api"
         )
+        XCTAssertEqual(RecentResumeTarget.project(project).id, "project:\(project.id)")
     }
 
     func testRecentResumeTargetDesktopThreadOpenHelpTextUsesCautiousArchiveLanguage() {

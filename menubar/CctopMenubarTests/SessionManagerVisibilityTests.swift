@@ -698,8 +698,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             startMonitoring: false
         )
         let hidden = try XCTUnwrap(manager.sessions.first { $0.sessionId == live.sessionId })
-        XCTAssertEqual(manager.recentResumeTargets.map(\.title), ["Archived desktop observation"])
-        XCTAssertEqual(manager.recentResumeTargets.compactMap(\.cctopSessionId), [sharedID])
+        XCTAssertTrue(manager.recentResumeTargets.isEmpty)
 
         manager.hideSession(hidden)
 
@@ -715,6 +714,67 @@ final class SessionManagerVisibilityTests: XCTestCase {
         XCTAssertTrue(manager.sessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [sharedID])
+    }
+
+    @MainActor
+    func testPublishedSessionSuppressesArchivedRecentTargetUntilObservationEnds() throws {
+        let root = NSTemporaryDirectory() + "cctop-recent-live-suppression-\(UUID().uuidString)"
+        let sessionsURL = URL(fileURLWithPath: root).appendingPathComponent("sessions", isDirectory: true)
+        let historyURL = URL(fileURLWithPath: root).appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: historyURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let sharedID = "33333333-3333-4333-8333-333333333333"
+        let durableConversationID = "59253133-4a65-48fb-af2b-844463d3b5bb"
+        var live = Session(
+            sessionId: "live-terminal-observation",
+            projectPath: "/tmp/live-terminal",
+            branch: "main",
+            terminal: TerminalInfo(program: "zsh")
+        )
+        live.cctopSessionId = sharedID
+        live.harnessSessionId = durableConversationID
+        live.source = Session.ccSource
+        live.pid = 4_205
+        live.status = .working
+        let liveURL = sessionsURL.appendingPathComponent("live-terminal.json")
+        try live.writeToFile(path: liveURL.path)
+
+        var archived = claudeDesktopSession(
+            sessionId: durableConversationID,
+            projectPath: "/tmp/archived-desktop"
+        )
+        archived.cctopSessionId = sharedID
+        archived.harnessSessionId = durableConversationID
+        archived.sessionName = "Archived desktop observation"
+        archived.lastActivity = Date(timeIntervalSince1970: 2_000)
+        try archived.writeToFile(path: sessionsURL.appendingPathComponent("archived-desktop.json").path)
+
+        var sources = SessionDataSources.live()
+        sources.sessionsDir = sessionsURL
+        sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
+            matchedSessionIDs: [durableConversationID],
+            archivedSessionIDs: [durableConversationID],
+            isAuthoritative: true
+        ))
+        sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
+        sources.processAlive = { $0.sessionId == live.sessionId }
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: historyURL),
+            dataSources: sources,
+            startMonitoring: false
+        )
+
+        XCTAssertEqual(manager.sessions.map(\.cctopSessionId), [sharedID])
+        XCTAssertTrue(manager.recentResumeTargets.isEmpty)
+
+        try FileManager.default.removeItem(at: liveURL)
+        manager.loadSessions()
+
+        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertEqual(manager.recentResumeTargets.map(\.id), ["desktop:\(sharedID)"])
+        XCTAssertEqual(manager.recentResumeTargets.map(\.title), ["Archived desktop observation"])
     }
 
     @MainActor

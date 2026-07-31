@@ -37,6 +37,10 @@ enum RecentResumeTarget: Identifiable, Equatable {
         case .project(let project):
             return "project:\(project.id)"
         case .desktopThread(let thread):
+            if let cctopSessionID = thread.cctopSessionId,
+               Session.isValidCctopSessionId(cctopSessionID) {
+                return "desktop:\(cctopSessionID)"
+            }
             return "desktop:\(thread.sourceApp.displayName):\(thread.sessionId)"
         }
     }
@@ -169,7 +173,7 @@ enum RecentResumeTarget: Identifiable, Equatable {
         from classification: SessionClassificationSnapshot,
         excludingSessionIDs: Set<String>
     ) -> [RecentResumeTarget] {
-        var targetsByID: [String: RecentResumeTarget] = [:]
+        var targetsByID: [String: (target: RecentResumeTarget, candidate: DedupCandidate)] = [:]
         for record in classification.records {
             if let cctopSessionID = record.candidate.session.cctopSessionId,
                excludingSessionIDs.contains(cctopSessionID) {
@@ -184,12 +188,12 @@ enum RecentResumeTarget: Identifiable, Equatable {
             }
             let target = RecentResumeTarget.desktopThread(thread)
             if let existing = targetsByID[target.id],
-               existing.lastSessionAt >= target.lastSessionAt {
+               !SessionLifecyclePolicy.prefers(record.candidate, over: existing.candidate) {
                 continue
             }
-            targetsByID[target.id] = target
+            targetsByID[target.id] = (target, record.candidate)
         }
-        return Array(targetsByID.values)
+        return targetsByID.values.map(\.target)
     }
 
     private static func desktopThreadSourceApp(for disposition: SessionDisposition) -> HostApp? {
