@@ -163,11 +163,11 @@ struct SessionClassificationSnapshot {
         }
     }
 
-    func manualHiddenFinishedProjectPaths(_ hiddenSessionIDs: Set<String>) -> Set<String> {
-        Set(finishedNonDesktopCandidates.compactMap { candidate in
-            guard let cctopSessionID = candidate.session.cctopSessionId,
+    func manualHiddenProjectPaths(_ hiddenSessionIDs: Set<String>) -> Set<String> {
+        Set(records.compactMap { record in
+            guard let cctopSessionID = record.candidate.session.cctopSessionId,
                   hiddenSessionIDs.contains(cctopSessionID) else { return nil }
-            return candidate.session.projectPath
+            return record.candidate.session.projectPath
         })
     }
 
@@ -214,15 +214,19 @@ private extension Session {
 }
 
 extension SessionManager {
-    func retainedFinishedNonDesktopCleanupSources(
+    func retainedFinishedCleanupSources(
         winners: [DedupCandidate],
-        unresolvedLegacyKeys: Set<String>
+        unresolvedLegacyKeys: Set<String>,
+        unresolvedLegacyEvidence: Set<String>
     ) -> [SessionCleanupSource] {
         winners.compactMap { candidate in
             let session = candidate.session
             guard candidate.lifecycleRank == SessionLifecycle.finished.rawValue,
-                  session.hostClass != .desktop,
-                  shouldRetainManualHideEvidence(session, unresolvedLegacyKeys: unresolvedLegacyKeys),
+                  shouldRetainFinishedManualHideEvidence(
+                      session,
+                      legacyKeys: unresolvedLegacyKeys,
+                      legacyEvidence: unresolvedLegacyEvidence
+                  ),
                   session.hasCleanupSourcePath else {
                 return nil
             }
@@ -233,40 +237,111 @@ extension SessionManager {
     func archiveAndRemoveFinishedNonDesktop(
         _ candidates: [DedupCandidate],
         winners: [DedupCandidate],
-        unresolvedLegacyKeys: Set<String>
-    ) {
+        unresolvedLegacyKeys: Set<String>,
+        unresolvedLegacyEvidence: Set<String>
+    ) -> [SessionCleanupSource] {
         let winnerPaths = Set(winners.map(\.path))
+        var newlyArchivedCleanupSources: [SessionCleanupSource] = []
         for candidate in candidates {
-            guard !shouldRetainManualHideEvidence(
+            guard !shouldRetainFinishedManualHideEvidence(
                 candidate.session,
-                unresolvedLegacyKeys: unresolvedLegacyKeys
+                legacyKeys: unresolvedLegacyKeys,
+                legacyEvidence: unresolvedLegacyEvidence
             ) else { continue }
             // A finished dedup winner is a real completed non-desktop session, so keep today's
             // Recent Projects behavior. A finished duplicate loser is stale migration debris;
             // remove it without archiving so it cannot later surface as a separate session.
             if winnerPaths.contains(candidate.path) {
-                archiveAndRemove(candidate)
+                if let cleanupSource = archiveAndRemove(candidate) {
+                    newlyArchivedCleanupSources.append(cleanupSource)
+                }
             } else {
                 removeStaleDuplicate(candidate)
             }
         }
+        return newlyArchivedCleanupSources
     }
 
-    func shouldRetainManualHideEvidence(_ session: Session, unresolvedLegacyKeys: Set<String>) -> Bool {
+    func shouldRetainFinishedManualHideEvidence(
+        _ session: Session,
+        legacyKeys: Set<String>,
+        legacyEvidence: Set<String>
+    ) -> Bool {
+        shouldRetainManualHideEvidence(session, legacyKeys: legacyKeys, legacyEvidence: legacyEvidence)
+            || hasExistingMappedManualHide(session)
+    }
+
+    func hasExistingMappedManualHide(_ session: Session) -> Bool {
+        guard !Session.isValidCctopSessionId(session.cctopSessionId) else { return false }
+        let hiddenSessionIDs = dataSources.manualSessionVisibility.hiddenSessionIDs
+        guard !hiddenSessionIDs.isEmpty,
+              let existingID = try? CctopSessionIdentityStore(sessionsDir: dataSources.sessionsDir).existingIdentity(
+                  source: session.source,
+                  harnessSessionId: session.harnessSessionId,
+                  legacySessionId: session.sessionId
+              ) else {
+            return false
+        }
+        return hiddenSessionIDs.contains(existingID)
+    }
+
+    func shouldRetainManualHideEvidence(
+        _ session: Session,
+        legacyKeys: Set<String>,
+        legacyEvidence: Set<String>
+    ) -> Bool {
         dataSources.manualSessionVisibility.isHidden(session)
-            || unresolvedLegacyKeys.contains(SessionIdentityPolicy.stableKey(for: session))
+            || legacyKeys.contains(SessionIdentityPolicy.stableKey(for: session))
+            || CctopSessionIdentityStore.durableEvidence(
+                source: session.source,
+                harnessSessionId: session.harnessSessionId,
+                legacySessionId: session.sessionId
+            ).map(legacyEvidence.contains) == true
     }
 
-    func sweepLegacyUUIDFileIfNeeded(_ url: URL, unresolvedLegacyKeys: Set<String>) -> Bool {
+    func sweepLegacyUUIDFileIfNeeded(
+        _ url: URL,
+        unresolvedLegacyKeys: Set<String>,
+        unresolvedLegacyEvidence: Set<String>
+    ) -> Bool {
         guard Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) else { return false }
         if !dataSources.manualSessionVisibility.hasStoredHideEvidence {
             try? FileManager.default.removeItem(at: url) // Pre-PID legacy file; no live writer to race.
         } else if let data = try? Data(contentsOf: url),
                   let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data),
-                  !shouldRetainManualHideEvidence(session, unresolvedLegacyKeys: unresolvedLegacyKeys) {
+                  !shouldRetainFinishedManualHideEvidence(
+                      session,
+                      legacyKeys: unresolvedLegacyKeys,
+                      legacyEvidence: unresolvedLegacyEvidence
+                  ) {
             try? FileManager.default.removeItem(at: url)
         }
         return true
+    }
+
+    func unresolvedManualHideEvidence(in sessions: [Session], legacyKeys: Set<String>) -> Set<String> {
+        var evidence = Set(legacyKeys.compactMap {
+            ManualSessionVisibilityStore.durableEvidence(forLegacyKey: $0)
+        })
+        evidence.formUnion(sessions
+            .filter { legacyKeys.contains(SessionIdentityPolicy.stableKey(for: $0)) }
+            .compactMap {
+                CctopSessionIdentityStore.durableEvidence(
+                    source: $0.source,
+                    harnessSessionId: $0.harnessSessionId,
+                    legacySessionId: $0.sessionId
+                )
+            })
+        return evidence
+    }
+
+    func unresolvedManualHideEvidence(in files: [URL], legacyKeys: Set<String>) -> Set<String> {
+        unresolvedManualHideEvidence(
+            in: files.compactMap { url in
+                (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.sessionDecoder.decode(Session.self, from: $0) }
+            },
+            legacyKeys: legacyKeys
+        )
     }
 
     func mergingCleanupSources(
@@ -280,14 +355,16 @@ extension SessionManager {
         } + replacements
     }
 
-    private func archiveAndRemove(_ candidate: DedupCandidate) {
+    private func archiveAndRemove(_ candidate: DedupCandidate) -> SessionCleanupSource? {
         let session = candidate.session
         // A dead non-desktop process holds no lock, so removing its .json needs no flock. Remove
         // the .json ONLY — never the .lock (unlinking a lock a hook still holds splits the inode).
         if historyManager.archiveSession(session) {
             try? FileManager.default.removeItem(atPath: candidate.path)
+            return session.hasCleanupSourcePath ? SessionCleanupSource(session: session) : nil
         } else {
             sessionManagerLogger.warning("skipping removal of \(session.sessionId, privacy: .public) — archive failed")
+            return nil
         }
     }
 

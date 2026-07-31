@@ -113,7 +113,6 @@ extension SessionManager {
                 session.cctopSessionId = cctopSessionId
                 records[index].session = session
                 idsByEvidence[evidence, default: []].insert(cctopSessionId)
-                cacheMigratedSession(session, at: records[index].url.path)
                 scheduleCctopSessionIdentityStamp(
                     url: records[index].url,
                     snapshot: records[index].session
@@ -127,14 +126,6 @@ extension SessionManager {
             }
         }
         return records.map(\.session)
-    }
-
-    private func cacheMigratedSession(_ session: Session, at path: String) {
-        guard let cached = sessionFileCache[path] else { return }
-        sessionFileCache[path] = SessionFileCacheEntry(
-            fingerprint: cached.fingerprint,
-            session: session
-        )
     }
 
     func identifiedPublishableCandidates(
@@ -162,6 +153,7 @@ extension SessionManager {
             let record = classification.records[index]
             let session = record.candidate.session
             guard case .legacy(let stableKey) = SessionIdentityPolicy.logicalIdentity(for: session) else { return false }
+            if hasExistingMappedManualHide(session) { return true }
             if legacyKeys.contains(stableKey) { return true }
             guard case .hidden(let reason) = record.disposition else { return false }
             switch reason {
