@@ -334,6 +334,108 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .openURL(URL(string: "codex://threads/\(uuid)")!, restoreBundleID: bundleID))
     }
 
+    func testCurrentPermanentIDCodexAppServerRouteUsesThreadDeepLinkInsteadOfProjectFallback() throws {
+        let threadID = "019faecb-6e9b-7f41-a51f-bb998875ca77"
+        let cctopSessionID = "82498aba-410e-4b6b-b48d-62f7c6a81eae"
+        let observation = Session.mock(
+            id: threadID,
+            cctopSessionId: cctopSessionID,
+            harnessSessionId: threadID,
+            project: "cctop",
+            pid: 61_871,
+            terminal: TerminalInfo(program: ""),
+            source: Session.codexSource
+        )
+        let current = try XCTUnwrap(
+            FocusTargetResolver.currentSession(
+                forCctopSessionID: cctopSessionID,
+                in: [observation]
+            )
+        )
+        let probe = CodexDesktopRuntimeProbe(
+            runningApps: {
+                [CodexDesktopRuntimeProbe.RunningApp(
+                    pid: 61_700,
+                    bundleIdentifier: HostApp.codexDesktop.bundleID,
+                    bundleURLPath: "/Applications/ChatGPT.app"
+                )]
+            },
+            childProcesses: { _ in
+                [CodexDesktopRuntimeProbe.ProcessSnapshot(
+                    pid: 61_871,
+                    executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
+                    arguments: ["codex", "app-server", "--analytics-default-enabled"]
+                )]
+            },
+            environment: { _ in [:] }
+        )
+        let sessionPID = try XCTUnwrap(current.pid)
+        let pid = try XCTUnwrap(pid_t(exactly: sessionPID))
+
+        let strategy = resolveFocusStrategy(
+            session: current,
+            multiplexerOverride: nil,
+            isCodexDesktopAppServerTarget: probe.isCurrentDesktopAppServer(pid: pid)
+        )
+        let intended = FocusStrategy.openURL(
+            try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
+            restoreBundleID: try XCTUnwrap(HostApp.codexDesktop.bundleID)
+        )
+
+        XCTAssertEqual(strategy, intended)
+        XCTAssertNotEqual(strategy, .openInFinder(current.projectPath))
+    }
+
+    func testCodexAppServerProbeRejectsAnotherProcessAndAmbiguousHosts() {
+        let app = CodexDesktopRuntimeProbe.RunningApp(
+            pid: 61_700,
+            bundleIdentifier: HostApp.codexDesktop.bundleID,
+            bundleURLPath: "/Applications/ChatGPT.app"
+        )
+        let server = CodexDesktopRuntimeProbe.ProcessSnapshot(
+            pid: 61_871,
+            executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
+            arguments: ["codex", "app-server", "--analytics-default-enabled"]
+        )
+        let exactHost = CodexDesktopRuntimeProbe(
+            runningApps: { [app] },
+            childProcesses: { _ in [server] },
+            environment: { _ in [:] }
+        )
+        let ambiguousHosts = CodexDesktopRuntimeProbe(
+            runningApps: {
+                [
+                    app,
+                    CodexDesktopRuntimeProbe.RunningApp(
+                        pid: 61_701,
+                        bundleIdentifier: HostApp.codexDesktop.bundleID,
+                        bundleURLPath: "/Applications/Codex Preview.app"
+                    ),
+                ]
+            },
+            childProcesses: { _ in [server] },
+            environment: { _ in [:] }
+        )
+        let ambiguousServers = CodexDesktopRuntimeProbe(
+            runningApps: { [app] },
+            childProcesses: { _ in
+                [
+                    server,
+                    CodexDesktopRuntimeProbe.ProcessSnapshot(
+                        pid: 61_872,
+                        executablePath: server.executablePath,
+                        arguments: server.arguments
+                    ),
+                ]
+            },
+            environment: { _ in [:] }
+        )
+
+        XCTAssertFalse(exactHost.isCurrentDesktopAppServer(pid: 61_872))
+        XCTAssertFalse(ambiguousHosts.isCurrentDesktopAppServer(pid: server.pid))
+        XCTAssertFalse(ambiguousServers.isCurrentDesktopAppServer(pid: server.pid))
+    }
+
     func testCodexDesktopFallsBackToActivateWhenSessionIdNotUUID() {
         // Legacy or test sessions may not have UUID IDs — we should still focus
         // the app rather than build a URL the handler will reject.

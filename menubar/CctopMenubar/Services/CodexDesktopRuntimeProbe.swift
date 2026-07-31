@@ -44,13 +44,21 @@ struct CodexDesktopRuntimeProbe {
     }
 
     func currentDesktopSQLiteHome() -> String? {
+        guard let server = currentDesktopAppServer() else { return nil }
+        return environment(server.pid)["CODEX_SQLITE_HOME"].flatMap(Config.nonEmpty)
+    }
+
+    func isCurrentDesktopAppServer(pid: pid_t) -> Bool {
+        currentDesktopAppServer()?.pid == pid
+    }
+
+    private func currentDesktopAppServer() -> ProcessSnapshot? {
         let apps = runningApps().filter { $0.bundleIdentifier == HostAppBundleID.codexDesktop }
         guard apps.count == 1, let app = apps.first else { return nil }
 
         let servers = childProcesses(app.pid).filter { Self.isDesktopAppServer($0, in: app) }
-        guard servers.count == 1, let server = servers.first else { return nil }
-
-        return environment(server.pid)["CODEX_SQLITE_HOME"].flatMap(Config.nonEmpty)
+        guard servers.count == 1 else { return nil }
+        return servers.first
     }
 
     private static func isDesktopAppServer(_ process: ProcessSnapshot, in app: RunningApp) -> Bool {
