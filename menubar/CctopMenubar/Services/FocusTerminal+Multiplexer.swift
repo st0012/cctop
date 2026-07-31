@@ -12,14 +12,15 @@ enum MultiplexerFocusStrategy: Equatable {
     case tmux(socket: String, paneId: String, binaryPath: String)
 }
 
-/// Resolve multiplexer focus from session info. Returns nil when no multiplexer is present.
-/// Pure function — no side effects, fully testable.
-func resolveMultiplexerFocus(session: Session) -> MultiplexerFocusStrategy? {
-    resolveMultiplexerFocus(session: session, multiplexerOverride: nil)
-}
-
 /// Resolve multiplexer focus from persisted or freshly resolved multiplexer info.
-func resolveMultiplexerFocus(session: Session, multiplexerOverride: MultiplexerInfo?) -> MultiplexerFocusStrategy? {
+/// Returns nil for a positively identified Codex Desktop app-server target so
+/// inherited terminal metadata cannot steal focus after the thread deep link.
+func resolveMultiplexerFocus(
+    session: Session,
+    multiplexerOverride: MultiplexerInfo? = nil,
+    isCodexDesktopAppServerTarget: Bool = false
+) -> MultiplexerFocusStrategy? {
+    guard !isCodexDesktopAppServerTarget else { return nil }
     guard let mux = multiplexerOverride ?? session.terminal?.multiplexer else { return nil }
     switch mux {
     case .cmux(let socket, let workspaceId, let surfaceId, let paneId, let binaryPath):

@@ -131,7 +131,8 @@ func focusTerminal(session: Session) {
         } == true
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride,
                                             isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget)
-        let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride)
+        let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride,
+                                                  isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget)
         executeFocusStrategy(strategy)
         if let mux = muxStrategy {
             executeMultiplexerFocus(mux)

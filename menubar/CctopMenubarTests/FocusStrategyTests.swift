@@ -334,7 +334,7 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .openURL(URL(string: "codex://threads/\(uuid)")!, restoreBundleID: bundleID))
     }
 
-    func testCurrentPermanentIDCodexAppServerRouteUsesThreadDeepLinkInsteadOfProjectFallback() throws {
+    func testCurrentPermanentIDCodexAppServerRouteUsesThreadDeepLinkAndIgnoresStaleMultiplexer() throws {
         let threadID = "019faecb-6e9b-7f41-a51f-bb998875ca77"
         let cctopSessionID = "82498aba-410e-4b6b-b48d-62f7c6a81eae"
         let observation = Session.mock(
@@ -343,7 +343,14 @@ final class FocusStrategyTests: XCTestCase {
             harnessSessionId: threadID,
             project: "cctop",
             pid: 61_871,
-            terminal: TerminalInfo(program: ""),
+            terminal: TerminalInfo(
+                program: "",
+                multiplexer: .zellij(
+                    sessionName: "stale",
+                    paneId: "terminal_1",
+                    binaryPath: "/usr/bin/zellij"
+                )
+            ),
             source: Session.codexSource
         )
         let current = try XCTUnwrap(
@@ -371,11 +378,12 @@ final class FocusStrategyTests: XCTestCase {
         )
         let sessionPID = try XCTUnwrap(current.pid)
         let pid = try XCTUnwrap(pid_t(exactly: sessionPID))
+        let isCodexDesktopAppServerTarget = probe.isCurrentDesktopAppServer(pid: pid)
 
         let strategy = resolveFocusStrategy(
             session: current,
             multiplexerOverride: nil,
-            isCodexDesktopAppServerTarget: probe.isCurrentDesktopAppServer(pid: pid)
+            isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget
         )
         let intended = FocusStrategy.openURL(
             try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
@@ -384,6 +392,13 @@ final class FocusStrategyTests: XCTestCase {
 
         XCTAssertEqual(strategy, intended)
         XCTAssertNotEqual(strategy, .openInFinder(current.projectPath))
+        XCTAssertNotNil(resolveMultiplexerFocus(session: current))
+        XCTAssertNil(
+            resolveMultiplexerFocus(
+                session: current,
+                isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget
+            )
+        )
     }
 
     func testCodexAppServerProbeRejectsAnotherProcessAndAmbiguousHosts() {
