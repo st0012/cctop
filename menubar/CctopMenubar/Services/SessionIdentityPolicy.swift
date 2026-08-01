@@ -15,7 +15,7 @@ enum SessionIdentityPolicy {
     static let notificationSessionPIDKey = "sessionPID"
     static let notificationCctopSessionIDKey = "cctopSessionID"
 
-    /// Stable grouping key shared by dedup and notification transition guards.
+    /// Legacy grouping key used by pre-ID dedup and conservative compatibility paths.
     static func stableKey(for session: Session) -> String {
         if session.isCodex {
             return "codex:\(session.sessionId)"

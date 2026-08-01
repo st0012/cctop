@@ -90,15 +90,15 @@ extension SessionManager {
         let identityStore = CctopSessionIdentityStore(sessionsDir: dataSources.sessionsDir)
         for index in records.indices where !Session.isValidCctopSessionId(records[index].session.cctopSessionId) {
             var session = records[index].session
-            let evidence = CctopSessionIdentityStore.durableEvidence(
+            guard let evidence = CctopSessionIdentityStore.durableEvidence(
                 source: session.source,
                 harnessSessionId: session.harnessSessionId,
                 legacySessionId: session.sessionId
-            )
-            guard let evidence else {
-                scheduleRecordLocalCctopSessionIdentityStamp(
+            ) else {
+                scheduleCctopSessionIdentityStamp(
                     url: records[index].url,
-                    snapshot: session
+                    snapshot: session,
+                    resolvedID: nil
                 )
                 continue
             }
@@ -115,7 +115,8 @@ extension SessionManager {
                 idsByEvidence[evidence, default: []].insert(cctopSessionId)
                 scheduleCctopSessionIdentityStamp(
                     url: records[index].url,
-                    snapshot: records[index].session
+                    snapshot: records[index].session,
+                    resolvedID: cctopSessionId
                 )
             } catch {
                 let fileName = records[index].url.lastPathComponent
@@ -192,37 +193,12 @@ extension SessionManager {
         return SessionClassificationSnapshot(records: records, evidence: classification.evidence)
     }
 
-    private func scheduleRecordLocalCctopSessionIdentityStamp(url: URL, snapshot: Session) {
+    private func scheduleCctopSessionIdentityStamp(
+        url: URL,
+        snapshot: Session,
+        resolvedID: String?
+    ) {
         guard pendingIdentityMigrationPaths.insert(url.path).inserted else { return }
-        cctopIdentityMigrationQueue.async { [weak self] in
-            do {
-                _ = try withSessionLockIfAvailable(sessionPath: url.path) {
-                    guard var current = try? Session.fromFile(path: url.path),
-                          !Session.isValidCctopSessionId(current.cctopSessionId),
-                          current.sessionId == snapshot.sessionId,
-                          current.source == snapshot.source,
-                          current.harnessSessionId == snapshot.harnessSessionId else { return }
-                    current.cctopSessionId = Session.makeCctopSessionId()
-                    try current.writeToFile(path: url.path)
-                }
-            } catch {
-                let fileName = url.lastPathComponent
-                let reason = error.localizedDescription
-                sessionManagerLogger.warning(
-                    "record-local identity stamp failed for \(fileName, privacy: .public): \(reason, privacy: .public)"
-                )
-            }
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.pendingIdentityMigrationPaths.remove(url.path)
-                self.sessionFileCache.removeValue(forKey: url.path)
-            }
-        }
-    }
-
-    private func scheduleCctopSessionIdentityStamp(url: URL, snapshot: Session) {
-        guard let cctopSessionId = snapshot.cctopSessionId,
-              pendingIdentityMigrationPaths.insert(url.path).inserted else { return }
         cctopIdentityMigrationQueue.async { [weak self] in
             do {
                 _ = try withSessionLockIfAvailable(sessionPath: url.path) {
@@ -233,14 +209,15 @@ extension SessionManager {
                     guard current.sessionId == snapshot.sessionId,
                           current.source == snapshot.source,
                           current.harnessSessionId == snapshot.harnessSessionId else { return }
-                    current.cctopSessionId = cctopSessionId
+                    current.cctopSessionId = resolvedID ?? Session.makeCctopSessionId()
                     try current.writeToFile(path: url.path)
                 }
             } catch {
                 let fileName = url.lastPathComponent
                 let reason = error.localizedDescription
+                let prefix = resolvedID == nil ? "record-local identity stamp" : "identity stamp"
                 sessionManagerLogger.warning(
-                    "identity stamp failed for \(fileName, privacy: .public): \(reason, privacy: .public)"
+                    "\(prefix, privacy: .public) failed for \(fileName, privacy: .public): \(reason, privacy: .public)"
                 )
             }
             DispatchQueue.main.async {
