@@ -166,6 +166,7 @@ final class SessionLifecycleTests: XCTestCase {
             ]
         )
         var sources = SessionDataSources.live()
+        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-batched-codex-state")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = codexThreads
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
@@ -826,6 +827,7 @@ final class SessionLifecycleTests: XCTestCase {
         try claude.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("\(claudeID).json"))
 
         var sources = SessionDataSources.live()
+        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-recent-desktop-targets")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState(archived: [codexID])
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
@@ -1067,6 +1069,7 @@ final class SessionLifecycleTests: XCTestCase {
             snapshots: [.available(initial), .unreadable, .available(changed)]
         )
         var sources = SessionDataSources.live()
+        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-classification-retention")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = codexState
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }

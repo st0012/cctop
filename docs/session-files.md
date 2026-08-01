@@ -190,6 +190,21 @@ Stream Deck output while the full record remains available for lifecycle and
 Cleanup tracking. There is no in-app restore. cctop prunes the preference only
 after a complete local inventory proves the session record is gone; partial or
 unreadable inventories retain it to avoid unexpectedly revealing the session.
+Finished manually hidden records remain exempt from lifecycle cleanup, including
+after legacy preferences migrate, so their permanent identity evidence stays
+available until the record is removed externally.
+
+Upgrades migrate an unambiguous legacy Codex or desktop key to its permanent
+`cctop_session_id` before building the visible projection. The canonical source
+and session UUID in the key can adopt the sole permanent ID already stamped on
+a peer even after the exact legacy observation disappears. Partial inventories
+retain the fallback; zero or multiple matching permanent IDs keep every current
+candidate hidden and the visibility projections frozen. Complete inventories
+retire disk-confirmed migrations and proven-missing keys. Process/PID keys are
+retired rather than rebound. Retained finished winners and archived desktop
+records remain available to Cleanup without entering Recent Projects. Unreadable
+pre-PID files survive while stored manual-hide evidence prevents proving them
+unrelated.
 
 ### `is_subagent`
 

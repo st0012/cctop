@@ -20,8 +20,25 @@ struct CctopSessionIdentityStore {
         self.sessionsDir = sessionsDir
     }
 
+    /// Returns an already-persisted durable identity without creating mapping state.
+    func existingIdentity(
+        source: String?,
+        harnessSessionId: String?,
+        legacySessionId: String
+    ) throws -> String? {
+        guard let evidence = Self.durableEvidence(
+            source: source,
+            harnessSessionId: harnessSessionId,
+            legacySessionId: legacySessionId
+        ) else {
+            return nil
+        }
+        let mappingURL = identityDirectory.appendingPathComponent(Self.mappingFileName(for: evidence))
+        guard FileManager.default.fileExists(atPath: mappingURL.path) else { return nil }
+        return try readMapping(at: mappingURL)
+    }
+
     // Resolution intentionally keeps mapping validation and creation under one flock.
-    // swiftlint:disable:next function_body_length
     func resolve(
         source: String?,
         harnessSessionId: String?,
@@ -47,13 +64,7 @@ struct CctopSessionIdentityStore {
         var resolved: String?
         try withSessionLock(sessionPath: mappingURL.path) {
             if FileManager.default.fileExists(atPath: mappingURL.path) {
-                let decoder = JSONDecoder()
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
-                let mapping = try decoder.decode(Mapping.self, from: Data(contentsOf: mappingURL))
-                guard Session.isValidCctopSessionId(mapping.cctopSessionId) else {
-                    throw StoreError.corruptMapping(mappingURL.lastPathComponent)
-                }
-                resolved = mapping.cctopSessionId
+                resolved = try readMapping(at: mappingURL)
                 return
             }
 
@@ -126,6 +137,16 @@ struct CctopSessionIdentityStore {
         let canonical = "v1:\(evidence.utf8.count):\(evidence)"
         let digest = SHA256.hash(data: Data(canonical.utf8))
         return "v1-\(digest.map { String(format: "%02x", $0) }.joined()).json"
+    }
+
+    private func readMapping(at url: URL) throws -> String {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let mapping = try decoder.decode(Mapping.self, from: Data(contentsOf: url))
+        guard Session.isValidCctopSessionId(mapping.cctopSessionId) else {
+            throw StoreError.corruptMapping(url.lastPathComponent)
+        }
+        return mapping.cctopSessionId
     }
 
     private func writeMapping(_ mapping: Mapping, to url: URL) throws {

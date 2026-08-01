@@ -2,20 +2,26 @@ import XCTest
 @testable import CctopMenubar
 
 extension XCTestCase {
+    func isolatedManualSessionVisibility(prefix: String) -> ManualSessionVisibilityStore {
+        let suiteName = "\(prefix)-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            fatalError("Could not create isolated user defaults")
+        }
+        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
+        return ManualSessionVisibilityStore(defaults: defaults)
+    }
+
     func isolatedSessionDataSources(
         prefix: String
     ) throws -> (sources: SessionDataSources, visibility: ManualSessionVisibilityStore) {
         let sessionsDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
-        let suiteName = "\(prefix)-\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         addTeardownBlock {
             try? FileManager.default.removeItem(at: sessionsDir)
-            defaults.removePersistentDomain(forName: suiteName)
         }
 
-        let visibility = ManualSessionVisibilityStore(defaults: defaults)
+        let visibility = isolatedManualSessionVisibility(prefix: prefix)
         var sources = SessionDataSources.live()
         sources.sessionsDir = sessionsDir
         sources.manualSessionVisibility = visibility
@@ -236,14 +242,13 @@ extension XCTestCase {
     ) -> SessionManager {
         var sources = SessionDataSources.live()
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        sources.manualSessionVisibility = manualSessionVisibility
+            ?? isolatedManualSessionVisibility(prefix: "cctop-manager")
         if let desktopAppConnection {
             sources.desktopAppConnection = desktopAppConnection
         }
         if let processAlive {
             sources.processAlive = processAlive
-        }
-        if let manualSessionVisibility {
-            sources.manualSessionVisibility = manualSessionVisibility
         }
         if let now {
             sources.now = now

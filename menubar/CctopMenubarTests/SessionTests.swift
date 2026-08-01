@@ -675,6 +675,132 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(store.hiddenSessionIDs, [secondID])
     }
 
+    func testManualSessionVisibilityMigratesOnlyExactDurableLegacyKeys() {
+        let suiteName = "cctop-manual-visibility-legacy-migration-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let codexID = "11111111-1111-4111-8111-111111111111"
+        let desktopID = "22222222-2222-4222-8222-222222222222"
+        let activeID = "33333333-3333-4333-8333-333333333333"
+        defaults.set(
+            ["active:42", "codex:durable-codex", "codex:missing", "desktop:durable-desktop"],
+            forKey: ManualSessionVisibilityStore.legacyDefaultsKey
+        )
+        let store = ManualSessionVisibilityStore(defaults: defaults)
+        let codex = Session.mock(id: "durable-codex", cctopSessionId: codexID, source: Session.codexSource)
+        let desktop = Session.mock(
+            id: "durable-desktop",
+            cctopSessionId: desktopID,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: Session.ccSource
+        )
+        let active = Session.mock(id: "terminal", cctopSessionId: activeID, pid: 42, source: Session.ccSource)
+        var unstampedCodex = codex
+        unstampedCodex.cctopSessionId = nil
+
+        let partialIDs = store.migrateLegacyStableKeys(
+            using: [codex, desktop, active],
+            persistedSessions: [unstampedCodex, desktop, active],
+            inventoryComplete: false
+        )
+
+        XCTAssertEqual(partialIDs, [codexID, desktopID])
+        XCTAssertEqual(store.hiddenSessionIDs, [codexID, desktopID])
+        XCTAssertEqual(
+            store.unresolvedDurableLegacyKeys,
+            ["codex:durable-codex", "codex:missing", "desktop:durable-desktop"]
+        )
+        XCTAssertEqual(
+            defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
+            ["active:42", "codex:durable-codex", "codex:missing", "desktop:durable-desktop"]
+        )
+
+        let completeIDs = store.migrateLegacyStableKeys(
+            using: [codex, desktop, active],
+            persistedSessions: [unstampedCodex, desktop, active],
+            inventoryComplete: true
+        )
+
+        XCTAssertEqual(completeIDs, [codexID, desktopID])
+        XCTAssertEqual(store.unresolvedDurableLegacyKeys, ["codex:durable-codex"])
+        XCTAssertEqual(
+            defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
+            ["codex:durable-codex"]
+        )
+
+        let confirmedIDs = store.migrateLegacyStableKeys(
+            using: [codex, desktop, active],
+            persistedSessions: [codex, desktop, active],
+            inventoryComplete: true
+        )
+
+        XCTAssertEqual(confirmedIDs, [codexID, desktopID])
+        XCTAssertTrue(store.unresolvedDurableLegacyKeys.isEmpty)
+        XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.legacyDefaultsKey))
+    }
+
+    func testLegacyManualHideEvidenceAcceptsOnlyCanonicalSupportedUUIDKeys() {
+        let sessionID = "AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE"
+        let lowercaseID = sessionID.lowercased()
+
+        XCTAssertEqual(
+            ManualSessionVisibilityStore.durableEvidence(forLegacyKey: "codex:\(sessionID)"),
+            "codex:\(lowercaseID)"
+        )
+        XCTAssertEqual(
+            ManualSessionVisibilityStore.durableEvidence(forLegacyKey: "desktop:\(sessionID)"),
+            "cc:\(lowercaseID)"
+        )
+        for key in ["active:\(sessionID)", "cc:\(sessionID)", "codex:not-a-uuid", "desktop:\(sessionID.replacingOccurrences(of: "-", with: ""))"] {
+            XCTAssertNil(ManualSessionVisibilityStore.durableEvidence(forLegacyKey: key))
+        }
+    }
+
+    func testManualSessionVisibilityRetainsAmbiguousLegacyKey() {
+        let suiteName = "cctop-manual-visibility-ambiguous-legacy-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let threadID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+        let legacyKey = "codex:\(threadID)"
+        defaults.set([legacyKey], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
+        let store = ManualSessionVisibilityStore(defaults: defaults)
+        let firstID = "11111111-1111-4111-8111-111111111111"
+        let secondID = "22222222-2222-4222-8222-222222222222"
+        var legacy = Session.mock(id: threadID, harnessSessionId: threadID, source: Session.codexSource)
+        legacy.cctopSessionId = nil
+        let unresolvedIDs = store.migrateLegacyStableKeys(
+            using: [legacy],
+            persistedSessions: [legacy],
+            inventoryComplete: true
+        )
+
+        XCTAssertTrue(unresolvedIDs.isEmpty)
+        XCTAssertTrue(store.hiddenSessionIDs.isEmpty)
+        XCTAssertEqual(store.unresolvedDurableLegacyKeys, [legacyKey])
+
+        let first = Session.mock(
+            id: "first-observation",
+            cctopSessionId: firstID,
+            harnessSessionId: threadID,
+            source: Session.codexSource
+        )
+        let second = Session.mock(
+            id: "second-observation",
+            cctopSessionId: secondID,
+            harnessSessionId: threadID,
+            source: Session.codexSource
+        )
+        let ambiguousIDs = store.migrateLegacyStableKeys(
+            using: [legacy, first, second],
+            persistedSessions: [legacy, first, second],
+            inventoryComplete: true
+        )
+
+        XCTAssertTrue(ambiguousIDs.isEmpty)
+        XCTAssertTrue(store.hiddenSessionIDs.isEmpty)
+        XCTAssertEqual(store.unresolvedDurableLegacyKeys, [legacyKey])
+    }
+
     func testManualSessionVisibilityIgnoresRowsWithoutPermanentIdentity() {
         let suiteName = "cctop-manual-visibility-legacy-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -764,6 +890,7 @@ final class SessionTests: XCTestCase {
 
         let recorder = Recorder()
         var sources = SessionDataSources.live()
+        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-replace-notification")
         let sessionsDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
@@ -870,6 +997,7 @@ final class SessionTests: XCTestCase {
 
         let recorder = Recorder()
         var sources = SessionDataSources.live()
+        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-reused-pid-notification")
         let sessionsDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)

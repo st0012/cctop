@@ -113,7 +113,6 @@ extension SessionManager {
                 session.cctopSessionId = cctopSessionId
                 records[index].session = session
                 idsByEvidence[evidence, default: []].insert(cctopSessionId)
-                cacheMigratedSession(session, at: records[index].url.path)
                 scheduleCctopSessionIdentityStamp(
                     url: records[index].url,
                     snapshot: records[index].session
@@ -129,21 +128,13 @@ extension SessionManager {
         return records.map(\.session)
     }
 
-    private func cacheMigratedSession(_ session: Session, at path: String) {
-        guard let cached = sessionFileCache[path] else { return }
-        sessionFileCache[path] = SessionFileCacheEntry(
-            fingerprint: cached.fingerprint,
-            session: session
-        )
-    }
-
-    func identifiedPublishableSessions(
+    func identifiedPublishableCandidates(
         winners: [DedupCandidate],
         knownRecords: [(url: URL, session: Session)]
-    ) -> [Session] {
+    ) -> [DedupCandidate] {
         let publishableWinners = winners.filter { $0.session.lifecycle != .finished }
         let identified = assigningCctopSessionIdentities(to: publishableWinners, knownRecords: knownRecords)
-        let identifiedCandidates = zip(publishableWinners, identified).map { candidate, session in
+        return zip(publishableWinners, identified).map { candidate, session in
             DedupCandidate(
                 session: session,
                 lifecycleRank: candidate.lifecycleRank,
@@ -151,23 +142,26 @@ extension SessionManager {
                 path: candidate.path
             )
         }
-        return SessionIdentityPolicy.dedupedCandidatesByLogicalIdentity(identifiedCandidates).map(\.session)
     }
 
-    func identifyingRecentDesktopRecords(
+    func identifyingPersistedRecords(
         in classification: SessionClassificationSnapshot,
         knownRecords: [(url: URL, session: Session)]
     ) -> SessionClassificationSnapshot {
+        let legacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
         let indices = classification.records.indices.filter { index in
             let record = classification.records[index]
-            guard !Session.isValidCctopSessionId(record.candidate.session.cctopSessionId),
-                  case .hidden(let reason) = record.disposition else { return false }
+            let session = record.candidate.session
+            guard case .legacy(let stableKey) = SessionIdentityPolicy.logicalIdentity(for: session) else { return false }
+            if hasExistingMappedManualHide(session) { return true }
+            if legacyKeys.contains(stableKey) { return true }
+            guard case .hidden(let reason) = record.disposition else { return false }
             switch reason {
             case .archivedCodexDesktop, .archivedClaudeDesktop:
                 return CctopSessionIdentityStore.durableEvidence(
-                    source: record.candidate.session.source,
-                    harnessSessionId: record.candidate.session.harnessSessionId,
-                    legacySessionId: record.candidate.session.sessionId
+                    source: session.source,
+                    harnessSessionId: session.harnessSessionId,
+                    legacySessionId: session.sessionId
                 ) != nil
             case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper, .codexExecHelper,
                  .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
