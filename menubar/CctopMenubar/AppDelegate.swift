@@ -406,8 +406,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let userInfo = response.notification.request.content.userInfo
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            if let session = SessionIdentityPolicy.session(
-                matchingNotificationUserInfo: userInfo,
+            sessionManager.loadSessions()
+            if let session = Self.notificationFocusSession(
+                matchingUserInfo: userInfo,
                 in: sessionManager.sessions
             ) {
                 focusTerminal(session: session)
@@ -422,6 +423,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .sound])
+    }
+
+    nonisolated static func notificationFocusSession(
+        matchingUserInfo userInfo: [AnyHashable: Any],
+        in sessions: [Session]
+    ) -> Session? {
+        guard let cctopSessionID = SessionIdentityPolicy.notificationCctopSessionID(
+            matchingNotificationUserInfo: userInfo,
+            in: sessions
+        ) else { return nil }
+        return FocusTargetResolver.currentSession(
+            forCctopSessionID: cctopSessionID,
+            in: SessionDisplayPolicy.activeSessions(from: sessions)
+        )
     }
 
     private var screenLayouts: [ScreenLayout] {

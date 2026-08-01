@@ -40,4 +40,54 @@ final class PanelToggleTests: XCTestCase {
         XCTAssertNil(AppDelegate.focusSessionID(from: try XCTUnwrap(URL(string: "cctop://focus"))))
         XCTAssertNil(AppDelegate.focusSessionID(from: try XCTUnwrap(URL(string: "cctop://focus?sid="))))
     }
+
+    func testNotificationActivationResolvesPermanentIDToCurrentCanonicalObservation() {
+        let cctopSessionID = "11111111-1111-4111-8111-111111111111"
+        var current = Session.mock(
+            id: "current-observation", cctopSessionId: cctopSessionID,
+            pid: 22_222, source: Session.opencodeSource
+        )
+        current.lifecycle = .active
+
+        let resolved = AppDelegate.notificationFocusSession(
+            matchingUserInfo: [SessionIdentityPolicy.notificationCctopSessionIDKey: cctopSessionID],
+            in: [current]
+        )
+
+        XCTAssertEqual(resolved?.sessionId, "current-observation")
+        XCTAssertEqual(resolved?.pid, 22_222)
+    }
+
+    func testLegacyNotificationActivationResolvesReplacementThroughPermanentID() {
+        let cctopSessionID = "11111111-1111-4111-8111-111111111111"
+        var current = Session.mock(
+            id: "codex-thread-1", cctopSessionId: cctopSessionID,
+            pid: 22_222, source: Session.codexSource
+        )
+        current.lifecycle = .active
+
+        let resolved = AppDelegate.notificationFocusSession(
+            matchingUserInfo: [SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1"],
+            in: [current]
+        )
+
+        XCTAssertEqual(resolved?.id, "codex-thread-1")
+    }
+
+    func testNotificationActivationFailsClosedForUnknownPermanentID() {
+        let current = Session.mock(
+            id: "other-session",
+            cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            pid: 22_222,
+            source: Session.opencodeSource
+        )
+        let userInfo: [AnyHashable: Any] = [
+            SessionIdentityPolicy.notificationCctopSessionIDKey: "11111111-1111-4111-8111-111111111111",
+            SessionIdentityPolicy.notificationSessionIDKey: "other-session",
+            SessionIdentityPolicy.notificationSessionPIDKey: "22222",
+        ]
+
+        XCTAssertNil(AppDelegate.notificationFocusSession(matchingUserInfo: userInfo, in: [current]))
+        XCTAssertNil(AppDelegate.notificationFocusSession(matchingUserInfo: [:], in: [current]))
+    }
 }

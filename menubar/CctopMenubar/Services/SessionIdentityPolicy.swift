@@ -37,20 +37,22 @@ enum SessionIdentityPolicy {
         return .legacy(stableKey(for: session))
     }
 
-    static func notificationRequestIdentifier(for session: Session) -> String {
-        "session-\(stableKey(for: session))"
+    static func notificationRequestIdentifier(forCctopSessionID cctopSessionID: String) -> String? {
+        guard Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+        return "session-\(cctopSessionID)"
     }
 
-    static func notificationUserInfo(for session: Session) -> [AnyHashable: Any] {
-        var userInfo: [AnyHashable: Any] = [
-            notificationSessionIDKey: notificationSessionID(for: session),
-            notificationSessionPIDKey: session.pid.map(String.init) ?? "",
-        ]
-        if let cctopSessionID = session.cctopSessionId,
-           Session.isValidCctopSessionId(cctopSessionID) {
-            userInfo[notificationCctopSessionIDKey] = cctopSessionID
-        }
-        return userInfo
+    static func notificationUserInfo(forCctopSessionID cctopSessionID: String) -> [AnyHashable: Any]? {
+        guard Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+        return [notificationCctopSessionIDKey: cctopSessionID]
+    }
+
+    /// Identifier used by already-delivered pre-migration notifications with durable
+    /// Codex or desktop conversation identity. Process-scoped observations are excluded.
+    static func legacyNotificationRequestIdentifier(for session: Session) -> String? {
+        guard session.isCodex || session.hostClass == .desktop,
+              !notificationSessionID(for: session).isEmpty else { return nil }
+        return "session-\(stableKey(for: session))"
     }
 
     static func cctopSessionID(matchingNotificationUserInfo userInfo: [AnyHashable: Any]) -> String? {
@@ -59,21 +61,33 @@ enum SessionIdentityPolicy {
         return cctopSessionID
     }
 
-    static func session(
+    /// Recover permanent identity from an already-delivered pre-migration payload.
+    /// A present permanent-ID field is authoritative; invalid or missing targets fail closed.
+    static func notificationCctopSessionID(
         matchingNotificationUserInfo userInfo: [AnyHashable: Any],
         in sessions: [Session]
-    ) -> Session? {
-        if let sessionID = nonEmptyString(userInfo[notificationSessionIDKey]) {
-            if let match = sessions.first(where: { notificationSessionID(for: $0) == sessionID }) {
-                return match
-            }
-            return sessions.first { $0.id == sessionID }
+    ) -> String? {
+        if let permanentValue = userInfo[notificationCctopSessionIDKey] {
+            guard let cctopSessionID = nonEmptyString(permanentValue),
+                  Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+            return cctopSessionID
         }
 
-        guard let pid = nonEmptyString(userInfo[notificationSessionPIDKey]) else { return nil }
-        return sessions.first {
-            $0.id == pid || $0.pid.map(String.init) == pid
+        guard let sessionIDValue = userInfo[notificationSessionIDKey],
+              let sessionID = nonEmptyString(sessionIDValue) else { return nil }
+        let candidates = sessions.filter {
+            ($0.isCodex || $0.hostClass == .desktop)
+                && notificationSessionID(for: $0) == sessionID
         }
+
+        guard !candidates.isEmpty else { return nil }
+        var permanentIDs: Set<String> = []
+        for candidate in candidates {
+            guard let cctopSessionID = logicalIdentity(for: candidate).cctopSessionID else { return nil }
+            permanentIDs.insert(cctopSessionID)
+        }
+        guard permanentIDs.count == 1 else { return nil }
+        return permanentIDs.first
     }
 
     private static func notificationSessionID(for session: Session) -> String {
