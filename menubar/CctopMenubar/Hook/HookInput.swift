@@ -82,8 +82,9 @@ struct HookInput: Codable {
     /// which carries the SessionStart trigger kind ("startup"/"resume"/"clear"), not a
     /// tool name.
     ///
-    /// MIGRATION(harness_name): Remove the `source` fallback after opencode/pi plugins
-    /// shipping `harness_name` have been in the wild for at least one release cycle.
+    /// MIGRATION(harness_name): Remove the `source` fallback only after installer/status
+    /// logic enforces plugins that send `harness_name`, or older-plugin compatibility is
+    /// explicitly dropped. Installed opencode/pi plugins are not automatically overwritten.
     private static let knownHarnesses: Set<String> = ["cc", "codex", "opencode", "pi"]
 
     var resolvedHarnessName: String? {

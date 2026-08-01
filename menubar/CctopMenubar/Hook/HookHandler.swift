@@ -57,7 +57,8 @@ enum HookHandler {
             var session = loaded.session
             let isNewSessionFile = loaded.isNewSessionFile
 
-            stampFocusTarget(&session, pid: pid, startTime: startTime)
+            session.pid = pid
+            session.pidStartTime = startTime
             stampSessionIdentity(
                 &session, cctopSessionId: cctopSessionId,
                 input: input, source: source, safeId: safeId
@@ -507,13 +508,6 @@ extension HookHandler {
             logger.logError("SessionEnd: could not resolve cctop session identity: \(error)")
             return nil
         }
-    }
-
-    private static func stampFocusTarget(
-        _ session: inout Session, pid: UInt32, startTime: TimeInterval?
-    ) {
-        session.pid = pid
-        session.pidStartTime = startTime
     }
 
     private static func stampSessionIdentity(

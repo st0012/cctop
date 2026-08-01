@@ -26,7 +26,8 @@ reference; the raw reference is not copied into this directory. Existing
 publishable session JSON files without the field are assigned an ID once and
 stamped with the same per-file locking and atomic-write rules as hook updates.
 Hidden, finished, cleanup, and history records keep their existing identity
-contracts until a current hook or later visible observation needs this field.
+contracts until a current hook, manual-hide migration, or archived desktop
+Recent projection needs this field.
 Identity mappings intentionally outlive session and history cleanup and are not
 automatically pruned in this version.
 
@@ -103,9 +104,10 @@ match in canonical panel order. This is the temporary single-target policy.
 Future support extends the resolver with an explicit selection policy rather than
 changing logical identity, lifecycle/liveness classification, canonical order,
 or terminal/window execution.
-Cross-client equivalence and cross-machine identity are out of scope. Manual hiding
-uses `cctop_session_id` as its preference key; notification grouping, cleanup,
-history, and other persisted preferences keep their separate contracts.
+Cross-client equivalence and cross-machine identity are out of scope. Manual
+hiding and notification grouping use `cctop_session_id`. Archived desktop Recent
+rows also prefer it for logical row identity; path-based Recent Projects, Cleanup,
+and other persisted preferences keep their separate contracts.
 
 ## Terminal Focus Metadata
 

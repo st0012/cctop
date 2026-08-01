@@ -15,7 +15,7 @@ enum SessionIdentityPolicy {
     static let notificationSessionPIDKey = "sessionPID"
     static let notificationCctopSessionIDKey = "cctopSessionID"
 
-    /// Stable grouping key shared by dedup and notification transition guards.
+    /// Legacy grouping key used by pre-ID dedup and conservative compatibility paths.
     static func stableKey(for session: Session) -> String {
         if session.isCodex {
             return "codex:\(session.sessionId)"
@@ -138,6 +138,9 @@ enum SessionIdentityPolicy {
 /// The stored payload is intentionally limited to opaque cctop-owned session IDs.
 struct ManualSessionVisibilityStore {
     static let defaultsKey = "manuallyHiddenCctopSessionIDs"
+    // MIGRATION(permanent_identity): Only pre-release manual-hide builds wrote this key.
+    // Reconsider after the first tagged release containing this migration, but remove it
+    // only with an explicit decision to stop preserving those pre-release preferences.
     static let legacyDefaultsKey = "manuallyHiddenSessionStableKeys"
     static let live = ManualSessionVisibilityStore(defaults: .standard)
 
