@@ -5,14 +5,14 @@ import XCTest
 final class PluginManagerStreamDeckTests: XCTestCase {
     func testDetectsStreamDeckAndItsInstalledPlugin() throws {
         let home = makeTempDirectory()
-        let manager = PluginManager(homeDirectory: home)
+        let manager = withTemporaryHomeDirectory(home) { PluginManager(homeDirectory: home) }
         XCTAssertFalse(manager.sdConfigExists)
 
         let support = home.appendingPathComponent(
             "Library/Application Support/com.elgato.StreamDeck"
         )
         try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
-        manager.refresh()
+        withTemporaryHomeDirectory(home) { manager.refresh() }
         XCTAssertTrue(manager.sdConfigExists)
         XCTAssertFalse(manager.sdInstalled)
 
@@ -20,7 +20,7 @@ final class PluginManagerStreamDeckTests: XCTestCase {
         try FileManager.default.createDirectory(at: plugin, withIntermediateDirectories: true)
         try Data(#"{"Version":"0.19.5.0"}"#.utf8)
             .write(to: plugin.appendingPathComponent("manifest.json"))
-        manager.refresh()
+        withTemporaryHomeDirectory(home) { manager.refresh() }
 
         XCTAssertTrue(manager.sdInstalled)
     }

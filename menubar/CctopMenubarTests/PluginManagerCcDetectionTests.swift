@@ -74,9 +74,7 @@ final class PluginManagerCcDetectionTests: XCTestCase {
 }
 
 /// Integration coverage for `refresh()` against a staged home directory.
-/// Only the oc/pi/cc flags are asserted: Codex detection reads `~/.codex`
-/// through `CodexPluginInstaller`, which is not derived from the injected
-/// home directory.
+/// The scoped HOME also keeps Codex detection inside the same fixture.
 @MainActor
 final class PluginManagerRefreshTests: XCTestCase {
 
@@ -90,7 +88,7 @@ final class PluginManagerRefreshTests: XCTestCase {
             contents: "{}"
         )
 
-        let manager = PluginManager(homeDirectory: home)
+        let manager = withTemporaryHomeDirectory(home) { PluginManager(homeDirectory: home) }
 
         XCTAssertTrue(manager.ccInstalled)
         XCTAssertTrue(manager.ocConfigExists)
@@ -100,7 +98,8 @@ final class PluginManagerRefreshTests: XCTestCase {
     }
 
     func testRefreshAgainstEmptyHomeReportsNothingInstalled() {
-        let manager = PluginManager(homeDirectory: makeTempHome())
+        let home = makeTempHome()
+        let manager = withTemporaryHomeDirectory(home) { PluginManager(homeDirectory: home) }
 
         XCTAssertFalse(manager.ccInstalled)
         XCTAssertFalse(manager.ocConfigExists)

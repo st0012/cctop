@@ -45,11 +45,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         static let legacyTopY = "panelCustomTopY"
     }
 
+    private static var isXcodeTestHost: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["CCTOP_XCODE_TEST_HOST"] == "1"
+            || environment["XCTestConfigurationFilePath"] != nil
+    }
+
     func applicationWillFinishLaunching(_ notification: Notification) {
+        guard !Self.isXcodeTestHost else { return }
         registerURLHandler()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !Self.isXcodeTestHost else { return }
         UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
         notificationPermissionReconciler.refresh()
         migrateLegacyPanelPosition()

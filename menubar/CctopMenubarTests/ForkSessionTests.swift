@@ -98,6 +98,8 @@ final class ForkSessionTests: XCTestCase {
         process.arguments = ["SessionStart"]
         process.environment = [
             "CCTOP_SESSIONS_DIR": sessionsDir,
+            "CFFIXED_USER_HOME": sessionsDir,
+            "HOME": sessionsDir,
             "TERM_PROGRAM": "Test",
         ]
 
@@ -115,6 +117,13 @@ final class ForkSessionTests: XCTestCase {
 
         try? process.run()
         process.waitUntilExit()
+
+        let isolatedLogPath = (sessionsDir as NSString)
+            .appendingPathComponent(".cctop/logs/\(sessionId).log")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: isolatedLogPath),
+            "The hook subprocess must keep its log inside the test home"
+        )
 
         // Find the session file created by the hook (scan for live PID)
         let fm = FileManager.default
@@ -276,7 +285,10 @@ final class ForkSessionTests: XCTestCase {
         try term.writeToFile(path: termPath)
 
         HookHandler.cleanupSessionsForProject(
-            sessionsDir: sessionsDir, projectPath: project, currentPid: UInt32(getpid())
+            sessionsDir: sessionsDir,
+            projectPath: project,
+            currentPid: UInt32(getpid()),
+            logger: HookLogger(logsDir: sessionsDir + "logs")
         )
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: desktopPath),
@@ -297,7 +309,10 @@ final class ForkSessionTests: XCTestCase {
         FileManager.default.createFile(atPath: lockPath, contents: Data())
 
         HookHandler.cleanupSessionsForProject(
-            sessionsDir: sessionsDir, projectPath: project, currentPid: UInt32(getpid())
+            sessionsDir: sessionsDir,
+            projectPath: project,
+            currentPid: UInt32(getpid()),
+            logger: HookLogger(logsDir: sessionsDir + "logs")
         )
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: termPath))
