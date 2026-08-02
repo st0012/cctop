@@ -219,8 +219,10 @@ When `is_subagent` is `true`, the session file represents a delegated subagent's
 Clients that can identify internal helper sessions should set `is_subagent: true` in their hook payloads. For Codex sessions, cctop decodes the structured `threads.source` value from Codex's local thread database: `SessionSource::SubAgent(...)` and `SessionSource::Internal(...)` are hidden, while `cli` and `vscode` remain user-visible even if the legacy diagnostic `thread_source` says `subagent`. `thread_spawn_edges` corroborates topology but is not the primary classifier, because review and guardian helpers may have no edge. Missing, malformed, unknown, or contradictory source evidence fails open and is counted in the session-load diagnostics.
 
 Codex hooks do not yet expose semantic visibility or openability for ephemeral
-root workers. cctop treats an explicitly null `transcript_path` only as a short
-deferral signal, not as proof that a session is internal. Hiding still requires
+root workers. cctop treats an explicitly null `transcript_path` on a positively
+identified `startup` only as a short deferral signal, not as proof that a session
+is internal. Resume, missing, unknown, or contradictory start-kind evidence fails
+open. Hiding still requires
 a narrow worker discriminator: the exact Codex-owned memories directory or the
 project-suggestion prompt fragment at its observed fixed template position. The
 memories directory is intentionally reserved for this classification. The

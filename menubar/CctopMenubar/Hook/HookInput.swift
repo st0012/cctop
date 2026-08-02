@@ -7,8 +7,8 @@ struct HookInput: Codable {
 
     let sessionId: String
     let cwd: String
-    var transcriptPath: String?
-    private var transcriptPathFieldPresent = false
+    let transcriptPath: String?
+    private let transcriptPathFieldPresent: Bool
     var permissionMode: String?
     let hookEventName: String
     var prompt: String?
@@ -100,13 +100,33 @@ struct HookInput: Codable {
         return nil
     }
 
-    var hasExplicitlyNullTranscriptPath: Bool {
+    var transcriptPathWasExplicitlyNull: Bool {
         transcriptPathFieldPresent && transcriptPath == nil
     }
 
-    var isCodexProjectSuggestionWorker: Bool {
+    /// Reads Codex's SessionStart kind from `trigger` or the legacy non-harness
+    /// `source` field. Contradictory aliases intentionally fail open.
+    var codexSessionStartKind: String? {
+        let legacyKind: String?
+        if let source, Self.knownHarnesses.contains(source) {
+            guard harnessName == nil || harnessName == source else { return nil }
+            legacyKind = nil
+        } else {
+            legacyKind = source
+        }
+        guard trigger == nil || legacyKind == nil || trigger == legacyKind else { return nil }
+        return trigger ?? legacyKind
+    }
+
+    var hasCodexStartupDeferralEvidence: Bool {
+        resolvedHarnessName == Session.codexSource
+            && codexSessionStartKind == "startup"
+            && transcriptPathWasExplicitlyNull
+    }
+
+    var hasCodexProjectSuggestionEvidence: Bool {
         guard resolvedHarnessName == Session.codexSource,
-              hasExplicitlyNullTranscriptPath,
+              transcriptPathWasExplicitlyNull,
               let prompt,
               let range = prompt.range(of: Self.codexProjectSuggestionPromptFragment) else { return false }
         return prompt.distance(from: prompt.startIndex, to: range.lowerBound)

@@ -25,19 +25,19 @@ final class HookInputTests: XCTestCase {
         XCTAssertEqual(input.cwd, "/tmp/test-project")
         XCTAssertEqual(input.hookEventName, "SessionStart")
         XCTAssertEqual(input.transcriptPath, "/tmp/transcript.jsonl")
-        XCTAssertFalse(input.hasExplicitlyNullTranscriptPath)
+        XCTAssertFalse(input.transcriptPathWasExplicitlyNull)
     }
 
     func testTranscriptPathFieldPresenceDistinguishesNullFromMissing() throws {
         let explicitNull = try JSONDecoder().decode(HookInput.self, from: Data("""
         {"session_id":"null-path","cwd":"/tmp","hook_event_name":"SessionStart","transcript_path":null}
         """.utf8))
-        XCTAssertTrue(explicitNull.hasExplicitlyNullTranscriptPath)
+        XCTAssertTrue(explicitNull.transcriptPathWasExplicitlyNull)
 
         let missing = try JSONDecoder().decode(HookInput.self, from: Data("""
         {"session_id":"missing-path","cwd":"/tmp","hook_event_name":"SessionStart"}
         """.utf8))
-        XCTAssertFalse(missing.hasExplicitlyNullTranscriptPath)
+        XCTAssertFalse(missing.transcriptPathWasExplicitlyNull)
     }
 
     // MARK: - UserPromptSubmit
@@ -240,6 +240,7 @@ final class HookInputTests: XCTestCase {
         )
         XCTAssertEqual(input.source, "startup")
         XCTAssertNil(input.resolvedHarnessName, "'startup' is not a harness name")
+        XCTAssertEqual(input.codexSessionStartKind, "startup")
     }
 
     func testHarnessNameSetViaCLIArg() throws {
