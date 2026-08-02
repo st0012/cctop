@@ -150,14 +150,12 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-legacy-manual-hide").sources
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), manualSessionVisibility: visibility)
         sources.codexThreads = StubCodexThreadState(
             existing: [threadID, currentObservationID, conflictingObservationID],
             archived: []
         )
         sources.processAlive = { _ in true }
-        sources.manualSessionVisibility = visibility
         var postedNotificationIDs: [String] = []
         sources.notificationsEnabled = { true }
         sources.notificationClient = SessionNotificationClient(
@@ -264,15 +262,13 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-unresolved-legacy-archived").sources
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), manualSessionVisibility: visibility)
         sources.codexThreads = StubCodexThreadState(
             existing: [threadID, unrelatedThreadID],
             archived: [threadID, unrelatedThreadID]
         )
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }
         sources.processAlive = { _ in true }
-        sources.manualSessionVisibility = visibility
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
             dataSources: sources,
@@ -345,12 +341,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["active:42"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-process-key-partial").sources
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), manualSessionVisibility: visibility)
         sources.codexThreads = StubCodexThreadState(existing: [threadID], archived: [threadID])
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }
         sources.processAlive = { _ in true }
-        sources.manualSessionVisibility = visibility
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
             dataSources: sources,
@@ -445,12 +439,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-unresolved-legacy-finished").sources
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), manualSessionVisibility: visibility)
         sources.codexThreads = StubCodexThreadState(existing: Set([threadID] + finishedPeerIDs), archived: [])
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
         sources.processAlive = { _ in false }
-        sources.manualSessionVisibility = visibility
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
             dataSources: sources,
@@ -616,11 +608,12 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(["codex:\(hiddenThreadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-unresolved-legacy-new-archive").sources
-        sources.sessionsDir = sessionsURL
+        var sources = isolatedSessionDataSources(
+            sessionsDir: sessionsURL,
+            manualSessionVisibility: ManualSessionVisibilityStore(defaults: defaults)
+        )
         sources.codexThreads = StubCodexThreadState(existing: [hiddenThreadID], archived: [])
         sources.processAlive = { $0.sessionId == hiddenThreadID }
-        sources.manualSessionVisibility = ManualSessionVisibilityStore(defaults: defaults)
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: historyURL),
             dataSources: sources,
@@ -682,8 +675,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             to: URL(fileURLWithPath: (sessionsDir as NSString).appendingPathComponent("unrelated-broken.json"))
         )
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-manual-hide-shared-id").sources
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), manualSessionVisibility: visibility)
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
             matchedSessionIDs: [durableConversationID],
             archivedSessionIDs: [durableConversationID],
@@ -691,7 +683,6 @@ final class SessionManagerVisibilityTests: XCTestCase {
         ))
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
         sources.processAlive = { _ in true }
-        sources.manualSessionVisibility = visibility
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
             dataSources: sources,
@@ -751,8 +742,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         archived.lastActivity = Date(timeIntervalSince1970: 2_000)
         try archived.writeToFile(path: sessionsURL.appendingPathComponent("archived-desktop.json").path)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-recent-live-suppression").sources
-        sources.sessionsDir = sessionsURL
+        var sources = isolatedSessionDataSources(sessionsDir: sessionsURL, visibilityPrefix: "cctop-recent-live-suppression")
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
             matchedSessionIDs: [durableConversationID],
             archivedSessionIDs: [durableConversationID],
@@ -807,15 +797,13 @@ final class SessionManagerVisibilityTests: XCTestCase {
         hidden.sessionName = "Archived-only observation"
         try hidden.writeToFile(path: sessionsURL.appendingPathComponent("archived-only.json").path)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-manual-hide-archived-only").sources
-        sources.sessionsDir = sessionsURL
+        var sources = isolatedSessionDataSources(sessionsDir: sessionsURL, manualSessionVisibility: visibility)
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
             matchedSessionIDs: [durableConversationID],
             archivedSessionIDs: [durableConversationID],
             isAuthoritative: true
         ))
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
-        sources.manualSessionVisibility = visibility
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: historyURL),
             dataSources: sources,
@@ -895,8 +883,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         var processAlive = true
         var now = initialNow
         var postedNotificationIDs: [String] = []
-        var sources = try isolatedSessionDataSources(prefix: "cctop-manual-hide-busy-stamp").sources
-        sources.sessionsDir = sessionsURL
+        var sources = isolatedSessionDataSources(sessionsDir: sessionsURL, manualSessionVisibility: visibility)
         sources.codexThreads = StubCodexThreadState(
             existing: [terminalObservationID, desktopObservationID],
             archived: []
@@ -912,7 +899,6 @@ final class SessionManagerVisibilityTests: XCTestCase {
             removePending: { _ in },
             removeDelivered: { _ in }
         )
-        sources.manualSessionVisibility = visibility
         sources.now = { now }
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: historyURL),
@@ -1001,14 +987,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
         hiddenSnapshot.cctopSessionId = mappedID
         visibility.hide(hiddenSnapshot)
 
-        var missingSources = try isolatedSessionDataSources(
-            prefix: "cctop-mapped-hide-missing-codex-metadata"
-        ).sources
-        missingSources.sessionsDir = sessionsURL
+        var missingSources = isolatedSessionDataSources(sessionsDir: sessionsURL, manualSessionVisibility: visibility)
         missingSources.codexThreads = StubCodexThreadState(existing: [], archived: [])
         missingSources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }
         missingSources.processAlive = { _ in true }
-        missingSources.manualSessionVisibility = visibility
         missingSources.now = { now }
         let missingManager = SessionManager(
             historyManager: HistoryManager(historyDir: historyURL),
@@ -1078,10 +1060,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
         visibility.hide(finished)
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: historyURL.path)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-manual-hide-archive-failure").sources
-        sources.sessionsDir = sessionsURL
+        var sources = isolatedSessionDataSources(sessionsDir: sessionsURL, manualSessionVisibility: visibility)
         sources.processAlive = { _ in false }
-        sources.manualSessionVisibility = visibility
         let manager = SessionManager(historyManager: historyManager, dataSources: sources, startMonitoring: false)
 
         XCTAssertTrue(manager.sessions.isEmpty)
@@ -1716,9 +1696,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         finishedDesktop.disconnectedAt = old
         try finishedDesktop.writeToFile(path: finishedDesktopPath)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-hidden-cleanup-gc").sources
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-gc-hidden-cleanup")
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), visibilityPrefix: "cctop-gc-hidden-cleanup")
         sources.codexThreads = StubCodexThreadState(existing: ["finished-desktop"], archived: [])
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot())
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
@@ -1771,9 +1749,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let lockHolder = try startSessionLockHolder(lockPath: sessionPath + ".lock", readyPath: readyPath, holdSeconds: 1.5)
         defer { terminateProcess(lockHolder) }
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-busy-gc").sources
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-gc-busy-lock")
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), visibilityPrefix: "cctop-gc-busy-lock")
         sources.codexThreads = StubCodexThreadState(existing: ["busy-finished-thread"], archived: [])
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot())
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
@@ -2948,12 +2924,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-unresolved-legacy-desktop-gc").sources
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), manualSessionVisibility: visibility)
         sources.codexThreads = StubCodexThreadState(existing: [threadID], archived: [])
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
         sources.processAlive = { _ in false }
-        sources.manualSessionVisibility = visibility
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: URL(fileURLWithPath: historyDir)),
             dataSources: sources,
@@ -3100,9 +3074,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         }
 
         let claudeState = CountingClaudeDesktopState()
-        var sources = try isolatedSessionDataSources(prefix: "cctop-batched-claude-gc").sources
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-claude-batched-gc")
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), visibilityPrefix: "cctop-claude-batched-gc")
         sources.codexThreads = StubCodexThreadState()
         sources.claudeDesktopSessions = claudeState
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
@@ -3147,9 +3119,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try session.writeToFile(path: sessionPath)
 
         let claudeState = SequencedClaudeDesktopState(archivedResponses: [[], ["finished-claude-race"]])
-        var sources = try isolatedSessionDataSources(prefix: "cctop-rechecked-claude-gc").sources
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-claude-gc-archive-race")
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), visibilityPrefix: "cctop-claude-gc-archive-race")
         sources.codexThreads = StubCodexThreadState()
         sources.claudeDesktopSessions = claudeState
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }

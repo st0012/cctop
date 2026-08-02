@@ -13,7 +13,7 @@ extension XCTestCase {
 
     func isolatedSessionDataSources(
         prefix: String
-    ) throws -> (sources: SessionDataSources, visibility: ManualSessionVisibilityStore) {
+    ) throws -> SessionDataSources {
         let sessionsDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
@@ -21,12 +21,20 @@ extension XCTestCase {
             try? FileManager.default.removeItem(at: sessionsDir)
         }
 
-        let visibility = isolatedManualSessionVisibility(prefix: prefix)
-        let sources = isolatedSessionDataSources(
+        return isolatedSessionDataSources(
             sessionsDir: sessionsDir,
-            manualSessionVisibility: visibility
+            visibilityPrefix: prefix
         )
-        return (sources, visibility)
+    }
+
+    func isolatedSessionDataSources(
+        sessionsDir: URL,
+        visibilityPrefix: String
+    ) -> SessionDataSources {
+        isolatedSessionDataSources(
+            sessionsDir: sessionsDir,
+            manualSessionVisibility: isolatedManualSessionVisibility(prefix: visibilityPrefix)
+        )
     }
 
     func isolatedSessionDataSources(
