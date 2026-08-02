@@ -15,8 +15,14 @@ test_started=0
 test_host_pids() {
     /bin/ps eww -axo pid=,command= 2>/dev/null \
         | /usr/bin/awk -v executable="$TEST_HOST_EXECUTABLE" -v run_id="CCTOP_XCODE_TEST_RUN_ID=$TEST_RUN_ID" '
-            $2 == executable && index($0, run_id) {
-                print $1
+            {
+                pid = $1
+                sub(/^[[:space:]]*[0-9]+[[:space:]]+/, "")
+                executable_matches = index($0, executable) == 1 &&
+                    (length($0) == length(executable) || substr($0, length(executable) + 1, 1) == " ")
+            }
+            executable_matches && index($0, run_id) {
+                print pid
             }
         '
 }
@@ -24,9 +30,15 @@ test_host_pids() {
 any_test_host_pids() {
     /bin/ps eww -axo pid=,command= 2>/dev/null \
         | /usr/bin/awk -v executable="$TEST_HOST_EXECUTABLE" '
-            $2 == executable &&
+            {
+                pid = $1
+                sub(/^[[:space:]]*[0-9]+[[:space:]]+/, "")
+                executable_matches = index($0, executable) == 1 &&
+                    (length($0) == length(executable) || substr($0, length(executable) + 1, 1) == " ")
+            }
+            executable_matches &&
                 (index($0, "CCTOP_XCODE_TEST_HOST=1") || index($0, "XCTestConfigurationFilePath=")) {
-                print $1
+                print pid
             }
         '
 }
