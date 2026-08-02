@@ -116,13 +116,13 @@ extension SessionManager {
     ) -> [SessionNotificationAction] {
         let newByCctopSessionID: [String: Session] = Dictionary(
             newSessions.compactMap { session in
-                SessionIdentityPolicy.logicalIdentity(for: session).cctopSessionID.map { ($0, session) }
+                SessionIdentityPolicy.permanentSessionID(for: session).map { ($0, session) }
             },
             uniquingKeysWith: { first, _ in first }
         )
         let oldByCctopSessionID: [String: Session] = Dictionary(
             oldSessions.compactMap { session in
-                SessionIdentityPolicy.logicalIdentity(for: session).cctopSessionID.map { ($0, session) }
+                SessionIdentityPolicy.permanentSessionID(for: session).map { ($0, session) }
             },
             uniquingKeysWith: { first, _ in first }
         )
@@ -148,7 +148,7 @@ extension SessionManager {
     }
 
     nonisolated static func notificationRequest(for session: Session) -> UNNotificationRequest? {
-        guard let cctopSessionID = SessionIdentityPolicy.logicalIdentity(for: session).cctopSessionID,
+        guard let cctopSessionID = SessionIdentityPolicy.permanentSessionID(for: session),
               let identifier = SessionIdentityPolicy.notificationRequestIdentifier(
                   forCctopSessionID: cctopSessionID
               ),
@@ -172,7 +172,7 @@ extension SessionManager {
     }
 
     func postNotification(for session: Session) {
-        guard let cctopSessionID = SessionIdentityPolicy.logicalIdentity(for: session).cctopSessionID,
+        guard let cctopSessionID = SessionIdentityPolicy.permanentSessionID(for: session),
               let currentSession = FocusTargetResolver.currentSession(
                   forCctopSessionID: cctopSessionID,
                   in: SessionDisplayPolicy.activeSessions(from: sessions)

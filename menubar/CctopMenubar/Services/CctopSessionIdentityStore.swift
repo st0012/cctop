@@ -72,11 +72,7 @@ struct CctopSessionIdentityStore {
             if knownExistingIDs == nil {
                 for url in sessionFiles() {
                     guard let session = try? Session.fromFile(path: url.path),
-                          Self.durableEvidence(
-                            source: session.source,
-                            harnessSessionId: session.harnessSessionId,
-                            legacySessionId: session.sessionId
-                          ) == evidence,
+                          Self.durableEvidence(for: session) == evidence,
                           Session.isValidCctopSessionId(session.cctopSessionId),
                           let cctopSessionId = session.cctopSessionId else { continue }
                     existing.insert(cctopSessionId)
@@ -94,6 +90,15 @@ struct CctopSessionIdentityStore {
             throw StoreError.corruptMapping(mappingURL.lastPathComponent)
         }
         return resolved
+    }
+
+    /// Session-shaped convenience over `durableEvidence(source:harnessSessionId:legacySessionId:)`.
+    static func durableEvidence(for session: Session) -> String? {
+        durableEvidence(
+            source: session.source,
+            harnessSessionId: session.harnessSessionId,
+            legacySessionId: session.sessionId
+        )
     }
 
     /// Current reliable same-machine resume evidence. OpenCode deliberately remains

@@ -106,28 +106,14 @@ class SessionManager: ObservableObject {
         let now = dataSources.now()
         let identifiedCandidates = identifiedPublishableCandidates(winners: winners, knownRecords: allDecoded)
         let identifiedInventory = classification.records.map(\.candidate.session) + identifiedCandidates.map(\.session)
-        let hiddenSessionIDs = dataSources.manualSessionVisibility.migrateLegacyStableKeys(
+        dataSources.manualSessionVisibility.migrateLegacyStableKeys(
             using: identifiedInventory, persistedSessions: allDecoded.map(\.session), inventoryComplete: inventoryComplete
         )
-        let unresolvedLegacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
-        let unresolvedLegacyEvidence = unresolvedManualHideEvidence(in: identifiedInventory, legacyKeys: unresolvedLegacyKeys)
-        let retainedFinishedCleanupSources = retainedFinishedCleanupSources(
-            winners: winners,
-            unresolvedLegacyKeys: unresolvedLegacyKeys,
-            unresolvedLegacyEvidence: unresolvedLegacyEvidence
-        )
+        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence(in: identifiedInventory)
+        let hiddenSessionIDs = manualHides.hiddenSessionIDs
+        let retainedFinishedCleanupSources = retainedFinishedCleanupSources(winners: winners, manualHides: manualHides)
         let observedCleanupSources = classification.cleanupSources + retainedFinishedCleanupSources
-        let visibleCandidates = identifiedCandidates.filter { candidate in
-            let session = candidate.session
-            let hiddenByPermanentID = session.cctopSessionId.map(hiddenSessionIDs.contains) ?? false
-            let hiddenByLegacyKey = unresolvedLegacyKeys.contains(SessionIdentityPolicy.stableKey(for: session))
-            let hiddenByLegacyEvidence = CctopSessionIdentityStore.durableEvidence(
-                source: session.source,
-                harnessSessionId: session.harnessSessionId,
-                legacySessionId: session.sessionId
-            ).map(unresolvedLegacyEvidence.contains) ?? false
-            return !hiddenByPermanentID && !hiddenByLegacyKey && !hiddenByLegacyEvidence
-        }
+        let visibleCandidates = identifiedCandidates.filter { !manualHides.matches($0.session) }
         let identifiedSessions = SessionIdentityPolicy.dedupedCandidatesByLogicalIdentity(visibleCandidates).map(\.session)
         let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
         let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
@@ -154,15 +140,14 @@ class SessionManager: ObservableObject {
         let newlyArchivedCleanupSources = archiveAndRemoveFinishedNonDesktop(
             classification.finishedNonDesktopCandidates,
             winners: winners,
-            unresolvedLegacyKeys: unresolvedLegacyKeys,
-            unresolvedLegacyEvidence: unresolvedLegacyEvidence
+            manualHides: manualHides
         )
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenProjectPaths(hiddenSessionIDs))
         let publishedSessionIDs = Set(newSessions.compactMap {
-            SessionIdentityPolicy.logicalIdentity(for: $0).cctopSessionID
+            SessionIdentityPolicy.permanentSessionID(for: $0)
         })
-        let shouldFreezeVisibilityProjections = !unresolvedLegacyKeys.isEmpty
+        let shouldFreezeVisibilityProjections = manualHides.hasUnresolvedLegacyKeys
             || (!inventoryComplete && !hiddenSessionIDs.isEmpty)
         if !shouldFreezeVisibilityProjections {
             _ = historyManager.rebuildRecentProjects(excludingActive: recentExcludedPaths)
@@ -313,13 +298,16 @@ class SessionManager: ObservableObject {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
         let now = dataSources.now()
-        let legacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
-        let legacyEvidence = unresolvedManualHideEvidence(in: jsonFiles, legacyKeys: legacyKeys)
+        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence(
+            in: jsonFiles.compactMap { url in
+                (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.sessionDecoder.decode(Session.self, from: $0) }
+            }
+        )
         preloadDesktopArchiveStateForFinishedSessions(in: jsonFiles, now: now)
         var removedAny = false
         for url in jsonFiles {
-            if sweepLegacyUUIDFileIfNeeded(url, unresolvedLegacyKeys: legacyKeys, unresolvedLegacyEvidence: legacyEvidence) { continue }
+            if sweepLegacyUUIDFileIfNeeded(url, manualHides: manualHides) { continue }
             withSessionLockForMaintenance(sessionPath: url.path, sessionId: url.deletingPathExtension().lastPathComponent, action: "desktop GC") {
                 guard let data = try? Data(contentsOf: url),
                       let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
@@ -337,11 +325,7 @@ class SessionManager: ObservableObject {
                     desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
                 )
                 guard life == .finished else { return }
-                guard !shouldRetainFinishedManualHideEvidence(
-                    session,
-                    legacyKeys: legacyKeys,
-                    legacyEvidence: legacyEvidence
-                ) else { return }
+                guard !shouldRetainFinishedManualHideEvidence(session, matching: manualHides) else { return }
                 // Re-check external archive state under the lock so a concurrent archive retains its file.
                 guard !Self.isArchivedDesktopSession(
                     session,

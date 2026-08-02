@@ -727,11 +727,7 @@ private func loadOrCreateSession(
             )
         }
         var replacement = fresh
-        if CctopSessionIdentityStore.durableEvidence(
-            source: fresh.source,
-            harnessSessionId: fresh.harnessSessionId,
-            legacySessionId: fresh.sessionId
-        ) == nil {
+        if CctopSessionIdentityStore.durableEvidence(for: fresh) == nil {
             replacement.cctopSessionId = Session.makeCctopSessionId()
         }
         return (replacement, true)

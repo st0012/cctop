@@ -216,17 +216,12 @@ private extension Session {
 extension SessionManager {
     func retainedFinishedCleanupSources(
         winners: [DedupCandidate],
-        unresolvedLegacyKeys: Set<String>,
-        unresolvedLegacyEvidence: Set<String>
+        manualHides: ManualHideEvidence
     ) -> [SessionCleanupSource] {
         winners.compactMap { candidate in
             let session = candidate.session
             guard candidate.lifecycleRank == SessionLifecycle.finished.rawValue,
-                  shouldRetainFinishedManualHideEvidence(
-                      session,
-                      legacyKeys: unresolvedLegacyKeys,
-                      legacyEvidence: unresolvedLegacyEvidence
-                  ),
+                  shouldRetainFinishedManualHideEvidence(session, matching: manualHides),
                   session.hasCleanupSourcePath else {
                 return nil
             }
@@ -237,17 +232,12 @@ extension SessionManager {
     func archiveAndRemoveFinishedNonDesktop(
         _ candidates: [DedupCandidate],
         winners: [DedupCandidate],
-        unresolvedLegacyKeys: Set<String>,
-        unresolvedLegacyEvidence: Set<String>
+        manualHides: ManualHideEvidence
     ) -> [SessionCleanupSource] {
         let winnerPaths = Set(winners.map(\.path))
         var newlyArchivedCleanupSources: [SessionCleanupSource] = []
         for candidate in candidates {
-            guard !shouldRetainFinishedManualHideEvidence(
-                candidate.session,
-                legacyKeys: unresolvedLegacyKeys,
-                legacyEvidence: unresolvedLegacyEvidence
-            ) else { continue }
+            guard !shouldRetainFinishedManualHideEvidence(candidate.session, matching: manualHides) else { continue }
             // A finished dedup winner is a real completed non-desktop session, so keep today's
             // Recent Projects behavior. A finished duplicate loser is stale migration debris;
             // remove it without archiving so it cannot later surface as a separate session.
@@ -264,11 +254,9 @@ extension SessionManager {
 
     func shouldRetainFinishedManualHideEvidence(
         _ session: Session,
-        legacyKeys: Set<String>,
-        legacyEvidence: Set<String>
+        matching manualHides: ManualHideEvidence
     ) -> Bool {
-        shouldRetainManualHideEvidence(session, legacyKeys: legacyKeys, legacyEvidence: legacyEvidence)
-            || hasExistingMappedManualHide(session)
+        manualHides.matches(session) || hasExistingMappedManualHide(session)
     }
 
     func hasExistingMappedManualHide(_ session: Session) -> Bool {
@@ -285,63 +273,19 @@ extension SessionManager {
         return hiddenSessionIDs.contains(existingID)
     }
 
-    func shouldRetainManualHideEvidence(
-        _ session: Session,
-        legacyKeys: Set<String>,
-        legacyEvidence: Set<String>
-    ) -> Bool {
-        dataSources.manualSessionVisibility.isHidden(session)
-            || legacyKeys.contains(SessionIdentityPolicy.stableKey(for: session))
-            || CctopSessionIdentityStore.durableEvidence(
-                source: session.source,
-                harnessSessionId: session.harnessSessionId,
-                legacySessionId: session.sessionId
-            ).map(legacyEvidence.contains) == true
-    }
-
     func sweepLegacyUUIDFileIfNeeded(
         _ url: URL,
-        unresolvedLegacyKeys: Set<String>,
-        unresolvedLegacyEvidence: Set<String>
+        manualHides: ManualHideEvidence
     ) -> Bool {
         guard Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) else { return false }
         if !dataSources.manualSessionVisibility.hasStoredHideEvidence {
             try? FileManager.default.removeItem(at: url) // Pre-PID legacy file; no live writer to race.
         } else if let data = try? Data(contentsOf: url),
                   let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data),
-                  !shouldRetainFinishedManualHideEvidence(
-                      session,
-                      legacyKeys: unresolvedLegacyKeys,
-                      legacyEvidence: unresolvedLegacyEvidence
-                  ) {
+                  !shouldRetainFinishedManualHideEvidence(session, matching: manualHides) {
             try? FileManager.default.removeItem(at: url)
         }
         return true
-    }
-
-    func unresolvedManualHideEvidence(in sessions: [Session], legacyKeys: Set<String>) -> Set<String> {
-        var evidence = Set(legacyKeys.compactMap {
-            ManualSessionVisibilityStore.durableEvidence(forLegacyKey: $0)
-        })
-        evidence.formUnion(sessions
-            .filter { legacyKeys.contains(SessionIdentityPolicy.stableKey(for: $0)) }
-            .compactMap {
-                CctopSessionIdentityStore.durableEvidence(
-                    source: $0.source,
-                    harnessSessionId: $0.harnessSessionId,
-                    legacySessionId: $0.sessionId
-                )
-            })
-        return evidence
-    }
-
-    func unresolvedManualHideEvidence(in files: [URL], legacyKeys: Set<String>) -> Set<String> {
-        unresolvedManualHideEvidence(
-            in: files.compactMap { url in
-                (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.sessionDecoder.decode(Session.self, from: $0) }
-            },
-            legacyKeys: legacyKeys
-        )
     }
 
     func mergingCleanupSources(
