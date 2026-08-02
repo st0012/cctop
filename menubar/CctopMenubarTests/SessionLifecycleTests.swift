@@ -170,9 +170,7 @@ final class SessionLifecycleTests: XCTestCase {
                 cliID: "cli-project"
             ]
         )
-        var sources = try isolatedSessionDataSources(prefix: "cctop-batched-codex-state").sources
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-batched-codex-state")
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), visibilityPrefix: "cctop-batched-codex-state")
         sources.codexThreads = codexThreads
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
         sources.processAlive = { _ in false }
@@ -985,9 +983,7 @@ final class SessionLifecycleTests: XCTestCase {
         claude.lastActivity = Date(timeIntervalSince1970: 2000)
         try claude.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("\(claudeID).json"))
 
-        var sources = try isolatedSessionDataSources(prefix: "cctop-recent-desktop-targets").sources
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-recent-desktop-targets")
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), visibilityPrefix: "cctop-recent-desktop-targets")
         sources.codexThreads = StubCodexThreadState(archived: [codexID])
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
             matchedSessionIDs: [claudeID],
@@ -1228,9 +1224,7 @@ final class SessionLifecycleTests: XCTestCase {
         let codexState = SequencedCodexClassificationState(
             snapshots: [.available(initial), .unreadable, .available(changed)]
         )
-        var sources = try isolatedSessionDataSources(prefix: "cctop-classification-retention").sources
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-classification-retention")
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
+        var sources = isolatedSessionDataSources(sessionsDir: URL(fileURLWithPath: sessionsDir), visibilityPrefix: "cctop-classification-retention")
         sources.codexThreads = codexState
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }
         sources.processAlive = { _ in true }

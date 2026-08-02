@@ -967,12 +967,7 @@ final class SessionTests: XCTestCase {
         }
 
         let recorder = Recorder()
-        var sources = try isolatedSessionDataSources(prefix: "cctop-replace-notification").sources
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-replace-notification")
-        let sessionsDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
-        sources.sessionsDir = sessionsDir
+        var sources = try isolatedSessionDataSources(prefix: "cctop-replace-notification")
         sources.notificationClient = SessionNotificationClient(
             add: { request, completion in
                 recorder.events.append("add:\(request.identifier)")
@@ -1037,9 +1032,7 @@ final class SessionTests: XCTestCase {
         )
 
         let recorder = Recorder()
-        var sources = try isolatedSessionDataSources(prefix: "cctop-hidden-notification").sources
-        sources.sessionsDir = sessionsDir
-        sources.manualSessionVisibility = store
+        var sources = isolatedSessionDataSources(sessionsDir: sessionsDir, manualSessionVisibility: store)
         sources.notificationClient = SessionNotificationClient(
             add: { request, completion in
                 recorder.events.append("add:\(request.identifier)")
@@ -1076,13 +1069,7 @@ final class SessionTests: XCTestCase {
         }
 
         let recorder = Recorder()
-        var sources = try isolatedSessionDataSources(prefix: "cctop-reused-pid-notification").sources
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-reused-pid-notification")
-        let sessionsDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: sessionsDir) }
-        sources.sessionsDir = sessionsDir
+        var sources = try isolatedSessionDataSources(prefix: "cctop-reused-pid-notification")
         sources.notificationClient = SessionNotificationClient(
             add: { _, completion in
                 recorder.events.append("add")
@@ -1118,7 +1105,7 @@ final class SessionTests: XCTestCase {
         }
 
         let recorder = Recorder()
-        var sources = try isolatedSessionDataSources(prefix: "cctop-missing-notification-identity").sources
+        var sources = try isolatedSessionDataSources(prefix: "cctop-missing-notification-identity")
         sources.notificationClient = SessionNotificationClient(
             add: { _, completion in
                 recorder.events.append("add")
@@ -1154,7 +1141,7 @@ final class SessionTests: XCTestCase {
         }
 
         let recorder = Recorder()
-        var sources = try isolatedSessionDataSources(prefix: "cctop-canonical-notification").sources
+        var sources = try isolatedSessionDataSources(prefix: "cctop-canonical-notification")
         sources.notificationClient = SessionNotificationClient(
             add: { request, completion in
                 recorder.requests.append(request)
@@ -1212,7 +1199,7 @@ final class SessionTests: XCTestCase {
         }
 
         let recorder = Recorder()
-        var sources = try isolatedSessionDataSources(prefix: "cctop-hide-all-notifications").sources
+        var sources = try isolatedSessionDataSources(prefix: "cctop-hide-all-notifications")
         sources.notificationsEnabled = { false }
         sources.notificationClient = SessionNotificationClient(
             add: { _, completion in completion(nil) },
@@ -1264,9 +1251,10 @@ final class SessionTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let recorder = Recorder()
-        var sources = try isolatedSessionDataSources(prefix: "cctop-hide-notification").sources
-        sources.sessionsDir = sessionsDir
-        sources.manualSessionVisibility = ManualSessionVisibilityStore(defaults: defaults)
+        var sources = isolatedSessionDataSources(
+            sessionsDir: sessionsDir,
+            manualSessionVisibility: ManualSessionVisibilityStore(defaults: defaults)
+        )
         sources.notificationsEnabled = { false }
         sources.notificationClient = SessionNotificationClient(
             add: { _, completion in completion(nil) },
@@ -1351,7 +1339,7 @@ final class SessionTests: XCTestCase {
         }
 
         let recorder = Recorder()
-        var sources = try isolatedSessionDataSources(prefix: "cctop-transition-notification-removal").sources
+        var sources = try isolatedSessionDataSources(prefix: "cctop-transition-notification-removal")
         sources.notificationClient = SessionNotificationClient(
             add: { _, completion in completion(nil) },
             removePending: { recorder.pending.append($0) },
