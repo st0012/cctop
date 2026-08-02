@@ -37,6 +37,11 @@ enum SessionIdentityPolicy {
         return .legacy(stableKey(for: session))
     }
 
+    /// The validated permanent cctop session ID, if the session carries one.
+    static func permanentSessionID(for session: Session) -> String? {
+        logicalIdentity(for: session).cctopSessionID
+    }
+
     static func notificationRequestIdentifier(forCctopSessionID cctopSessionID: String) -> String? {
         guard Session.isValidCctopSessionId(cctopSessionID) else { return nil }
         return "session-\(cctopSessionID)"
@@ -83,7 +88,7 @@ enum SessionIdentityPolicy {
         guard !candidates.isEmpty else { return nil }
         var permanentIDs: Set<String> = []
         for candidate in candidates {
-            guard let cctopSessionID = logicalIdentity(for: candidate).cctopSessionID else { return nil }
+            guard let cctopSessionID = permanentSessionID(for: candidate) else { return nil }
             permanentIDs.insert(cctopSessionID)
         }
         guard permanentIDs.count == 1 else { return nil }
@@ -134,6 +139,28 @@ enum SessionIdentityPolicy {
     }
 }
 
+/// One pass's snapshot of every way a session can match a manual hide: migrated
+/// permanent IDs, unresolved pre-release legacy keys, and the durable evidence those
+/// keys imply. Built once per load/GC pass so the visibility filter, cleanup
+/// retention, and file sweeps agree on the same answer.
+struct ManualHideEvidence {
+    let hiddenSessionIDs: Set<String>
+    let legacyKeys: Set<String>
+    let legacyEvidence: Set<String>
+
+    var hasUnresolvedLegacyKeys: Bool { !legacyKeys.isEmpty }
+
+    func matches(_ session: Session) -> Bool {
+        if let cctopSessionID = session.cctopSessionId, hiddenSessionIDs.contains(cctopSessionID) {
+            return true
+        }
+        if legacyKeys.contains(SessionIdentityPolicy.stableKey(for: session)) {
+            return true
+        }
+        return CctopSessionIdentityStore.durableEvidence(for: session).map(legacyEvidence.contains) ?? false
+    }
+}
+
 /// Persists manual visibility preferences independently from hook-owned session files.
 /// The stored payload is intentionally limited to opaque cctop-owned session IDs.
 struct ManualSessionVisibilityStore {
@@ -162,6 +189,22 @@ struct ManualSessionVisibilityStore {
     /// A partial inventory may already have contributed a permanent ID. Process keys never participate.
     var unresolvedDurableLegacyKeys: Set<String> {
         legacyStableKeys.filter(Self.isDurableLegacyKey)
+    }
+
+    /// Snapshot manual-hide match state for one pass over the given session inventory.
+    /// The inventory only contributes durable evidence for sessions still matching an
+    /// unresolved legacy key; permanent IDs and legacy keys come from the store itself.
+    func manualHideEvidence(in sessions: [Session]) -> ManualHideEvidence {
+        let legacyKeys = unresolvedDurableLegacyKeys
+        var evidence = Set(legacyKeys.compactMap(Self.durableEvidence(forLegacyKey:)))
+        evidence.formUnion(sessions
+            .filter { legacyKeys.contains(SessionIdentityPolicy.stableKey(for: $0)) }
+            .compactMap(CctopSessionIdentityStore.durableEvidence(for:)))
+        return ManualHideEvidence(
+            hiddenSessionIDs: hiddenSessionIDs,
+            legacyKeys: legacyKeys,
+            legacyEvidence: evidence
+        )
     }
 
     func isHidden(_ session: Session) -> Bool {
@@ -244,42 +287,40 @@ struct ManualSessionVisibilityStore {
         return migratedSessionIDs
     }
 
-    private static func persistedLegacyMigrationMatches(
-        in sessions: [Session],
-        legacyKeys: Set<String>
-    ) -> (
-        sessionIDsByEvidence: [String: Set<String>],
-        unresolvedEvidence: Set<String>,
-        unresolvedMatchedKeys: Set<String>,
-        sessionIDsByKey: [String: Set<String>]
-    ) {
+    /// What the persisted (disk-stamped) inventory says about legacy hide keys:
+    /// which permanent IDs each durable evidence or legacy key maps to, and which
+    /// evidence/keys matched a record that has no permanent ID yet.
+    private struct PersistedLegacyMatches {
         var sessionIDsByEvidence: [String: Set<String>] = [:]
         var unresolvedEvidence: Set<String> = []
         var unresolvedMatchedKeys: Set<String> = []
         var sessionIDsByKey: [String: Set<String>] = [:]
+    }
+
+    private static func persistedLegacyMigrationMatches(
+        in sessions: [Session],
+        legacyKeys: Set<String>
+    ) -> PersistedLegacyMatches {
+        var matches = PersistedLegacyMatches()
         for session in sessions {
-            let cctopSessionID = SessionIdentityPolicy.logicalIdentity(for: session).cctopSessionID
-            if let evidence = CctopSessionIdentityStore.durableEvidence(
-                source: session.source,
-                harnessSessionId: session.harnessSessionId,
-                legacySessionId: session.sessionId
-            ) {
+            let cctopSessionID = SessionIdentityPolicy.permanentSessionID(for: session)
+            if let evidence = CctopSessionIdentityStore.durableEvidence(for: session) {
                 if let cctopSessionID {
-                    sessionIDsByEvidence[evidence, default: []].insert(cctopSessionID)
+                    matches.sessionIDsByEvidence[evidence, default: []].insert(cctopSessionID)
                 } else {
-                    unresolvedEvidence.insert(evidence)
+                    matches.unresolvedEvidence.insert(evidence)
                 }
             }
 
             let key = SessionIdentityPolicy.stableKey(for: session)
             guard legacyKeys.contains(key) else { continue }
             if let cctopSessionID {
-                sessionIDsByKey[key, default: []].insert(cctopSessionID)
+                matches.sessionIDsByKey[key, default: []].insert(cctopSessionID)
             } else {
-                unresolvedMatchedKeys.insert(key)
+                matches.unresolvedMatchedKeys.insert(key)
             }
         }
-        return (sessionIDsByEvidence, unresolvedEvidence, unresolvedMatchedKeys, sessionIDsByKey)
+        return matches
     }
 
     private static func legacyMigrationCandidateIDs(
@@ -287,14 +328,10 @@ struct ManualSessionVisibilityStore {
         persistedSessionIDsByEvidence: [String: Set<String>]
     ) -> Set<String> {
         var matches: Set<String> = []
-        if let cctopSessionID = SessionIdentityPolicy.logicalIdentity(for: session).cctopSessionID {
+        if let cctopSessionID = SessionIdentityPolicy.permanentSessionID(for: session) {
             matches.insert(cctopSessionID)
         }
-        if let evidence = CctopSessionIdentityStore.durableEvidence(
-            source: session.source,
-            harnessSessionId: session.harnessSessionId,
-            legacySessionId: session.sessionId
-        ) {
+        if let evidence = CctopSessionIdentityStore.durableEvidence(for: session) {
             matches.formUnion(persistedSessionIDsByEvidence[evidence] ?? [])
         }
         return matches

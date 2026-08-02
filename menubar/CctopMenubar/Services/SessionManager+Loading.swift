@@ -79,22 +79,15 @@ extension SessionManager {
         var records = candidates.map { (url: URL(fileURLWithPath: $0.path), session: $0.session) }
         var idsByEvidence: [String: Set<String>] = [:]
         for record in knownRecords where Session.isValidCctopSessionId(record.session.cctopSessionId) {
-            guard let evidence = CctopSessionIdentityStore.durableEvidence(
-                source: record.session.source,
-                harnessSessionId: record.session.harnessSessionId,
-                legacySessionId: record.session.sessionId
-            ), let cctopSessionId = record.session.cctopSessionId else { continue }
+            guard let evidence = CctopSessionIdentityStore.durableEvidence(for: record.session),
+                  let cctopSessionId = record.session.cctopSessionId else { continue }
             idsByEvidence[evidence, default: []].insert(cctopSessionId)
         }
 
         let identityStore = CctopSessionIdentityStore(sessionsDir: dataSources.sessionsDir)
         for index in records.indices where !Session.isValidCctopSessionId(records[index].session.cctopSessionId) {
             var session = records[index].session
-            guard let evidence = CctopSessionIdentityStore.durableEvidence(
-                source: session.source,
-                harnessSessionId: session.harnessSessionId,
-                legacySessionId: session.sessionId
-            ) else {
+            guard let evidence = CctopSessionIdentityStore.durableEvidence(for: session) else {
                 scheduleCctopSessionIdentityStamp(
                     url: records[index].url,
                     snapshot: session,
@@ -159,11 +152,7 @@ extension SessionManager {
             guard case .hidden(let reason) = record.disposition else { return false }
             switch reason {
             case .archivedCodexDesktop, .archivedClaudeDesktop:
-                return CctopSessionIdentityStore.durableEvidence(
-                    source: session.source,
-                    harnessSessionId: session.harnessSessionId,
-                    legacySessionId: session.sessionId
-                ) != nil
+                return CctopSessionIdentityStore.durableEvidence(for: session) != nil
             case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper, .codexExecHelper,
                  .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
                 return false
