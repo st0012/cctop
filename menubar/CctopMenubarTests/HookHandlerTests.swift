@@ -180,13 +180,16 @@ final class HookHandlerTests: XCTestCase {
 
     func testCodexResumeUpdatesFocusTargetAndPreservesCctopSessionID() throws {
         let reference = "11111111-2222-4333-8444-555555555555"
-        let input = """
+        let firstStart = """
         {"session_id": "\(reference)", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "codex"}
         """
+        let resumedStart = """
+        {"session_id": "\(reference)", "cwd": "/tmp/test-project", "hook_event_name": "SessionStart", "harness_name": "codex", "transcript_path": null}
+        """
         let fileName = "codex-\(reference).json"
-        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 4242, startTime: 1_000))
+        try handleHook(firstStart, hookName: "SessionStart", deps: makeDeps(pid: 4242, startTime: 1_000))
         let first = try loadSession(fileName)
-        try handleHook(input, hookName: "SessionStart", deps: makeDeps(pid: 5002, startTime: 2_000))
+        try handleHook(resumedStart, hookName: "SessionStart", deps: makeDeps(pid: 5002, startTime: 2_000))
         let resumed = try loadSession(fileName)
 
         XCTAssertEqual(resumed.cctopSessionId, first.cctopSessionId)
@@ -1250,6 +1253,192 @@ final class HookHandlerTests: XCTestCase {
         """
         try handleHook(promptJSON, hookName: "UserPromptSubmit", deps: deps)
         XCTAssertTrue(try loadSession("codex-title-helper.json").hidden)
+    }
+
+    func testCodexExplicitlyNullSessionStartDefersUntilUnrelatedPrompt() throws {
+        try handleHook("""
+        {
+          "session_id":"ephemeral-user-task",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"SessionStart",
+          "harness_name":"codex",
+          "transcript_path":null
+        }
+        """, hookName: "SessionStart")
+
+        XCTAssertFalse(sessionFileExists("codex-ephemeral-user-task.json"))
+
+        try handleHook("""
+        {
+          "session_id":"ephemeral-user-task",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"UserPromptSubmit",
+          "harness_name":"codex",
+          "transcript_path":null,
+          "prompt":"Quoted: Generate 0 to 3 hyperpersonalized suggestions for a test fixture"
+        }
+        """, hookName: "UserPromptSubmit")
+
+        let session = try loadSession("codex-ephemeral-user-task.json")
+        XCTAssertFalse(session.hidden)
+        XCTAssertNil(session.sessionName)
+    }
+
+    func testCodexExplicitlyNullSessionStartStillRunsProjectCleanup() throws {
+        let stalePath = sessionFilePath("7777.json")
+        let stale = Session(
+            sessionId: "stale-same-project",
+            projectPath: "/tmp/ordinary-project",
+            projectName: "ordinary-project",
+            branch: "main",
+            status: .idle,
+            lastPrompt: nil,
+            lastActivity: Date(timeIntervalSince1970: 900),
+            startedAt: Date(timeIntervalSince1970: 800),
+            terminal: TerminalInfo(program: "Code"),
+            pid: 7777,
+            pidStartTime: 900,
+            lastTool: nil,
+            lastToolDetail: nil,
+            notificationMessage: nil
+        )
+        try stale.writeToFile(path: stalePath)
+
+        try handleHook("""
+        {
+          "session_id":"deferred-cleanup-trigger",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"SessionStart",
+          "harness_name":"codex",
+          "transcript_path":null
+        }
+        """, hookName: "SessionStart", deps: makeDeps(alive: false))
+
+        XCTAssertFalse(sessionFileExists("codex-deferred-cleanup-trigger.json"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stalePath))
+    }
+
+    func testCodexSessionStartWithoutTranscriptFieldKeepsLegacyBehavior() throws {
+        try handleHook("""
+        {
+          "session_id":"legacy-codex-task",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"SessionStart",
+          "harness_name":"codex"
+        }
+        """, hookName: "SessionStart")
+
+        XCTAssertTrue(sessionFileExists("codex-legacy-codex-task.json"))
+    }
+
+    func testNonCodexExplicitlyNullSessionStartIsNotDeferred() throws {
+        try handleHook("""
+        {
+          "session_id":"opencode-null-path",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"SessionStart",
+          "harness_name":"opencode",
+          "transcript_path":null
+        }
+        """, hookName: "SessionStart")
+
+        XCTAssertTrue(sessionFileExists())
+    }
+
+    func testCodexProjectSuggestionWorkerStaysHiddenThroughStop() throws {
+        let sessionId = "project-suggestion-worker"
+        try handleHook("""
+        {
+          "session_id":"\(sessionId)",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"SessionStart",
+          "harness_name":"codex",
+          "transcript_path":null
+        }
+        """, hookName: "SessionStart")
+        XCTAssertFalse(sessionFileExists("codex-\(sessionId).json"))
+
+        let suggestionPrompt = "Task input: Generate 0 to 3 hyperpersonalized suggestions for the user."
+        try handleHook("""
+        {
+          "session_id":"\(sessionId)",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"UserPromptSubmit",
+          "harness_name":"codex",
+          "transcript_path":null,
+          "prompt":\(try jsonString(suggestionPrompt))
+        }
+        """, hookName: "UserPromptSubmit")
+        XCTAssertTrue(try loadSession("codex-\(sessionId).json").hidden)
+
+        try handleHook("""
+        {
+          "session_id":"\(sessionId)",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"Stop",
+          "harness_name":"codex",
+          "transcript_path":null
+        }
+        """, hookName: "Stop")
+        let stopped = try loadSession("codex-\(sessionId).json")
+        XCTAssertTrue(stopped.hidden)
+        XCTAssertEqual(stopped.status, .waitingInput)
+    }
+
+    func testCodexSuggestionSignatureWithDurableOrLegacyTranscriptStaysVisible() throws {
+        let suggestionPrompt = "Task input: Generate 0 to 3 hyperpersonalized suggestions for the user."
+        try handleHook("""
+        {
+          "session_id":"durable-suggestion-text",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"UserPromptSubmit",
+          "harness_name":"codex",
+          "transcript_path":"/tmp/transcript.jsonl",
+          "prompt":\(try jsonString(suggestionPrompt))
+        }
+        """, hookName: "UserPromptSubmit")
+        XCTAssertFalse(try loadSession("codex-durable-suggestion-text.json").hidden)
+
+        try handleHook("""
+        {
+          "session_id":"legacy-suggestion-text",
+          "cwd":"/tmp/ordinary-project",
+          "hook_event_name":"UserPromptSubmit",
+          "harness_name":"codex",
+          "prompt":\(try jsonString(suggestionPrompt))
+        }
+        """, hookName: "UserPromptSubmit")
+        XCTAssertFalse(try loadSession("codex-legacy-suggestion-text.json").hidden)
+    }
+
+    func testCodexMemoryWorkerIsHiddenWhenPromptArrivesAfterDeferredStart() throws {
+        let memoriesDir = NSTemporaryDirectory() + "cctop-internal-memories-\(UUID().uuidString)"
+        setenv("CCTOP_CODEX_MEMORIES_DIR", memoriesDir, 1)
+        defer { unsetenv("CCTOP_CODEX_MEMORIES_DIR") }
+
+        try handleHook("""
+        {
+          "session_id":"memory-worker",
+          "cwd":"\(memoriesDir)",
+          "hook_event_name":"SessionStart",
+          "harness_name":"codex",
+          "transcript_path":null
+        }
+        """, hookName: "SessionStart")
+        XCTAssertFalse(sessionFileExists("codex-memory-worker.json"))
+
+        try handleHook("""
+        {
+          "session_id":"memory-worker",
+          "cwd":"\(memoriesDir)",
+          "hook_event_name":"UserPromptSubmit",
+          "harness_name":"codex",
+          "transcript_path":null,
+          "prompt":"Maintain internal memory state"
+        }
+        """, hookName: "UserPromptSubmit")
+
+        XCTAssertTrue(try loadSession("codex-memory-worker.json").hidden)
     }
 
     func testHookInputMarkedSubagentWritesHiddenSession() throws {

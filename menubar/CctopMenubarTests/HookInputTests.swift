@@ -25,6 +25,19 @@ final class HookInputTests: XCTestCase {
         XCTAssertEqual(input.cwd, "/tmp/test-project")
         XCTAssertEqual(input.hookEventName, "SessionStart")
         XCTAssertEqual(input.transcriptPath, "/tmp/transcript.jsonl")
+        XCTAssertFalse(input.hasExplicitlyNullTranscriptPath)
+    }
+
+    func testTranscriptPathFieldPresenceDistinguishesNullFromMissing() throws {
+        let explicitNull = try JSONDecoder().decode(HookInput.self, from: Data("""
+        {"session_id":"null-path","cwd":"/tmp","hook_event_name":"SessionStart","transcript_path":null}
+        """.utf8))
+        XCTAssertTrue(explicitNull.hasExplicitlyNullTranscriptPath)
+
+        let missing = try JSONDecoder().decode(HookInput.self, from: Data("""
+        {"session_id":"missing-path","cwd":"/tmp","hook_event_name":"SessionStart"}
+        """.utf8))
+        XCTAssertFalse(missing.hasExplicitlyNullTranscriptPath)
     }
 
     // MARK: - UserPromptSubmit

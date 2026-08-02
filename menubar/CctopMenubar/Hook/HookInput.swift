@@ -1,9 +1,14 @@
 import Foundation
 
 struct HookInput: Codable {
+    private static let codexProjectSuggestionPromptFragment =
+        "Generate 0 to 3 hyperpersonalized suggestions"
+    private static let codexSuggestionPromptFragmentOffset = 12
+
     let sessionId: String
     let cwd: String
     var transcriptPath: String?
+    private var transcriptPathFieldPresent = false
     var permissionMode: String?
     let hookEventName: String
     var prompt: String?
@@ -48,6 +53,7 @@ struct HookInput: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
         cwd = try container.decode(String.self, forKey: .cwd)
+        transcriptPathFieldPresent = container.contains(.transcriptPath)
         transcriptPath = try container.decodeIfPresent(String.self, forKey: .transcriptPath)
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         hookEventName = try container.decode(String.self, forKey: .hookEventName)
@@ -92,6 +98,19 @@ struct HookInput: Codable {
         // MIGRATION(harness_name): Legacy fallback for old plugins that send `source`.
         if let source, Self.knownHarnesses.contains(source) { return source }
         return nil
+    }
+
+    var hasExplicitlyNullTranscriptPath: Bool {
+        transcriptPathFieldPresent && transcriptPath == nil
+    }
+
+    var isCodexProjectSuggestionWorker: Bool {
+        guard resolvedHarnessName == Session.codexSource,
+              hasExplicitlyNullTranscriptPath,
+              let prompt,
+              let range = prompt.range(of: Self.codexProjectSuggestionPromptFragment) else { return false }
+        return prompt.distance(from: prompt.startIndex, to: range.lowerBound)
+            == Self.codexSuggestionPromptFragmentOffset
     }
 }
 

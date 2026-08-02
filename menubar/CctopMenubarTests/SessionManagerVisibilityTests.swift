@@ -1371,7 +1371,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         XCTAssertTrue(session.isCodexMemoryMaintenanceSession)
     }
 
-    func testCodexMemoryMaintenanceClassificationIsNarrow() {
+    func testCodexReservedMemoryDirectoryClassificationIsNarrow() {
         let root = NSTemporaryDirectory() + "cctop-memory-\(UUID().uuidString)"
         let memoriesDir = (root as NSString).appendingPathComponent("bob/.codex/memories")
         setenv("CCTOP_CODEX_MEMORIES_DIR", memoriesDir, 1)
@@ -1386,18 +1386,24 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         XCTAssertFalse(normalProject.isCodexMemoryMaintenanceSession)
 
-        var nonDesktopMemory = Session(
-            sessionId: "codex-cli-memory",
+        var userLaunchedMemoryTask = Session(
+            sessionId: "user-launched-memory-task",
             projectPath: memoriesDir,
             branch: "main",
             terminal: TerminalInfo(program: "zsh")
         )
-        nonDesktopMemory.source = Session.codexSource
-        XCTAssertFalse(nonDesktopMemory.isCodexMemoryMaintenanceSession)
+        userLaunchedMemoryTask.source = Session.codexSource
+        XCTAssertTrue(userLaunchedMemoryTask.isCodexMemoryMaintenanceSession)
 
         var nonCodexMemory = codexDesktopSession(sessionId: "other-memory", projectPath: memoriesDir)
         nonCodexMemory.source = "cc"
         XCTAssertFalse(nonCodexMemory.isCodexMemoryMaintenanceSession)
+
+        let neighboringMemoriesProject = codexDesktopSession(
+            sessionId: "neighboring-memories",
+            projectPath: (root as NSString).appendingPathComponent("bob/projects/memories")
+        )
+        XCTAssertFalse(neighboringMemoriesProject.isCodexMemoryMaintenanceSession)
 
         XCTAssertEqual(normalProject.projectName, "cctop")
     }
