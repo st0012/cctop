@@ -2,7 +2,7 @@ PROJECT = menubar/CctopMenubar.xcodeproj
 DERIVED = menubar/build
 SIGN = CODE_SIGN_IDENTITY="-"
 
-.PHONY: all build test lint contract clean install run restart
+.PHONY: all build test swift-test snapshots lint contract clean install run restart
 
 all: lint contract build test
 
@@ -26,7 +26,23 @@ test:
 	else \
 		echo "WARNING: skipping pi extension tests: Node >= 23.6 required for TypeScript type stripping, found $$(node --version)"; \
 	fi
-	xcodebuild test -project $(PROJECT) -scheme CctopMenubar -configuration Debug -derivedDataPath $(DERIVED) $(SIGN)
+	$(MAKE) swift-test
+
+swift-test:
+	scripts/run-swift-tests-isolated.sh \
+		test -project $(PROJECT) -scheme CctopMenubar -configuration Debug \
+		-derivedDataPath $(DERIVED) $(SIGN) \
+		-skip-testing:CctopMenubarTests/SnapshotTests \
+		-skip-testing:CctopMenubarTests/QASnapshotTests
+
+# Artifact generators are opt-in and run behind the same isolated test boundary.
+snapshots:
+	scripts/run-swift-tests-isolated.sh \
+		test -project $(PROJECT) -scheme CctopMenubar -configuration Debug \
+		-derivedDataPath $(DERIVED) $(SIGN) \
+		-only-testing:CctopMenubarTests/SnapshotTests \
+		-only-testing:CctopMenubarTests/QASnapshotTests \
+		-only-testing:CctopMenubarTests/WorktreeCleanupScenarioSnapshotTests
 
 lint:
 	swiftlint lint --strict

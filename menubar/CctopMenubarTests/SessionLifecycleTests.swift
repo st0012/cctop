@@ -68,7 +68,12 @@ final class SessionLifecycleTests: XCTestCase {
             now: Self.lifeNow,
             desktopAppConnectionLookup: DesktopAppConnectionLookup { bundleID in
                 bundleID == HostAppBundleID.codexDesktop
-            }
+            },
+            codexThreads: StubCodexThreadState(),
+            claudeDesktopSessions: StubClaudeDesktopState(
+                snapshot: ClaudeDesktopSessionMetadataSnapshot()
+            ),
+            processAlive: { _ in false }
         )
 
         XCTAssertEqual(candidates.map(\.session.lifecycle), [.active])
@@ -165,7 +170,7 @@ final class SessionLifecycleTests: XCTestCase {
                 cliID: "cli-project"
             ]
         )
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-batched-codex-state").sources
         sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-batched-codex-state")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = codexThreads
@@ -211,6 +216,7 @@ final class SessionLifecycleTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { bundleID in
                 bundleID == HostAppBundleID.codexDesktop
             }
@@ -251,6 +257,7 @@ final class SessionLifecycleTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { bundleID in
                 bundleID == HostAppBundleID.codexDesktop
             }
@@ -332,7 +339,8 @@ final class SessionLifecycleTests: XCTestCase {
             historyDir: historyDir,
             desktopAppConnection: DesktopAppConnectionLookup { bundleID in
                 bundleID == HostAppBundleID.codexDesktop
-            }
+            },
+            processAlive: { $0.pid == pid && $0.isAlive }
         )
 
         XCTAssertEqual(manager.sessions.map(\.lifecycle), [.active])
@@ -977,7 +985,7 @@ final class SessionLifecycleTests: XCTestCase {
         claude.lastActivity = Date(timeIntervalSince1970: 2000)
         try claude.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("\(claudeID).json"))
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-recent-desktop-targets").sources
         sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-recent-desktop-targets")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState(archived: [codexID])
@@ -1220,7 +1228,7 @@ final class SessionLifecycleTests: XCTestCase {
         let codexState = SequencedCodexClassificationState(
             snapshots: [.available(initial), .unreadable, .available(changed)]
         )
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-classification-retention").sources
         sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-classification-retention")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = codexState

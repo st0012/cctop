@@ -150,7 +150,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-legacy-manual-hide").sources
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState(
             existing: [threadID, currentObservationID, conflictingObservationID],
@@ -264,7 +264,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-unresolved-legacy-archived").sources
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState(
             existing: [threadID, unrelatedThreadID],
@@ -345,7 +345,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["active:42"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-process-key-partial").sources
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState(existing: [threadID], archived: [threadID])
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }
@@ -445,7 +445,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-unresolved-legacy-finished").sources
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState(existing: Set([threadID] + finishedPeerIDs), archived: [])
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
@@ -616,7 +616,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(["codex:\(hiddenThreadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-unresolved-legacy-new-archive").sources
         sources.sessionsDir = sessionsURL
         sources.codexThreads = StubCodexThreadState(existing: [hiddenThreadID], archived: [])
         sources.processAlive = { $0.sessionId == hiddenThreadID }
@@ -682,7 +682,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             to: URL(fileURLWithPath: (sessionsDir as NSString).appendingPathComponent("unrelated-broken.json"))
         )
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-manual-hide-shared-id").sources
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
             matchedSessionIDs: [durableConversationID],
@@ -751,8 +751,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         archived.lastActivity = Date(timeIntervalSince1970: 2_000)
         try archived.writeToFile(path: sessionsURL.appendingPathComponent("archived-desktop.json").path)
 
-        var sources = SessionDataSources.live()
-        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-recent-live-suppression")
+        var sources = try isolatedSessionDataSources(prefix: "cctop-recent-live-suppression").sources
         sources.sessionsDir = sessionsURL
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
             matchedSessionIDs: [durableConversationID],
@@ -808,7 +807,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         hidden.sessionName = "Archived-only observation"
         try hidden.writeToFile(path: sessionsURL.appendingPathComponent("archived-only.json").path)
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-manual-hide-archived-only").sources
         sources.sessionsDir = sessionsURL
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
             matchedSessionIDs: [durableConversationID],
@@ -896,7 +895,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         var processAlive = true
         var now = initialNow
         var postedNotificationIDs: [String] = []
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-manual-hide-busy-stamp").sources
         sources.sessionsDir = sessionsURL
         sources.codexThreads = StubCodexThreadState(
             existing: [terminalObservationID, desktopObservationID],
@@ -1002,7 +1001,9 @@ final class SessionManagerVisibilityTests: XCTestCase {
         hiddenSnapshot.cctopSessionId = mappedID
         visibility.hide(hiddenSnapshot)
 
-        var missingSources = SessionDataSources.live()
+        var missingSources = try isolatedSessionDataSources(
+            prefix: "cctop-mapped-hide-missing-codex-metadata"
+        ).sources
         missingSources.sessionsDir = sessionsURL
         missingSources.codexThreads = StubCodexThreadState(existing: [], archived: [])
         missingSources.desktopAppConnection = DesktopAppConnectionLookup { _ in true }
@@ -1077,7 +1078,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         visibility.hide(finished)
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: historyURL.path)
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-manual-hide-archive-failure").sources
         sources.sessionsDir = sessionsURL
         sources.processAlive = { _ in false }
         sources.manualSessionVisibility = visibility
@@ -1715,7 +1716,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         finishedDesktop.disconnectedAt = old
         try finishedDesktop.writeToFile(path: finishedDesktopPath)
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-hidden-cleanup-gc").sources
         sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-gc-hidden-cleanup")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState(existing: ["finished-desktop"], archived: [])
@@ -1770,7 +1771,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let lockHolder = try startSessionLockHolder(lockPath: sessionPath + ".lock", readyPath: readyPath, holdSeconds: 1.5)
         defer { terminateProcess(lockHolder) }
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-busy-gc").sources
         sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-gc-busy-lock")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState(existing: ["busy-finished-thread"], archived: [])
@@ -1864,7 +1865,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         FileManager.default.createFile(atPath: cliPath + ".lock", contents: nil)
         FileManager.default.createFile(atPath: desktopPath + ".lock", contents: nil)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions, [])
@@ -1903,7 +1908,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
             projectPath: (root as NSString).appendingPathComponent("projects/cctop")
         ).writeToFile(path: sessionPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), ["delegated-visible"])
@@ -1950,7 +1959,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         memorySession.hidden = true
         try memorySession.writeToFile(path: memoryPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), ["delegated-sticky"])
@@ -1995,7 +2008,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         session.hidden = true
         try session.writeToFile(path: sessionPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions, [])
@@ -2034,7 +2051,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         session.hidden = true
         try session.writeToFile(path: sessionPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions, [])
@@ -2073,6 +2094,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { _ in true }
         )
         manager.loadSessions()
@@ -2121,6 +2143,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { _ in true },
             now: { now }
         )
@@ -2163,6 +2186,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { _ in true },
             now: { now }
         )
@@ -2401,6 +2425,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { _ in true }
         )
         manager.loadSessions()
@@ -2438,6 +2463,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { _ in true }
         )
         manager.loadSessions()
@@ -2475,6 +2501,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { _ in true }
         )
         manager.loadSessions()
@@ -2517,7 +2544,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let desktopPath = (sessionsDir as NSString).appendingPathComponent("codex-conv-a.json")
         try desktopKeyed.writeToFile(path: desktopPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        )
         manager.loadSessions()
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: oldPath))
@@ -2547,7 +2578,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         session.lastActivity = Date()
         try session.writeToFile(path: sessionPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
@@ -2589,7 +2624,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         session.lastActivity = Date()
         try session.writeToFile(path: sessionPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
@@ -2634,7 +2673,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         session.lastActivity = Date()
         try session.writeToFile(path: sessionPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            claudeDesktopSessions: ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
@@ -2685,7 +2728,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         session.lastActivity = Date()
         try session.writeToFile(path: sessionPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            claudeDesktopSessions: ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
@@ -2726,7 +2773,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
         session.disconnectedAt = ended
         try session.writeToFile(path: sessionPath)
 
-        let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            claudeDesktopSessions: ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+        )
         manager.loadSessions()
 
         XCTAssertEqual(manager.sessions.map(\.sessionId), [])
@@ -2751,10 +2802,16 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let session = codexDesktopSession(sessionId: "live-thread", projectPath: "/tmp/p")
 
         try writeCodexStateDatabase(path: stateDB, archivedThreads: ["live-thread"])
-        XCTAssertTrue(SessionManager.isCodexDesktopThreadArchived(session))
+        XCTAssertTrue(SessionManager.isCodexDesktopThreadArchived(
+            session,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        ))
 
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
-        XCTAssertFalse(SessionManager.isCodexDesktopThreadArchived(session))
+        XCTAssertFalse(SessionManager.isCodexDesktopThreadArchived(
+            session,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        ))
     }
 
     // The archive check is gated on the Codex Desktop bundle ID, so a non-Codex-Desktop session
@@ -2850,6 +2907,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { _ in false }
         )
 
@@ -2890,7 +2948,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defaults.set(["codex:\(threadID)"], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
 
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-unresolved-legacy-desktop-gc").sources
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState(existing: [threadID], archived: [])
         sources.desktopAppConnection = DesktopAppConnectionLookup { _ in false }
@@ -3001,6 +3059,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            claudeDesktopSessions: ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir),
             desktopAppConnection: DesktopAppConnectionLookup { _ in false }
         )
 
@@ -3041,7 +3100,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         }
 
         let claudeState = CountingClaudeDesktopState()
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-batched-claude-gc").sources
         sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-claude-batched-gc")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState()
@@ -3088,7 +3147,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try session.writeToFile(path: sessionPath)
 
         let claudeState = SequencedClaudeDesktopState(archivedResponses: [[], ["finished-claude-race"]])
-        var sources = SessionDataSources.live()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-rechecked-claude-gc").sources
         sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-claude-gc-archive-race")
         sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
         sources.codexThreads = StubCodexThreadState()
@@ -3150,7 +3209,9 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let candidates = SessionManager.buildCandidates(
             [URL(fileURLWithPath: claudePath), URL(fileURLWithPath: codexPath)],
             now: Date(),
-            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true }
+            desktopAppConnectionLookup: DesktopAppConnectionLookup { _ in true },
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
+            claudeDesktopSessions: ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
         )
         let namesByID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.session.sessionId, $0.session.desktopProjectName) })
 
@@ -3188,6 +3249,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
             desktopAppConnection: DesktopAppConnectionLookup { _ in false }
         )
         manager.garbageCollectFinished()

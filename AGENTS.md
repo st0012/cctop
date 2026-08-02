@@ -161,7 +161,7 @@ xcodebuild build -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -c
 open menubar/build/Build/Products/Debug/CctopMenubar.app
 
 # Run tests
-xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar -configuration Debug -derivedDataPath menubar/build/
+make swift-test
 ```
 
 **Visual verification:** Open the Xcode project and use SwiftUI Previews (Canvas) for instant visual feedback. All views have `#Preview` blocks with mock data.
@@ -699,9 +699,7 @@ Most static panel screenshots under `docs/` are generated from `CctopMenubarTest
 
 ```bash
 # Regenerate all snapshot-backed PNGs under the macOS temp directory
-xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
-  -only-testing:CctopMenubarTests/SnapshotTests \
-  -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+make snapshots
 
 # Copy the public documentation screenshots into docs/
 snapshot_dir="$(getconf DARWIN_USER_TEMP_DIR)cctop-screenshots"

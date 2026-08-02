@@ -124,9 +124,7 @@ final class SnapshotTests: XCTestCase {
     /// Renders the PopupView with showcase sessions and saves light + dark screenshots.
     ///
     /// Run with:
-    ///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
-    ///     -only-testing:CctopMenubarTests/SnapshotTests/testGenerateMenubarScreenshot \
-    ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+    ///   make snapshots
     func testGenerateMenubarScreenshot() throws {
         let view = PopupView(
             sessions: Session.qaShowcase, updater: DisabledUpdater(), pluginManager: inertPluginManager()
@@ -151,9 +149,7 @@ final class SnapshotTests: XCTestCase {
     /// and marketing site. Shows the full breadth of agent support in one shot.
     ///
     /// Run with:
-    ///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
-    ///     -only-testing:CctopMenubarTests/SnapshotTests/testGenerateEmptyStateScreenshot \
-    ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+    ///   make snapshots
     func testGenerateEmptyStateScreenshot() throws {
         let pm = inertPluginManager()
         pm.ccInstalled = false
@@ -185,31 +181,6 @@ final class SnapshotTests: XCTestCase {
         let view = SettingsSection(updater: DisabledUpdater(), pluginManager: pm)
         try renderScreenshot(view: view, colorScheme: .light, filename: "onboarding-settings-light.png", width: 360)
         try renderScreenshot(view: view, colorScheme: .dark, filename: "onboarding-settings-dark.png", width: 360)
-    }
-
-    func testOnboardingCopyNamesDesktopHostsAndOmitsLegacyCodexFlag() throws {
-        let repo = try repoRoot()
-        let checkedFiles = [
-            "menubar/CctopMenubar/Views/EmptyStateView.swift",
-            "menubar/CctopMenubar/Views/SettingsSection.swift",
-            "menubar/CctopMenubar/Views/CodexPluginRowView.swift",
-            "README.md",
-            "site/index.html",
-            "plugins/codex/cctop-shim.sh",
-        ]
-
-        let combined = try checkedFiles.map { path in
-            try String(contentsOf: repo.appendingPathComponent(path), encoding: .utf8)
-        }.joined(separator: "\n")
-
-        XCTAssertFalse(combined.contains("codex_hooks feature flag"))
-        XCTAssertFalse(combined.contains("Enable experimental feature?"))
-        XCTAssertFalse(combined.contains("will show a startup warning"))
-        XCTAssertTrue(combined.contains("Claude Code / Desktop"))
-        XCTAssertTrue(combined.contains("Codex CLI / Desktop"))
-        XCTAssertTrue(combined.contains("Claude Desktop"))
-        XCTAssertTrue(combined.contains("Codex Desktop"))
-        XCTAssertTrue(combined.contains("Install Hooks"))
     }
 
     func testGenerateRecentProjectsScreenshot() throws {
@@ -567,9 +538,7 @@ final class SnapshotTests: XCTestCase {
     /// Generates theme showcase screenshots for all 4 themes in both dark and light modes.
     ///
     /// Run with:
-    ///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
-    ///     -only-testing:CctopMenubarTests/SnapshotTests/testGenerateThemeScreenshots \
-    ///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+    ///   make snapshots
     func testGenerateThemeScreenshots() throws {
         for theme in AppTheme.allCases {
             ThemeManager.shared.setTheme(theme)
@@ -591,26 +560,6 @@ final class SnapshotTests: XCTestCase {
             view: view, colorScheme: colorScheme,
             directoryName: "cctop-screenshots", filename: filename, width: width
         )
-    }
-
-    func testSessionRowsAvoidPerRowTimelineAndInfiniteAnimations() throws {
-        let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        let viewsDirectory = testsDirectory
-            .deletingLastPathComponent()
-            .appendingPathComponent("CctopMenubar/Views")
-        let viewSources = try FileManager.default.contentsOfDirectory(
-            at: viewsDirectory,
-            includingPropertiesForKeys: nil
-        )
-        .filter { $0.pathExtension == "swift" }
-        let source = try viewSources
-            .map { try String(contentsOf: $0) }
-            .joined(separator: "\n")
-
-        XCTAssertFalse(source.contains("TimelineView("))
-        XCTAssertFalse(source.contains("repeatForever"))
-        XCTAssertFalse(source.contains("BlinkingCaret("))
-        XCTAssertFalse(viewSources.contains { $0.lastPathComponent == "BlinkingCaret.swift" })
     }
 
     private func recentProofSession(
@@ -640,4 +589,51 @@ final class SnapshotTests: XCTestCase {
         )
     }
 
+}
+
+final class SnapshotContractTests: XCTestCase {
+    func testOnboardingCopyNamesDesktopHostsAndOmitsLegacyCodexFlag() throws {
+        let repo = try repoRoot()
+        let checkedFiles = [
+            "menubar/CctopMenubar/Views/EmptyStateView.swift",
+            "menubar/CctopMenubar/Views/SettingsSection.swift",
+            "menubar/CctopMenubar/Views/CodexPluginRowView.swift",
+            "README.md",
+            "site/index.html",
+            "plugins/codex/cctop-shim.sh",
+        ]
+
+        let combined = try checkedFiles.map { path in
+            try String(contentsOf: repo.appendingPathComponent(path), encoding: .utf8)
+        }.joined(separator: "\n")
+
+        XCTAssertFalse(combined.contains("codex_hooks feature flag"))
+        XCTAssertFalse(combined.contains("Enable experimental feature?"))
+        XCTAssertFalse(combined.contains("will show a startup warning"))
+        XCTAssertTrue(combined.contains("Claude Code / Desktop"))
+        XCTAssertTrue(combined.contains("Codex CLI / Desktop"))
+        XCTAssertTrue(combined.contains("Claude Desktop"))
+        XCTAssertTrue(combined.contains("Codex Desktop"))
+        XCTAssertTrue(combined.contains("Install Hooks"))
+    }
+
+    func testSessionRowsAvoidPerRowTimelineAndInfiniteAnimations() throws {
+        let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let viewsDirectory = testsDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("CctopMenubar/Views")
+        let viewSources = try FileManager.default.contentsOfDirectory(
+            at: viewsDirectory,
+            includingPropertiesForKeys: nil
+        )
+        .filter { $0.pathExtension == "swift" }
+        let source = try viewSources
+            .map { try String(contentsOf: $0) }
+            .joined(separator: "\n")
+
+        XCTAssertFalse(source.contains("TimelineView("))
+        XCTAssertFalse(source.contains("repeatForever"))
+        XCTAssertFalse(source.contains("BlinkingCaret("))
+        XCTAssertFalse(viewSources.contains { $0.lastPathComponent == "BlinkingCaret.swift" })
+    }
 }

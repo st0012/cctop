@@ -6,9 +6,7 @@ import SwiftUI
 ///
 /// Each test saves a PNG to /tmp/cctop-qa/<scenario>.png for visual inspection.
 /// Run all QA snapshots:
-///   xcodebuild test -project menubar/CctopMenubar.xcodeproj -scheme CctopMenubar \
-///     -only-testing:CctopMenubarTests/QASnapshotTests \
-///     -derivedDataPath menubar/build/ CODE_SIGN_IDENTITY="-"
+///   make snapshots
 @MainActor
 final class QASnapshotTests: XCTestCase {
 

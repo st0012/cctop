@@ -612,7 +612,10 @@ final class HistoryManagerTests: XCTestCase {
     }
 
     func testRebuildRecentProjectsRefreshesWhenProjectPathExistenceChanges() throws {
-        let projectDir = URL(fileURLWithPath: NSHomeDirectory())
+        let projectDir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("build", isDirectory: true)
             .appendingPathComponent(".cctop-history-path-state-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: projectDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: projectDir) }

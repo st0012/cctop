@@ -39,11 +39,7 @@ xcodebuild build \
 
 ```bash
 # Swift tests
-xcodebuild test \
-  -project menubar/CctopMenubar.xcodeproj \
-  -scheme CctopMenubar \
-  -configuration Debug \
-  -derivedDataPath menubar/build/
+make swift-test
 
 # Lint checks
 swiftlint lint --strict

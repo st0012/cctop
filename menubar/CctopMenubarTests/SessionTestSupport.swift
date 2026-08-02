@@ -22,10 +22,51 @@ extension XCTestCase {
         }
 
         let visibility = isolatedManualSessionVisibility(prefix: prefix)
-        var sources = SessionDataSources.live()
-        sources.sessionsDir = sessionsDir
-        sources.manualSessionVisibility = visibility
+        let sources = isolatedSessionDataSources(
+            sessionsDir: sessionsDir,
+            manualSessionVisibility: visibility
+        )
         return (sources, visibility)
+    }
+
+    func isolatedSessionDataSources(
+        sessionsDir: URL,
+        manualSessionVisibility: ManualSessionVisibilityStore
+    ) -> SessionDataSources {
+        let testProcessID = UInt32(ProcessInfo.processInfo.processIdentifier)
+        return SessionDataSources(
+            sessionsDir: sessionsDir,
+            codexThreads: StubCodexThreadState(),
+            claudeDesktopSessions: StubClaudeDesktopState(
+                snapshot: ClaudeDesktopSessionMetadataSnapshot()
+            ),
+            desktopAppConnection: DesktopAppConnectionLookup { _ in false },
+            processAlive: { $0.pid == testProcessID },
+            notificationsEnabled: { false },
+            notificationClient: SessionNotificationClient(
+                add: { _, completion in completion(nil) },
+                removePending: { _ in },
+                removeDelivered: { _ in }
+            ),
+            manualSessionVisibility: manualSessionVisibility,
+            now: Date.init
+        )
+    }
+
+    func withTemporaryHomeDirectory<T>(
+        _ homeDirectory: URL,
+        body: () throws -> T
+    ) rethrows -> T {
+        let previousHome = ProcessInfo.processInfo.environment["HOME"]
+        setenv("HOME", homeDirectory.path, 1)
+        defer {
+            if let previousHome {
+                setenv("HOME", previousHome, 1)
+            } else {
+                unsetenv("HOME")
+            }
+        }
+        return try body()
     }
 
     func executeSQLite(_ sql: String, path: String) throws {
@@ -235,15 +276,25 @@ extension XCTestCase {
     func makeManager(
         sessionsDir: String,
         historyDir: String,
+        codexThreads: (any CodexThreadStateProviding)? = nil,
+        claudeDesktopSessions: (any ClaudeDesktopSessionStateProviding)? = nil,
         desktopAppConnection: DesktopAppConnectionLookup? = nil,
         processAlive: ((Session) -> Bool)? = nil,
         manualSessionVisibility: ManualSessionVisibilityStore? = nil,
         now: (() -> Date)? = nil
     ) -> SessionManager {
-        var sources = SessionDataSources.live()
-        sources.sessionsDir = URL(fileURLWithPath: sessionsDir)
-        sources.manualSessionVisibility = manualSessionVisibility
+        let visibility = manualSessionVisibility
             ?? isolatedManualSessionVisibility(prefix: "cctop-manager")
+        var sources = isolatedSessionDataSources(
+            sessionsDir: URL(fileURLWithPath: sessionsDir),
+            manualSessionVisibility: visibility
+        )
+        if let codexThreads {
+            sources.codexThreads = codexThreads
+        }
+        if let claudeDesktopSessions {
+            sources.claudeDesktopSessions = claudeDesktopSessions
+        }
         if let desktopAppConnection {
             sources.desktopAppConnection = desktopAppConnection
         }
