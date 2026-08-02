@@ -71,6 +71,8 @@ cleanup() {
         fi
     fi
 
+    # Xcode can register this exact shared test-host bundle while launching it. Remove that registration;
+    # callers preserving a developer runtime must restore and verify the lane-owned app afterward.
     if [[ $test_started -eq 1 && -x "$LSREGISTER" && -d "$TEST_HOST_APP" ]]; then
         "$LSREGISTER" -u "$TEST_HOST_APP" >/dev/null 2>&1 || cleanup_status=1
     fi
