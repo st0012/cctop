@@ -752,6 +752,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try archived.writeToFile(path: sessionsURL.appendingPathComponent("archived-desktop.json").path)
 
         var sources = SessionDataSources.live()
+        sources.manualSessionVisibility = isolatedManualSessionVisibility(prefix: "cctop-recent-live-suppression")
         sources.sessionsDir = sessionsURL
         sources.claudeDesktopSessions = StubClaudeDesktopState(snapshot: ClaudeDesktopSessionMetadataSnapshot(
             matchedSessionIDs: [durableConversationID],
