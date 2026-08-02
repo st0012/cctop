@@ -35,7 +35,7 @@ swift-test:
 		-skip-testing:CctopMenubarTests/SnapshotTests \
 		-skip-testing:CctopMenubarTests/QASnapshotTests
 
-# Artifact generators are opt-in and run behind the same isolated test boundary.
+# Stateful screenshot suites are opt-in; isolated cleanup layout contracts stay in default coverage.
 snapshots:
 	scripts/run-swift-tests-isolated.sh \
 		test -project $(PROJECT) -scheme CctopMenubar -configuration Debug \
