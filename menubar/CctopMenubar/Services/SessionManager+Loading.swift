@@ -153,7 +153,8 @@ extension SessionManager {
             switch reason {
             case .archivedCodexDesktop, .archivedClaudeDesktop:
                 return CctopSessionIdentityStore.durableEvidence(for: session) != nil
-            case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper, .codexExecHelper,
+            case .persistedHidden, .autoHidden, .archivedCodexThread, .missingCodexDesktopThread,
+                 .codexInternalHelper, .codexExecHelper,
                  .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
                 return false
             }

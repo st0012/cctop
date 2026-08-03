@@ -2585,6 +2585,54 @@ final class SessionManagerVisibilityTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionManagerTracksCodexArchiveTransitionsWithoutDesktopHostEvidence() throws {
+        let root = NSTemporaryDirectory() + "cctop-codex-archive-across-hosts-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let threadID = "cross-host-archive"
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: [threadID])
+
+        let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-\(threadID).json")
+        var session = Session(
+            sessionId: threadID,
+            projectPath: "/tmp/p",
+            branch: "main",
+            terminal: TerminalInfo(bundleId: nil)
+        )
+        session.source = Session.codexSource
+        session.lastActivity = Date()
+        try session.writeToFile(path: sessionPath)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB),
+            processAlive: { _ in true }
+        )
+        manager.loadSessions()
+        XCTAssertEqual(manager.sessions.map(\.sessionId), [threadID])
+
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [threadID])
+        manager.loadSessions()
+        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
+        XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+        XCTAssertFalse(try Session.fromFile(path: sessionPath).hidden)
+
+        try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: [threadID])
+        manager.loadSessions()
+        XCTAssertEqual(manager.sessions.map(\.sessionId), [threadID])
+        XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
+    }
+
+    @MainActor
     func testSessionManagerHidesArchivedCodexDesktopSessionWhenSourceIsMissing() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-archived-missing-source-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")

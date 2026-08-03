@@ -83,6 +83,7 @@ struct FrozenCodexThreadState: CodexThreadStateProviding {
 enum SessionHiddenReason: Equatable {
     case persistedHidden
     case autoHidden
+    case archivedCodexThread
     case archivedCodexDesktop
     case missingCodexDesktopThread
     case codexInternalHelper
@@ -91,12 +92,13 @@ enum SessionHiddenReason: Equatable {
     case orphanedEndedClaudeDesktop
     case claudeDesktopStartupPlaceholder
 
-    /// Hidden helper/subagent records still represent live ownership of the path, so they
-    /// protect cleanup. Archived/deleted desktop records are hidden UI state instead; only
-    /// explicitly emitted cleanup sources can make those paths cleanup candidates.
+    /// Hidden helper/subagent and archived Codex records without trusted Desktop evidence can
+    /// still represent live ownership of the path, so they protect cleanup. Archived/deleted
+    /// trusted Desktop records are hidden UI state instead; only explicit cleanup sources can
+    /// make those paths candidates.
     var protectsCleanupPath: Bool {
         switch self {
-        case .persistedHidden, .autoHidden, .codexInternalHelper, .codexExecHelper:
+        case .persistedHidden, .autoHidden, .archivedCodexThread, .codexInternalHelper, .codexExecHelper:
             return true
         case .archivedCodexDesktop, .missingCodexDesktopThread, .archivedClaudeDesktop,
              .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
@@ -199,7 +201,7 @@ private extension SessionHiddenReason {
         switch self {
         case .archivedCodexDesktop, .archivedClaudeDesktop:
             return true
-        case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper,
+        case .persistedHidden, .autoHidden, .archivedCodexThread, .missingCodexDesktopThread, .codexInternalHelper,
              .codexExecHelper, .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
             return false
         }
@@ -430,10 +432,9 @@ extension SessionManager {
         let codexDelegationIndex = codexThreads.stateIndex(
             matching: codexThreadIDs(in: sessions)
         )
-        let archivedCodexThreadIDs = archivedCodexDesktopThreadIDs(
-            in: externallyClassifiableSessions,
-            index: codexDelegationIndex
-        )
+        let archivedCodexThreadIDs = codexDelegationIndex?.archivedThreadIDs.intersection(
+            codexThreadIDs(in: externallyClassifiableSessions)
+        ) ?? []
         let missingCodexDesktopThreadIDs = missingCodexDesktopThreadIDs(
             in: externallyClassifiableSessions,
             index: codexDelegationIndex,
@@ -484,7 +485,9 @@ extension SessionManager {
         if session.shouldAutoHide {
             return .hidden(.autoHidden)
         }
-        if isArchivedCodexDesktopSession(session, archivedThreadIDs: evidence.archivedCodexThreadIDs) {
+        let isArchivedCodexSession = (session.isCodex || session.isCodexDesktopHost)
+            && evidence.archivedCodexThreadIDs.contains(session.sessionId)
+        if session.isCodexDesktopHost && isArchivedCodexSession {
             return .hidden(.archivedCodexDesktop)
         }
         if isMissingCodexDesktopSession(session, missingThreadIDs: evidence.missingCodexDesktopThreadIDs) {
@@ -495,6 +498,9 @@ extension SessionManager {
         }
         if isCodexExecHelperSession(session, execHelperThreadIDs: evidence.codexExecHelperThreadIDs) {
             return .hidden(.codexExecHelper)
+        }
+        if isArchivedCodexSession && session.lifecycle != .finished {
+            return .hidden(.archivedCodexThread)
         }
         if isArchivedClaudeDesktopSession(session, archivedSessionIDs: evidence.archivedClaudeSessionIDs) {
             return .hidden(.archivedClaudeDesktop)
@@ -596,21 +602,6 @@ extension SessionManager {
                 .filter { $0.isCodex || $0.isCodexDesktopHost }
                 .map(\.sessionId)
         )
-    }
-
-    private nonisolated static func archivedCodexDesktopThreadIDs(
-        in sessions: [Session],
-        index: CodexThreadStateIndex?
-    ) -> Set<String> {
-        let threadIDs = Set(sessions.filter(\.isCodexDesktopHost).map(\.sessionId))
-        return index?.archivedThreadIDs.intersection(threadIDs) ?? []
-    }
-
-    nonisolated static func isArchivedCodexDesktopSession(
-        _ session: Session,
-        archivedThreadIDs: Set<String>
-    ) -> Bool {
-        session.isCodexDesktopHost && archivedThreadIDs.contains(session.sessionId)
     }
 
     /// Codex Desktop sessions should correspond to a Codex thread row. If the thread store is

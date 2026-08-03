@@ -549,7 +549,7 @@ final class SessionLifecycleTests: XCTestCase {
     func testClassificationSnapshotFiltersArchivedSubagentExecHelperAndOrphanedSessions() {
         let archived = candidate(sessionId: "archived-thread", pid: 1, bundleId: HostAppBundleID.codexDesktop,
                                  lifecycleRank: 0, source: Session.codexSource, path: "/archived.json")
-        let subagent = candidate(sessionId: "subagent-thread", pid: 2, bundleId: HostAppBundleID.codexDesktop,
+        let subagent = candidate(sessionId: "subagent-thread", pid: 2, bundleId: "com.googlecode.iterm2",
                                  lifecycleRank: 0, source: Session.codexSource, path: "/subagent.json")
         let execHelper = candidate(sessionId: "exec-helper-thread", pid: 3, bundleId: HostAppBundleID.codexDesktop,
                                    lifecycleRank: 0, source: Session.codexSource, path: "/exec.json")
@@ -570,7 +570,7 @@ final class SessionLifecycleTests: XCTestCase {
                                            endedAt: Date(timeIntervalSince1970: 2000), path: "/claude-ended.json")
 
         let codexThreads = StubCodexThreadState(
-            archived: ["archived-thread"],
+            archived: ["archived-thread", "subagent-thread"],
             subagents: ["subagent-thread"],
             execHelpers: ["exec-helper-thread"]
         )
@@ -591,10 +591,68 @@ final class SessionLifecycleTests: XCTestCase {
             ["matched-ended-claude", "visible-claude", "visible-thread"]
         )
         XCTAssertEqual(classification.codexInternalHelperCandidates.map(\.session.sessionId), ["subagent-thread"])
-        XCTAssertEqual(classification.archivedCodexThreadIDs, ["archived-thread"])
+        XCTAssertEqual(classification.archivedCodexThreadIDs, ["archived-thread", "subagent-thread"])
         XCTAssertEqual(classification.codexInternalHelperThreadIDs, ["subagent-thread"])
         XCTAssertEqual(classification.codexExecHelperThreadIDs, ["exec-helper-thread"])
         XCTAssertEqual(classification.archivedClaudeSessionIDs, ["archived-claude"])
+    }
+
+    func testClassificationSnapshotHidesArchivedCodexAcrossHostsWithoutInferringDesktop() {
+        let archivedWithoutBundle = candidate(
+            sessionId: "archived-no-bundle", pid: 1, bundleId: nil,
+            lifecycleRank: 0, source: Session.codexSource, path: "/archived-no-bundle.json"
+        )
+        let archivedCLI = candidate(
+            sessionId: "archived-cli", pid: 2, bundleId: "com.googlecode.iterm2",
+            lifecycleRank: 0, source: Session.codexSource, path: "/archived-cli.json"
+        )
+        let visibleWithoutBundle = candidate(
+            sessionId: "visible-no-bundle", pid: 3, bundleId: nil,
+            lifecycleRank: 0, source: Session.codexSource, path: "/visible-no-bundle.json"
+        )
+        let visibleCLI = candidate(
+            sessionId: "visible-cli", pid: 4, bundleId: "com.googlecode.iterm2",
+            lifecycleRank: 0, source: Session.codexSource, path: "/visible-cli.json"
+        )
+        let opencodeWithLeakedBundle = candidate(
+            sessionId: "opencode", pid: 5, bundleId: HostAppBundleID.codexDesktop,
+            lifecycleRank: 0, source: "opencode", path: "/opencode.json"
+        )
+
+        let classification = SessionManager.sessionClassificationSnapshot(
+            in: [archivedWithoutBundle, archivedCLI, visibleWithoutBundle, visibleCLI, opencodeWithLeakedBundle],
+            claudeMetadata: nil,
+            codexThreads: StubCodexThreadState(
+                archived: ["archived-no-bundle", "archived-cli", "opencode"]
+            )
+        )
+
+        XCTAssertEqual(
+            classification.displayCandidates.map(\.session.sessionId).sorted(),
+            ["opencode", "visible-cli", "visible-no-bundle"]
+        )
+        XCTAssertEqual(classification.archivedCodexThreadIDs, ["archived-cli", "archived-no-bundle"])
+        XCTAssertEqual(classification.cleanupSources.map(\.sessionId), [])
+        XCTAssertTrue(RecentResumeTarget.build(projects: [], classification: classification).isEmpty)
+    }
+
+    func testArchivedFinishedCodexCLIStillUsesTerminalCleanupPath() {
+        let finishedCLI = candidate(
+            sessionId: "archived-finished-cli", pid: 1, bundleId: "com.googlecode.iterm2",
+            lifecycleRank: SessionLifecycle.finished.rawValue, source: Session.codexSource, path: "/finished.json"
+        ) { session in
+            session.lifecycle = .finished
+        }
+
+        let classification = SessionManager.sessionClassificationSnapshot(
+            in: [finishedCLI],
+            claudeMetadata: nil,
+            codexThreads: StubCodexThreadState(archived: ["archived-finished-cli"])
+        )
+
+        XCTAssertEqual(classification.displayCandidates.map(\.session.sessionId), ["archived-finished-cli"])
+        XCTAssertEqual(classification.finishedNonDesktopCandidates.map(\.session.sessionId), ["archived-finished-cli"])
+        XCTAssertEqual(classification.cleanupSources.map(\.sessionId), [])
     }
 
     func testClassificationSnapshotEmitsCleanupSourcesForArchivedDesktopSessions() {
@@ -1210,10 +1268,10 @@ final class SessionLifecycleTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: root) }
 
-        let initialIDs = Set(["archived", "missing", "internal", "exec-helper", "visible"])
+        let initialIDs = Set(["archived", "archived-cli", "missing", "internal", "exec-helper", "visible"])
         var initial = CodexThreadStateIndex()
         initial.existingThreadIDs = initialIDs.subtracting(["missing"])
-        initial.archivedThreadIDs = ["archived"]
+        initial.archivedThreadIDs = ["archived", "archived-cli"]
         initial.internalHelperThreadIDs = ["internal"]
         initial.execHelperThreadIDs = ["exec-helper"]
 
@@ -1248,6 +1306,7 @@ final class SessionLifecycleTests: XCTestCase {
 
         let initialRecords = [
             record("archived"),
+            record("archived-cli", desktop: false),
             record("missing"),
             record("internal", desktop: false),
             record("exec-helper"),
@@ -1258,7 +1317,7 @@ final class SessionLifecycleTests: XCTestCase {
 
         let second = manager.deriveSessionClassification(from: initialRecords + [record("new")])
         XCTAssertEqual(second.displayCandidates.map(\.session.sessionId), ["visible", "new"])
-        XCTAssertEqual(second.archivedCodexThreadIDs, ["archived"])
+        XCTAssertEqual(second.archivedCodexThreadIDs, ["archived", "archived-cli"])
         XCTAssertEqual(second.missingCodexDesktopThreadIDs, ["missing"])
         XCTAssertEqual(second.codexInternalHelperThreadIDs, ["internal"])
         XCTAssertEqual(second.codexExecHelperThreadIDs, ["exec-helper"])
@@ -1266,7 +1325,7 @@ final class SessionLifecycleTests: XCTestCase {
         let third = manager.deriveSessionClassification(from: initialRecords + [record("new")])
         XCTAssertEqual(
             third.displayCandidates.map(\.session.sessionId),
-            ["archived", "missing", "internal", "exec-helper", "visible", "new"]
+            ["archived", "archived-cli", "missing", "internal", "exec-helper", "visible", "new"]
         )
         XCTAssertEqual(third.archivedCodexThreadIDs, [])
         XCTAssertEqual(third.missingCodexDesktopThreadIDs, [])

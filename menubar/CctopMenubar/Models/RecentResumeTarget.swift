@@ -203,7 +203,8 @@ enum RecentResumeTarget: Identifiable, Equatable {
             return .codexDesktop
         case .archivedClaudeDesktop:
             return .claudeDesktop
-        case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper, .codexExecHelper,
+        case .persistedHidden, .autoHidden, .archivedCodexThread, .missingCodexDesktopThread,
+             .codexInternalHelper, .codexExecHelper,
              .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
             return nil
         }
