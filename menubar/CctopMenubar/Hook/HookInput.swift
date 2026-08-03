@@ -1,9 +1,14 @@
 import Foundation
 
 struct HookInput: Codable {
+    private static let codexProjectSuggestionPromptFragment =
+        "Generate 0 to 3 hyperpersonalized suggestions"
+    private static let codexSuggestionPromptFragmentOffset = 12
+
     let sessionId: String
     let cwd: String
-    var transcriptPath: String?
+    let transcriptPath: String?
+    private let transcriptPathFieldPresent: Bool
     var permissionMode: String?
     let hookEventName: String
     var prompt: String?
@@ -48,6 +53,7 @@ struct HookInput: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         sessionId = try container.decode(String.self, forKey: .sessionId)
         cwd = try container.decode(String.self, forKey: .cwd)
+        transcriptPathFieldPresent = container.contains(.transcriptPath)
         transcriptPath = try container.decodeIfPresent(String.self, forKey: .transcriptPath)
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         hookEventName = try container.decode(String.self, forKey: .hookEventName)
@@ -92,6 +98,39 @@ struct HookInput: Codable {
         // MIGRATION(harness_name): Legacy fallback for old plugins that send `source`.
         if let source, Self.knownHarnesses.contains(source) { return source }
         return nil
+    }
+
+    var transcriptPathWasExplicitlyNull: Bool {
+        transcriptPathFieldPresent && transcriptPath == nil
+    }
+
+    /// Reads Codex's SessionStart kind from `trigger` or the legacy non-harness
+    /// `source` field. Contradictory aliases intentionally fail open.
+    var codexSessionStartKind: String? {
+        let legacyKind: String?
+        if let source, Self.knownHarnesses.contains(source) {
+            guard harnessName == nil || harnessName == source else { return nil }
+            legacyKind = nil
+        } else {
+            legacyKind = source
+        }
+        guard trigger == nil || legacyKind == nil || trigger == legacyKind else { return nil }
+        return trigger ?? legacyKind
+    }
+
+    var hasCodexStartupDeferralEvidence: Bool {
+        resolvedHarnessName == Session.codexSource
+            && codexSessionStartKind == "startup"
+            && transcriptPathWasExplicitlyNull
+    }
+
+    var hasCodexProjectSuggestionEvidence: Bool {
+        guard resolvedHarnessName == Session.codexSource,
+              transcriptPathWasExplicitlyNull,
+              let prompt,
+              let range = prompt.range(of: Self.codexProjectSuggestionPromptFragment) else { return false }
+        return prompt.distance(from: prompt.startIndex, to: range.lowerBound)
+            == Self.codexSuggestionPromptFragmentOffset
     }
 }
 

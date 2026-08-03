@@ -1,0 +1,8 @@
+{
+  "session_id": "019090a0-6644-7c6a-b3c1-1e8d5c9c0002",
+  "transcript_path": null,
+  "cwd": "/tmp/test-project",
+  "hook_event_name": "SessionStart",
+  "harness_name": "codex",
+  "trigger": "startup"
+}

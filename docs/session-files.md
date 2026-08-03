@@ -176,7 +176,7 @@ Default: `false` when omitted.
 
 When `hidden` is `true`, cctop reads the session file but does not show that session in the active list, does not archive it into Recent Projects, and does not remove it during dead-session cleanup.
 
-Use `hidden` for real session records that should remain on disk for liveness, debugging, or ownership tracking, but should not appear as user-facing work. Current examples include Codex Desktop memory-maintenance sessions and Codex Desktop title-generation helper sessions. Future cases can use the same attribute for background or delegated review sessions, such as Codex sessions summoned by Claude for review.
+Use `hidden` for real session records that should remain on disk for liveness, debugging, or ownership tracking, but should not appear as user-facing work. Current examples include Codex memory-maintenance, project-suggestion, and title-generation helper sessions. Future cases can use the same attribute for background or delegated review sessions, such as Codex sessions summoned by Claude for review.
 
 Do not use file deletion as the hiding signal. Delete a session file only when the session is genuinely obsolete and no longer useful as state.
 
@@ -217,5 +217,19 @@ Default: `false` when omitted.
 When `is_subagent` is `true`, the session file represents a delegated subagent's own workspace rather than the user's top-level conversation. cctop marks these records `hidden` and keeps the file on disk. This is distinct from `active_subagents`, which belongs on the parent user-facing session to show how many delegated agents it currently owns.
 
 Clients that can identify internal helper sessions should set `is_subagent: true` in their hook payloads. For Codex sessions, cctop decodes the structured `threads.source` value from Codex's local thread database: `SessionSource::SubAgent(...)` and `SessionSource::Internal(...)` are hidden, while `cli` and `vscode` remain user-visible even if the legacy diagnostic `thread_source` says `subagent`. `thread_spawn_edges` corroborates topology but is not the primary classifier, because review and guardian helpers may have no edge. Missing, malformed, unknown, or contradictory source evidence fails open and is counted in the session-load diagnostics.
+
+Codex hooks do not yet expose semantic visibility or openability for ephemeral
+root workers. cctop treats an explicitly null `transcript_path` on a positively
+identified `startup` only as a short deferral signal, not as proof that a session
+is internal. Resume, missing, unknown, or contradictory start-kind evidence fails
+open. Hiding still requires
+a narrow worker discriminator: the exact Codex-owned memories directory or the
+project-suggestion prompt fragment at its observed fixed template position. The
+memories directory is intentionally reserved for this classification. The
+project-suggestion rule applies prospectively to hook events; existing records
+fail open because transcript-field presence is not persisted. The preferred
+upstream contract is an explicit `user_openable`/visibility field or structured
+session source on every hook; `ephemeral` alone would describe persistence, not
+whether a task belongs in the user-facing session list.
 
 Older cctop versions may have persisted both `is_subagent = true` and `hidden = true` from `thread_source` alone. cctop clears that sticky pair only when structured source proves `cli` or `vscode`, the edge schema is readable and has no spawn edge for the thread, and no independent memory/title auto-hide rule applies.

@@ -25,6 +25,12 @@ enum HookHandler {
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
         let sessionPath = (sessionsDir as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
 
+        if event == .sessionStart, input.hasCodexStartupDeferralEvidence,
+           !FileManager.default.fileExists(atPath: sessionPath) {
+            runProjectCleanupIfNeeded(event: event, sessionsDir: sessionsDir, input: input, pid: pid, deps: deps)
+            return
+        }
+
         let branch = deps.currentBranch(input.cwd)
         let terminal = captureTerminalInfo(env: deps.environment(), process: deps.process)
         let startTime = deps.process.startTime(pid: pid)
@@ -66,9 +72,12 @@ enum HookHandler {
 
             let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
             applySessionName(&session, event: event, input: input, names: deps.names)
+            if event != .sessionStart, isNewSessionFile, source == Session.codexSource {
+                session.workspaceFile = Session.findWorkspaceFile(in: input.cwd)
+            }
             applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
             if input.isSubagentSession == true { session.isSubagentSession = true }
-            if session.shouldAutoHide { session.hidden = true }
+            if session.shouldAutoHide || (event == .userPromptSubmit && input.hasCodexProjectSuggestionEvidence) { session.hidden = true }
             session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: isNewSessionFile)
 
             let suffix = newStatus == nil ? " (preserved)" : ""

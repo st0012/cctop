@@ -28,7 +28,10 @@
       ],
       "description": "The hook event that triggered this payload"
     },
-    "transcript_path":  { "type": "string" },
+    "transcript_path":  {
+      "type": ["string", "null"],
+      "description": "Transcript path when available. Explicit null is distinct from omission."
+    },
     "permission_mode":  { "type": "string" },
     "prompt":           { "type": "string" },
     "tool_name":        { "type": "string" },
@@ -45,7 +48,10 @@
       "type": "boolean",
       "description": "Whether this payload belongs to a subagent-owned session rather than a user-facing session"
     },
-    "source":           { "type": "string", "description": "Tool that created this session (e.g. \"opencode\")" },
+    "source":           {
+      "type": "string",
+      "description": "Legacy harness name, or the SessionStart kind in older Codex payloads"
+    },
     "harness_name":     {
       "type": "string",
       "enum": ["cc", "codex", "opencode", "pi"],

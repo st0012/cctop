@@ -169,11 +169,10 @@ extension Session {
     private static let codexTitleGenerationPromptPrefix =
         "You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title"
 
-    /// True for Codex Desktop's local memory-consolidation runs. These are maintenance
-    /// artifacts, not user workspace sessions, so cctop marks their live files hidden.
+    /// True for Codex's local memory-consolidation runs. Codex owns this exact directory,
+    /// and app-server hooks do not consistently preserve their Desktop bundle identity.
     var isCodexMemoryMaintenanceSession: Bool {
         source == Session.codexSource
-            && terminal?.bundleId == HostAppBundleID.codexDesktop
             && Config.standardizedPath(projectPath) == Config.standardizedPath(Config.codexMemoriesDir())
     }
 
