@@ -218,7 +218,7 @@ The script uses Chrome headless (auto-detected on macOS, override with `CHROME_B
 | Claude Desktop | Yes | Same Claude plugin hook path, hosted by the Claude Desktop app | `source: "cc"` plus trusted bundle ID `com.anthropic.claudefordesktop`; PID-keyed file; title/archive metadata read from `~/Library/Application Support/Claude/claude-code-sessions` | Desktop app liveness applies unless `ended_at` is set or the session has been idle past the retention window (anchored on `last_activity`), which finishes it even while the app runs; within retention, disconnected sessions stay dormant; archived/orphaned metadata filters visibility; no deep link, so jump-to-session activates the app |
 | Codex CLI | Yes | `~/.codex/hooks.json` → `~/.codex/cctop-shim.sh` → `cctop-hook --harness codex` | `source: "codex"`; session-id-keyed `codex-<session_id>.json` because one host PID can emit multiple conversations | Uses session ID for display/dedup; structured Codex `threads.source` hides `SubAgent`/`Internal` helpers while preserving interactive `cli`/`vscode` tasks; spawn edges only corroborate topology |
 | Codex Desktop | Yes | Same Codex hook shim path, hosted by the Codex Desktop app | `source: "codex"` plus trusted bundle ID `com.openai.codex`; session-id-keyed `codex-<session_id>.json`; titles read from `~/.codex/session_index.jsonl` | Desktop app liveness/recency applies unless `ended_at` is set or the session has been idle past the retention window (anchored on `last_activity`), which finishes it even while the app runs; within retention, disconnected sessions stay dormant; archived threads and structured `SubAgent`/`Internal` helpers filter visibility, while `cli`/`vscode` tasks remain visible; archive placement is checked against rollout files when available; memory/title helper sessions auto-hide; deep links use `codex://threads/<uuid>` |
-| opencode | Yes | JS plugin → `cctop-hook` CLI via `execFileSync` | `source: "opencode"`; PID-keyed `<pid>.json`; installed at `~/.config/opencode/plugins/cctop.js`; explicit source wins over inherited Claude/Codex Desktop bundle IDs | Plugin load and `session.created` start tracking; PID liveness decides finished state |
+| opencode | Yes | JS plugin → `cctop-hook` CLI via `execFileSync` | `source: "opencode"`; real conversations use `opencode-<pid>-<session_id>.json`; plugin-load and legacy/no-id fallback events remain PID-keyed; installed at `~/.config/opencode/plugins/cctop.js`; explicit source wins over inherited Claude/Codex Desktop bundle IDs | `session.deleted` ends a real-ID conversation; sessions with `parentID` are marked as helpers and hidden; PID liveness handles fallback/no-end cleanup |
 | pi | Yes | TS extension → `cctop-hook` CLI via `execFileSync` | `source: "pi"`; PID-keyed `<pid>.json`; installed at `~/.pi/agent/extensions/cctop.ts`; explicit source wins over inherited Claude/Codex Desktop bundle IDs | Skips non-interactive sessions (`ctx.hasUI === false`); `session_shutdown` sends `SessionEnd`; PID liveness decides finished state |
 | Aider | No | — | — | — |
 | Goose | No | — | — | — |
@@ -271,7 +271,7 @@ All supported clients use `cctop-hook` as the single entry point for session sta
 2. `cctop-shim.sh` dispatches to `cctop-hook <Event> --harness codex`
 3. `cctop-hook` writes session files to `~/.cctop/sessions/`
 
-**All paths converge:** The menubar app (SessionManager file watcher) reads `~/.cctop/sessions/*.json` and displays live status regardless of source. Sessions include a `source` field identifying the harness (`"cc"` for Claude Code, `"opencode"` for opencode, `"pi"`, `"codex"`). Most integrations write PID-keyed files (`<pid>.json`); Codex writes `codex-<session_id>.json` because multiple conversations can share one host PID.
+**All paths converge:** The menubar app (SessionManager file watcher) reads `~/.cctop/sessions/*.json` and displays live status regardless of source. Sessions include a `source` field identifying the harness (`"cc"` for Claude Code, `"opencode"` for opencode, `"pi"`, `"codex"`). Claude Code, pi, and legacy/no-id opencode fallback events write PID-keyed files (`<pid>.json`). Codex writes `codex-<session_id>.json`, and real opencode conversations write `opencode-<pid>-<session_id>.json`, so one host PID can emit multiple conversations without changing OpenCode's record-local reopen contract.
 
 **Stream Deck is downstream of the app:** The app publishes its resolved,
 ordered display projection to `~/.cctop/display-state.json`. The Stream Deck
@@ -346,7 +346,7 @@ echo '{"session_id":"test123","cwd":"/tmp","hook_event_name":"SessionStart"}' | 
 # Or use the debug build
 echo '{"session_id":"test123","cwd":"/tmp","hook_event_name":"SessionStart"}' | menubar/build/Build/Products/Debug/cctop-hook SessionStart
 
-# Check if session was created. Non-Codex files are usually PID-keyed.
+# Check if session was created. Some harnesses use session-id-keyed files.
 cat ~/.cctop/sessions/*.json | jq 'select(.session_id=="test123")'
 
 # Clean up test session
@@ -472,7 +472,8 @@ The opencode plugin (`plugin.js`) translates opencode events to cctop-hook calls
 | experimental.session.compacting | PreCompact |
 | session.compacted | PostCompact |
 | session.updated | (stores session_name locally, passed in subsequent calls) |
-| session.deleted / permission.replied | (skipped — handled by liveness check / next event) |
+| session.deleted | SessionEnd when the deleted session id is present |
+| permission.replied | (skipped — PreToolUse follows permission) |
 
 ### pi Extension Event Mapping
 
@@ -492,7 +493,7 @@ The pi extension (`cctop.ts`) translates pi events to cctop-hook calls. Non-inte
 
 ### Session File Format
 
-Non-Codex session files are keyed by PID (`{pid}.json`). Codex files are keyed by session ID (`codex-<session_id>.json`) because multiple conversations can share one host PID. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse where PID identity applies. Hooks also stamp `harness_session_id`, the exact unsanitized reference supplied to the hook, as lookup evidence. Each observed record receives a cctop-owned permanent `cctop_session_id`; external surfaces use that ID and cctop separately resolves it to the current live focus target. Same-machine resume continuity is guaranteed only for the client contracts listed in [`docs/session-files.md`](docs/session-files.md). Desktop-hosted sessions use desktop lifecycle rules, app liveness/recency, and archive visibility checks. Each session includes `"source": "<harness>"` (`"cc"`, `"opencode"`, `"pi"`, `"codex"`). Legacy sessions without the field are treated as Claude Code.
+Claude Code, pi, and legacy/no-id opencode fallback session files are keyed by PID (`{pid}.json`). Codex files use `codex-<session_id>.json`, and real opencode conversations use `opencode-<pid>-<session_id>.json`, because those hosts can emit multiple conversations from one PID. Each file stores `pid_start_time` (from `sysctl`) to detect PID reuse where PID identity applies. Hooks also stamp `harness_session_id`, the exact unsanitized reference supplied to the hook, as lookup evidence. Each observed record receives a cctop-owned permanent `cctop_session_id`; external surfaces use that ID and cctop separately resolves it to the current live focus target. Same-machine resume continuity is guaranteed only for the client contracts listed in [`docs/session-files.md`](docs/session-files.md). Desktop-hosted sessions use desktop lifecycle rules, app liveness/recency, and archive visibility checks. Each session includes `"source": "<harness>"` (`"cc"`, `"opencode"`, `"pi"`, `"codex"`). Legacy sessions without the field are treated as Claude Code.
 
 The `active_subagents` field tracks currently running subagents (Agent tool). It's `nil` for sessions that haven't reported subagent events (old plugin), `[]` when no subagents are active, or an array of `{agent_id, agent_type, started_at}` objects. The menubar app shows an agent-count label (e.g. "2 agents") when the count is > 0.
 

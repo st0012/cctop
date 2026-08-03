@@ -149,6 +149,29 @@ final class SessionDedupTests: XCTestCase {
         XCTAssertEqual(result.compactMap(\.pid).sorted(), [100, 200])
     }
 
+    func testDedupOpencodeKeepsSamePIDConversationsAndCrossPIDObservationsSeparate() {
+        let main = candidate(
+            sessionId: "ses-main", pid: 100, bundleId: nil, lifecycleRank: 0,
+            source: Session.opencodeSource, path: "/opencode-100-ses-main.json"
+        )
+        let other = candidate(
+            sessionId: "ses-other", pid: 100, bundleId: nil, lifecycleRank: 0,
+            source: Session.opencodeSource, path: "/opencode-100-ses-other.json"
+        )
+        let resumedElsewhere = candidate(
+            sessionId: "ses-main", pid: 200, bundleId: nil, lifecycleRank: 0,
+            source: Session.opencodeSource, path: "/opencode-200-ses-main.json"
+        )
+
+        let result = deduped([main, other, resumedElsewhere])
+
+        XCTAssertEqual(result.count, 3)
+        XCTAssertEqual(
+            Set(result.map { "\($0.pid ?? 0):\($0.sessionId)" }),
+            ["100:ses-main", "100:ses-other", "200:ses-main"]
+        )
+    }
+
     func testDedupMigratedCodexSessionUsesStableConversationIdAcrossHostClass() {
         let oldPidKeyed = candidate(
             sessionId: "conv-a", pid: 100, bundleId: nil, lifecycleRank: 2,

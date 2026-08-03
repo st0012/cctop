@@ -2269,7 +2269,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("4242.json")
-        var legacy = Session.mock(id: "legacy", pid: 4242, source: Session.opencodeSource)
+        var legacy = Session.mock(id: "opencode-4242", pid: 4242, source: Session.opencodeSource)
         legacy.cctopSessionId = nil
         try legacy.writeToFile(path: sessionPath)
 
@@ -2292,7 +2292,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         terminateProcess(lockHolder)
         let hookInput = try JSONDecoder().decode(HookInput.self, from: Data("""
-        {"session_id":"legacy","cwd":"/tmp/project","hook_event_name":"PreToolUse","harness_name":"opencode"}
+        {"session_id":"opencode-4242","cwd":"/tmp/project","hook_event_name":"PreToolUse","harness_name":"opencode"}
         """.utf8))
         let hookDeps = HookDependencies(
             sessionsDir: { sessionsDir },

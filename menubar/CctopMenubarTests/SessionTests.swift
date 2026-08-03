@@ -2444,9 +2444,9 @@ final class SessionTests: XCTestCase {
     }
 
     func testLogicalFocusResolverKeepsLegacyFallbackUniqueAndFailsClosedWhenAmbiguous() {
-        var first = Session.mock(id: "first", pid: 111, source: Session.opencodeSource)
+        var first = Session.mock(id: "first", pid: 111, source: Session.ccSource)
         first.cctopSessionId = nil
-        var duplicate = Session.mock(id: "duplicate", pid: 111, source: Session.opencodeSource)
+        var duplicate = Session.mock(id: "duplicate", pid: 111, source: Session.ccSource)
         duplicate.cctopSessionId = nil
         let identity = SessionIdentityPolicy.logicalIdentity(for: first)
 
