@@ -205,6 +205,22 @@ final class FocusStrategyTests: XCTestCase {
         ))
     }
 
+    func testWarpPreviewDetectedByBundleIdWhenProgramDiffers() throws {
+        // tmux inside Warp Preview: only the channel bundle ID identifies the host,
+        // and it is not the stable bundle ID listed in HostApp's map.
+        let url = "warppreview://session/550e8400e29b41d4a716446655440000"
+        let session = makeSession(
+            program: "tmux",
+            bundleId: "dev.warp.Warp-Preview",
+            focusUrl: url
+        )
+        let strategy = resolveFocusStrategy(session: session)
+        XCTAssertEqual(strategy, .openURL(
+            try XCTUnwrap(URL(string: url)),
+            restoreBundleID: "dev.warp.Warp-Preview"
+        ))
+    }
+
     func testWarpWithInvalidFocusURLFallsBackToActivate() {
         // Tampered session JSON must not make cctop open arbitrary URLs.
         let invalid = [
