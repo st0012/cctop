@@ -68,12 +68,12 @@ struct RecentProject: Identifiable, Equatable {
         return hostApp.displayName
     }
 
-    /// The captured bundle ID, kept only when it identifies a known project
-    /// opener on its own. History files are user-writable, so the resolver
-    /// validates again before opening anything with it.
+    /// The captured bundle ID, kept only when it is an exact known project-opener
+    /// bundle ID (canonical host or Warp channel). History files are user-writable,
+    /// so the resolver validates again before opening anything with it.
     static func projectOpenerBundleId(from terminal: TerminalInfo?) -> String? {
         guard let bundleId = terminal?.bundleId,
-              HostApp.projectOpener(fromBundleIdentifier: bundleId) != nil else { return nil }
+              HostApp.projectOpener(fromStoredBundleIdentifier: bundleId) != nil else { return nil }
         return bundleId
     }
 

@@ -82,6 +82,20 @@ enum HostApp: CaseIterable {
         return hostApp
     }
 
+    /// Stricter variant for bundle IDs that will be handed to NSWorkspace as a
+    /// launch target: only a host's canonical bundle ID or one of Warp's exact
+    /// channel bundle IDs qualifies. A merely prefix-matched ID (e.g.
+    /// `dev.warp.not-warp` planted in user-writable history) classifies as Warp
+    /// for display but must never be launched.
+    static func projectOpener(fromStoredBundleIdentifier bundleIdentifier: String?) -> HostApp? {
+        guard let bundleIdentifier,
+              let hostApp = projectOpener(fromBundleIdentifier: bundleIdentifier),
+              bundleIdentifier == hostApp.bundleID
+                || WarpFocusLink.channelBundleIDs.contains(bundleIdentifier)
+        else { return nil }
+        return hostApp
+    }
+
     var canOpenRecentProject: Bool {
         switch self {
         case .vscode, .cursor, .windsurf, .zed,
