@@ -39,10 +39,10 @@ enum SessionNameLookup {
         return nil
     }
 
-    /// Look up a Codex Desktop thread name from `~/.codex/session_index.jsonl`.
+    /// Look up a Codex thread name from `~/.codex/session_index.jsonl`.
     /// That file is JSONL with `{"id":"<uuid>","thread_name":"<title>","updated_at":"..."}`
     /// per line, written by Codex Desktop itself. This is the canonical local source
-    /// for Codex Desktop conversation titles — unlike Claude Desktop, which keeps
+    /// for Codex conversation titles — unlike Claude Desktop, which keeps
     /// titles server-side.
     static func lookupCodexThreadName(
         sessionId: String,

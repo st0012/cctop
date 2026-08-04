@@ -460,7 +460,7 @@ extension HookHandler {
                 session.cctopSessionId = cctopSessionId
             }
             session.endedAt = endedAt
-            if hasTrustedDesktopBundle(session, sourceOverride: input.resolvedHarnessName) {
+            if hasTrustedClaudeDesktopBundle(session, sourceOverride: input.resolvedHarnessName) {
                 session.disconnectedAt = session.disconnectedAt ?? endedAt
             }
             session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
@@ -603,10 +603,9 @@ extension HookHandler {
         forEachSession(in: sessionsDir) { path, session in
             guard session.projectPath == projectPath, session.pid != currentPid else { return }
 
-            // Desktop-app conversations survive host-app restarts as dormant cards in the menubar
-            // app and are reaped only by its lock-held GC. The hook must NOT delete them here, or
-            // resuming one conversation would reap its dormant same-project siblings.
-            guard !hasTrustedDesktopBundle(session) else { return }
+            // Retained conversations are reaped by the menubar's lock-held lifecycle GC. The hook
+            // must not delete a recent Codex thread or Claude Desktop sibling on a new process start.
+            guard !session.isCodex, !hasTrustedClaudeDesktopBundle(session) else { return }
 
             guard !session.hidden, !session.shouldAutoHide else { return }
 
@@ -635,11 +634,10 @@ extension HookHandler {
         }
     }
 
-    private static func hasTrustedDesktopBundle(_ session: Session, sourceOverride: String? = nil) -> Bool {
-        Session.trustsDesktopBundle(
-            source: session.source ?? sourceOverride,
-            bundleId: session.terminal?.bundleId
-        )
+    fileprivate static func hasTrustedClaudeDesktopBundle(_ session: Session, sourceOverride: String? = nil) -> Bool {
+        let bundleID = session.terminal?.bundleId
+        return bundleID == HostAppBundleID.claudeDesktop
+            && Session.trustsDesktopBundle(source: session.source ?? sourceOverride, bundleId: bundleID)
     }
 
     private static func forEachSession(in dir: String, body: (String, Session) -> Void) {
@@ -808,8 +806,8 @@ private func logSessionLoadFailureOnce(hookName: String, sessionPath: String, er
 private func canReplaceDecodedSessionFile(existing: Session, fresh: Session, event: HookEvent) -> Bool {
     guard event == .sessionStart else { return false }
     guard existing.source != Session.codexSource, fresh.source != Session.codexSource else { return false }
-    guard !Session.trustsDesktopBundle(source: existing.source, bundleId: existing.terminal?.bundleId),
-          !Session.trustsDesktopBundle(source: fresh.source, bundleId: fresh.terminal?.bundleId) else {
+    guard !HookHandler.hasTrustedClaudeDesktopBundle(existing),
+          !HookHandler.hasTrustedClaudeDesktopBundle(fresh) else {
         return false
     }
     return true

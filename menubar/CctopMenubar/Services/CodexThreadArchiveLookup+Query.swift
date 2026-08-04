@@ -16,8 +16,6 @@ extension CodexThreadArchiveLookup {
             selectThreadColumn("source", from: columns, defaultingTo: "NULL"),
             selectThreadColumn("has_user_event", from: columns, defaultingTo: "0"),
             selectThreadColumn("rollout_path", from: columns, defaultingTo: "NULL"),
-            selectThreadColumn("git_origin_url", from: columns, defaultingTo: "NULL"),
-            selectThreadColumn("cwd", from: columns, defaultingTo: "NULL"),
             hasSpawnEdges ? "spawn_edges.parent_thread_id" : "NULL AS spawn_parent_thread_id",
             hasSpawnEdges ? "1 AS spawn_edges_available" : "0 AS spawn_edges_available",
         ]

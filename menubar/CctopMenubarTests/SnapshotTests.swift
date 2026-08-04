@@ -354,14 +354,6 @@ final class SnapshotTests: XCTestCase {
         let home = NSHomeDirectory()
         let now = Date()
         let targets: [RecentResumeTarget] = [
-            .desktopThread(.init(
-                sessionId: "019ee566-93a1-7d00-8384-822ae67c77de",
-                title: "Can you use product design skills for cctop logo redesign",
-                projectPath: "\(home)/projects/cctop",
-                projectName: "cctop",
-                sourceApp: .codexDesktop,
-                lastActiveAt: now.addingTimeInterval(-120)
-            )),
             .project(RecentProject(
                 projectPath: "\(home)/projects/irb",
                 projectName: "irb",
@@ -377,7 +369,6 @@ final class SnapshotTests: XCTestCase {
                 title: "Test case refactor",
                 projectPath: "\(home)/projects/cctop",
                 projectName: "cctop",
-                sourceApp: .claudeDesktop,
                 lastActiveAt: now.addingTimeInterval(-900)
             )),
             .project(RecentProject(
@@ -403,7 +394,6 @@ final class SnapshotTests: XCTestCase {
         ]
 
         XCTAssertEqual(targets.map(\.openActionLabel), [
-            "Open Codex Desktop",
             "Open in Ghostty",
             "Open Claude Desktop",
             "Open Project Folder",

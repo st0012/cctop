@@ -854,6 +854,23 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertNil(session.disconnectedAt)
     }
 
+    func testCodexSessionEndDoesNotStampDisconnectedAtWithCodexBundle() throws {
+        let sessionID = "019e0000-cccc-7000-8000-000000000004"
+        let fileName = "codex-\(sessionID).json"
+        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.codexDesktop])
+
+        try handleHook("""
+        {"session_id":"\(sessionID)","cwd":"/tmp/test-project","hook_event_name":"SessionStart","harness_name":"codex"}
+        """, hookName: "SessionStart", deps: deps)
+        try handleHook("""
+        {"session_id":"\(sessionID)","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"codex"}
+        """, hookName: "SessionEnd", deps: deps)
+
+        let session = try loadSession(fileName)
+        XCTAssertNotNil(session.endedAt)
+        XCTAssertNil(session.disconnectedAt)
+    }
+
     // A `cc` session launched from a Codex Desktop environment inherits that bundle id,
     // but is never actually hosted by Codex Desktop — SessionEnd must not give it the
     // desktop disconnectedAt treatment (issue #155).
@@ -1123,6 +1140,42 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(resumed.pidStartTime, 2_000)
     }
 
+    func testSessionStartDoesNotInferReplacementProtectionFromCodexBundleAlone() throws {
+        var existing = Session(
+            sessionId: "bundle-only-old",
+            projectPath: "/tmp/test-project",
+            branch: "main",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+        )
+        existing.pid = 4242
+        existing.pidStartTime = 1000
+        try existing.writeToFile(path: sessionFilePath())
+
+        try handleHook("""
+        {"session_id":"bundle-only-new","cwd":"/tmp/test-project","hook_event_name":"SessionStart","harness_name":"cc"}
+        """, hookName: "SessionStart", deps: makeDeps(startTime: 1000))
+
+        XCTAssertEqual(try loadSession().sessionId, "bundle-only-new")
+    }
+
+    func testSessionStartPreservesClaudeDesktopReplacementProtection() throws {
+        var existing = Session(
+            sessionId: "claude-desktop-old",
+            projectPath: "/tmp/test-project",
+            branch: "main",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop)
+        )
+        existing.pid = 4242
+        existing.pidStartTime = 1000
+        try existing.writeToFile(path: sessionFilePath())
+
+        try handleHook("""
+        {"session_id":"claude-desktop-new","cwd":"/tmp/test-project","hook_event_name":"SessionStart","harness_name":"cc"}
+        """, hookName: "SessionStart", deps: makeDeps(startTime: 1000))
+
+        XCTAssertEqual(try loadSession().sessionId, "claude-desktop-old")
+    }
+
     // MARK: - Git branch capture
 
     func testBranchFromDepsLandsInSession() throws {
@@ -1230,13 +1283,11 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(try loadSession("codex-codex-1.json").sessionName, "Investigate session name capture")
     }
 
-    func testCodexDesktopTitleGenerationPromptWritesHiddenSession() throws {
-        let deps = makeDeps(env: ["__CFBundleIdentifier": HostAppBundleID.codexDesktop])
-
+    func testCodexTitleGenerationPromptWritesHiddenSession() throws {
         let startJSON = """
         {"session_id":"title-helper","cwd":"/tmp/cctop","hook_event_name":"SessionStart","harness_name":"codex"}
         """
-        try handleHook(startJSON, hookName: "SessionStart", deps: deps)
+        try handleHook(startJSON, hookName: "SessionStart")
         XCTAssertFalse(try loadSession("codex-title-helper.json").hidden)
 
         let titlePrompt = """
@@ -1251,7 +1302,7 @@ final class HookHandlerTests: XCTestCase {
         let promptJSON = """
         {"session_id":"title-helper","cwd":"/tmp/cctop","hook_event_name":"UserPromptSubmit","harness_name":"codex","prompt":\(try jsonString(titlePrompt))}
         """
-        try handleHook(promptJSON, hookName: "UserPromptSubmit", deps: deps)
+        try handleHook(promptJSON, hookName: "UserPromptSubmit")
         XCTAssertTrue(try loadSession("codex-title-helper.json").hidden)
     }
 
@@ -1704,6 +1755,27 @@ final class HookHandlerTests: XCTestCase {
         )
 
         XCTAssertTrue(sessionFileExists("codex-019e0000-cccc-7000-8000-000000000003.json"))
+    }
+
+    func testProjectCleanupKeepsDeadCodexSourceForSessionManagerLifecycleGC() throws {
+        let project = "/tmp/cctop-dead-codex-\(UUID().uuidString)"
+        let sessionID = "019e0000-cccc-7000-8000-000000000005"
+        let fileName = "codex-\(sessionID).json"
+        try handleHook("""
+        {
+          "session_id": "\(sessionID)",
+          "cwd": "\(project)",
+          "hook_event_name": "SessionStart",
+          "harness_name": "codex"
+        }
+        """, hookName: "SessionStart")
+
+        HookHandler.cleanupSessionsForProject(
+            sessionsDir: sessionsDir, projectPath: project, currentPid: 1,
+            process: FakeProcessProber(alive: false), logger: HookLogger(logsDir: logsDir)
+        )
+
+        XCTAssertTrue(sessionFileExists(fileName))
     }
 
     // Reaping a stale duplicate must not delete the per-session log that a surviving

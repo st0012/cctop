@@ -170,7 +170,6 @@ protocol CodexThreadStateProviding {
     func archivedThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
     func internalHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
     func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>?
-    func projectNames(matching threadIDs: Set<String>) -> [String: String]?
 }
 
 struct CodexThreadStateRequestKey: Hashable {
@@ -205,7 +204,6 @@ struct CodexThreadStateIndex {
     var uncertainDelegationThreadIDs: Set<String> = []
     var contradictoryDelegationThreadIDs: Set<String> = []
     var execHelperThreadIDs: Set<String> = []
-    var projectNamesByThreadID: [String: String] = [:]
     var unknownThreadIDs: Set<String> = []
 
     mutating func merge(_ other: CodexThreadStateIndex) {
@@ -217,7 +215,6 @@ struct CodexThreadStateIndex {
         uncertainDelegationThreadIDs.formUnion(other.uncertainDelegationThreadIDs)
         contradictoryDelegationThreadIDs.formUnion(other.contradictoryDelegationThreadIDs)
         execHelperThreadIDs.formUnion(other.execHelperThreadIDs)
-        projectNamesByThreadID.merge(other.projectNamesByThreadID) { current, _ in current }
         unknownThreadIDs.formUnion(other.unknownThreadIDs)
     }
 
@@ -231,7 +228,6 @@ struct CodexThreadStateIndex {
             uncertainDelegationThreadIDs: uncertainDelegationThreadIDs.intersection(threadIDs),
             contradictoryDelegationThreadIDs: contradictoryDelegationThreadIDs.intersection(threadIDs),
             execHelperThreadIDs: execHelperThreadIDs.intersection(threadIDs),
-            projectNamesByThreadID: projectNamesByThreadID.filter { threadIDs.contains($0.key) },
             unknownThreadIDs: unknownThreadIDs.intersection(threadIDs)
         )
     }
@@ -336,7 +332,6 @@ extension CodexThreadStateProviding {
         index.archivedThreadIDs = archivedThreadIDs(matching: threadIDs) ?? []
         index.internalHelperThreadIDs = internalHelperThreadIDs(matching: threadIDs) ?? []
         index.execHelperThreadIDs = execHelperThreadIDs(matching: threadIDs) ?? []
-        index.projectNamesByThreadID = projectNames(matching: threadIDs) ?? [:]
         return index
     }
 }

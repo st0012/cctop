@@ -41,24 +41,20 @@ final class AgentBadgeTests: XCTestCase {
         XCTAssertEqual(session.agentBadge, .codex)
     }
 
-    func testCodexSource_withCodexDesktopBundle_returnsCodexDesktop() {
+    func testCodexSource_withCodexDesktopBundle_returnsCodex() {
         let session = Session.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "codex"
         )
-        XCTAssertEqual(session.agentBadge, .codexDesktop)
+        XCTAssertEqual(session.agentBadge, .codex)
     }
 
-    func testCodexDesktopBundle_withNilSource_returnsCodexDesktop() {
-        // Regression: previously, (nil source, isDesktop=true) was hard-coded to
-        // .claudeDesktop. A Codex Desktop session whose harness_name didn't
-        // make it into the hook payload would be mislabelled. The bundle ID
-        // should always win.
+    func testCodexDesktopBundleWithNilSourceDoesNotInferCodex() {
         let session = Session.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: nil
         )
-        XCTAssertEqual(session.agentBadge, .codexDesktop)
+        XCTAssertEqual(session.agentBadge, .cc)
     }
 
     func testCcSource_ignoresLeakedCodexDesktopBundle() {
@@ -106,11 +102,10 @@ final class AgentBadgeTests: XCTestCase {
         XCTAssertEqual(session.agentBadge, .pi)
     }
 
-    func testIsDesktop_onlyTrueForDesktopVariants() {
+    func testIsDesktopOnlyTrueForClaudeDesktop() {
         XCTAssertFalse(AgentBadge.cc.isDesktop)
         XCTAssertTrue(AgentBadge.claudeDesktop.isDesktop)
         XCTAssertFalse(AgentBadge.codex.isDesktop)
-        XCTAssertTrue(AgentBadge.codexDesktop.isDesktop)
         XCTAssertFalse(AgentBadge.opencode.isDesktop)
         XCTAssertFalse(AgentBadge.pi.isDesktop)
     }
@@ -119,7 +114,6 @@ final class AgentBadgeTests: XCTestCase {
         XCTAssertEqual(AgentBadge.cc.label, "CC")
         XCTAssertEqual(AgentBadge.claudeDesktop.label, "Claude Desktop")
         XCTAssertEqual(AgentBadge.codex.label, "Codex")
-        XCTAssertEqual(AgentBadge.codexDesktop.label, "Codex Desktop")
         XCTAssertEqual(AgentBadge.opencode.label, "OC")
         XCTAssertEqual(AgentBadge.pi.label, "Pi")
     }

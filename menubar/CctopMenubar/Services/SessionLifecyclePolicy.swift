@@ -22,26 +22,21 @@ enum SessionConnectionState: Equatable {
 }
 
 enum SessionLifecyclePolicy {
-    /// Pure connection derivation. Every host class goes through this same first step:
-    /// decide whether the session record still represents a connected session.
-    /// Ended sessions stay disconnected even while their owning desktop app is still running.
-    /// Otherwise, desktop app liveness wins when known because those sessions share one app-level connection.
+    /// Pure connection derivation. Codex uses one source-level policy across every surface;
+    /// other sessions retain their existing host-specific connection evidence.
     static func connectionState(
         for session: Session, hostClass: SessionHostClass, processAlive: Bool,
         now: Date, windows: LifecycleWindows, desktopAppRunning: Bool? = nil
     ) -> SessionConnectionState {
         if session.endedAt != nil { return .disconnected }
-        if hostClass == .desktop, let desktopAppRunning {
-            if desktopAppRunning { return .connected }
-            let hasLiveCodexHost = processAlive && (session.isCodex || session.isCodexDesktopHost)
-            return hasLiveCodexHost ? .connected : .disconnected
+        if session.isCodex {
+            let recentlyActive = now.timeIntervalSince(session.lastActivity) < windows.active
+            return processAlive || recentlyActive ? .connected : .disconnected
         }
-        // The shared-PID recency carve-out is Codex Desktop's, identified by source ("codex") OR by
-        // the trusted Codex Desktop bundle id — the latter covers pre-harness-migration files whose
-        // source is nil, which would otherwise fall back to (unreliable, shared) PID liveness.
-        let useRecency = hostClass == .desktop && (session.isCodex || session.isCodexDesktopHost)
-        let connected = useRecency ? (now.timeIntervalSince(session.lastActivity) < windows.active) : processAlive
-        return connected ? .connected : .disconnected
+        if hostClass == .desktop, let desktopAppRunning {
+            return desktopAppRunning ? .connected : .disconnected
+        }
+        return processAlive ? .connected : .disconnected
     }
 
     /// Pure lifecycle derivation. Connection is detected uniformly first; host policy then
@@ -50,7 +45,12 @@ enum SessionLifecyclePolicy {
         for session: Session, hostClass: SessionHostClass, processAlive: Bool,
         now: Date, windows: LifecycleWindows, desktopAppRunning: Bool? = nil
     ) -> SessionLifecycle {
-        // Absolute idle age-cap for desktop sessions (issue #155): past the retention
+        // Codex has one absolute inactivity cap across every surface. Bundle, PID,
+        // desktop-app, and app-server evidence cannot keep a 14-day-old record alive.
+        if session.isCodex, now.timeIntervalSince(session.lastActivity) >= windows.retention {
+            return .finished
+        }
+        // Absolute idle age-cap for non-Codex desktop sessions (issue #155): past the retention
         // window a session is finished outright, even while its app keeps running.
         // Without this, retirement depends on disconnectedAt — which is only stamped
         // once the session goes dormant, impossible while the app stays open.
@@ -66,6 +66,7 @@ enum SessionLifecyclePolicy {
             desktopAppRunning: desktopAppRunning
         )
         if connection == .connected { return .active }
+        if session.isCodex { return .dormant }
         guard hostClass == .desktop else { return .finished }
         guard let disconnectedAt = session.disconnectedAt else { return .dormant }
         return now.timeIntervalSince(disconnectedAt) <= windows.retention ? .dormant : .finished

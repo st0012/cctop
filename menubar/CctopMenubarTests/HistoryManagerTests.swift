@@ -309,22 +309,26 @@ final class HistoryManagerTests: XCTestCase {
         XCTAssertTrue(elapsed < 120, "Should use endedAt, not lastActivity")
     }
 
-    func testBuildRecentProjectsExcludesDesktopAppSessions() {
-        let desktopApps = [
-            (bundleId: "com.anthropic.claudefordesktop", project: "claude-thing"),
-            (bundleId: "com.openai.codex", project: "codex-thing"),
+    func testBuildRecentProjectsUsesSourceOnlyForCodexAndPreservesClaudeDesktopBehavior() {
+        let sessions = [
+            mockSession(
+                project: "claude-thing",
+                endedAt: Date(),
+                terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop)
+            ),
+            mockSession(
+                project: "bundle-only-codex",
+                endedAt: Date(),
+                terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
+            ),
+            mockSession(project: "source-codex", endedAt: Date(), source: Session.codexSource),
+            mockSession(project: "vscode-thing", endedAt: Date()),
         ]
-        for app in desktopApps {
-            let terminal = TerminalInfo(
-                program: "", sessionId: nil, tty: nil, bundleId: app.bundleId
-            )
-            let sessions = [
-                mockSession(project: app.project, endedAt: Date(), terminal: terminal),
-                mockSession(project: "vscode-thing", endedAt: Date()),
-            ]
-            let result = recentProjects(from: sessions)
-            XCTAssertEqual(result.map(\.projectName), ["vscode-thing"], "for \(app.bundleId)")
-        }
+
+        XCTAssertEqual(
+            Set(recentProjects(from: sessions).map(\.projectName)),
+            ["bundle-only-codex", "vscode-thing"]
+        )
     }
 
     func testRecentProjectDurabilityRejectsMissingPath() {

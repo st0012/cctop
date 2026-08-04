@@ -205,7 +205,7 @@ struct SubagentInfo: Codable, Equatable {
 /// from attention counts and notifications. The raw value is the dedup preference rank
 /// (lower = preferred): active beats dormant beats finished.
 enum SessionLifecycle: Int, Equatable {
-    case active = 0    // backing process alive, or (Codex Desktop) recent hook activity
+    case active = 0    // backing process alive, or recent Codex hook activity
     case dormant = 1   // process gone, but the conversation is recent and may resume
     case finished = 2  // ended or aged out → eligible for GC
 }

@@ -4,12 +4,8 @@ func resolveRecentResumeTargetOpenStrategy(target: RecentResumeTarget) -> FocusS
     switch target {
     case .project(let project):
         return resolveRecentProjectOpenStrategy(project: project)
-    case .desktopThread(let thread):
-        guard let bundleID = thread.sourceApp.bundleID else {
-            return .openInFinder(thread.projectPath)
-        }
-        // Archived desktop rows are manual find/unarchive aids. Codex thread URLs
-        // can foreground the app without landing on the archived thread.
-        return .activateByBundleID(bundleID)
+    case .desktopThread:
+        // Archived Claude Desktop rows are manual find/unarchive aids.
+        return .activateByBundleID(HostAppBundleID.claudeDesktop)
     }
 }
