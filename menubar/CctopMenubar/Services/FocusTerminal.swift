@@ -50,9 +50,10 @@ func resolveFocusStrategy(
 
     // Direct terminal/editor metadata wins. A Codex session without it uses its exact
     // thread deep link. Persisted `com.openai.codex` metadata is ignored.
-    let programHost = HostApp.from(editorName: terminal?.program)
-    let directHost = multiplexer?.isCmux == true ? HostApp.cmux : programHost
-    let hasDirectHostEvidence = terminal?.program.isEmpty == false || terminal?.tty?.isEmpty == false || multiplexer != nil
+    let program = terminal?.program
+    let directHost = multiplexer?.isCmux == true ? HostApp.cmux : HostApp.from(editorName: program)
+    let hasProgramEvidence = program?.isEmpty == false && program?.lowercased() != "codex"
+    let hasDirectHostEvidence = hasProgramEvidence || terminal?.tty?.isEmpty == false || multiplexer != nil
     let hostApp = session.trustedHostApp
         ?? (hasDirectHostEvidence ? directHost : nil)
         ?? (session.isCodex ? HostApp.codexDesktop : nil)

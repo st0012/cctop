@@ -346,6 +346,20 @@ final class FocusStrategyTests: XCTestCase {
         }
     }
 
+    func testCodexProgramNameIsNotDirectHostEvidence() throws {
+        let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        var session = makeSession(program: "Codex", sessionUuid: threadID)
+        session.source = Session.codexSource
+
+        XCTAssertEqual(
+            resolveFocusStrategy(session: session, multiplexerOverride: nil),
+            .openURL(
+                try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
+                restoreBundleID: HostAppBundleID.codexDesktop
+            )
+        )
+    }
+
     func testCodexDirectRouteDoesNotOverrideEditorFocus() {
         var session = makeSession(
             program: "Code",
