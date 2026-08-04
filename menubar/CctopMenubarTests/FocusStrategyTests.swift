@@ -232,7 +232,10 @@ final class FocusStrategyTests: XCTestCase {
             "warp://session/550e8400-e29b-41d4-a716-446655440000",
             "warp://session/550e8400e29b41d4a716446655440000?open=/etc",
             "warp://settings/550e8400e29b41d4a716446655440000",
-            "warp://session/"
+            "warp://session/",
+            "warp://session/550e8400e29b41d4a716446655440000\n",
+            "warp://session/550e8400e29b41d4a716446655440000\r\n",
+            "\nwarp://session/550e8400e29b41d4a716446655440000"
         ]
         for url in invalid {
             let session = makeSession(program: "WarpTerminal", focusUrl: url)
