@@ -168,6 +168,16 @@ final class FocusTerminalTests: XCTestCase {
         )
     }
 
+    func testRecentProjectWarpPrefixImpostorBundleIdFallsBackToName() {
+        // dev.warp.* classifies as Warp for display, but only the four exact
+        // channel bundle IDs may be launched from stored history.
+        let project = RecentProject.mock(editor: "Warp", editorBundleId: "dev.warp.not-warp")
+        XCTAssertEqual(
+            resolveRecentProjectOpenStrategy(project: project),
+            .openWithApp(bundleID: "dev.warp.Warp-Stable", target: project.projectPath)
+        )
+    }
+
     func testRecentProjectKnownEditorOpensWorkspaceFileWithApp() {
         let workspaceFile = "/Users/dev/projects/my-project/my-project.code-workspace"
         let project = RecentProject.mock(editor: "Cursor", workspaceFile: workspaceFile)

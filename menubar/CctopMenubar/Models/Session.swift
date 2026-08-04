@@ -112,6 +112,11 @@ struct WarpFocusLink: Equatable {
         "warposs": "dev.warp.WarpOss"
     ]
 
+    /// The exact bundle IDs Warp ships, one per release channel. Stored opener
+    /// bundle IDs are checked against this set so a prefix-matched impostor in
+    /// user-writable data can never become a launch target.
+    static let channelBundleIDs: Set<String> = Set(bundleIDsByScheme.values)
+
     let url: URL
     let bundleID: String
 

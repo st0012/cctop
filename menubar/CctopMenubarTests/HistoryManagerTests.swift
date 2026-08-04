@@ -250,6 +250,20 @@ final class HistoryManagerTests: XCTestCase {
         XCTAssertEqual(result[0].lastEditorBundleId, "dev.warp.Warp-Preview")
     }
 
+    func testBuildRecentProjectsDropsWarpPrefixImpostorBundleId() {
+        // A dev.warp.* value that is not one of Warp's four exact channel bundle
+        // IDs still displays as Warp but is never stored as a launch target.
+        let sessions = [
+            mockSession(project: "app", endedAt: Date(), terminal: TerminalInfo(
+                program: "WarpTerminal", bundleId: "dev.warp.not-warp"
+            )),
+        ]
+        let result = recentProjects(from: sessions)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].lastEditor, "Warp")
+        XCTAssertNil(result[0].lastEditorBundleId)
+    }
+
     func testBuildRecentProjectsDropsBundleIdThatIsNotAProjectOpener() {
         // cmux is a recognized host but cannot reopen projects, so its bundle ID
         // must not be stored as an opener; the program name still resolves one.

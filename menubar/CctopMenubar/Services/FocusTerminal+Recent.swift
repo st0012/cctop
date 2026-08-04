@@ -6,7 +6,7 @@ func resolveRecentProjectOpenStrategy(project: RecentProject) -> FocusStrategy {
     // (Warp release channels all display as "Warp"), and only the captured ID
     // reopens the exact app that hosted the session. An unrecognized stored ID
     // (tampered history, uninstalled fork) falls back to the name-derived app.
-    let storedOpener = HostApp.projectOpener(fromBundleIdentifier: project.lastEditorBundleId)
+    let storedOpener = HostApp.projectOpener(fromStoredBundleIdentifier: project.lastEditorBundleId)
     guard let hostApp = storedOpener ?? HostApp.projectOpener(fromProgramName: project.lastEditor),
           let bundleID = storedOpener != nil ? project.lastEditorBundleId : hostApp.bundleID else {
         return .openInFinder(project.projectPath)
