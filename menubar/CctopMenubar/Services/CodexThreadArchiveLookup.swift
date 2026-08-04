@@ -101,21 +101,6 @@ final class CodexThreadArchiveLookup {
         }
     }
 
-    /// Returns user-facing project names Codex records for threads. cctop uses this
-    /// as display-only metadata for Desktop-hosted sessions, so lookup uncertainty
-    /// returns `nil` and callers should preserve any existing label.
-    func projectNames(matching threadIDs: Set<String>) -> [String: String]? {
-        guard !threadIDs.isEmpty else { return [:] }
-        switch stateSnapshot(matching: threadIDs) {
-        case .missing:
-            return [:]
-        case .available(let index):
-            return index.projectNamesByThreadID.filter { threadIDs.contains($0.key) }
-        case .unreadable:
-            return nil
-        }
-    }
-
     /// Returns Codex Desktop-owned one-shot exec helper threads. `source = 'exec'`
     /// alone also covers user-run `codex exec`, so verify the rollout originator before hiding.
     func execHelperThreadIDs(matching threadIDs: Set<String>) -> Set<String>? {
@@ -203,13 +188,12 @@ final class CodexThreadArchiveLookup {
             to: &index,
             rolloutTracker: &rolloutTracker
         )
-        Self.addProjectNameRow(threadID, statement: statement, to: &index)
     }
 
     private func addDelegationRow(_ threadID: String, statement: OpaquePointer, to index: inout CodexThreadStateIndex) {
         let storedSource = CodexStoredSessionSource(storedValue: Self.columnString(statement, 2))
-        let spawnParentThreadID = Self.columnString(statement, 7)
-        if spawnParentThreadID == nil, sqlite3_column_int(statement, 8) == 1 {
+        let spawnParentThreadID = Self.columnString(statement, 5)
+        if spawnParentThreadID == nil, sqlite3_column_int(statement, 6) == 1 {
             index.knownNoSpawnEdgeThreadIDs.insert(threadID)
         }
 
@@ -254,14 +238,6 @@ final class CodexThreadArchiveLookup {
         }
     }
 
-    private static func addProjectNameRow(_ threadID: String, statement: OpaquePointer, to index: inout CodexThreadStateIndex) {
-        let origin = columnString(statement, 5)
-        let cwd = columnString(statement, 6)
-        if let name = origin.flatMap({ projectName(fromGitOriginURL: $0) })
-            ?? cwd.flatMap({ projectName(fromPath: $0) }) {
-            index.projectNamesByThreadID[threadID] = name
-        }
-    }
 }
 
 private extension CodexThreadArchiveLookup {
@@ -400,34 +376,6 @@ private extension CodexThreadArchiveLookup {
     func trackRolloutFingerprint(_ fingerprint: CodexThreadStateRolloutFileFingerprint, rolloutTracker: inout CodexThreadStateRolloutTracker) {
         rolloutTracker.paths.insert(fingerprint.path)
         rolloutTracker.fingerprints[fingerprint.path] = fingerprint
-    }
-
-    private static func projectName(fromGitOriginURL origin: String) -> String? {
-        let trimmed = origin.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        let withoutTrailingSlash = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let lastComponent: String
-        if let slash = withoutTrailingSlash.lastIndex(of: "/") {
-            lastComponent = String(withoutTrailingSlash[withoutTrailingSlash.index(after: slash)...])
-        } else if let colon = withoutTrailingSlash.lastIndex(of: ":") {
-            lastComponent = String(withoutTrailingSlash[withoutTrailingSlash.index(after: colon)...])
-        } else {
-            lastComponent = withoutTrailingSlash
-        }
-
-        let name = lastComponent.hasSuffix(".git") ? String(lastComponent.dropLast(4)) : lastComponent
-        return name.isEmpty ? nil : name
-    }
-
-    private static func projectName(fromPath path: String) -> String? {
-        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        let normalized = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !normalized.isEmpty else { return nil }
-        let name = (normalized as NSString).lastPathComponent
-        return name.isEmpty ? nil : name
     }
 
     private static func rolloutOriginator(at path: String) -> String? {

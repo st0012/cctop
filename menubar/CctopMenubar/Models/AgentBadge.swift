@@ -1,12 +1,11 @@
 import Foundation
 
-/// Six-way classification of a session's source + host app.
+/// Source classification for session badge rendering.
 /// Drives source badge rendering in `SessionCardView` and `SourceBadgeView`.
 enum AgentBadge: Equatable {
     case cc            // Claude Code CLI
     case claudeDesktop // Claude Desktop app
-    case codex         // Codex CLI
-    case codexDesktop  // Codex Desktop app
+    case codex
     case opencode
     case pi
 
@@ -16,7 +15,6 @@ enum AgentBadge: Equatable {
         case .cc: return "CC"
         case .claudeDesktop: return "Claude Desktop"
         case .codex: return "Codex"
-        case .codexDesktop: return "Codex Desktop"
         case .opencode: return "OC"
         case .pi: return "Pi"
         }
@@ -25,29 +23,21 @@ enum AgentBadge: Equatable {
     /// Desktop variants keep their full app label and desktop-specific layout behavior.
     var isDesktop: Bool {
         switch self {
-        case .claudeDesktop, .codexDesktop: return true
+        case .claudeDesktop: return true
         default: return false
         }
     }
 }
 
 extension Session {
-    /// Classify the session's source + host app into one of six badge kinds.
+    /// Classify the session source. Codex is one source across every surface.
     ///
-    /// A trusted Desktop bundle ID wins so pre-harness Desktop records still classify correctly.
-    /// Harnesses keep their own badge when a FOREIGN desktop bundle ID leaked through the
-    /// launcher environment (e.g. a cc session started under Codex Desktop, issue #155).
     var agentBadge: AgentBadge {
-        switch trustedHostApp {
-        case .claudeDesktop: return .claudeDesktop
-        case .codexDesktop: return .codexDesktop
-        default: break
-        }
-        // Non-Desktop: dispatch on the source harness.
+        if isCodex { return .codex }
+        if trustedHostApp == .claudeDesktop { return .claudeDesktop }
         switch source {
         case "opencode": return .opencode
         case "pi": return .pi
-        case "codex": return .codex
         default: return .cc
         }
     }

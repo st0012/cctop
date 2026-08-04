@@ -161,8 +161,8 @@ enum HostApp: CaseIterable {
         }
     }
 
-    /// Apps that host AI coding sessions inside themselves (no project folder to reopen).
-    /// Used to: skip path-based focus, skip Recent Projects archival.
+    /// Apps that host AI coding sessions inside themselves. This remains generic focus and
+    /// trusted-bundle evidence; Codex lifecycle, archive, and history do not consume it as a category.
     var isDesktopApp: Bool {
         switch self {
         case .claudeDesktop, .codexDesktop: return true
@@ -205,19 +205,6 @@ extension Session {
         return app
     }
 
-    /// True when the session is hosted by an AI desktop app (Claude Desktop, Codex Desktop)
-    /// rather than a terminal/editor. These sessions have no project folder worth reopening,
-    /// so they're excluded from Recent Projects.
-    var isHostedByDesktopApp: Bool {
-        trustedHostApp?.isDesktopApp == true
-    }
-
-    /// True when the session is hosted by the Codex Desktop app, after validating the bundle ID
-    /// against the resolved harness. Nil-source legacy files may still use the bundle alone.
-    var isCodexDesktopHost: Bool {
-        trustedHostApp == .codexDesktop
-    }
-
     /// True when the session is hosted by the Claude Desktop app, after validating the bundle ID
     /// against the resolved harness. Nil-source legacy files may still use the bundle alone.
     var isClaudeDesktopHost: Bool {
@@ -225,25 +212,24 @@ extension Session {
     }
 }
 
-/// File-local classification of a session's host, used by lifecycle cleanup to decide which
-/// files can be retained after their process disappears. Deliberately strict: `source` never
-/// classifies (terminal Claude Code and Codex CLI share `source` strings with their desktop
-/// counterparts), and env-only signals are not trusted — only a recognized `bundle_id` is.
+/// File-local classification used by non-Codex lifecycle cleanup. Codex intentionally has
+/// no persisted Desktop-vs-terminal category; direct bundle evidence remains available to focus.
 enum SessionHostClass: Equatable {
-    case desktop    // confident: a desktop AI app (Claude Desktop, Codex Desktop)
+    case desktop    // confident: Claude Desktop or another non-Codex desktop AI app
     case terminal   // confident: a known terminal or editor
     case ambiguous  // unknown — preserve existing terminal-style cleanup semantics
 }
 
 extension Session {
-    /// Phase-1 host classification from file-local signals only.
+    /// Phase-1 non-Codex host classification from file-local signals only.
     /// Precedence: a recognized bundle id (`__CFBundleIdentifier`, the same trusted signal
-    /// `isHostedByDesktopApp` uses) classifies desktop vs terminal. Failing that, a terminal
+    /// `trustedHostApp` uses) classifies desktop vs terminal. Failing that, a terminal
     /// multiplexer (cmux/herdr/zellij/tmux) is hard terminal evidence — desktop is already returned
     /// above, so a leaked `TMUX` env can't misclassify a desktop session here. Everything
     /// else (no/unknown bundle id, only env-copyable `tty` or program name) → ambiguous.
     var hostClass: SessionHostClass {
         if let app = trustedHostApp {
+            if app == .codexDesktop { return .ambiguous }
             return app.isDesktopApp ? .desktop : .terminal
         }
         if terminal?.multiplexer != nil { return .terminal }
@@ -256,8 +242,7 @@ extension HostApp {
     /// Returns nil when the app has no session-jump scheme, or `sessionId` isn't a
     /// canonical UUID — the URL handler rejects non-UUID values, so we mirror its
     /// validation client-side and fall back to plain app activation upstream.
-    /// - Codex Desktop: `codex://threads/<uuid>` — used for non-archived
-    ///   local conversations. Archived Recent rows intentionally activate only.
+    /// - Codex Desktop: `codex://threads/<uuid>` for live, non-archived focus.
     /// - Claude Desktop: no deep link. `claude://resume?session=<uuid>` exists but
     ///   forks the conversation rather than focusing the existing one, which would
     ///   silently pollute the user's history. We just activate the app instead.

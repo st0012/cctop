@@ -65,7 +65,6 @@ struct RecentProject: Identifiable, Equatable {
     }
 
     static func agentName(from session: Session) -> String? {
-        if session.isCodexDesktopHost { return "Codex Desktop" }
         if session.isClaudeDesktopHost { return "Claude Desktop" }
         switch session.source {
         case Session.codexSource?: return "Codex"

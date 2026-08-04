@@ -17,7 +17,7 @@ struct SessionLoadSummary: Equatable {
 struct SessionLoadLogSignature: Equatable {
     let summary: SessionLoadSummary
     let archivedCodexThreadIDs: Int
-    let missingCodexDesktopThreadIDs: Int
+    let missingCodexThreadIDs: Int
     let codexInternalHelperThreadIDs: Int
     let uncertainCodexDelegationThreadIDs: Int
     let contradictoryCodexDelegationThreadIDs: Int
@@ -151,9 +151,10 @@ extension SessionManager {
             if legacyKeys.contains(stableKey) { return true }
             guard case .hidden(let reason) = record.disposition else { return false }
             switch reason {
-            case .archivedCodexDesktop, .archivedClaudeDesktop:
+            case .archivedClaudeDesktop:
                 return CctopSessionIdentityStore.durableEvidence(for: session) != nil
-            case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper, .codexExecHelper,
+            case .persistedHidden, .autoHidden, .archivedCodexThread, .missingCodexThread,
+                 .codexInternalHelper, .codexExecHelper,
                  .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
                 return false
             }
@@ -241,7 +242,7 @@ extension SessionManager {
         let signature = SessionLoadLogSignature(
             summary: summary,
             archivedCodexThreadIDs: classification.archivedCodexThreadIDs.count,
-            missingCodexDesktopThreadIDs: classification.missingCodexDesktopThreadIDs.count,
+            missingCodexThreadIDs: classification.missingCodexThreadIDs.count,
             codexInternalHelperThreadIDs: classification.codexInternalHelperThreadIDs.count,
             uncertainCodexDelegationThreadIDs: classification.uncertainCodexDelegationThreadIDs.count,
             contradictoryCodexDelegationThreadIDs: classification.contradictoryCodexDelegationThreadIDs.count,
@@ -256,7 +257,7 @@ extension SessionManager {
             "loadSessions: \(summary.live) visible candidates, \(summary.hidden) hidden, \(summary.autoHidden) auto-hidden"
         )
         sessionManagerLogger.info("loadSessions: \(classification.archivedCodexThreadIDs.count) codex-archived")
-        sessionManagerLogger.info("loadSessions: \(classification.missingCodexDesktopThreadIDs.count) codex-missing-state")
+        sessionManagerLogger.info("loadSessions: \(classification.missingCodexThreadIDs.count) codex-missing-state")
         sessionManagerLogger.info("loadSessions: \(classification.codexInternalHelperThreadIDs.count) codex-internal-helper")
         sessionManagerLogger.info("loadSessions: \(classification.uncertainCodexDelegationThreadIDs.count) codex-source-uncertain")
         sessionManagerLogger.info(

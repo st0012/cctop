@@ -25,12 +25,11 @@ class HistoryManager: ObservableObject {
 
     /// Archive a dead session to the history directory.
     /// Sets `endedAt`, writes to history, prunes old files, and returns success.
-    /// Desktop-app sessions (Claude Desktop, Codex Desktop) are not archived — they
-    /// have no project folder worth reopening from Recent Projects.
+    /// Codex conversations and Claude Desktop sessions are not archived as project-history rows.
     @discardableResult
     func archiveSession(_ session: Session) -> Bool {
-        if session.isHostedByDesktopApp {
-            logger.info("skipping archive for desktop-app session \(session.sessionId, privacy: .public)")
+        if session.isCodex || session.isClaudeDesktopHost {
+            logger.info("skipping archive for retained session \(session.sessionId, privacy: .public)")
             return false
         }
         var archived = session
@@ -91,7 +90,7 @@ class HistoryManager: ObservableObject {
         let activeProjectPaths = Set(activePaths.map(canonicalRecentProjectPath))
         var grouped: [String: (latest: Session, count: Int, projectPath: String)] = [:]
         for session in sessions {
-            if session.isHostedByDesktopApp { continue }
+            if session.isCodex || session.isClaudeDesktopHost { continue }
             let canonicalProjectPath = canonicalRecentProjectPath(session.projectPath)
             if activeProjectPaths.contains(canonicalProjectPath) { continue }
             guard isDurableRecentProjectPath(canonicalProjectPath, projectPathExists: projectPathExists) else {
@@ -225,7 +224,7 @@ class HistoryManager: ObservableObject {
         // are preserved for restore, but do not count against the durable-project cap.
         for entry in decoded {
             let canonicalPath = Self.canonicalRecentProjectPath(entry.session.projectPath)
-            if entry.session.isHostedByDesktopApp || Self.isExcludedRecentProjectPath(canonicalPath) {
+            if entry.session.isCodex || entry.session.isClaudeDesktopHost || Self.isExcludedRecentProjectPath(canonicalPath) {
                 toRemove.append(entry.url)
             } else if seenProjects.contains(canonicalPath) {
                 toRemove.append(entry.url)
@@ -291,7 +290,7 @@ class HistoryManager: ObservableObject {
 
     private func recentProjectPathFingerprints(from sessions: [Session]) -> [HistoryProjectPathFingerprint] {
         var states: [String: Bool] = [:]
-        for session in sessions where !session.isHostedByDesktopApp {
+        for session in sessions where !session.isCodex && !session.isClaudeDesktopHost {
             let canonicalPath = Self.canonicalRecentProjectPath(session.projectPath)
             if states[canonicalPath] == nil {
                 states[canonicalPath] = Self.isDurableRecentProjectPath(canonicalPath)

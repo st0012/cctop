@@ -23,9 +23,6 @@ struct SourceBadgeView: View {
 #Preview("Codex") {
     SourceBadgeView(badge: .codex).padding()
 }
-#Preview("Codex Desktop") {
-    SourceBadgeView(badge: .codexDesktop).padding()
-}
 #Preview("Opencode") {
     SourceBadgeView(badge: .opencode).padding()
 }
@@ -37,7 +34,6 @@ struct SourceBadgeView: View {
         SourceBadgeView(badge: .cc)
         SourceBadgeView(badge: .claudeDesktop)
         SourceBadgeView(badge: .codex)
-        SourceBadgeView(badge: .codexDesktop)
         SourceBadgeView(badge: .opencode)
         SourceBadgeView(badge: .pi)
     }

@@ -323,8 +323,7 @@ final class FocusStrategyTests: XCTestCase {
     }
 
     func testCodexDesktopUsesDeepLinkWhenSessionIdIsUUID() {
-        // Active Codex Desktop focus can use codex://threads/<uuid>, but archived
-        // Recent rows deliberately activate the app only.
+        // Active Codex Desktop focus can use codex://threads/<uuid>.
         let uuid = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         let bundleID = HostApp.codexDesktop.bundleID!
         let session = makeSession(

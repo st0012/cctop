@@ -43,7 +43,6 @@ enum AppTheme: String, CaseIterable, Identifiable, Hashable {
     var piBadge: ColorPair { Self.piBadges[self]! }
     var codexBadge: ColorPair { Self.codexBadges[self]! }
     var claudeDesktopBadge: ColorPair { Self.claudeDesktopBadges[self]! }
-    var codexDesktopBadge: ColorPair { Self.codexDesktopBadges[self]! }
 
     var segmentBackground: ColorPair { textPrimary.withAlpha(dark: 0.06, light: 0.06) }
     var segmentThumbBackground: ColorPair {
@@ -239,11 +238,4 @@ private extension AppTheme {
         .nord: ColorPair(dark: hex(0xA3, 0x51, 0x58), light: hex(0x8A, 0x3F, 0x46)),
     ]
 
-    // Codex Desktop — deeper variant of the CLI codex bronze.
-    static let codexDesktopBadges: [AppTheme: ColorPair] = [
-        .claude: ColorPair(dark: hex(0xB8, 0x8A, 0x2E), light: hex(0x6B, 0x4E, 0x0A)),
-        .tokyoNight: ColorPair(dark: hex(0xC2, 0x8F, 0x4B), light: hex(0x5C, 0x42, 0x14)),
-        .gruvbox: ColorPair(dark: hex(0xA8, 0x6E, 0x2C), light: hex(0x5C, 0x39, 0x06)),
-        .nord: ColorPair(dark: hex(0xCD, 0xAE, 0x6D), light: hex(0x6B, 0x4E, 0x0A)),
-    ]
 }

@@ -143,7 +143,7 @@ extension Session {
     ]
 
     /// Showcase sessions for README screenshots — diverse projects, mixed sources,
-    /// covers all 4 distinct agent badge variants (CC, Claude Desktop, Codex, Codex Desktop)
+    /// covers the distinct agent badge variants (CC, Claude Desktop, Codex)
     /// and both attention pills (Permission + Waiting). Permission sorts above
     /// waitingInput, so the top card always shows the dedicated red-orange "Permission"
     /// pill alongside its italic notification note.
@@ -159,17 +159,14 @@ extension Session {
         )
         s1.lastActivity = Date().addingTimeInterval(-10) // "10s ago"
 
-        // waitingInput sits just under permission. Codex Desktop placed here so
-        // the pulsing amber "Waiting" pill is paired with the most distinctive
-        // Desktop badge.
+        // waitingInput sits just under permission. A Codex session here pairs the
+        // pulsing amber "Waiting" pill with the Codex badge.
         var s2 = mock(
             id: "2", project: "billing-api", branch: "main",
             sessionName: "Investigate staging deploy regression",
             status: .waitingInput,
             lastPrompt: "Should we retry on 5xx or surface to the user?",
-            terminal: TerminalInfo(bundleId: "com.openai.codex"),
-            source: "codex",
-            desktopProjectName: "billing-api"
+            source: "codex"
         )
         s2.lastActivity = Date().addingTimeInterval(-180) // "3m ago"
 

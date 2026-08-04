@@ -7,7 +7,6 @@ enum RecentResumeTarget: Identifiable, Equatable {
         let title: String
         let projectPath: String
         let projectName: String
-        let sourceApp: HostApp
         let lastActiveAt: Date
 
         init(
@@ -16,7 +15,6 @@ enum RecentResumeTarget: Identifiable, Equatable {
             title: String,
             projectPath: String,
             projectName: String,
-            sourceApp: HostApp,
             lastActiveAt: Date
         ) {
             self.sessionId = sessionId
@@ -24,7 +22,6 @@ enum RecentResumeTarget: Identifiable, Equatable {
             self.title = title
             self.projectPath = projectPath
             self.projectName = projectName
-            self.sourceApp = sourceApp
             self.lastActiveAt = lastActiveAt
         }
     }
@@ -41,7 +38,7 @@ enum RecentResumeTarget: Identifiable, Equatable {
                Session.isValidCctopSessionId(cctopSessionID) {
                 return "desktop:\(cctopSessionID)"
             }
-            return "desktop:\(thread.sourceApp.displayName):\(thread.sessionId)"
+            return "desktop:Claude Desktop:\(thread.sessionId)"
         }
     }
 
@@ -81,8 +78,8 @@ enum RecentResumeTarget: Identifiable, Equatable {
         switch self {
         case .project(let project):
             return project.editorIcon
-        case .desktopThread(let thread):
-            return thread.sourceApp.sfSymbol
+        case .desktopThread:
+            return HostApp.claudeDesktop.sfSymbol
         }
     }
 
@@ -117,8 +114,8 @@ enum RecentResumeTarget: Identifiable, Equatable {
         switch self {
         case .project(let project):
             return project.openActionLabel
-        case .desktopThread(let thread):
-            return "Open \(thread.sourceApp.displayName)"
+        case .desktopThread:
+            return "Open Claude Desktop"
         }
     }
 
@@ -126,12 +123,8 @@ enum RecentResumeTarget: Identifiable, Equatable {
         switch self {
         case .project:
             return nil
-        case .desktopThread(let thread) where thread.sourceApp == .codexDesktop:
-            return "Open Codex"
-        case .desktopThread(let thread) where thread.sourceApp == .claudeDesktop:
+        case .desktopThread:
             return "Open Claude"
-        case .desktopThread(let thread):
-            return "Open \(thread.sourceApp.displayName)"
         }
     }
 
@@ -139,8 +132,8 @@ enum RecentResumeTarget: Identifiable, Equatable {
         switch self {
         case .project(let project):
             return project.openHelpText
-        case .desktopThread(let thread):
-            return "Open \(thread.sourceApp.displayName); archived sessions may need manual lookup"
+        case .desktopThread:
+            return "Open Claude Desktop; archived sessions may need manual lookup"
         }
     }
 
@@ -149,7 +142,7 @@ enum RecentResumeTarget: Identifiable, Equatable {
         case .project(let project):
             return Self.joinedMetadata([project.metadataEvidenceText, project.pathContext])
         case .desktopThread(let thread):
-            return Self.joinedMetadata(["Archived", thread.sourceApp.shortDesktopName, Self.compactProjectPath(thread.projectPath)])
+            return Self.joinedMetadata(["Archived", "Claude", Self.compactProjectPath(thread.projectPath)])
         }
     }
 
@@ -179,11 +172,8 @@ enum RecentResumeTarget: Identifiable, Equatable {
                excludingSessionIDs.contains(cctopSessionID) {
                 continue
             }
-            guard let sourceApp = desktopThreadSourceApp(for: record.disposition),
-                  let thread = DesktopThread(session: record.candidate.session, sourceApp: sourceApp) else {
-                continue
-            }
-            if shouldSkipArchivedCodexDesktopThread(thread.sessionId, sourceApp: sourceApp, evidence: classification.evidence) {
+            guard isArchivedClaudeDesktop(record.disposition),
+                  let thread = DesktopThread(session: record.candidate.session) else {
                 continue
             }
             let target = RecentResumeTarget.desktopThread(thread)
@@ -196,27 +186,9 @@ enum RecentResumeTarget: Identifiable, Equatable {
         return targetsByID.values.map(\.target)
     }
 
-    private static func desktopThreadSourceApp(for disposition: SessionDisposition) -> HostApp? {
-        guard case .hidden(let reason) = disposition else { return nil }
-        switch reason {
-        case .archivedCodexDesktop:
-            return .codexDesktop
-        case .archivedClaudeDesktop:
-            return .claudeDesktop
-        case .persistedHidden, .autoHidden, .missingCodexDesktopThread, .codexInternalHelper, .codexExecHelper,
-             .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
-            return nil
-        }
-    }
-
-    private static func shouldSkipArchivedCodexDesktopThread(
-        _ sessionId: String,
-        sourceApp: HostApp,
-        evidence: SessionClassificationEvidence
-    ) -> Bool {
-        guard sourceApp == .codexDesktop else { return false }
-        return evidence.codexInternalHelperThreadIDs.contains(sessionId)
-            || evidence.codexExecHelperThreadIDs.contains(sessionId)
+    private static func isArchivedClaudeDesktop(_ disposition: SessionDisposition) -> Bool {
+        guard case .hidden(.archivedClaudeDesktop) = disposition else { return false }
+        return true
     }
 
     private static func joinedMetadata(_ parts: [String]) -> String {
@@ -237,7 +209,7 @@ enum RecentResumeTarget: Identifiable, Equatable {
 }
 
 extension RecentResumeTarget.DesktopThread {
-    init?(session: Session, sourceApp: HostApp) {
+    init?(session: Session) {
         let title = Self.displayTitle(for: session)
         guard !title.isEmpty else { return nil }
         self.init(
@@ -246,7 +218,6 @@ extension RecentResumeTarget.DesktopThread {
             title: title,
             projectPath: session.projectPath,
             projectName: session.desktopProjectName ?? session.projectName,
-            sourceApp: sourceApp,
             lastActiveAt: session.effectiveEndDate
         )
     }
@@ -263,18 +234,5 @@ extension RecentResumeTarget.DesktopThread {
             return trimmed.isEmpty ? nil : trimmed
         }
         .first ?? ""
-    }
-}
-
-private extension HostApp {
-    var shortDesktopName: String {
-        switch self {
-        case .codexDesktop:
-            return "Codex"
-        case .claudeDesktop:
-            return "Claude"
-        default:
-            return displayName
-        }
     }
 }

@@ -100,8 +100,6 @@ extension XCTestCase {
         archivedThreads: Set<String>,
         subagentThreads: Set<String> = [],
         delegatedThreads: Set<String> = [],
-        gitOrigins: [String: String] = [:],
-        cwds: [String: String] = [:],
         execHelperThreads: Set<String> = [],
         execThreadsWithFirstUserMessage: [String: String] = [:],
         userExecThreads: Set<String> = []
@@ -151,12 +149,6 @@ extension XCTestCase {
             VALUES ('fixture-parent', \(sqlValue($0)), 'open');
             """
         }.joined(separator: "\n")
-        let metadataRows = Set(gitOrigins.keys).union(cwds.keys).map { threadID in
-            """
-            INSERT INTO threads (id, rollout_path, archived, thread_source, git_origin_url, cwd, source, has_user_event, first_user_message)
-            VALUES (\(sqlValue(threadID)), '', 0, 'user', \(sqlValue(gitOrigins[threadID])), \(sqlValue(cwds[threadID])), 'vscode', 1, '');
-            """
-        }.joined(separator: "\n")
         let execHelperRows = try execHelperThreads.map {
             let rollout = try rolloutPath(threadID: $0, originator: "Codex Desktop")
             return """
@@ -199,7 +191,6 @@ extension XCTestCase {
         \(archivedRows)
         \(subagentRows)
         \(delegatedRows)
-        \(metadataRows)
         \(execHelperRows)
         \(execFirstMessageRows)
         \(userExecRows)
@@ -221,12 +212,12 @@ extension XCTestCase {
         return session
     }
 
-    func codexDesktopSession(sessionId: String, projectPath: String) -> Session {
+    func codexSession(sessionId: String, projectPath: String) -> Session {
         var session = Session(
             sessionId: sessionId,
             projectPath: projectPath,
             branch: "main",
-            terminal: TerminalInfo(bundleId: "com.openai.codex")
+            terminal: TerminalInfo()
         )
         session.source = Session.codexSource
         session.pid = UInt32(ProcessInfo.processInfo.processIdentifier)
@@ -345,7 +336,6 @@ struct StubCodexThreadState: CodexThreadStateProviding {
     var archived: Set<String>? = []
     var subagents: Set<String>? = []
     var execHelpers: Set<String>? = []
-    var projectNamesByThreadID: [String: String]? = [:]
 
     func stateIndex(matching threadIDs: Set<String>) -> CodexThreadStateIndex? {
         var index = CodexThreadStateIndex()
@@ -353,7 +343,6 @@ struct StubCodexThreadState: CodexThreadStateProviding {
         index.archivedThreadIDs = (archived ?? []).intersection(threadIDs)
         index.internalHelperThreadIDs = (subagents ?? []).intersection(threadIDs)
         index.execHelperThreadIDs = (execHelpers ?? []).intersection(threadIDs)
-        index.projectNamesByThreadID = (projectNamesByThreadID ?? [:]).filter { threadIDs.contains($0.key) }
         return index
     }
 
@@ -373,9 +362,6 @@ struct StubCodexThreadState: CodexThreadStateProviding {
         execHelpers.map { $0.intersection(threadIDs) }
     }
 
-    func projectNames(matching threadIDs: Set<String>) -> [String: String]? {
-        projectNamesByThreadID.map { $0.filter { threadIDs.contains($0.key) } }
-    }
 }
 
 /// In-memory stand-in for Claude Desktop's session metadata store. `nil` simulates an

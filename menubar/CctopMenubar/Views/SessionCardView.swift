@@ -324,12 +324,11 @@ struct SessionCardView: View {
     .frame(width: 340).padding()
 }
 
-#Preview("Idle — Codex Desktop") {
+#Preview("Idle — Codex") {
     SessionCardView(
         session: .mock(
             sessionName: "Investigate tanstack incident",
             status: .idle,
-            terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "codex"
         ),
         showSourceBadge: true

@@ -2,12 +2,11 @@ import XCTest
 @testable import CctopMenubar
 
 final class QaShowcaseCoverageTests: XCTestCase {
-    func testShowcaseCoversAllFourAgentBadgeVariants() {
+    func testShowcaseCoversPrimaryAgentBadgeVariants() {
         let badges = Set(Session.qaShowcase.map { $0.agentBadge })
         XCTAssertTrue(badges.contains(.cc), "qaShowcase should include a CC session")
         XCTAssertTrue(badges.contains(.claudeDesktop), "qaShowcase should include a Claude Desktop session")
-        XCTAssertTrue(badges.contains(.codex), "qaShowcase should include a Codex CLI session")
-        XCTAssertTrue(badges.contains(.codexDesktop), "qaShowcase should include a Codex Desktop session")
+        XCTAssertTrue(badges.contains(.codex), "qaShowcase should include a Codex session")
     }
 
     func testShowcaseHasMixOfStatuses() {

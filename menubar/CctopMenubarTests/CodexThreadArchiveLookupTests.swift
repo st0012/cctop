@@ -289,14 +289,6 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         try writeCodexStateDatabase(path: preferredDB, archivedThreads: ["desktop-thread"])
-        try executeSQLite(
-            """
-            UPDATE threads
-            SET git_origin_url = 'git@github.com:st0012/cctop.git'
-            WHERE id = 'desktop-thread';
-            """,
-            path: preferredDB
-        )
         try Data("this is not a sqlite database".utf8).write(to: URL(fileURLWithPath: fallbackDB))
 
         let lookup = CodexThreadArchiveLookup(stateDatabasePaths: { [preferredDB, fallbackDB] })
@@ -306,7 +298,6 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
 
         XCTAssertEqual(index.existingThreadIDs, ["desktop-thread"])
         XCTAssertEqual(index.archivedThreadIDs, ["desktop-thread"])
-        XCTAssertEqual(index.projectNamesByThreadID["desktop-thread"], "cctop")
         XCTAssertEqual(index.unknownThreadIDs, ["cli-thread"])
         XCTAssertEqual(lookup.existingThreadIDs(matching: ["desktop-thread"]), ["desktop-thread"])
         XCTAssertNil(lookup.existingThreadIDs(matching: ["cli-thread"]))
@@ -323,7 +314,6 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         })
         let threadIDs: Set<String> = ["target-thread"]
 
-        XCTAssertEqual(lookup.projectNames(matching: threadIDs), [:])
         XCTAssertEqual(lookup.archivedThreadIDs(matching: threadIDs), [])
         XCTAssertNil(lookup.existingThreadIDs(matching: threadIDs))
         XCTAssertEqual(lookup.internalHelperThreadIDs(matching: threadIDs), [])
@@ -473,44 +463,6 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         XCTAssertTrue(index.internalHelperThreadIDs.isDisjoint(with: index.contradictoryDelegationThreadIDs))
     }
 
-    func testCodexThreadLookupDerivesProjectNameFromGitOriginURL() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-project-name-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: root) }
-
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        try writeCodexStateDatabase(
-            path: stateDB,
-            archivedThreads: [],
-            gitOrigins: ["codex-desktop-project": "git@github.com:st0012/cctop.git"]
-        )
-
-        XCTAssertEqual(
-            CodexThreadArchiveLookup(stateDatabasePath: stateDB)
-                .projectNames(matching: ["codex-desktop-project"]),
-            ["codex-desktop-project": "cctop"]
-        )
-    }
-
-    func testCodexThreadLookupFallsBackToCwdBasename() throws {
-        let root = NSTemporaryDirectory() + "cctop-codex-project-name-cwd-\(UUID().uuidString)"
-        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: root) }
-
-        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
-        try writeCodexStateDatabase(
-            path: stateDB,
-            archivedThreads: [],
-            cwds: ["codex-desktop-project": "/Users/dev/projects/local-tool"]
-        )
-
-        XCTAssertEqual(
-            CodexThreadArchiveLookup(stateDatabasePath: stateDB)
-                .projectNames(matching: ["codex-desktop-project"]),
-            ["codex-desktop-project": "local-tool"]
-        )
-    }
-
     func testCodexThreadLookupToleratesMissingExecHelperColumns() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-legacy-columns-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
@@ -543,7 +495,6 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         XCTAssertEqual(lookup.archivedThreadIDs(matching: threadIDs), ["archived-thread"])
         XCTAssertEqual(lookup.internalHelperThreadIDs(matching: threadIDs), [])
         XCTAssertEqual(lookup.execHelperThreadIDs(matching: threadIDs), [])
-        XCTAssertEqual(lookup.projectNames(matching: threadIDs), ["project-thread": "cctop"])
         XCTAssertEqual(lookup.stateIndex(matching: threadIDs)?.uncertainDelegationThreadIDs, threadIDs)
         XCTAssertEqual(lookup.stateIndex(matching: threadIDs)?.knownNoSpawnEdgeThreadIDs, [])
     }

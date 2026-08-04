@@ -152,13 +152,13 @@ final class SessionTests: XCTestCase {
             sessionName: "Handle notification permission flow",
             status: .waitingPermission,
             notificationMessage: "Allow Bash: make all",
-            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop),
-            source: "codex",
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: "cc",
             desktopProjectName: "cctop"
         )
 
         XCTAssertEqual(session.notificationContent.title, "[cctop] Handle notification permission flow")
-        XCTAssertEqual(session.notificationContent.subtitle, "Codex Desktop needs permission")
+        XCTAssertEqual(session.notificationContent.subtitle, "Claude Desktop needs permission")
         XCTAssertEqual(session.notificationContent.body, "Allow Bash: make all")
     }
 
@@ -332,22 +332,6 @@ final class SessionTests: XCTestCase {
 
         XCTAssertEqual(heartbeat.notificationContent.body, "Waiting for input")
         XCTAssertEqual(delegation.notificationContent.body, "Waiting for input")
-    }
-
-    func testNotificationBodyFallsBackForLegacyCodexDesktopMachineWrapperPrompts() {
-        let session = Session.mock(
-            project: "cctop",
-            sessionName: "Chief watchdog",
-            status: .waitingInput,
-            lastPrompt: """
-            <heartbeat>
-              <automation_id>cctop-chief-workflow-watchdog</automation_id>
-            </heartbeat>
-            """,
-            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
-        )
-
-        XCTAssertEqual(session.notificationContent.body, "Waiting for input")
     }
 
     func testNotificationBodyRejectsMachineWrapperBeforeExtractingCodexMarker() {
@@ -1480,31 +1464,6 @@ final class SessionTests: XCTestCase {
         )
     }
 
-    func testNotificationActionsSuppressLegacyCodexDesktopMachineOnlyWaitingInput() {
-        let oldSession = Session.mock(
-            id: "codex-thread-1",
-            cctopSessionId: notificationTestCctopSessionID,
-            status: .working,
-            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
-        )
-        let heartbeatSession = Session.mock(
-            id: "codex-thread-1",
-            cctopSessionId: notificationTestCctopSessionID,
-            status: .waitingInput,
-            lastPrompt: """
-            <heartbeat>
-              <automation_id>cctop-chief-workflow-watchdog</automation_id>
-            </heartbeat>
-            """,
-            terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
-        )
-
-        XCTAssertEqual(
-            notificationActions(newSession: heartbeatSession, oldSession: oldSession),
-            []
-        )
-    }
-
     func testNotificationActionsSuppressCodexScaffoldWithoutUserRequest() {
         let oldSession = Session.mock(
             id: "codex-thread-1",
@@ -2115,9 +2074,10 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.hostClass, .desktop)
     }
 
-    func testHostClassCodexDesktopIsDesktop() {
+    func testCodexDesktopBundleWithoutSourceIsOnlyFocusEvidence() {
         let session = Session.mock(terminal: TerminalInfo(bundleId: "com.openai.codex"))
-        XCTAssertEqual(session.hostClass, .desktop)
+        XCTAssertEqual(session.hostClass, .ambiguous)
+        XCTAssertEqual(session.trustedHostApp, .codexDesktop)
     }
 
     // A `cc` session is never hosted by Codex Desktop: that bundle id can only be
@@ -2128,8 +2088,7 @@ final class SessionTests: XCTestCase {
             source: "cc"
         )
         XCTAssertEqual(session.hostClass, .ambiguous)
-        XCTAssertFalse(session.isHostedByDesktopApp)
-        XCTAssertFalse(session.isCodexDesktopHost)
+        XCTAssertNil(session.trustedHostApp)
     }
 
     // Symmetric: a `codex` session is never hosted by Claude Desktop.
@@ -2139,7 +2098,7 @@ final class SessionTests: XCTestCase {
             source: "codex"
         )
         XCTAssertEqual(session.hostClass, .ambiguous)
-        XCTAssertFalse(session.isHostedByDesktopApp)
+        XCTAssertNil(session.trustedHostApp)
         XCTAssertFalse(session.isClaudeDesktopHost)
     }
 
@@ -2153,13 +2112,13 @@ final class SessionTests: XCTestCase {
         XCTAssertTrue(session.isClaudeDesktopHost)
     }
 
-    func testHostClassCodexWithCodexDesktopBundleIsDesktop() {
+    func testCodexBundleRemainsFocusEvidenceWithoutChangingHostClass() {
         let session = Session.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "codex"
         )
-        XCTAssertEqual(session.hostClass, .desktop)
-        XCTAssertTrue(session.isCodexDesktopHost)
+        XCTAssertEqual(session.hostClass, .ambiguous)
+        XCTAssertEqual(session.trustedHostApp, .codexDesktop)
     }
 
     func testHostClassOpencodeIgnoresLeakedCodexDesktopBundle() {
@@ -2168,8 +2127,7 @@ final class SessionTests: XCTestCase {
             source: "opencode"
         )
         XCTAssertEqual(session.hostClass, .ambiguous)
-        XCTAssertFalse(session.isHostedByDesktopApp)
-        XCTAssertFalse(session.isCodexDesktopHost)
+        XCTAssertNil(session.trustedHostApp)
     }
 
     func testHostClassPiIgnoresLeakedClaudeDesktopBundle() {
@@ -2178,7 +2136,7 @@ final class SessionTests: XCTestCase {
             source: "pi"
         )
         XCTAssertEqual(session.hostClass, .ambiguous)
-        XCTAssertFalse(session.isHostedByDesktopApp)
+        XCTAssertNil(session.trustedHostApp)
         XCTAssertFalse(session.isClaudeDesktopHost)
     }
 

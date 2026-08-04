@@ -36,7 +36,8 @@ extension Session {
     }
 
     private var notificationProjectContext: String? {
-        if let desktopProjectName = Self.cleanOptionalNotificationTitleText(desktopProjectName) {
+        if agentBadge.isDesktop,
+           let desktopProjectName = Self.cleanOptionalNotificationTitleText(desktopProjectName) {
             return desktopProjectName
         }
         guard sessionName != nil else { return nil }
@@ -44,17 +45,16 @@ extension Session {
     }
 
     private var notificationSenderName: String {
+        if isCodex { return "Codex" }
         let bundleId = terminal?.bundleId
         if Self.trustsDesktopBundle(source: source, bundleId: bundleId) {
             switch bundleId {
-            case HostAppBundleID.codexDesktop: return "Codex Desktop"
             case HostAppBundleID.claudeDesktop: return "Claude Desktop"
             default: break
             }
         }
 
         switch source {
-        case Self.codexSource: return "Codex"
         case Self.opencodeSource: return "opencode"
         case Self.piSource: return "pi"
         default: return "Claude"
@@ -97,9 +97,7 @@ extension Session {
     }
 
     private var usesCodexPromptFallbackPolicy: Bool {
-        source == Self.codexSource
-            || (terminal?.bundleId == HostAppBundleID.codexDesktop
-                && Self.trustsDesktopBundle(source: source, bundleId: terminal?.bundleId))
+        isCodex
     }
 
     private static func cleanOptionalNotificationTitleText(_ text: String?) -> String? {

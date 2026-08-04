@@ -176,17 +176,16 @@ extension Session {
             && Config.standardizedPath(projectPath) == Config.standardizedPath(Config.codexMemoriesDir())
     }
 
-    /// True for Codex Desktop's internal title-generation helper runs. They briefly create
+    /// True for Codex's internal title-generation helper runs. They briefly create
     /// hook-visible conversations in the current project, but are not user workspace sessions.
-    var isCodexDesktopTitleGenerationSession: Bool {
+    var isCodexTitleGenerationSession: Bool {
         source == Session.codexSource
-            && terminal?.bundleId == HostAppBundleID.codexDesktop
             && (sessionName?.isEmpty ?? true)
             && (lastPrompt?.hasPrefix(Self.codexTitleGenerationPromptPrefix) == true)
             && (lastPrompt?.contains("Generate a concise UI title") == true)
     }
 
     var shouldAutoHide: Bool {
-        isSubagentSession || isCodexMemoryMaintenanceSession || isCodexDesktopTitleGenerationSession
+        isSubagentSession || isCodexMemoryMaintenanceSession || isCodexTitleGenerationSession
     }
 }

@@ -274,10 +274,4 @@ extension Color {
         })
     }
 
-    /// Source badge — Codex Desktop.
-    static var codexDesktopBadge: Color {
-        Color(nsColor: NSColor(name: nil) { appearance in
-            ThemeManager.shared.current.codexDesktopBadge.resolve(appearance)
-        })
-    }
 }

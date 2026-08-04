@@ -21,8 +21,9 @@ flowchart TD
     B --> C["Build SessionClassificationSnapshot<br/>lifecycle + host metadata"]
     C --> D{"Disposition"}
 
-    D -->|"archived desktop session"| E["Hide for display<br/>preserve .json"]
-    D -->|"archived desktop + known project path"| L["Emit cleanup source<br/>preserve .json"]
+    D -->|"archived Codex thread"| E["Hide active/dormant record<br/>preserve .json"]
+    D -->|"archived Claude Desktop session"| E
+    D -->|"archived trusted desktop + known project path"| L["Emit cleanup source<br/>preserve .json"]
     D -->|"subagent-owned session"| K["Mark hidden<br/>preserve .json"]
     D -->|"Claude orphan startup record"| E
     D -->|"display record"| F["Deduplicate by stable key"]
@@ -98,7 +99,9 @@ CLI sessions do not need `disconnected_at` because disconnected CLI sessions bec
 
 Session files are deduplicated by a stable identity key before publishing. `SessionIdentityPolicy` owns that grouping rule. Codex sessions use `session_id` across both old PID-keyed files and newer `codex-<session_id>` files. Known desktop sessions also use `session_id`; other terminal or ambiguous sessions keep PID identity.
 
-Archived desktop sessions are filtered from the active/dormant list before display dedup. cctop does not persist `hidden = true` for this case and does not remove the `.json`, so a later app-level unarchive can make the same session file visible again. Archived desktop sessions are not archived into Recent Projects. If the same classified cctop JSON record has a known project path, the classification snapshot can emit an explicit worktree cleanup source for that path; this does not delete the session JSON. If host metadata is missing, unreadable, or lacks enough path evidence, cleanup fails safe by emitting no source.
+Archived active or dormant Codex threads are filtered before display dedup regardless of whether their cctop record came from Codex Desktop, Codex CLI, VS Code, or another Codex surface. This archive rule does not classify the record as Desktop. cctop does not persist `hidden = true` or remove the `.json`, so an unarchived thread that is otherwise active becomes visible again. A transiently unreadable Codex state store retains the last authoritative classification; when no readable archive evidence has ever been available, display fails open rather than guessing.
+
+Only trusted archived desktop records enter the desktop-specific Recent and worktree-cleanup paths. They are not archived into Recent Projects, and a record with a known project path can emit an explicit worktree cleanup source without deleting its session JSON. Archived Codex records without trusted Desktop evidence do not emit that source or become Desktop resume targets. Finished Codex records without trusted Desktop evidence keep the normal terminal cleanup path instead of being retained as hidden archive records. If host metadata is missing, unreadable, or lacks enough path evidence, desktop cleanup fails safe by emitting no source.
 
 Deleted or missing desktop conversations are narrower than archived conversations. Missing Codex thread rows, orphaned ended Claude Desktop records, and Claude startup placeholders stay hidden and preserve their session JSON, but they do not become cleanup sources unless the host metadata explicitly marks the conversation archived. That keeps cleanup eligibility tied to an affirmative archive signal rather than treating every metadata miss as abandonment.
 
@@ -121,10 +124,10 @@ Claude Desktop and Codex Desktop both enter the desktop lifecycle path only thro
 
 Once a validated desktop app is not running, cctop keeps its visible sessions as dormant while `disconnected_at` is inside the retention window, then the slow GC removes stale `.json` files. When that desktop app is running again, its visible sessions are active display records, so their stored status can render as Idle, Working, Compacting, Waiting, Permission, or Attention instead of Dormant.
 
-The archive metadata source is host-specific:
+The archive metadata source is client-specific:
 
 - Claude Desktop archive state is read from Claude Desktop's `claude-code-sessions` metadata files, keyed by `cliSessionId`.
-- Codex Desktop archive state starts from Codex's local thread state, keyed by thread id. When that row includes a rollout path, cctop checks the active and archived rollout-file locations; if exactly one exists, file placement is treated as the stronger archive signal. If placement is ambiguous or unavailable, cctop falls back to the thread-state archive flag.
+- Codex archive visibility starts from Codex's local thread state, keyed by thread id, and applies to every Codex surface. When that row includes a rollout path, cctop checks the active and archived rollout-file locations; if exactly one exists, file placement is treated as the stronger archive signal. If placement is ambiguous or unavailable, cctop falls back to the thread-state archive flag.
 
 Codex thread state may live in more than one `state_5.sqlite` location. cctop first asks the running Codex Desktop app-server for its SQLite home, then falls back to Codex config and static `CODEX_HOME` paths. cctop does not trust its own `CODEX_SQLITE_HOME` environment variable for this decision, because normal Finder, Dock, and Sparkle launches do not inherit the shell environment that started cctop during development.
 

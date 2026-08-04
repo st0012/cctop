@@ -34,8 +34,8 @@ class SessionManager: ObservableObject {
     var lastLoadLogSignature: SessionLoadLogSignature?
     var sessionFileCache: [String: SessionFileCacheEntry] = [:]
     var pendingIdentityMigrationPaths: Set<String> = []
-    /// Lifecycle windows: desktop app liveness decides connection when available; `active` is the
-    /// fallback recency threshold and `retention` controls dormant desktop cleanup.
+    /// Lifecycle windows: `active` is the recent-activity connection fallback; `retention`
+    /// is Codex's absolute inactivity cap and the dormant non-Codex desktop cleanup window.
     nonisolated static let lifecycleWindows = LifecycleWindows(active: 600, retention: 1_209_600)
     nonisolated static let codexMissingThreadGraceSeconds: TimeInterval = 10
 
@@ -229,7 +229,7 @@ class SessionManager: ObservableObject {
     private func autoHideReason(for session: Session) -> String {
         if session.isSubagentSession { return "subagent-owned" }
         if session.isCodexMemoryMaintenanceSession { return "Codex memory maintenance" }
-        if session.isCodexDesktopTitleGenerationSession { return "Codex title generation" }
+        if session.isCodexTitleGenerationSession { return "Codex title generation" }
         return "maintenance"
     }
 
@@ -304,18 +304,22 @@ class SessionManager: ObservableObject {
                 (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.sessionDecoder.decode(Session.self, from: $0) }
             }
         )
-        preloadDesktopArchiveStateForFinishedSessions(in: jsonFiles, now: now)
+        preloadArchiveStateForFinishedRetainedSessions(in: jsonFiles, now: now)
         var removedAny = false
         for url in jsonFiles {
             if sweepLegacyUUIDFileIfNeeded(url, manualHides: manualHides) { continue }
-            withSessionLockForMaintenance(sessionPath: url.path, sessionId: url.deletingPathExtension().lastPathComponent, action: "desktop GC") {
+            withSessionLockForMaintenance(
+                sessionPath: url.path,
+                sessionId: url.deletingPathExtension().lastPathComponent,
+                action: "retained session GC"
+            ) {
                 guard let data = try? Data(contentsOf: url),
                       let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
                     return   // decode failure → never treat as finished
                 }
                 guard !session.hidden, !session.shouldAutoHide else { return }
                 let hostClass = session.hostClass
-                guard hostClass == .desktop else { return }   // non-desktop handled on the fast path
+                guard session.isCodex || hostClass == .desktop else { return } // Other sessions use the fast path.
                 let life = SessionLifecyclePolicy.lifecycle(
                     for: session,
                     hostClass: hostClass,
@@ -327,7 +331,7 @@ class SessionManager: ObservableObject {
                 guard life == .finished else { return }
                 guard !shouldRetainFinishedManualHideEvidence(session, matching: manualHides) else { return }
                 // Re-check external archive state under the lock so a concurrent archive retains its file.
-                guard !Self.isArchivedDesktopSession(
+                guard !Self.isArchivedRetainedSession(
                     session,
                     codexThreads: dataSources.codexThreads,
                     claudeDesktopSessions: dataSources.claudeDesktopSessions
