@@ -322,41 +322,31 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .activateByBundleID(bundleID))
     }
 
-    func testCodexWithoutDirectHostUsesThreadDeepLinkRegardlessOfPersistedBundle() throws {
+    func testCodexWithoutDirectHostUsesThreadDeepLinkWithOrWithoutPersistedBundle() throws {
         let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
-        var session = makeSession(
-            program: "",
-            bundleId: HostAppBundleID.codexDesktop,
-            sessionUuid: threadID
+        let expected = FocusStrategy.openURL(
+            try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
+            restoreBundleID: HostAppBundleID.codexDesktop
         )
-        session.source = Session.codexSource
+        let persistedBundleIDs: [String?] = [HostAppBundleID.codexDesktop, nil]
 
-        let strategy = resolveFocusStrategy(session: session)
-
-        XCTAssertEqual(
-            strategy,
-            .openURL(
-                try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
-                restoreBundleID: HostAppBundleID.codexDesktop
+        for bundleID in persistedBundleIDs {
+            var session = makeSession(
+                program: "",
+                bundleId: bundleID,
+                sessionUuid: threadID
             )
-        )
+            session.source = Session.codexSource
+
+            XCTAssertEqual(
+                resolveFocusStrategy(session: session),
+                expected,
+                "persisted bundle: \(bundleID ?? "nil")"
+            )
+        }
     }
 
-    func testCodexWithoutDirectHostOrPersistedBundleUsesThreadDeepLink() throws {
-        let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
-        var session = makeSession(program: "", sessionUuid: threadID)
-        session.source = Session.codexSource
-
-        XCTAssertEqual(
-            resolveFocusStrategy(session: session),
-            .openURL(
-                try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
-                restoreBundleID: HostAppBundleID.codexDesktop
-            )
-        )
-    }
-
-    func testCodexFallbackDoesNotOverrideEditorFocus() {
+    func testCodexDirectRouteDoesNotOverrideEditorFocus() {
         var session = makeSession(
             program: "Code",
             bundleId: HostAppBundleID.codexDesktop,
@@ -372,7 +362,7 @@ final class FocusStrategyTests: XCTestCase {
         ))
     }
 
-    func testCodexFallbackDoesNotOverrideTerminalBundle() {
+    func testCodexDirectRouteDoesNotOverrideTerminalBundle() {
         var session = makeSession(
             program: "",
             bundleId: "com.googlecode.iterm2",
@@ -385,7 +375,7 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .activateByName("iterm2"))
     }
 
-    func testCodexFallbackDoesNotOverrideUnknownDirectProgram() {
+    func testCodexDirectRouteDoesNotOverrideUnknownDirectProgram() {
         var session = makeSession(
             program: "UnsupportedHost",
             sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
@@ -397,7 +387,7 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .openInFinder(projectPath))
     }
 
-    func testCodexFallbackDoesNotOverrideTTYOnlyHostEvidence() {
+    func testCodexDirectRouteDoesNotOverrideTTYOnlyHostEvidence() {
         var session = makeSession(
             program: "",
             tty: "/dev/ttys017",
@@ -410,7 +400,7 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .openInFinder(projectPath))
     }
 
-    func testCodexFallbackDoesNotOverrideMultiplexer() {
+    func testCodexDirectRouteDoesNotOverrideMultiplexer() {
         let multiplexer = MultiplexerInfo.zellij(
             sessionName: "dev",
             paneId: "terminal_1",
@@ -459,7 +449,7 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, intended)
     }
 
-    func testCodexFallbackReportsInvalidSessionID() {
+    func testCodexReportsInvalidSessionID() {
         var session = makeSession(
             program: "", bundleId: HostAppBundleID.codexDesktop, sessionUuid: "not-a-uuid"
         )
@@ -471,7 +461,7 @@ final class FocusStrategyTests: XCTestCase {
         )
     }
 
-    func testCodexFallbackDoesNotRouteOpencode() {
+    func testCodexDirectRouteDoesNotApplyToOpencode() {
         var session = makeSession(
             program: "", bundleId: HostApp.codexDesktop.bundleID!,
             sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"

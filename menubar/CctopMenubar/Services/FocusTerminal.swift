@@ -48,9 +48,8 @@ func resolveFocusStrategy(
     let terminal = session.terminal
     let multiplexer = multiplexerOverride ?? terminal?.multiplexer
 
-    // Direct terminal/editor metadata remains authoritative. Without it, every Codex
-    // session uses its exact thread deep link. Persisted Codex bundle metadata is not
-    // used to reconstruct a host category.
+    // Direct terminal/editor metadata wins. A Codex session without it uses its exact
+    // thread deep link. Persisted `com.openai.codex` metadata is ignored.
     let programHost = HostApp.from(editorName: terminal?.program)
     let directHost = multiplexer?.isCmux == true ? HostApp.cmux : programHost
     let hasDirectHostEvidence = terminal?.program.isEmpty == false || terminal?.tty?.isEmpty == false || multiplexer != nil
@@ -65,14 +64,11 @@ func resolveFocusStrategy(
         return .openURL(url)
     }
 
-    if session.isCodex, hostApp == .codexDesktop, !HostApp.isUUID(session.sessionId) {
-        return .unavailable(.codexTaskIdentifierInvalid)
-    }
-
-    // Other app hosts fall through to bundle-ID activation when they do not
-    // support an exact task deep link.
     if let url = hostApp.sessionDeepLink(sessionId: session.sessionId) {
         return .openURL(url, restoreBundleID: hostApp.bundleID)
+    }
+    if session.isCodex, hostApp == .codexDesktop {
+        return .unavailable(.codexTaskIdentifierInvalid)
     }
 
     // Editors with a known bundle ID → open the project with that app.
