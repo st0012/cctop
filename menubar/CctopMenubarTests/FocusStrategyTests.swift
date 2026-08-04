@@ -322,18 +322,83 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .activateByBundleID(bundleID))
     }
 
-    func testCodexDesktopUsesDeepLinkWhenSessionIdIsUUID() {
-        // Active Codex Desktop focus can use codex://threads/<uuid>.
-        let uuid = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
-        let bundleID = HostApp.codexDesktop.bundleID!
-        let session = makeSession(
-            program: "", bundleId: bundleID, sessionUuid: uuid
+    func testCodexPersistedAppBundleDoesNotInferAppFocus() {
+        var session = makeSession(
+            program: "",
+            bundleId: HostAppBundleID.codexDesktop,
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         )
+        session.source = Session.codexSource
+
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .openURL(URL(string: "codex://threads/\(uuid)")!, restoreBundleID: bundleID))
+
+        XCTAssertEqual(strategy, .openInFinder(projectPath))
     }
 
-    func testCurrentPermanentIDCodexAppServerRouteUsesThreadDeepLinkAndIgnoresStaleMultiplexer() throws {
+    func testCurrentCodexAppServerAndPersistedBundleDoNotOverrideEditorFocus() {
+        var session = makeSession(
+            program: "Code",
+            bundleId: HostAppBundleID.codexDesktop,
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        )
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            hasCurrentCodexDesktopAppServer: true
+        )
+
+        XCTAssertEqual(strategy, .openWithApp(
+            bundleID: "com.microsoft.VSCode",
+            target: projectPath
+        ))
+    }
+
+    func testCurrentCodexAppServerDoesNotOverrideTerminalBundle() {
+        var session = makeSession(
+            program: "",
+            bundleId: "com.googlecode.iterm2",
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        )
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            hasCurrentCodexDesktopAppServer: true
+        )
+
+        XCTAssertEqual(strategy, .activateByName("iterm2"))
+    }
+
+    func testCurrentCodexAppServerDoesNotOverrideMultiplexer() {
+        let multiplexer = MultiplexerInfo.zellij(
+            sessionName: "dev",
+            paneId: "terminal_1",
+            binaryPath: "/usr/bin/zellij"
+        )
+        let session = Session.mock(
+            id: "019e1eff-3374-74b0-8d3d-6fba94e7d75f",
+            project: "myapp",
+            terminal: TerminalInfo(program: "", multiplexer: multiplexer),
+            source: Session.codexSource
+        )
+
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            hasCurrentCodexDesktopAppServer: true
+        )
+
+        XCTAssertEqual(strategy, .openInFinder(projectPath))
+        XCTAssertEqual(
+            resolveMultiplexerFocus(session: session, primaryStrategy: strategy),
+            .zellij(sessionName: "dev", paneId: "terminal_1", binaryPath: "/usr/bin/zellij")
+        )
+    }
+
+    func testCurrentPermanentIDCodexAppServerRouteUsesThreadDeepLinkDespiteStalePID() throws {
         let threadID = "019faecb-6e9b-7f41-a51f-bb998875ca77"
         let cctopSessionID = "82498aba-410e-4b6b-b48d-62f7c6a81eae"
         let observation = Session.mock(
@@ -341,15 +406,8 @@ final class FocusStrategyTests: XCTestCase {
             cctopSessionId: cctopSessionID,
             harnessSessionId: threadID,
             project: "cctop",
-            pid: 61_871,
-            terminal: TerminalInfo(
-                program: "",
-                multiplexer: .zellij(
-                    sessionName: "stale",
-                    paneId: "terminal_1",
-                    binaryPath: "/usr/bin/zellij"
-                )
-            ),
+            pid: 61_870,
+            terminal: TerminalInfo(program: ""),
             source: Session.codexSource
         )
         let current = try XCTUnwrap(
@@ -375,14 +433,12 @@ final class FocusStrategyTests: XCTestCase {
             },
             environment: { _ in [:] }
         )
-        let sessionPID = try XCTUnwrap(current.pid)
-        let pid = try XCTUnwrap(pid_t(exactly: sessionPID))
-        let isCodexDesktopAppServerTarget = probe.isCurrentDesktopAppServer(pid: pid)
+        let hasCurrentCodexDesktopAppServer = probe.hasCurrentDesktopAppServer()
 
         let strategy = resolveFocusStrategy(
             session: current,
             multiplexerOverride: nil,
-            isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget
+            hasCurrentCodexDesktopAppServer: hasCurrentCodexDesktopAppServer
         )
         let intended = FocusStrategy.openURL(
             try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
@@ -391,16 +447,9 @@ final class FocusStrategyTests: XCTestCase {
 
         XCTAssertEqual(strategy, intended)
         XCTAssertNotEqual(strategy, .openInFinder(current.projectPath))
-        XCTAssertNotNil(resolveMultiplexerFocus(session: current))
-        XCTAssertNil(
-            resolveMultiplexerFocus(
-                session: current,
-                isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget
-            )
-        )
     }
 
-    func testCodexAppServerProbeRejectsAnotherProcessAndAmbiguousHosts() {
+    func testCodexAppServerProbeRequiresOneHostAndOneServer() {
         let app = CodexDesktopRuntimeProbe.RunningApp(
             pid: 61_700,
             bundleIdentifier: HostApp.codexDesktop.bundleID,
@@ -445,30 +494,49 @@ final class FocusStrategyTests: XCTestCase {
             environment: { _ in [:] }
         )
 
-        XCTAssertFalse(exactHost.isCurrentDesktopAppServer(pid: 61_872))
-        XCTAssertFalse(ambiguousHosts.isCurrentDesktopAppServer(pid: server.pid))
-        XCTAssertFalse(ambiguousServers.isCurrentDesktopAppServer(pid: server.pid))
+        XCTAssertTrue(exactHost.hasCurrentDesktopAppServer())
+        XCTAssertFalse(ambiguousHosts.hasCurrentDesktopAppServer())
+        XCTAssertFalse(ambiguousServers.hasCurrentDesktopAppServer())
+
+        var session = makeSession(program: "", sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f")
+        session.source = Session.codexSource
+        XCTAssertEqual(
+            resolveFocusStrategy(
+                session: session,
+                multiplexerOverride: nil,
+                hasCurrentCodexDesktopAppServer: ambiguousServers.hasCurrentDesktopAppServer()
+            ),
+            .openInFinder(projectPath)
+        )
     }
 
-    func testCodexDesktopFallsBackToActivateWhenSessionIdNotUUID() {
-        // Legacy or test sessions may not have UUID IDs — we should still focus
-        // the app rather than build a URL the handler will reject.
+    func testCurrentCodexAppServerFallsBackToActivateWhenSessionIdNotUUID() {
         let bundleID = HostApp.codexDesktop.bundleID!
-        let session = makeSession(
+        var session = makeSession(
             program: "", bundleId: bundleID, sessionUuid: "not-a-uuid"
         )
-        let strategy = resolveFocusStrategy(session: session)
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            hasCurrentCodexDesktopAppServer: true
+        )
         XCTAssertEqual(strategy, .activateByBundleID(bundleID))
     }
 
-    func testOpencodeIgnoresLeakedCodexDesktopBundleForFocus() {
+    func testCurrentCodexAppServerDoesNotRouteOpencode() {
         var session = makeSession(
             program: "", bundleId: HostApp.codexDesktop.bundleID!,
             sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         )
         session.source = "opencode"
 
-        let strategy = resolveFocusStrategy(session: session)
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            hasCurrentCodexDesktopAppServer: true
+        )
 
         XCTAssertEqual(strategy, .openInFinder(projectPath))
     }
@@ -479,6 +547,26 @@ final class FocusStrategyTests: XCTestCase {
         let session = Session.mock(id: "test", project: "myapp", terminal: nil)
         let strategy = resolveFocusStrategy(session: session)
         XCTAssertEqual(strategy, .openInFinder(projectPath))
+    }
+
+    func testAmbiguousCodexWithoutTerminalInfoUsesCurrentAppServerFallback() throws {
+        let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        var session = Session.mock(id: threadID, project: "myapp", terminal: nil)
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            hasCurrentCodexDesktopAppServer: true
+        )
+
+        XCTAssertEqual(
+            strategy,
+            .openURL(
+                try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
+                restoreBundleID: HostAppBundleID.codexDesktop
+            )
+        )
     }
 
     // MARK: - Unknown program falls back to Finder

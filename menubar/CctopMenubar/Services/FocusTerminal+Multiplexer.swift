@@ -13,14 +13,17 @@ enum MultiplexerFocusStrategy: Equatable {
 }
 
 /// Resolve multiplexer focus from persisted or freshly resolved multiplexer info.
-/// Returns nil for a positively identified Codex Desktop app-server target so
+/// Returns nil when the primary strategy uses the Codex app route so
 /// inherited terminal metadata cannot steal focus after the thread deep link.
 func resolveMultiplexerFocus(
     session: Session,
     multiplexerOverride: MultiplexerInfo? = nil,
-    isCodexDesktopAppServerTarget: Bool = false
+    primaryStrategy: FocusStrategy? = nil
 ) -> MultiplexerFocusStrategy? {
-    guard !isCodexDesktopAppServerTarget else { return nil }
+    if case .openURL(_, let restoreBundleID) = primaryStrategy,
+       restoreBundleID == HostAppBundleID.codexDesktop {
+        return nil
+    }
     guard let mux = multiplexerOverride ?? session.terminal?.multiplexer else { return nil }
     switch mux {
     case .cmux(let socket, let workspaceId, let surfaceId, let paneId, let binaryPath):

@@ -192,8 +192,8 @@ enum HostApp: CaseIterable {
 
 extension Session {
     /// GUI environments can leak `__CFBundleIdentifier` into child tools; a desktop bundle
-    /// id is only trusted when it is the harness's own desktop app (cc -> Claude Desktop,
-    /// codex -> Codex Desktop; nil-source legacy records keep bundle-first behavior).
+    /// id is trusted for `cc` -> Claude Desktop and nil-source legacy records. Codex uses
+    /// direct terminal/editor metadata or verified live app-server availability for focus.
     /// A `cc` session "hosted by" Codex Desktop is impossible — that pairing is leaked
     /// launcher environment, not identity (issue #155).
     var trustedHostApp: HostApp? {

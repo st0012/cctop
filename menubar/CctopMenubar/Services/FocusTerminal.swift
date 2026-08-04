@@ -42,19 +42,20 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
 func resolveFocusStrategy(
     session: Session,
     multiplexerOverride: MultiplexerInfo?,
-    isCodexDesktopAppServerTarget: Bool = false
+    hasCurrentCodexDesktopAppServer: Bool = false
 ) -> FocusStrategy {
-    guard let terminal = session.terminal else {
-        return .openInFinder(session.projectPath)
-    }
-    let multiplexer = multiplexerOverride ?? terminal.multiplexer
+    let terminal = session.terminal
+    let multiplexer = multiplexerOverride ?? terminal?.multiplexer
 
-    // Positive live Codex Desktop evidence outranks stale persisted host metadata.
-    // Otherwise prefer trusted bundle_id over program name; explicit non-desktop
-    // harnesses ignore leaked AI desktop bundle IDs before this fallback.
-    let hostApp = (session.isCodex && isCodexDesktopAppServerTarget ? HostApp.codexDesktop : nil)
-        ?? session.trustedHostApp
-        ?? (multiplexer?.isCmux == true ? .cmux : HostApp.from(editorName: terminal.program))
+    // Direct terminal/editor metadata remains authoritative. Without it, one verified
+    // live Codex app server can open a Codex thread even while its stored PID is stale.
+    // Persisted Codex bundle metadata is not used to reconstruct a host category.
+    let programHost = HostApp.from(editorName: terminal?.program)
+    let directHost = multiplexer?.isCmux == true ? HostApp.cmux : programHost
+    let hostApp = session.trustedHostApp
+        ?? (directHost != .unknown || multiplexer != nil ? directHost : nil)
+        ?? (session.isCodex && hasCurrentCodexDesktopAppServer ? HostApp.codexDesktop : nil)
+        ?? .unknown
     let target = session.workspaceFile ?? session.projectPath
 
     if hostApp == .cmux,
@@ -80,16 +81,16 @@ func resolveFocusStrategy(
 
     // iTerm2 → AppleScript to focus the specific session
     if hostApp == .iterm2,
-       let guid = extractITermGUID(from: terminal.sessionId),
+       let guid = extractITermGUID(from: terminal?.sessionId),
        guid.range(of: #"^[0-9a-fA-F-]+$"#, options: .regularExpression) != nil {
         return .iTerm2(guid: guid)
     }
 
     // Kitty → remote control to focus the specific window (pane in Kitty's terms)
     if hostApp == .kitty,
-       let socket = terminal.socket,
-       let windowId = terminal.sessionId,
-       let binaryPath = terminal.binaryPaths?["kitty"] {
+       let socket = terminal?.socket,
+       let windowId = terminal?.sessionId,
+       let binaryPath = terminal?.binaryPaths?["kitty"] {
         return .kitty(socket: socket, windowId: windowId, binaryPath: binaryPath)
     }
 
@@ -101,7 +102,7 @@ func resolveFocusStrategy(
     // NSRunningApplication.activate() can't target a single tab, and on macOS
     // Sonoma+ cooperative activation often fails to even raise the app.
     if hostApp == .terminal,
-       let tty = terminal.tty,
+       let tty = terminal?.tty,
        tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil {
         return .appleTerminal(tty: tty)
     }
@@ -124,15 +125,12 @@ private let focusQueue = DispatchQueue(label: "cctop.focus-terminal", qos: .user
 func focusTerminal(session: Session) {
     focusQueue.async {
         let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
-        let isCodexDesktopAppServerTarget = session.isCodex && session.pid.flatMap {
-            pid_t(exactly: $0)
-        }.map {
-            CodexDesktopRuntimeProbe().isCurrentDesktopAppServer(pid: $0)
-        } == true
+        let hasCurrentCodexDesktopAppServer = session.isCodex
+            && CodexDesktopRuntimeProbe().hasCurrentDesktopAppServer()
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride,
-                                            isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget)
+                                            hasCurrentCodexDesktopAppServer: hasCurrentCodexDesktopAppServer)
         let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride,
-                                                  isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget)
+                                                  primaryStrategy: strategy)
         executeFocusStrategy(strategy)
         if let mux = muxStrategy {
             executeMultiplexerFocus(mux)
