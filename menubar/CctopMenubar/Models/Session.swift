@@ -262,8 +262,8 @@ struct Session: Codable, Identifiable, Equatable {
 
     /// Whether a persisted desktop-app bundle id is believable for this harness. GUI launchers
     /// leak `__CFBundleIdentifier` into child tools, so only `cc` trusts its own Claude Desktop
-    /// bundle. Codex app focus uses verified live app-server availability instead. Other explicit sources
-    /// trust no desktop-app bundle; nil-source legacy records keep the previous bundle-first behavior.
+    /// bundle. Codex app focus uses its source and exact task deep link instead. Other explicit
+    /// sources trust no desktop-app bundle; nil-source legacy records keep the previous bundle-first behavior.
     static func trustsDesktopBundle(source: String?, bundleId: String?) -> Bool {
         switch source {
         case nil:

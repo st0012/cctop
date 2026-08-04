@@ -141,7 +141,7 @@ Codex thread state may live in more than one `state_5.sqlite` location. cctop fi
 
 Claude Desktop visibility also filters unended startup-only records when readable Claude metadata has no matching `cliSessionId` and the session is still idle with no name, prompt, tool, notification, or subagent evidence. For ended or disconnected records, cctop validates against the same metadata; if the store is readable but has no matching metadata, cctop treats the record as an orphan startup hook record and hides it without mutating or deleting the `.json`. If the metadata store is missing, the metadata-backed orphan check fails open and the record follows the normal lifecycle. If matching metadata cannot be read, display fails open for that pass while GC keeps the `.json` rather than deleting uncertain state.
 
-`com.openai.codex` remains the bundle ID used to activate the Codex app, but a persisted session bundle is not host evidence. Direct terminal/editor metadata wins for focus. Without it, one verified live Codex app server lets cctop open the exact thread even while the session's stored PID is stale. These focus inputs do not classify lifecycle, archive state, Cleanup, Recent, badges, or notifications.
+`com.openai.codex` remains the bundle ID used to launch the Codex app, but a persisted session bundle is not host evidence. Direct terminal/editor metadata wins for focus. Without it, cctop launches the installed Codex app and opens the exact thread, without requiring a running app server or current stored PID. If Codex is missing or the task cannot be opened, cctop reports the failure instead of opening Finder. These focus inputs do not classify lifecycle, archive state, Cleanup, Recent, badges, or notifications.
 
 ## Why This Shape
 

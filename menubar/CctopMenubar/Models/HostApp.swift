@@ -193,7 +193,7 @@ enum HostApp: CaseIterable {
 extension Session {
     /// GUI environments can leak `__CFBundleIdentifier` into child tools; a desktop bundle
     /// id is trusted for `cc` -> Claude Desktop and nil-source legacy records. Codex uses
-    /// direct terminal/editor metadata or verified live app-server availability for focus.
+    /// direct terminal/editor metadata when present, then its exact task deep link.
     /// A `cc` session "hosted by" Codex Desktop is impossible — that pairing is leaked
     /// launcher environment, not identity (issue #155).
     var trustedHostApp: HostApp? {
@@ -241,7 +241,7 @@ extension HostApp {
     /// Deep-link URL that focuses a specific session inside this app, if supported.
     /// Returns nil when the app has no session-jump scheme, or `sessionId` isn't a
     /// canonical UUID — the URL handler rejects non-UUID values, so we mirror its
-    /// validation client-side and fall back to plain app activation upstream.
+    /// validation client-side so callers can report an invalid task identifier.
     /// - Codex Desktop: `codex://threads/<uuid>` for live, non-archived focus.
     /// - Claude Desktop: no deep link. `claude://resume?session=<uuid>` exists but
     ///   forks the conversation rather than focusing the existing one, which would

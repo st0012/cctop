@@ -3,6 +3,20 @@ import XCTest
 
 final class FocusTerminalTests: XCTestCase {
 
+    func testRestoreAppAndOpenURLReportsMissingApplication() throws {
+        let completion = expectation(description: "reports missing application")
+
+        restoreAppAndOpenURL(
+            bundleID: "com.st0012.cctop.tests.definitely-missing",
+            url: try XCTUnwrap(URL(string: "codex://threads/019e1eff-3374-74b0-8d3d-6fba94e7d75f"))
+        ) { failure in
+            XCTAssertEqual(failure, .codexAppNotInstalled)
+            completion.fulfill()
+        }
+
+        wait(for: [completion], timeout: 1)
+    }
+
     // MARK: - GUID extraction: standard format
 
     func testGUIDExtractionStandardFormat() {
