@@ -82,6 +82,14 @@ func resolveFocusStrategy(
         return .openWithApp(bundleID: bundleID, target: target)
     }
 
+    // Warp → session deep link raises the window and focuses the exact pane
+    // (Warp v0.2026.05.27+ exposes WARP_FOCUS_URL). The restore bundle ID comes
+    // from the link's channel scheme, and activation runs first because Warp
+    // silently ignores a stale or unknown session UUID.
+    if hostApp == .warp, let link = WarpFocusLink(terminal.focusUrl) {
+        return .openURL(link.url, restoreBundleID: link.bundleID)
+    }
+
     // iTerm2 → AppleScript to focus the specific session
     if hostApp == .iterm2,
        let guid = extractITermGUID(from: terminal?.sessionId),

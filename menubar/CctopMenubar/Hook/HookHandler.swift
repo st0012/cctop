@@ -278,6 +278,11 @@ enum HookHandler {
         }
     }
 
+}
+
+extension HookHandler {
+    // MARK: - Terminal Capture
+
     static func captureTerminalInfo(env: [String: String], process: any ProcessProbing) -> TerminalInfo {
         let program = env["TERM_PROGRAM"] ?? ""
         let sessionId = sanitizeTerminalSessionId(
@@ -290,6 +295,9 @@ enum HookHandler {
         // WezTerm also has a CLI (https://wezterm.org/cli/cli/index.html) — when
         // added, socket will likely become an enum keyed by terminal.
         let socket = env["KITTY_LISTEN_ON"]
+        // Session deep link for pane focusing.
+        // Currently only Warp v0.2026.05.27+ (warpdotdev/warp#11130).
+        let focusUrl = WarpFocusLink.sanitized(env["WARP_FOCUS_URL"])
         // binaryPaths is a map so it can grow to cover other socket-based terminals
         // (e.g. wezterm) without a schema change.
         let binaryPaths = socket.flatMap { _ in
@@ -298,8 +306,8 @@ enum HookHandler {
         let multiplexer = captureMultiplexerInfo(env: env)
         return TerminalInfo(
             program: program, sessionId: sessionId, tty: tty,
-            bundleId: bundleId, socket: socket, multiplexer: multiplexer,
-            binaryPaths: binaryPaths
+            bundleId: bundleId, socket: socket, focusUrl: focusUrl,
+            multiplexer: multiplexer, binaryPaths: binaryPaths
         )
     }
 
