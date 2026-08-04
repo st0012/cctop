@@ -1,7 +1,7 @@
 # Session Lifecycle
 
-This flow documents how cctop turns a session file into one internal classification, including the display-time
-lifecycle: `active`, `dormant`, or `finished`. The desktop path applies to both Claude Desktop and Codex Desktop.
+This flow documents how cctop turns a session file into one internal classification. The display-time lifecycle is
+`active`, `dormant`, or `finished`. Claude Desktop has a desktop lifecycle. All Codex surfaces share one Codex lifecycle.
 
 The key split is intentional:
 
@@ -9,9 +9,11 @@ The key split is intentional:
 - Classification decides whether a decoded record can be displayed, hidden, archived to Recent, or used as a cleanup source.
 - Connection evidence decides whether the host is connected right now.
 - Lifecycle decides how cctop should treat a visible record.
-- Persistence actions update `disconnected_at`, remove stale files, or archive finished CLI work.
-- `disconnected_at` is the retention clock for known desktop sessions, including Claude Desktop and Codex Desktop, that have become dormant.
-- CLI and ambiguous sessions do not use dormant retention. Once disconnected, they become finished.
+- Persistence actions update `disconnected_at`, remove stale files, or archive finished non-Codex CLI work.
+- `disconnected_at` is the retention clock for non-Codex desktop sessions, currently Claude Desktop.
+- Every Codex session uses `last_activity` for the same 14-day limit, regardless of its host.
+- Before that limit, a disconnected Codex session is dormant. At the limit, the session is finished.
+- Other CLI and ambiguous sessions become finished when they disconnect.
 
 ## Display Pipeline
 
@@ -23,7 +25,7 @@ flowchart TD
 
     D -->|"archived Codex thread"| E["Hide active/dormant record<br/>preserve .json"]
     D -->|"archived Claude Desktop session"| E
-    D -->|"archived trusted desktop + known project path"| L["Emit cleanup source<br/>preserve .json"]
+    D -->|"archived Codex or Claude Desktop + known project path"| L["Emit cleanup source<br/>preserve .json"]
     D -->|"subagent-owned session"| K["Mark hidden<br/>preserve .json"]
     D -->|"Claude orphan startup record"| E
     D -->|"display record"| F["Deduplicate by stable key"]
@@ -38,38 +40,41 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["Decoded visible record"] --> B{"ended_at present?"}
+    A["Decoded visible record"] --> B{"source is Codex?"}
 
-    B -->|yes| E{"Trusted desktop host<br/>and disconnected_at missing<br/>or inside retention?"}
-    B -->|no| C{"Trusted desktop host?"}
-
-    C -->|yes| D{"Owning desktop app running?"}
+    B -->|yes| C{"last_activity is<br/>14 days old?"}
+    C -->|yes| J["Lifecycle: finished"]
+    C -->|no| D{"Connected by process<br/>or recent activity?"}
     D -->|yes| I["Lifecycle: active"]
-    D -->|no| E
-    E -->|yes| F["Lifecycle: dormant"]
-    E -->|no| G["Lifecycle: finished"]
+    D -->|no| H["Lifecycle: dormant"]
 
-    C -->|no| H{"Connected by process<br/>or fallback recency?"}
-    H -->|yes| I["Lifecycle: active"]
-    H -->|no| G
+    B -->|no| E{"Trusted desktop host?"}
+    E -->|yes| F{"Desktop app running<br/>and session not ended?"}
+    F -->|yes| I
+    F -->|no| G{"Inside desktop<br/>retention window?"}
+    G -->|yes| H
+    G -->|no| J
+
+    E -->|no| K{"Connected by process?"}
+    K -->|yes| I
+    K -->|no| J
 ```
 
 ## Persistence Actions
 
 ```mermaid
 flowchart TD
-    A["Derived candidates"] --> B{"Active desktop<br/>has disconnected_at?"}
-    B -->|yes| C["Clear stale disconnected_at"]
-    B -->|no| D{"Dormant desktop<br/>missing disconnected_at?"}
+    A["Derived candidates"] --> B{"Archived Codex or<br/>Claude Desktop?"}
+    B -->|yes| C["Preserve .json<br/>and emit a safe cleanup source"]
+    B -->|no| D{"Finished Codex or<br/>desktop session?"}
+    D -->|yes| E["Slow GC re-checks archive state<br/>then removes .json only"]
+    D -->|no| F{"Finished non-desktop,<br/>non-Codex session?"}
+    F -->|yes| G["Archive to Recent Projects<br/>then remove .json"]
+    F -->|no| H["No removal"]
 
-    D -->|yes| E["Stamp disconnected_at now"]
-    D -->|no| F{"Finished desktop<br/>past retention?"}
-
-    F -->|yes| G["Slow GC re-checks archive state<br/>then removes .json only"]
-    F -->|no| H{"Finished non-desktop?"}
-
-    H -->|yes| I["Archive to Recent Projects<br/>then remove .json"]
-    H -->|no| J["No persistence change"]
+    A --> I{"Non-Codex desktop<br/>connection changed?"}
+    I -->|yes| J["Update disconnected_at"]
+    I -->|no| H
 ```
 
 ## Field Meanings
@@ -84,16 +89,16 @@ New activity clears `ended_at` so a resumed session can become connected again.
 
 ### `disconnected_at`
 
-`disconnected_at` is only meaningful for known desktop sessions, currently Claude Desktop and Codex Desktop. It starts the dormant retention window.
+`disconnected_at` controls retention only for non-Codex desktop sessions, currently Claude Desktop. It starts that desktop retention window.
 
 It can be set in two ways:
 
-- A desktop `SessionEnd` stamps it at the same time as `ended_at`.
-- The menubar app stamps it when it first observes a known desktop session as dormant and the field is missing.
+- A Claude Desktop `SessionEnd` stamps it at the same time as `ended_at`.
+- The menubar app can stamp it when it first observes a desktop-hosted session as dormant.
 
-The menubar app clears it when the same trusted desktop app is observed running again and the session has not explicitly ended.
+The menubar app clears it when the session becomes active again.
 
-CLI sessions do not need `disconnected_at` because disconnected CLI sessions become finished immediately.
+Codex lifecycle does not read `disconnected_at`, even when a Codex record contains this field. Codex uses `last_activity` and the 14-day limit.
 
 ## Dedup and Cleanup
 
@@ -101,28 +106,31 @@ Session files are deduplicated by a stable identity key before publishing. `Sess
 
 Archived active or dormant Codex threads are filtered before display dedup regardless of whether their cctop record came from Codex Desktop, Codex CLI, VS Code, or another Codex surface. This archive rule does not classify the record as Desktop. cctop does not persist `hidden = true` or remove the `.json`, so an unarchived thread that is otherwise active becomes visible again. A transiently unreadable Codex state store retains the last authoritative classification; when no readable archive evidence has ever been available, display fails open rather than guessing.
 
-Only trusted archived desktop records enter the desktop-specific Recent and worktree-cleanup paths. They are not archived into Recent Projects, and a record with a known project path can emit an explicit worktree cleanup source without deleting its session JSON. Archived Codex records without trusted Desktop evidence do not emit that source or become Desktop resume targets. Finished Codex records without trusted Desktop evidence keep the normal terminal cleanup path instead of being retained as hidden archive records. If host metadata is missing, unreadable, or lacks enough path evidence, desktop cleanup fails safe by emitting no source.
+Archived Codex records do not enter Recent. A record with a safe project path can emit a worktree cleanup source without deleting its session JSON. This rule applies to every Codex surface. Bundle identity is not required. If archive state is unreadable, cctop preserves the record and does not guess.
+
+Archived Claude Desktop records use the same preserve-and-cleanup behavior. They require trusted Claude Desktop metadata. Missing or unsafe path evidence emits no cleanup source.
 
 Deleted or missing desktop conversations are narrower than archived conversations. Missing Codex thread rows, orphaned ended Claude Desktop records, and Claude startup placeholders stay hidden and preserve their session JSON, but they do not become cleanup sources unless the host metadata explicitly marks the conversation archived. That keeps cleanup eligibility tied to an affirmative archive signal rather than treating every metadata miss as abandonment.
 
-Worktree cleanup consumes `SessionClassificationSnapshot.cleanupSources` plus already-ended history records. The scanner only validates filesystem and Git/worktree state from those sources; it does not rediscover lifecycle, archive state, desktop hosting, or process liveness. Active display paths and auto-hidden, persisted-hidden, subagent, and helper paths are protected by the same classification pass that feeds display. Archived desktop records are not protected by being hidden; when the classifier has safe project/worktree path evidence, they become explicit cleanup sources while their session JSON is preserved.
+Worktree cleanup consumes `SessionClassificationSnapshot.cleanupSources` plus already-ended history records. The scanner validates filesystem and Git state from those sources. It does not classify sessions again. Active display paths and locally hidden or helper paths stay protected. Archived Codex and Claude Desktop records can become cleanup sources while their session JSON stays present.
 
 Internal helper sessions are filtered before dedup and cleanup, then persisted as `hidden = true`. Any client can mark a session file with `is_subagent = true`. For Codex, structured `threads.source` is authoritative: `SubAgent(...)` and `Internal(...)` are helper sources, while `cli` and `vscode` are interactive roots even when `thread_source = 'subagent'`. Spawn edges are secondary corroboration; unknown, malformed, or contradictory evidence remains visible and is diagnosed conservatively. Sticky Codex `is_subagent`/`hidden` state is repaired only for a proven interactive root with a readable edge table, no spawn edge, and no independent auto-hide cause. The parent session's `active_subagents` list remains visible, because it describes delegated work owned by the user-facing session rather than making the parent itself a helper.
 
-Finished terminal or ambiguous sessions that survive dedup are archived to Recent Projects and then removed. Finished non-desktop duplicates that lose dedup are migration debris, so cctop removes their stale `.json` files without archiving them as separate recent sessions.
+Finished non-Codex terminal or ambiguous sessions are archived to Recent Projects and then removed. Codex does not enter this legacy Recent path. The slow GC removes an unarchived Codex record only after the 14-day limit and a fresh archive check.
 
 When `SessionStart` lands on an undecodable PID-keyed session file, the hook may replace that file with a fresh record and continue project cleanup for the new process. Later non-start events still preserve undecodable files, and decoded Codex or trusted-desktop mismatches are refused even at `SessionStart`. Those refused files recover through the normal app path: the menubar app classifies the stale desktop record, lifecycle/GC rechecks external archive state under lock before deletion, and a later hook can recreate the live session once the blocking stale file is gone. This intentionally favors avoiding clobber of trusted desktop/Codex records over adopting an ambiguous colliding PID immediately.
 
 `SessionLifecyclePolicy` owns the derived state question: whether the record is connected, and whether a disconnected record should be active, dormant, or finished for its host class. The lifecycle remains display-time state only; it is not persisted to the session file.
 
-## Desktop Host Coverage
+## Host and Source Coverage
 
-Claude Desktop and Codex Desktop both enter the desktop lifecycle path only through trusted bundle IDs:
+Claude Desktop enters the desktop lifecycle through its trusted bundle ID:
 
 - Claude Desktop: `com.anthropic.claudefordesktop`
-- Codex Desktop: `com.openai.codex`
 
-Once a validated desktop app is not running, cctop keeps its visible sessions as dormant while `disconnected_at` is inside the retention window, then the slow GC removes stale `.json` files. When that desktop app is running again, its visible sessions are active display records, so their stored status can render as Idle, Working, Compacting, Waiting, Permission, or Attention instead of Dormant.
+When Claude Desktop stops, cctop keeps its visible sessions dormant during the retention window. The slow GC removes finished records after a lock-held metadata check.
+
+Every `source: "codex"` record uses the same Codex lifecycle. The host can be Codex Desktop, CLI, VS Code, or another editor. Process or recent hook activity makes the session active. A disconnected session stays dormant until `last_activity` reaches 14 days. Bundle and app-server evidence do not change this lifecycle.
 
 The archive metadata source is client-specific:
 
@@ -133,17 +141,10 @@ Codex thread state may live in more than one `state_5.sqlite` location. cctop fi
 
 Claude Desktop visibility also filters unended startup-only records when readable Claude metadata has no matching `cliSessionId` and the session is still idle with no name, prompt, tool, notification, or subagent evidence. For ended or disconnected records, cctop validates against the same metadata; if the store is readable but has no matching metadata, cctop treats the record as an orphan startup hook record and hides it without mutating or deleting the `.json`. If the metadata store is missing, the metadata-backed orphan check fails open and the record follows the normal lifecycle. If matching metadata cannot be read, display fails open for that pass while GC keeps the `.json` rather than deleting uncertain state.
 
-The active liveness evidence is layered:
-
-- Claude Desktop and Codex Desktop use app-level bundle liveness when the bundle is known.
-- If app-level liveness is not available, Codex Desktop falls back to recent hook activity instead of PID liveness, because Codex Desktop can report multiple conversations from a shared host process.
-- Non-desktop sessions keep using their own process liveness and terminal-style cleanup.
-
-Both hosts still use the same disconnected-state policy after the shared connection step.
+The Codex Desktop bundle ID and app-server process evidence remain useful for focus routing. They help cctop open the correct Codex thread. They do not classify lifecycle, archive state, Cleanup, Recent, badges, or notifications.
 
 ## Why This Shape
 
-The connection state is shared across host classes, but host policy differs:
+Codex provides one conversation across several possible hosts. A host label is not a stable lifecycle boundary. The source-level policy avoids different behavior when the same conversation moves between Desktop, CLI, and an editor.
 
-- Desktop disconnection may be temporary because Claude Desktop or Codex Desktop can close or update while conversations still exist inside the app.
-- CLI disconnection means the process is gone or the hook explicitly ended the session, so the old archive/remove behavior remains correct.
+The 14-day limit removes old unarchived Codex records. An archive signal preserves the record and makes a safe worktree available to Cleanup.
