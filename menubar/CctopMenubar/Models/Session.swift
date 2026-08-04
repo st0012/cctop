@@ -116,9 +116,11 @@ struct WarpFocusLink {
     let bundleID: String
 
     init?(_ raw: String?) {
+        // `\z` anchors at true end-of-input, so a trailing line terminator can
+        // never slip past the match regardless of ICU `$` semantics.
         guard let raw,
               raw.range(
-                  of: #"^[a-z]+://session/[0-9a-f]{32}$"#,
+                  of: #"^[a-z]+://session/[0-9a-f]{32}\z"#,
                   options: .regularExpression
               ) != nil,
               let scheme = raw.components(separatedBy: "://").first,
