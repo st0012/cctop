@@ -138,6 +138,36 @@ final class FocusTerminalTests: XCTestCase {
         )
     }
 
+    func testRecentProjectPrefersStoredWarpChannelBundleId() {
+        // All Warp channels display as "Warp"; the stored bundle ID reopens the
+        // exact channel that hosted the session instead of hard-coded stable.
+        let project = RecentProject.mock(editor: "Warp", editorBundleId: "dev.warp.Warp-Preview")
+        XCTAssertEqual(
+            resolveRecentProjectOpenStrategy(project: project),
+            .openWithApp(bundleID: "dev.warp.Warp-Preview", target: project.projectPath)
+        )
+    }
+
+    func testRecentProjectWithoutStoredBundleIdKeepsNameDerivedApp() {
+        // Legacy history projections have no bundle ID; names keep resolving to
+        // the canonical bundle as before.
+        let project = RecentProject.mock(editor: "Warp")
+        XCTAssertEqual(
+            resolveRecentProjectOpenStrategy(project: project),
+            .openWithApp(bundleID: "dev.warp.Warp-Stable", target: project.projectPath)
+        )
+    }
+
+    func testRecentProjectUnrecognizedStoredBundleIdFallsBackToName() {
+        // History files are user-writable; an unrecognized bundle ID must never
+        // launch an arbitrary app, only the name-derived one.
+        let project = RecentProject.mock(editor: "Warp", editorBundleId: "com.evil.app")
+        XCTAssertEqual(
+            resolveRecentProjectOpenStrategy(project: project),
+            .openWithApp(bundleID: "dev.warp.Warp-Stable", target: project.projectPath)
+        )
+    }
+
     func testRecentProjectKnownEditorOpensWorkspaceFileWithApp() {
         let workspaceFile = "/Users/dev/projects/my-project/my-project.code-workspace"
         let project = RecentProject.mock(editor: "Cursor", workspaceFile: workspaceFile)

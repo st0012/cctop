@@ -1,9 +1,14 @@
 import Foundation
 
 func resolveRecentProjectOpenStrategy(project: RecentProject) -> FocusStrategy {
-    guard let opener = project.lastEditor,
-          let hostApp = HostApp.projectOpener(fromProgramName: opener),
-          let bundleID = hostApp.bundleID else {
+    // Prefer the captured bundle ID over the display name when it identifies a
+    // known project opener on its own: one name can cover several bundle IDs
+    // (Warp release channels all display as "Warp"), and only the captured ID
+    // reopens the exact app that hosted the session. An unrecognized stored ID
+    // (tampered history, uninstalled fork) falls back to the name-derived app.
+    let storedOpener = HostApp.projectOpener(fromBundleIdentifier: project.lastEditorBundleId)
+    guard let hostApp = storedOpener ?? HostApp.projectOpener(fromProgramName: project.lastEditor),
+          let bundleID = storedOpener != nil ? project.lastEditorBundleId : hostApp.bundleID else {
         return .openInFinder(project.projectPath)
     }
 

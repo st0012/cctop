@@ -119,6 +119,7 @@ class HistoryManager: ObservableObject {
                     lastSessionAt: entry.latest.effectiveEndDate,
                     sessionCount: entry.count,
                     lastEditor: RecentProject.projectOpenerName(from: entry.latest.terminal),
+                    lastEditorBundleId: RecentProject.projectOpenerBundleId(from: entry.latest.terminal),
                     lastAgent: RecentProject.agentName(from: entry.latest),
                     workspaceFile: entry.latest.workspaceFile
                 )

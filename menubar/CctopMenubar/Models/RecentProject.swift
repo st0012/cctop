@@ -7,6 +7,10 @@ struct RecentProject: Identifiable, Equatable {
     let lastSessionAt: Date
     let sessionCount: Int
     let lastEditor: String?
+    /// Captured host bundle ID, kept alongside the display name because one name
+    /// can cover several bundle IDs (Warp release channels). Defaults to nil so
+    /// legacy history projections keep name-based opening.
+    var lastEditorBundleId: String?
     let lastAgent: String?
     let workspaceFile: String?
 
@@ -62,6 +66,15 @@ struct RecentProject: Identifiable, Equatable {
     static func projectOpenerName(from terminal: TerminalInfo?) -> String? {
         guard let hostApp = projectOpener(from: terminal) else { return nil }
         return hostApp.displayName
+    }
+
+    /// The captured bundle ID, kept only when it identifies a known project
+    /// opener on its own. History files are user-writable, so the resolver
+    /// validates again before opening anything with it.
+    static func projectOpenerBundleId(from terminal: TerminalInfo?) -> String? {
+        guard let bundleId = terminal?.bundleId,
+              HostApp.projectOpener(fromBundleIdentifier: bundleId) != nil else { return nil }
+        return bundleId
     }
 
     static func agentName(from session: Session) -> String? {

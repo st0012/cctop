@@ -7,6 +7,7 @@ extension RecentProject {
         daysAgo: Int = 1,
         sessionCount: Int = 3,
         editor: String? = "Cursor",
+        editorBundleId: String? = nil,
         agent: String? = "Codex",
         workspaceFile: String? = nil
     ) -> RecentProject {
@@ -17,6 +18,7 @@ extension RecentProject {
             lastSessionAt: Date().addingTimeInterval(TimeInterval(-daysAgo * 86400)),
             sessionCount: sessionCount,
             lastEditor: editor,
+            lastEditorBundleId: editorBundleId,
             lastAgent: agent,
             workspaceFile: workspaceFile
         )
