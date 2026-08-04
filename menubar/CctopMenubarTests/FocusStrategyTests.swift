@@ -372,6 +372,39 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .activateByName("iterm2"))
     }
 
+    func testCurrentCodexAppServerDoesNotOverrideUnknownDirectProgram() {
+        var session = makeSession(
+            program: "UnsupportedHost",
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        )
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            hasCurrentCodexDesktopAppServer: true
+        )
+
+        XCTAssertEqual(strategy, .openInFinder(projectPath))
+    }
+
+    func testCurrentCodexAppServerDoesNotOverrideTTYOnlyHostEvidence() {
+        var session = makeSession(
+            program: "",
+            tty: "/dev/ttys017",
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        )
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            hasCurrentCodexDesktopAppServer: true
+        )
+
+        XCTAssertEqual(strategy, .openInFinder(projectPath))
+    }
+
     func testCurrentCodexAppServerDoesNotOverrideMultiplexer() {
         let multiplexer = MultiplexerInfo.zellij(
             sessionName: "dev",

@@ -52,8 +52,11 @@ func resolveFocusStrategy(
     // Persisted Codex bundle metadata is not used to reconstruct a host category.
     let programHost = HostApp.from(editorName: terminal?.program)
     let directHost = multiplexer?.isCmux == true ? HostApp.cmux : programHost
+    let hasDirectHostEvidence = terminal?.program.isEmpty == false
+        || terminal?.tty?.isEmpty == false
+        || multiplexer != nil
     let hostApp = session.trustedHostApp
-        ?? (directHost != .unknown || multiplexer != nil ? directHost : nil)
+        ?? (hasDirectHostEvidence ? directHost : nil)
         ?? (session.isCodex && hasCurrentCodexDesktopAppServer ? HostApp.codexDesktop : nil)
         ?? .unknown
     let target = session.workspaceFile ?? session.projectPath
