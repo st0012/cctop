@@ -64,6 +64,7 @@ struct TerminalInfo: Codable, Equatable {
     let tty: String?
     let bundleId: String?
     let socket: String? // Remote-control socket (e.g. KITTY_LISTEN_ON)
+    let focusUrl: String? // Session deep link for pane focusing (e.g. WARP_FOCUS_URL)
     let multiplexer: MultiplexerInfo?
     let binaryPaths: [String: String]?
 
@@ -73,20 +74,64 @@ struct TerminalInfo: Codable, Equatable {
         case tty
         case bundleId = "bundle_id"
         case socket
+        case focusUrl = "focus_url"
         case multiplexer
         case binaryPaths = "binary_paths"
     }
 
     init(program: String = "", sessionId: String? = nil, tty: String? = nil,
-         bundleId: String? = nil, socket: String? = nil, multiplexer: MultiplexerInfo? = nil,
+         bundleId: String? = nil, socket: String? = nil, focusUrl: String? = nil,
+         multiplexer: MultiplexerInfo? = nil,
          binaryPaths: [String: String]? = nil) {
         self.program = program
         self.sessionId = sessionId
         self.tty = tty
         self.bundleId = bundleId
         self.socket = socket
+        self.focusUrl = focusUrl
         self.multiplexer = multiplexer
         self.binaryPaths = binaryPaths
+    }
+}
+
+/// Warp session deep link (`<channel-scheme>://session/<32 hex>`), exposed to shells
+/// as `WARP_FOCUS_URL` since Warp v0.2026.05.27. Opening it makes Warp raise the
+/// window and focus the exact pane hosting that terminal session; a stale or
+/// unknown UUID is silently ignored by Warp.
+///
+/// Session JSON is user-writable, so both the hook (capture) and the app (focus)
+/// validate against this exact shape — anything else is dropped rather than opened.
+/// Each Warp release channel registers its own URL scheme and bundle ID
+/// (warpdotdev/warp script/macos/bundle), so the scheme also identifies which
+/// app to activate.
+struct WarpFocusLink {
+    private static let bundleIDsByScheme: [String: String] = [
+        "warp": "dev.warp.Warp-Stable",
+        "warppreview": "dev.warp.Warp-Preview",
+        "warpdev": "dev.warp.Warp-Dev",
+        "warposs": "dev.warp.WarpOss"
+    ]
+
+    let url: URL
+    let bundleID: String
+
+    init?(_ raw: String?) {
+        guard let raw,
+              raw.range(
+                  of: #"^[a-z]+://session/[0-9a-f]{32}$"#,
+                  options: .regularExpression
+              ) != nil,
+              let scheme = raw.components(separatedBy: "://").first,
+              let bundleID = Self.bundleIDsByScheme[scheme],
+              let url = URL(string: raw)
+        else { return nil }
+        self.url = url
+        self.bundleID = bundleID
+    }
+
+    /// Capture-side sanitizer: returns the value only when it is a valid focus link.
+    static func sanitized(_ raw: String?) -> String? {
+        WarpFocusLink(raw) != nil ? raw : nil
     }
 }
 

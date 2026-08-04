@@ -81,9 +81,9 @@ view and a reliable jump target.
 When you click a session card, or use Navigate mode, cctop tries to take you to
 the most specific place it can.
 
-- **Targets the exact session:** [iTerm2](https://iterm2.com/), [cmux](https://cmux.com/), [Kitty](https://sw.kovidgoyal.net/kitty/), [Ghostty](https://ghostty.org/), [Terminal](https://support.apple.com/guide/terminal/welcome/mac), [Codex Desktop](https://developers.openai.com/codex/app), [Herdr](https://github.com/ogulcancelik/herdr), [Zellij](https://zellij.dev/), [tmux](https://tmux.us/). cctop jumps to the right window, tab, pane, surface, or desktop thread.
+- **Targets the exact session:** [iTerm2](https://iterm2.com/), [Warp](https://www.warp.dev/terminal), [cmux](https://cmux.com/), [Kitty](https://sw.kovidgoyal.net/kitty/), [Ghostty](https://ghostty.org/), [Terminal](https://support.apple.com/guide/terminal/welcome/mac), [Codex Desktop](https://developers.openai.com/codex/app), [Herdr](https://github.com/ogulcancelik/herdr), [Zellij](https://zellij.dev/), [tmux](https://tmux.us/). cctop jumps to the right window, tab, pane, surface, or desktop thread.
 - **Opens the project:** [VS Code](https://code.visualstudio.com/), [Cursor](https://cursor.com/), [Windsurf](https://windsurf.com/download), [Zed](https://zed.dev/). cctop focuses the editor window, using the workspace file if present.
-- **Activates the app:** [Claude Desktop](https://claude.com/download), [Warp](https://www.warp.dev/terminal). cctop raises the host app so you can find the tab manually.
+- **Activates the app:** [Claude Desktop](https://claude.com/download). cctop raises the host app so you can find the tab manually.
 
 <details>
 <summary>Focus details and requirements</summary>
@@ -92,6 +92,10 @@ the most specific place it can.
 - Kitty targets the exact window when `allow_remote_control socket-only` and
   `listen_on` are enabled in `kitty.conf`; otherwise it falls back to app
   activation.
+- Warp targets the exact pane via its session deep link
+  ([`WARP_FOCUS_URL`](https://github.com/warpdotdev/warp/pull/11130)), available
+  since Warp v0.2026.05.27. Sessions started on older Warp versions fall back to
+  app activation.
 - cmux targets the exact workspace surface from stored metadata, and can recover
   live cmux metadata for already-running sessions.
 - Ghostty requires version 1.3.0+ for AppleScript support. If the session TTY is
