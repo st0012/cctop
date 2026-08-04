@@ -236,6 +236,34 @@ final class HistoryManagerTests: XCTestCase {
         XCTAssertEqual(result[0].projectName, "app")
     }
 
+    func testBuildRecentProjectsKeepsWarpChannelBundleId() {
+        // tmux inside Warp Preview: the display name collapses to "Warp", so only
+        // the captured bundle ID identifies which channel to reopen.
+        let sessions = [
+            mockSession(project: "app", endedAt: Date(), terminal: TerminalInfo(
+                program: "tmux", bundleId: "dev.warp.Warp-Preview"
+            )),
+        ]
+        let result = recentProjects(from: sessions)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].lastEditor, "Warp")
+        XCTAssertEqual(result[0].lastEditorBundleId, "dev.warp.Warp-Preview")
+    }
+
+    func testBuildRecentProjectsDropsBundleIdThatIsNotAProjectOpener() {
+        // cmux is a recognized host but cannot reopen projects, so its bundle ID
+        // must not be stored as an opener; the program name still resolves one.
+        let sessions = [
+            mockSession(project: "app", endedAt: Date(), terminal: TerminalInfo(
+                program: "Code", bundleId: "com.cmuxterm.app"
+            )),
+        ]
+        let result = recentProjects(from: sessions)
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0].lastEditor, "VS Code")
+        XCTAssertNil(result[0].lastEditorBundleId)
+    }
+
     func testBuildRecentProjectsExcludesActive() {
         let now = Date()
         let sessions = [
