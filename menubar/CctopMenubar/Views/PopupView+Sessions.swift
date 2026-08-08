@@ -1,5 +1,46 @@
 import SwiftUI
 
+extension FocusStrategy {
+    var actionTitle: String {
+        switch self {
+        case .openWithApp(let bundleID, _):
+            let name = HostApp.from(bundleIdentifier: bundleID)?.displayName ?? "App"
+            return "Open Project in \(name)"
+        case .iTerm2:
+            return "Focus iTerm2 Pane"
+        case .kitty:
+            return "Focus Kitty Window"
+        case .ghostty:
+            return "Focus Ghostty Terminal"
+        case .appleTerminal:
+            return "Focus Terminal Tab"
+        case .activateByName(let name):
+            let host = HostApp.from(editorName: name)
+            if host == .cmux { return "Focus cmux" }
+            let displayName = host == .unknown ? name : host.displayName
+            return "Bring \(displayName) Forward"
+        case .activateByBundleID(let bundleID):
+            let host = HostApp.from(bundleIdentifier: bundleID)
+            if host == .cmux { return "Focus cmux" }
+            let name = host?.displayName ?? "App"
+            return "Bring \(name) Forward"
+        case .openURL(let url, _):
+            if url.scheme?.lowercased() == "codex" {
+                return "Focus Codex Task"
+            }
+            if url.scheme?.lowercased() == "cmux" {
+                let target = url.pathComponents.contains("surface") ? "Surface" : "Pane"
+                return "Focus cmux \(target)"
+            }
+            return "Open Session"
+        case .openInFinder:
+            return "Open Project in Finder"
+        case .unavailable:
+            return "Why Focus Is Unavailable"
+        }
+    }
+}
+
 struct PanelSessionRow: Identifiable {
     let slot: Int
     let session: Session
@@ -76,7 +117,9 @@ extension PopupView {
     }
 
     private func sessionRow(_ row: PanelSessionRow, showNavigateNumbers: Bool) -> some View {
-        SessionCardView(
+        let focusStrategy = resolveFocusStrategy(session: row.session)
+        let focusActionTitle = focusStrategy.actionTitle
+        return SessionCardView(
             session: row.session,
             navigateIndex: showNavigateNumbers && isNavigateActive ? row.slot + 1 : nil,
             showSourceBadge: hasMultipleSources,
@@ -87,10 +130,15 @@ extension PopupView {
         .onTapGesture { focusSession(row.session) }
         .contextMenu {
             Button { focusSession(row.session) } label: {
-                Label("Jump to Terminal", systemImage: "terminal")
+                Label(focusActionTitle, systemImage: "scope")
             }
-            Button { openInFinder(path: row.session.projectPath) } label: {
-                Label("Open in Finder", systemImage: "folder")
+            switch focusStrategy {
+            case .openInFinder:
+                EmptyView()
+            default:
+                Button { openInFinder(path: row.session.projectPath) } label: {
+                    Label("Open in Finder", systemImage: "folder")
+                }
             }
             Button { copyPath(row.session.projectPath) } label: {
                 Label("Copy Project Path", systemImage: "doc.on.doc")
@@ -101,7 +149,7 @@ extension PopupView {
             }
             .disabled(!Session.isValidCctopSessionId(row.session.cctopSessionId))
         }
-        .help("Click to jump to session")
+        .help(focusActionTitle)
         .accessibilityActions {
             Button("Hide Session") { requestHideSession(row.session) }
                 .disabled(!Session.isValidCctopSessionId(row.session.cctopSessionId))

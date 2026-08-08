@@ -25,6 +25,31 @@ final class FocusStrategyTests: XCTestCase {
         )
     }
 
+    func testActionTitleDescribesResolvedFocusBehavior() throws {
+        let codexURL = try XCTUnwrap(URL(string: "codex://threads/019e1eff-3374-74b0-8d3d-6fba94e7d75f"))
+
+        XCTAssertEqual(FocusStrategy.openURL(codexURL).actionTitle, "Focus Codex Task")
+        XCTAssertEqual(FocusStrategy.iTerm2(guid: "ABC-123").actionTitle, "Focus iTerm2 Pane")
+        XCTAssertEqual(FocusStrategy.appleTerminal(tty: "/dev/ttys003").actionTitle, "Focus Terminal Tab")
+        XCTAssertEqual(
+            FocusStrategy.ghostty(GhosttyFocusTarget(tty: nil, matchDirectory: projectPath, restoreDirectory: nil)).actionTitle,
+            "Focus Ghostty Terminal"
+        )
+        XCTAssertEqual(FocusStrategy.activateByName("cmux").actionTitle, "Focus cmux")
+        let cmuxBundleID = try XCTUnwrap(HostApp.cmux.bundleID)
+        XCTAssertEqual(FocusStrategy.activateByBundleID(cmuxBundleID).actionTitle, "Focus cmux")
+        XCTAssertEqual(
+            FocusStrategy.openWithApp(bundleID: "com.microsoft.VSCode", target: projectPath).actionTitle,
+            "Open Project in VS Code"
+        )
+        XCTAssertEqual(
+            FocusStrategy.activateByBundleID(HostAppBundleID.claudeDesktop).actionTitle,
+            "Bring Claude Desktop Forward"
+        )
+        XCTAssertEqual(FocusStrategy.openInFinder(projectPath).actionTitle, "Open Project in Finder")
+        XCTAssertEqual(FocusStrategy.unavailable(.codexTaskIdentifierInvalid).actionTitle, "Why Focus Is Unavailable")
+    }
+
     // MARK: - Editors use openWithApp (not Process/env)
 
     func testVSCodeUsesOpenWithApp() {
