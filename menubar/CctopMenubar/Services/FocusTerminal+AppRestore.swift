@@ -69,6 +69,36 @@ func restoreAppAndOpenURL(bundleID: String, url: URL, completion: @escaping (Foc
     }
 }
 
+/// Focus the exact Warp pane via its session deep link. Opening the URL with the
+/// channel app also activates it, so the window comes forward even when Warp
+/// silently ignores a stale or unknown session UUID. Failures fall back to plain
+/// activation like the other terminals — pane focus is best-effort and never alerts.
+func executeWarpFocus(link: WarpFocusLink) -> Bool {
+    DispatchQueue.main.async {
+        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: link.bundleID) else {
+            // The captured channel app is gone; raise whatever Warp is present instead.
+            if !activateAppByName("warp"), let stable = HostApp.warp.bundleID {
+                activateAppByBundleID(stable)
+            }
+            return
+        }
+        NSWorkspace.shared.open(
+            [link.url],
+            withApplicationAt: appURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        ) { _, error in
+            DispatchQueue.main.async {
+                if error != nil {
+                    activateAppByBundleID(link.bundleID)
+                } else {
+                    NSApp.deactivate()
+                }
+            }
+        }
+    }
+    return false
+}
+
 func executeAppURLStrategy(url: URL, restoreBundleID: String?) -> Bool {
     DispatchQueue.main.async {
         if let restoreBundleID {
