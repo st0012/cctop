@@ -104,7 +104,7 @@ struct TerminalInfo: Codable, Equatable {
 /// Each Warp release channel registers its own URL scheme and bundle ID
 /// (warpdotdev/warp script/macos/bundle), so the scheme also identifies which
 /// app to activate.
-struct WarpFocusLink {
+struct WarpFocusLink: Equatable {
     private static let bundleIDsByScheme: [String: String] = [
         "warp": "dev.warp.Warp-Stable",
         "warppreview": "dev.warp.Warp-Preview",

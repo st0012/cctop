@@ -8,6 +8,8 @@ enum FocusStrategy: Equatable {
     case openWithApp(bundleID: String, target: String)
     /// Focus an iTerm2 session by its unique GUID, with a bundle ID fallback.
     case iTerm2(guid: String)
+    /// Focus the exact Warp pane via its session deep link, with silent activation fallback.
+    case warp(WarpFocusLink)
     /// Focus a Kitty window via remote control socket, with bundle ID fallback.
     case kitty(socket: String, windowId: String, binaryPath: String)
     /// Focus a Ghostty terminal by marking its TTY cwd, with a working-directory fallback.
@@ -102,12 +104,10 @@ func resolveFocusStrategy(
 private func resolveTerminalPaneFocus(hostApp: HostApp, session: Session) -> FocusStrategy? {
     let terminal = session.terminal
 
-    // Warp → session deep link raises the window and focuses the exact pane
-    // (Warp v0.2026.05.27+ exposes WARP_FOCUS_URL). The restore bundle ID comes
-    // from the link's channel scheme, and activation runs first because Warp
-    // silently ignores a stale or unknown session UUID.
+    // Warp → session deep link (WARP_FOCUS_URL, Warp v0.2026.05.27+) raises
+    // the window and focuses the exact pane. Execution details in executeWarpFocus.
     if hostApp == .warp, let link = WarpFocusLink(terminal?.focusUrl) {
-        return .openURL(link.url, restoreBundleID: link.bundleID)
+        return .warp(link)
     }
 
     // iTerm2 → AppleScript to focus the specific session
@@ -210,6 +210,9 @@ func executeFocusStrategy(_ strategy: FocusStrategy) -> Bool {
         DispatchQueue.main.async {
             activateAppByBundleID(bundleID)
         }
+
+    case .warp(let link):
+        return executeWarpFocus(link: link)
 
     case .openURL(let url, let restoreBundleID):
         return executeAppURLStrategy(url: url, restoreBundleID: restoreBundleID)

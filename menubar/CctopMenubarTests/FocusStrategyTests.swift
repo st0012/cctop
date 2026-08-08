@@ -161,20 +161,29 @@ final class FocusStrategyTests: XCTestCase {
 
     private let warpFocusURL = "warp://session/550e8400e29b41d4a716446655440000"
 
-    func testWarpWithFocusURLUsesSessionDeepLink() throws {
+    private func assertWarpStrategy(
+        _ strategy: FocusStrategy, url: String, bundleID: String,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard case .warp(let link) = strategy else {
+            XCTFail("expected .warp, got \(strategy)", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(link.url.absoluteString, url, file: file, line: line)
+        XCTAssertEqual(link.bundleID, bundleID, file: file, line: line)
+    }
+
+    func testWarpWithFocusURLUsesSessionDeepLink() {
         let session = makeSession(
             program: "WarpTerminal",
             bundleId: "dev.warp.Warp-Stable",
             focusUrl: warpFocusURL
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .openURL(
-            try XCTUnwrap(URL(string: warpFocusURL)),
-            restoreBundleID: "dev.warp.Warp-Stable"
-        ))
+        assertWarpStrategy(strategy, url: warpFocusURL, bundleID: "dev.warp.Warp-Stable")
     }
 
-    func testWarpPreviewFocusURLActivatesPreviewBundle() throws {
+    func testWarpPreviewFocusURLActivatesPreviewBundle() {
         // Non-stable channels have their own URL scheme and bundle ID; the
         // program name still resolves the host because only the stable bundle
         // ID is in the HostApp map.
@@ -185,13 +194,10 @@ final class FocusStrategyTests: XCTestCase {
             focusUrl: url
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .openURL(
-            try XCTUnwrap(URL(string: url)),
-            restoreBundleID: "dev.warp.Warp-Preview"
-        ))
+        assertWarpStrategy(strategy, url: url, bundleID: "dev.warp.Warp-Preview")
     }
 
-    func testWarpDetectedByBundleIdWhenProgramDiffers() throws {
+    func testWarpDetectedByBundleIdWhenProgramDiffers() {
         // tmux inside Warp: TERM_PROGRAM says tmux, __CFBundleIdentifier still says Warp.
         let session = makeSession(
             program: "tmux",
@@ -199,13 +205,10 @@ final class FocusStrategyTests: XCTestCase {
             focusUrl: warpFocusURL
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .openURL(
-            try XCTUnwrap(URL(string: warpFocusURL)),
-            restoreBundleID: "dev.warp.Warp-Stable"
-        ))
+        assertWarpStrategy(strategy, url: warpFocusURL, bundleID: "dev.warp.Warp-Stable")
     }
 
-    func testWarpPreviewDetectedByBundleIdWhenProgramDiffers() throws {
+    func testWarpPreviewDetectedByBundleIdWhenProgramDiffers() {
         // tmux inside Warp Preview: only the channel bundle ID identifies the host,
         // and it is not the stable bundle ID listed in HostApp's map.
         let url = "warppreview://session/550e8400e29b41d4a716446655440000"
@@ -215,10 +218,7 @@ final class FocusStrategyTests: XCTestCase {
             focusUrl: url
         )
         let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .openURL(
-            try XCTUnwrap(URL(string: url)),
-            restoreBundleID: "dev.warp.Warp-Preview"
-        ))
+        assertWarpStrategy(strategy, url: url, bundleID: "dev.warp.Warp-Preview")
     }
 
     func testWarpWithInvalidFocusURLFallsBackToActivate() {
