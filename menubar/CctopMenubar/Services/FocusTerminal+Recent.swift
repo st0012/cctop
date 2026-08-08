@@ -27,3 +27,11 @@ func resolveRecentResumeTargetOpenStrategy(target: RecentResumeTarget) -> FocusS
         return .activateByBundleID(HostAppBundleID.claudeDesktop)
     }
 }
+
+func openInEditor(project: RecentProject) {
+    executeFocusStrategy(resolveRecentProjectOpenStrategy(project: project))
+}
+
+func openRecentResumeTarget(_ target: RecentResumeTarget) {
+    executeFocusStrategy(resolveRecentResumeTargetOpenStrategy(target: target))
+}
