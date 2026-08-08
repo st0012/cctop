@@ -273,8 +273,8 @@ private struct CodexHookTrustInstructions: View {
     }
 }
 
-/// Trusted-hooks badge for the Codex row. "Ready" rather than "Connected":
-/// trusted hooks mean tracking will work, not that a session is live.
+/// Trusted-hooks badge for the Codex row. "Ready" rather than "Installed":
+/// trusted hooks mean tracking will work, not merely that hook files exist.
 struct HooksReadyBadge: View {
     var body: some View {
         StatusDotBadge(text: "Ready")
