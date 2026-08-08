@@ -38,7 +38,7 @@ struct StatusDotBadge: View {
     }
 }
 
-struct ConnectedBadge: View { var body: some View { StatusDotBadge(text: "Connected") } }
+struct InstalledBadge: View { var body: some View { StatusDotBadge(text: "Installed") } }
 
 struct AmberSegmentedPicker<Value: Hashable>: View {
     let options: [(value: Value, label: String)]

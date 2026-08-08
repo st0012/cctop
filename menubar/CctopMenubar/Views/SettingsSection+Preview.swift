@@ -34,7 +34,7 @@ private func previewPendingCodexTrustPM() -> PluginManager {
     SettingsSection(updater: DisabledUpdater(), pluginManager: previewBasePM()).frame(width: 320).padding()
 }
 
-#Preview("All connected") {
+#Preview("All installed") {
     SettingsSection(updater: DisabledUpdater(), pluginManager: previewPM()).frame(width: 320).padding()
 }
 

@@ -386,7 +386,7 @@ private struct PluginRowView: View {
             } else if needsUpdate {
                 updateButton
             } else if installed {
-                ConnectedBadge()
+                InstalledBadge()
                 Button { if !remove() { flashFailed() } } label: {
                     Text("Remove").font(.system(size: 10))
                         .foregroundStyle(removeHovered ? Color.textPrimary : Color.textMuted)
@@ -423,7 +423,7 @@ private struct ClaudeCodePluginRowView: View {
                 .foregroundStyle(Color.textPrimary)
             Spacer()
             if pluginManager.ccInstalled {
-                ConnectedBadge()
+                InstalledBadge()
             } else {
                 ClaudeCodeInstallButton()
             }

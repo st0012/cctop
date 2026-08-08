@@ -27,7 +27,7 @@ struct StreamDeckPluginRowView: View {
             if pluginManager.sdNeedsUpdate {
                 installButton("Update Plugin")
             } else if pluginManager.sdInstalled {
-                ConnectedBadge()
+                InstalledBadge()
                 removeButton
             } else {
                 installButton("Install Plugin")

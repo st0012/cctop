@@ -16,7 +16,7 @@ struct EmptyStateView: View {
             heroMark
             heroCopy
             agentCard
-            if anyUninstalled {
+            if setupNeeded {
                 restartHint
             }
         }
@@ -60,7 +60,7 @@ struct EmptyStateView: View {
     }
 
     private var subtitle: String {
-        if allConnected {
+        if setupComplete {
             return "Start a session \u{2014} it will appear here automatically."
         }
         if codexHooksDisabled {
@@ -174,7 +174,7 @@ struct EmptyStateView: View {
         if agent == .codex {
             HooksReadyBadge()
         } else {
-            ConnectedBadge()
+            InstalledBadge()
         }
     }
 
@@ -274,14 +274,14 @@ struct EmptyStateView: View {
 
     // MARK: - Derived state
 
-    private var anyUninstalled: Bool {
+    private var setupNeeded: Bool {
         AgentKind.allCases.contains {
             isDetected($0) && (!isInstalled($0) || needsUpdate($0) || needsHookTrust($0))
         }
     }
 
-    private var allConnected: Bool {
-        !anyUninstalled
+    private var setupComplete: Bool {
+        !setupNeeded
     }
 
     private var codexHooksUntrusted: Bool {
@@ -398,7 +398,7 @@ private func previewPluginManager(
     .background(Color.panelBackground)
 }
 
-#Preview("All connected") {
+#Preview("All installed") {
     EmptyStateView(
         pluginManager: previewPluginManager(
             cc: true,
