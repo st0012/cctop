@@ -82,11 +82,31 @@ func resolveFocusStrategy(
         return .openWithApp(bundleID: bundleID, target: target)
     }
 
+    if let paneFocus = resolveTerminalPaneFocus(hostApp: hostApp, session: session) {
+        return paneFocus
+    }
+
+    // Try activation by name, then bundle ID, then Finder
+    if let name = hostApp.activationName {
+        return .activateByName(name)
+    }
+    if let bundleID = hostApp.bundleID {
+        return .activateByBundleID(bundleID)
+    }
+    return .openInFinder(session.projectPath)
+}
+
+/// Exact pane/tab targeting for terminals that support it. Returns nil when the
+/// host has no pane-targeting support or the required metadata is missing, so
+/// the caller falls through to plain app activation.
+private func resolveTerminalPaneFocus(hostApp: HostApp, session: Session) -> FocusStrategy? {
+    let terminal = session.terminal
+
     // Warp → session deep link raises the window and focuses the exact pane
     // (Warp v0.2026.05.27+ exposes WARP_FOCUS_URL). The restore bundle ID comes
     // from the link's channel scheme, and activation runs first because Warp
     // silently ignores a stale or unknown session UUID.
-    if hostApp == .warp, let link = WarpFocusLink(terminal.focusUrl) {
+    if hostApp == .warp, let link = WarpFocusLink(terminal?.focusUrl) {
         return .openURL(link.url, restoreBundleID: link.bundleID)
     }
 
@@ -118,14 +138,7 @@ func resolveFocusStrategy(
         return .appleTerminal(tty: tty)
     }
 
-    // Try activation by name, then bundle ID, then Finder
-    if let name = hostApp.activationName {
-        return .activateByName(name)
-    }
-    if let bundleID = hostApp.bundleID {
-        return .activateByBundleID(bundleID)
-    }
-    return .openInFinder(session.projectPath)
+    return nil
 }
 
 // MARK: - Execution (AppKit side effects)
@@ -153,8 +166,9 @@ func focusTerminal(session: Session) {
 
 /// Runs on a background queue: script/subprocess strategies block until done,
 /// while pure-AppKit strategies dispatch to the main thread.
+/// Internal so the Recent Projects entry points in FocusTerminal+Recent.swift can execute strategies.
 @discardableResult
-private func executeFocusStrategy(_ strategy: FocusStrategy) -> Bool {
+func executeFocusStrategy(_ strategy: FocusStrategy) -> Bool {
     switch strategy {
     case .openWithApp(let bundleID, let target):
         DispatchQueue.main.async {
@@ -478,12 +492,4 @@ private func executeKittyFocusWindow(binaryPath: String, socket: String, windowI
     } catch {
         return false
     }
-}
-
-func openInEditor(project: RecentProject) {
-    executeFocusStrategy(resolveRecentProjectOpenStrategy(project: project))
-}
-
-func openRecentResumeTarget(_ target: RecentResumeTarget) {
-    executeFocusStrategy(resolveRecentResumeTargetOpenStrategy(target: target))
 }
