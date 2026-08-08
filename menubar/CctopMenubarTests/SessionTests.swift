@@ -2102,7 +2102,7 @@ final class SessionTests: XCTestCase {
         XCTAssertFalse(session.isClaudeDesktopHost)
     }
 
-    // The matching desktop apps stay trusted: cc -> Claude Desktop, codex -> Codex Desktop.
+    // Claude Desktop remains trusted for its matching `cc` source.
     func testHostClassCcWithClaudeDesktopBundleIsDesktop() {
         let session = Session.mock(
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
@@ -2112,13 +2112,13 @@ final class SessionTests: XCTestCase {
         XCTAssertTrue(session.isClaudeDesktopHost)
     }
 
-    func testCodexBundleRemainsFocusEvidenceWithoutChangingHostClass() {
+    func testCodexPersistedAppBundleIsNotFocusEvidence() {
         let session = Session.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "codex"
         )
         XCTAssertEqual(session.hostClass, .ambiguous)
-        XCTAssertEqual(session.trustedHostApp, .codexDesktop)
+        XCTAssertNil(session.trustedHostApp)
     }
 
     func testHostClassOpencodeIgnoresLeakedCodexDesktopBundle() {

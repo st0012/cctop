@@ -260,19 +260,14 @@ struct Session: Codable, Identifiable, Equatable {
 
     var isCodex: Bool { source == Self.codexSource }
 
-    /// Whether a desktop-app bundle id is believable for this harness. GUI launchers leak
-    /// `__CFBundleIdentifier` into child tools, so a desktop bundle proves desktop hosting
-    /// only when it is the harness's OWN desktop app: cc -> Claude Desktop,
-    /// codex -> Codex Desktop. Explicit non-desktop harnesses (opencode, pi) trust none;
-    /// nil-source legacy records keep the previous bundle-first behavior.
+    /// Whether persisted desktop bundle metadata can identify the host.
+    /// Only Claude Desktop and nil-source legacy records trust this metadata.
     static func trustsDesktopBundle(source: String?, bundleId: String?) -> Bool {
         switch source {
         case nil:
             return bundleId == HostAppBundleID.claudeDesktop || bundleId == HostAppBundleID.codexDesktop
         case Self.ccSource?:
             return bundleId == HostAppBundleID.claudeDesktop
-        case Self.codexSource?:
-            return bundleId == HostAppBundleID.codexDesktop
         default:
             return false
         }

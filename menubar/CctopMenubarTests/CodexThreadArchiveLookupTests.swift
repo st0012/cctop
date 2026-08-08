@@ -124,6 +124,31 @@ final class CodexThreadArchiveLookupTests: XCTestCase {
         lookup.archivedThreadIDs(matching: [fixture.threadID])
     }
 
+    func testDesktopRuntimeSQLiteHomeRequiresOneCodexAppAndOneBundledAppServer() {
+        let app = CodexDesktopRuntimeProbe.RunningApp(
+            pid: 61_700,
+            bundleIdentifier: HostAppBundleID.codexDesktop,
+            bundleURLPath: "/Applications/ChatGPT.app"
+        )
+        let server = CodexDesktopRuntimeProbe.ProcessSnapshot(
+            pid: 61_871,
+            executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
+            arguments: ["codex", "app-server", "--analytics-default-enabled"]
+        )
+        let sqliteHome = "/Users/test/Library/Application Support/Codex/sqlite"
+        let probe = { (apps: [CodexDesktopRuntimeProbe.RunningApp], servers: [CodexDesktopRuntimeProbe.ProcessSnapshot]) in
+            CodexDesktopRuntimeProbe(
+                runningApps: { apps },
+                childProcesses: { _ in servers },
+                environment: { pid in pid == server.pid ? ["CODEX_SQLITE_HOME": sqliteHome] : [:] }
+            )
+        }
+
+        XCTAssertEqual(probe([app], [server]).currentDesktopSQLiteHome(), sqliteHome)
+        XCTAssertNil(probe([app, app], [server]).currentDesktopSQLiteHome())
+        XCTAssertNil(probe([app], [server, server]).currentDesktopSQLiteHome())
+    }
+
     func testCodexStateDatabaseCandidatesUseExplicitOverrideBeforeRuntimeAndCodexHome() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-state-db-override-\(UUID().uuidString)"
         let codexHome = (root as NSString).appendingPathComponent("codex")

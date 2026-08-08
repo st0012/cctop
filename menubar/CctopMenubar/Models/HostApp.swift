@@ -191,11 +191,8 @@ enum HostApp: CaseIterable {
 }
 
 extension Session {
-    /// GUI environments can leak `__CFBundleIdentifier` into child tools; a desktop bundle
-    /// id is only trusted when it is the harness's own desktop app (cc -> Claude Desktop,
-    /// codex -> Codex Desktop; nil-source legacy records keep bundle-first behavior).
-    /// A `cc` session "hosted by" Codex Desktop is impossible — that pairing is leaked
-    /// launcher environment, not identity (issue #155).
+    /// Trusts desktop bundles for Claude Desktop and nil-source legacy records.
+    /// Codex focus ignores persisted `com.openai.codex` metadata.
     var trustedHostApp: HostApp? {
         guard let app = HostApp.from(bundleIdentifier: terminal?.bundleId) else { return nil }
         if app.isDesktopApp,
@@ -238,14 +235,8 @@ extension Session {
 }
 
 extension HostApp {
-    /// Deep-link URL that focuses a specific session inside this app, if supported.
-    /// Returns nil when the app has no session-jump scheme, or `sessionId` isn't a
-    /// canonical UUID — the URL handler rejects non-UUID values, so we mirror its
-    /// validation client-side and fall back to plain app activation upstream.
-    /// - Codex Desktop: `codex://threads/<uuid>` for live, non-archived focus.
-    /// - Claude Desktop: no deep link. `claude://resume?session=<uuid>` exists but
-    ///   forks the conversation rather than focusing the existing one, which would
-    ///   silently pollute the user's history. We just activate the app instead.
+    /// Returns an exact-session deep link for supported apps and valid UUIDs.
+    /// Claude resume links are unsupported because they fork instead of focusing the conversation.
     func sessionDeepLink(sessionId: String) -> URL? {
         guard Self.isUUID(sessionId) else { return nil }
         switch self {

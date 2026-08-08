@@ -322,18 +322,121 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .activateByBundleID(bundleID))
     }
 
-    func testCodexDesktopUsesDeepLinkWhenSessionIdIsUUID() {
-        // Active Codex Desktop focus can use codex://threads/<uuid>.
-        let uuid = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
-        let bundleID = HostApp.codexDesktop.bundleID!
-        let session = makeSession(
-            program: "", bundleId: bundleID, sessionUuid: uuid
+    func testCodexWithoutDirectHostUsesThreadDeepLinkWithOrWithoutPersistedBundle() throws {
+        let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        let expected = FocusStrategy.openURL(
+            try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
+            restoreBundleID: HostAppBundleID.codexDesktop
         )
-        let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .openURL(URL(string: "codex://threads/\(uuid)")!, restoreBundleID: bundleID))
+        let persistedBundleIDs: [String?] = [HostAppBundleID.codexDesktop, nil]
+
+        for bundleID in persistedBundleIDs {
+            var session = makeSession(
+                program: "",
+                bundleId: bundleID,
+                sessionUuid: threadID
+            )
+            session.source = Session.codexSource
+
+            XCTAssertEqual(
+                resolveFocusStrategy(session: session),
+                expected,
+                "persisted bundle: \(bundleID ?? "nil")"
+            )
+        }
     }
 
-    func testCurrentPermanentIDCodexAppServerRouteUsesThreadDeepLinkAndIgnoresStaleMultiplexer() throws {
+    func testCodexProgramNameIsNotDirectHostEvidence() throws {
+        let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        var session = makeSession(program: "Codex", sessionUuid: threadID)
+        session.source = Session.codexSource
+
+        XCTAssertEqual(
+            resolveFocusStrategy(session: session, multiplexerOverride: nil),
+            .openURL(
+                try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
+                restoreBundleID: HostAppBundleID.codexDesktop
+            )
+        )
+    }
+
+    func testCodexDirectRouteDoesNotOverrideEditorFocus() {
+        var session = makeSession(
+            program: "Code",
+            bundleId: HostAppBundleID.codexDesktop,
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        )
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
+
+        XCTAssertEqual(strategy, .openWithApp(
+            bundleID: "com.microsoft.VSCode",
+            target: projectPath
+        ))
+    }
+
+    func testCodexDirectRouteDoesNotOverrideTerminalBundle() {
+        var session = makeSession(
+            program: "",
+            bundleId: "com.googlecode.iterm2",
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        )
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
+
+        XCTAssertEqual(strategy, .activateByName("iterm2"))
+    }
+
+    func testCodexDirectRouteDoesNotOverrideUnknownDirectProgram() {
+        var session = makeSession(
+            program: "UnsupportedHost",
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        )
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
+
+        XCTAssertEqual(strategy, .openInFinder(projectPath))
+    }
+
+    func testCodexDirectRouteDoesNotOverrideTTYOnlyHostEvidence() {
+        var session = makeSession(
+            program: "",
+            tty: "/dev/ttys017",
+            sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        )
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
+
+        XCTAssertEqual(strategy, .openInFinder(projectPath))
+    }
+
+    func testCodexDirectRouteDoesNotOverrideMultiplexer() {
+        let multiplexer = MultiplexerInfo.zellij(
+            sessionName: "dev",
+            paneId: "terminal_1",
+            binaryPath: "/usr/bin/zellij"
+        )
+        let session = Session.mock(
+            id: "019e1eff-3374-74b0-8d3d-6fba94e7d75f",
+            project: "myapp",
+            terminal: TerminalInfo(program: "", multiplexer: multiplexer),
+            source: Session.codexSource
+        )
+
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
+
+        XCTAssertEqual(strategy, .openInFinder(projectPath))
+        XCTAssertEqual(
+            resolveMultiplexerFocus(session: session, primaryStrategy: strategy),
+            .zellij(sessionName: "dev", paneId: "terminal_1", binaryPath: "/usr/bin/zellij")
+        )
+    }
+
+    func testCurrentPermanentIDCodexRouteUsesThreadDeepLinkDespiteStalePID() throws {
         let threadID = "019faecb-6e9b-7f41-a51f-bb998875ca77"
         let cctopSessionID = "82498aba-410e-4b6b-b48d-62f7c6a81eae"
         let observation = Session.mock(
@@ -341,15 +444,8 @@ final class FocusStrategyTests: XCTestCase {
             cctopSessionId: cctopSessionID,
             harnessSessionId: threadID,
             project: "cctop",
-            pid: 61_871,
-            terminal: TerminalInfo(
-                program: "",
-                multiplexer: .zellij(
-                    sessionName: "stale",
-                    paneId: "terminal_1",
-                    binaryPath: "/usr/bin/zellij"
-                )
-            ),
+            pid: 61_870,
+            terminal: TerminalInfo(program: ""),
             source: Session.codexSource
         )
         let current = try XCTUnwrap(
@@ -358,117 +454,35 @@ final class FocusStrategyTests: XCTestCase {
                 in: [observation]
             )
         )
-        let probe = CodexDesktopRuntimeProbe(
-            runningApps: {
-                [CodexDesktopRuntimeProbe.RunningApp(
-                    pid: 61_700,
-                    bundleIdentifier: HostApp.codexDesktop.bundleID,
-                    bundleURLPath: "/Applications/ChatGPT.app"
-                )]
-            },
-            childProcesses: { _ in
-                [CodexDesktopRuntimeProbe.ProcessSnapshot(
-                    pid: 61_871,
-                    executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
-                    arguments: ["codex", "app-server", "--analytics-default-enabled"]
-                )]
-            },
-            environment: { _ in [:] }
-        )
-        let sessionPID = try XCTUnwrap(current.pid)
-        let pid = try XCTUnwrap(pid_t(exactly: sessionPID))
-        let isCodexDesktopAppServerTarget = probe.isCurrentDesktopAppServer(pid: pid)
-
-        let strategy = resolveFocusStrategy(
-            session: current,
-            multiplexerOverride: nil,
-            isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget
-        )
+        let strategy = resolveFocusStrategy(session: current, multiplexerOverride: nil)
         let intended = FocusStrategy.openURL(
             try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
             restoreBundleID: try XCTUnwrap(HostApp.codexDesktop.bundleID)
         )
 
         XCTAssertEqual(strategy, intended)
-        XCTAssertNotEqual(strategy, .openInFinder(current.projectPath))
-        XCTAssertNotNil(resolveMultiplexerFocus(session: current))
-        XCTAssertNil(
-            resolveMultiplexerFocus(
-                session: current,
-                isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget
-            )
+    }
+
+    func testCodexReportsInvalidSessionID() {
+        var session = makeSession(
+            program: "", bundleId: HostAppBundleID.codexDesktop, sessionUuid: "not-a-uuid"
+        )
+        session.source = Session.codexSource
+
+        XCTAssertEqual(
+            resolveFocusStrategy(session: session, multiplexerOverride: nil),
+            .unavailable(.codexTaskIdentifierInvalid)
         )
     }
 
-    func testCodexAppServerProbeRejectsAnotherProcessAndAmbiguousHosts() {
-        let app = CodexDesktopRuntimeProbe.RunningApp(
-            pid: 61_700,
-            bundleIdentifier: HostApp.codexDesktop.bundleID,
-            bundleURLPath: "/Applications/ChatGPT.app"
-        )
-        let server = CodexDesktopRuntimeProbe.ProcessSnapshot(
-            pid: 61_871,
-            executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
-            arguments: ["codex", "app-server", "--analytics-default-enabled"]
-        )
-        let exactHost = CodexDesktopRuntimeProbe(
-            runningApps: { [app] },
-            childProcesses: { _ in [server] },
-            environment: { _ in [:] }
-        )
-        let ambiguousHosts = CodexDesktopRuntimeProbe(
-            runningApps: {
-                [
-                    app,
-                    CodexDesktopRuntimeProbe.RunningApp(
-                        pid: 61_701,
-                        bundleIdentifier: HostApp.codexDesktop.bundleID,
-                        bundleURLPath: "/Applications/Codex Preview.app"
-                    ),
-                ]
-            },
-            childProcesses: { _ in [server] },
-            environment: { _ in [:] }
-        )
-        let ambiguousServers = CodexDesktopRuntimeProbe(
-            runningApps: { [app] },
-            childProcesses: { _ in
-                [
-                    server,
-                    CodexDesktopRuntimeProbe.ProcessSnapshot(
-                        pid: 61_872,
-                        executablePath: server.executablePath,
-                        arguments: server.arguments
-                    ),
-                ]
-            },
-            environment: { _ in [:] }
-        )
-
-        XCTAssertFalse(exactHost.isCurrentDesktopAppServer(pid: 61_872))
-        XCTAssertFalse(ambiguousHosts.isCurrentDesktopAppServer(pid: server.pid))
-        XCTAssertFalse(ambiguousServers.isCurrentDesktopAppServer(pid: server.pid))
-    }
-
-    func testCodexDesktopFallsBackToActivateWhenSessionIdNotUUID() {
-        // Legacy or test sessions may not have UUID IDs — we should still focus
-        // the app rather than build a URL the handler will reject.
-        let bundleID = HostApp.codexDesktop.bundleID!
-        let session = makeSession(
-            program: "", bundleId: bundleID, sessionUuid: "not-a-uuid"
-        )
-        let strategy = resolveFocusStrategy(session: session)
-        XCTAssertEqual(strategy, .activateByBundleID(bundleID))
-    }
-
-    func testOpencodeIgnoresLeakedCodexDesktopBundleForFocus() {
+    func testCodexDirectRouteDoesNotApplyToOpencode() {
         var session = makeSession(
             program: "", bundleId: HostApp.codexDesktop.bundleID!,
             sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         )
         session.source = "opencode"
 
-        let strategy = resolveFocusStrategy(session: session)
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
 
         XCTAssertEqual(strategy, .openInFinder(projectPath))
     }
@@ -479,6 +493,22 @@ final class FocusStrategyTests: XCTestCase {
         let session = Session.mock(id: "test", project: "myapp", terminal: nil)
         let strategy = resolveFocusStrategy(session: session)
         XCTAssertEqual(strategy, .openInFinder(projectPath))
+    }
+
+    func testCodexWithoutTerminalInfoUsesThreadDeepLink() throws {
+        let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        var session = Session.mock(id: threadID, project: "myapp", terminal: nil)
+        session.source = Session.codexSource
+
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
+
+        XCTAssertEqual(
+            strategy,
+            .openURL(
+                try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
+                restoreBundleID: HostAppBundleID.codexDesktop
+            )
+        )
     }
 
     // MARK: - Unknown program falls back to Finder

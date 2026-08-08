@@ -22,6 +22,8 @@ enum FocusStrategy: Equatable {
     case openURL(URL, restoreBundleID: String? = nil)
     /// Open a path in Finder.
     case openInFinder(String)
+    /// Explain why the selected session cannot be focused safely.
+    case unavailable(FocusFailure)
 }
 
 struct GhosttyFocusTarget: Equatable {
@@ -41,20 +43,21 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
 /// Pure function — no AppKit side effects, fully testable.
 func resolveFocusStrategy(
     session: Session,
-    multiplexerOverride: MultiplexerInfo?,
-    isCodexDesktopAppServerTarget: Bool = false
+    multiplexerOverride: MultiplexerInfo?
 ) -> FocusStrategy {
-    guard let terminal = session.terminal else {
-        return .openInFinder(session.projectPath)
-    }
-    let multiplexer = multiplexerOverride ?? terminal.multiplexer
+    let terminal = session.terminal
+    let multiplexer = multiplexerOverride ?? terminal?.multiplexer
 
-    // Positive live Codex Desktop evidence outranks stale persisted host metadata.
-    // Otherwise prefer trusted bundle_id over program name; explicit non-desktop
-    // harnesses ignore leaked AI desktop bundle IDs before this fallback.
-    let hostApp = (session.isCodex && isCodexDesktopAppServerTarget ? HostApp.codexDesktop : nil)
-        ?? session.trustedHostApp
-        ?? (multiplexer?.isCmux == true ? .cmux : HostApp.from(editorName: terminal.program))
+    // Direct terminal/editor metadata wins. A Codex session without it uses its exact
+    // thread deep link. Persisted `com.openai.codex` metadata is ignored.
+    let program = terminal?.program
+    let directHost = multiplexer?.isCmux == true ? HostApp.cmux : HostApp.from(editorName: program)
+    let hasProgramEvidence = program?.isEmpty == false && program?.lowercased() != "codex"
+    let hasDirectHostEvidence = hasProgramEvidence || terminal?.tty?.isEmpty == false || multiplexer != nil
+    let hostApp = session.trustedHostApp
+        ?? (hasDirectHostEvidence ? directHost : nil)
+        ?? (session.isCodex ? HostApp.codexDesktop : nil)
+        ?? .unknown
     let target = session.workspaceFile ?? session.projectPath
 
     if hostApp == .cmux,
@@ -62,10 +65,11 @@ func resolveFocusStrategy(
         return .openURL(url)
     }
 
-    // Falls through to bundle-ID activation below if the session ID isn't a
-    // valid UUID, so the user still gets the app focused.
     if let url = hostApp.sessionDeepLink(sessionId: session.sessionId) {
         return .openURL(url, restoreBundleID: hostApp.bundleID)
+    }
+    if session.isCodex, hostApp == .codexDesktop {
+        return .unavailable(.codexTaskIdentifierInvalid)
     }
 
     // Editors with a known bundle ID → open the project with that app.
@@ -80,16 +84,16 @@ func resolveFocusStrategy(
 
     // iTerm2 → AppleScript to focus the specific session
     if hostApp == .iterm2,
-       let guid = extractITermGUID(from: terminal.sessionId),
+       let guid = extractITermGUID(from: terminal?.sessionId),
        guid.range(of: #"^[0-9a-fA-F-]+$"#, options: .regularExpression) != nil {
         return .iTerm2(guid: guid)
     }
 
     // Kitty → remote control to focus the specific window (pane in Kitty's terms)
     if hostApp == .kitty,
-       let socket = terminal.socket,
-       let windowId = terminal.sessionId,
-       let binaryPath = terminal.binaryPaths?["kitty"] {
+       let socket = terminal?.socket,
+       let windowId = terminal?.sessionId,
+       let binaryPath = terminal?.binaryPaths?["kitty"] {
         return .kitty(socket: socket, windowId: windowId, binaryPath: binaryPath)
     }
 
@@ -101,7 +105,7 @@ func resolveFocusStrategy(
     // NSRunningApplication.activate() can't target a single tab, and on macOS
     // Sonoma+ cooperative activation often fails to even raise the app.
     if hostApp == .terminal,
-       let tty = terminal.tty,
+       let tty = terminal?.tty,
        tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil {
         return .appleTerminal(tty: tty)
     }
@@ -124,28 +128,25 @@ private let focusQueue = DispatchQueue(label: "cctop.focus-terminal", qos: .user
 func focusTerminal(session: Session) {
     focusQueue.async {
         let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
-        let isCodexDesktopAppServerTarget = session.isCodex && session.pid.flatMap {
-            pid_t(exactly: $0)
-        }.map {
-            CodexDesktopRuntimeProbe().isCurrentDesktopAppServer(pid: $0)
-        } == true
-        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride,
-                                            isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget)
+        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride)
         let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride,
-                                                  isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget)
-        executeFocusStrategy(strategy)
+                                                  primaryStrategy: strategy)
+        let shouldDeactivate = executeFocusStrategy(strategy)
         if let mux = muxStrategy {
             executeMultiplexerFocus(mux)
         }
-        DispatchQueue.main.async {
-            NSApp.deactivate()
+        if shouldDeactivate {
+            DispatchQueue.main.async {
+                NSApp.deactivate()
+            }
         }
     }
 }
 
 /// Runs on a background queue: script/subprocess strategies block until done,
 /// while pure-AppKit strategies dispatch to the main thread.
-private func executeFocusStrategy(_ strategy: FocusStrategy) {
+@discardableResult
+private func executeFocusStrategy(_ strategy: FocusStrategy) -> Bool {
     switch strategy {
     case .openWithApp(let bundleID, let target):
         DispatchQueue.main.async {
@@ -189,19 +190,20 @@ private func executeFocusStrategy(_ strategy: FocusStrategy) {
         }
 
     case .openURL(let url, let restoreBundleID):
-        DispatchQueue.main.async {
-            if let restoreBundleID {
-                restoreAppAndOpenURL(bundleID: restoreBundleID, url: url)
-            } else {
-                NSWorkspace.shared.open(url)
-            }
-        }
+        return executeAppURLStrategy(url: url, restoreBundleID: restoreBundleID)
 
     case .openInFinder(let path):
         DispatchQueue.main.async {
             NSWorkspace.shared.open(URL(fileURLWithPath: path))
         }
+
+    case .unavailable(let failure):
+        DispatchQueue.main.async {
+            presentFocusFailure(failure)
+        }
+        return false
     }
+    return true
 }
 
 /// Run a focus script for `host` (blocking, on the calling background queue);
@@ -468,26 +470,6 @@ private func executeKittyFocusWindow(binaryPath: String, socket: String, windowI
     } catch {
         return false
     }
-}
-
-// MARK: - Open recent project in editor
-
-func resolveRecentProjectOpenStrategy(project: RecentProject) -> FocusStrategy {
-    guard let opener = project.lastEditor,
-          let hostApp = HostApp.projectOpener(fromProgramName: opener),
-          let bundleID = hostApp.bundleID else {
-        return .openInFinder(project.projectPath)
-    }
-
-    let target: String
-    if hostApp.usesWorkspaceFile {
-        target = project.workspaceFile
-            ?? Session.findWorkspaceFile(in: project.projectPath)
-            ?? project.projectPath
-    } else {
-        target = project.projectPath
-    }
-    return .openWithApp(bundleID: bundleID, target: target)
 }
 
 func openInEditor(project: RecentProject) {
