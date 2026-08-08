@@ -26,6 +26,7 @@ architecture, testing, release, and repo-specific agent rules.
 - Work from latest `origin/master` before starting a new cctop change.
 - Do not commit, push, or open a PR until the developer has explicitly approved the result. For UI changes, present a screenshot or rendered preview first and wait for the verdict. An unanswered question is a "no", not a "yes". Once the developer gives an explicit go, act on it without re-confirming.
 - Reproduce bugs with a failing test before fixing whenever feasible. Verify changes with `make all` (lint + contract + build + test) before presenting them.
+- Before reporting app or hook work ready, build and restart the app from the active driver's exact worktree. Install that build's `cctop-hook`. Verify and report the running app path, installed hook version, and hook binary/hash parity with the worktree build.
 - When the developer asks to restart the cctop app for local testing, treat that as "install the current `cctop-hook`, restart the app, and verify both." Use `make restart` or `./script/build_and_run.sh --verify`; do not do a UI-only relaunch that leaves `~/.cctop/bin/cctop-hook` stale.
 - After cctop investigation, validation, delegated PR work, or any workflow that launches/kills the dev app, leave the verified debug app running for the developer unless the user explicitly asks to stop it or a concrete blocker prevents a safe relaunch. Report the running app path and installed hook version.
 - Prefer small, reviewable changes. Do not bundle unrelated lifecycle, UI, release, and documentation work unless the user asks for one PR.
@@ -34,10 +35,16 @@ architecture, testing, release, and repo-specific agent rules.
 - After a delegated task or PR is merged, close it out deliberately: extract any durable lessons into `AGENTS.md` or repo/global skills, confirm the developer-facing app is running when relevant, archive or park the driver thread so it no longer appears active, and remove the driver worktree only after confirming no app, build, test, or agent process is still running from it.
 - For non-trivial work, use a teammate/navigator agent only when the active development environment explicitly provides that capability. This refers to development workflow, not cctop-tracked product agents or subagents. Keep the navigator read-only unless there is a clearly separated write scope.
 - Be proactive with review feedback: for PRs you are actively maintaining, if there is exactly one clear, low-risk, actionable review comment, implement it locally, run focused verification, and push when authorized to update the PR. Do not wait for the user to repeat the request.
-- Never reply to GitHub PR comments or issues, and do not resolve GitHub review threads. Leave GitHub conversation actions to the developer.
+- Never reply to GitHub PR comments or issues. Leave GitHub text to the developer. The active driver can resolve a bot-authored thread only after it independently verifies the disposition. The thread must be fixed, deliberately dismissed, or made outdated. Leave human-authored threads unresolved unless the developer explicitly authorizes their resolution.
 - Do not commit temporary explanation artifacts, local investigation HTML, screenshots, scratch scripts, or generated debugging files unless they are intentional product/docs assets.
 - Keep canonical agent guidance in this file. Pointer files such as `CLAUDE.md` should redirect here instead of duplicating instructions that will drift.
 - Keep product judgment in `PRODUCT.md` and visual design rules in `DESIGN.md` instead of mixing them into implementation workflow sections.
+
+## Code Review Rules
+
+- **Consequential defects:** Report only reachable defects that cause material user harm, data loss, security exposure, or a compatibility break. Also report a defect that causes materially wrong visible behavior. Exclude style, theoretical races, speculative hardening, mechanical CI checks, and missing tests without a concrete regression.
+- **Scope and proportionality:** Review the approved behavior, not an adjacent redesign. Do not require abstractions, migrations, compatibility layers, diagnostics, or broad defensive handling unless the current diff creates a consequential defect. Require that machinery only when the smallest safe correction needs it. Do not restore intentionally removed behavior.
+- **Evidence and safe path:** Each finding must name the exact trigger, affected users or data, concrete harm, and smallest safe correction. Rare self-recovering or workaround-backed cases justify work only when harm outweighs complexity and regression risk.
 
 ## Video Workflow
 
