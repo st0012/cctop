@@ -599,7 +599,9 @@ final class SessionTests: XCTestCase {
         )
         let second = SessionData.mock(
             id: "codex-thread-1", cctopSessionId: "22222222-2222-4222-8222-222222222222",
-            pid: 67_890, source: SessionData.codexSource
+            pid: 67_890,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: SessionData.ccSource
         )
 
         XCTAssertNil(
@@ -608,6 +610,26 @@ final class SessionTests: XCTestCase {
                 in: userSessionProjection(from: [first, second])
             )
         )
+    }
+
+    func testLegacyNotificationPayloadUsesAuthoritativeIdentityWhenRetainedRecordConflicts() {
+        let stale = SessionData.mock(
+            id: "codex-thread-1", cctopSessionId: "11111111-1111-4111-8111-111111111111",
+            pid: 12_345, source: SessionData.codexSource
+        )
+        let current = SessionData.mock(
+            id: "codex-thread-1", cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            pid: 67_890, source: SessionData.codexSource
+        )
+
+        let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
+            matchingNotificationUserInfo: [
+                SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1",
+            ],
+            in: [userSession(display: current, records: [stale, current])]
+        )
+
+        XCTAssertEqual(resolvedID, current.cctopSessionId)
     }
 
     func testLegacyNotificationPayloadFailsClosedWhenOneMatchingUserSessionIsUnstamped() {

@@ -90,10 +90,7 @@ enum SessionIdentityPolicy {
         guard !matches.isEmpty else { return nil }
         var permanentIDs: Set<String> = []
         for match in matches {
-            let matchingIDs = Set(match.records.compactMap {
-                permanentSessionID(for: $0.data)
-            })
-            guard matchingIDs.count == 1, let cctopSessionID = matchingIDs.first else { return nil }
+            guard let cctopSessionID = match.identity.cctopSessionID else { return nil }
             permanentIDs.insert(cctopSessionID)
         }
         guard permanentIDs.count == 1 else { return nil }
