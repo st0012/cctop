@@ -1,13 +1,17 @@
 import Foundation
 
-/// Ordering inputs for lifecycle deduplication, kept separate from `Session`'s stored fields
-/// so the total order is unit-testable without disk or process probing. `mtime` is
-/// `.distantPast` when unknown so the comparison stays total.
-struct DedupCandidate {
-    let session: Session
+/// One `SessionData` value plus the file and runtime evidence for that value.
+/// This in-memory record is not part of the persisted JSON schema.
+/// `mtime` is `.distantPast` when unknown so lifecycle preference remains a total order.
+struct SessionRecord {
+    let data: SessionData
     let lifecycleRank: Int   // 0 = active, 1 = dormant, 2 = finished (lower = preferred)
     let mtime: Date
     let path: String         // absolute file path; final, total tiebreak
+
+    func replacingData(_ data: SessionData) -> SessionRecord {
+        SessionRecord(data: data, lifecycleRank: lifecycleRank, mtime: mtime, path: path)
+    }
 }
 
 /// Tunable windows for lifecycle derivation.
@@ -25,7 +29,7 @@ enum SessionLifecyclePolicy {
     /// Pure connection derivation. Codex uses one source-level policy across every surface;
     /// other sessions retain their existing host-specific connection evidence.
     static func connectionState(
-        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
+        for session: SessionData, hostClass: SessionHostClass, processAlive: Bool,
         now: Date, windows: LifecycleWindows, desktopAppRunning: Bool? = nil
     ) -> SessionConnectionState {
         if session.endedAt != nil { return .disconnected }
@@ -42,7 +46,7 @@ enum SessionLifecyclePolicy {
     /// Pure lifecycle derivation. Connection is detected uniformly first; host policy then
     /// decides what disconnected means for desktop versus non-desktop sessions.
     static func lifecycle(
-        for session: Session, hostClass: SessionHostClass, processAlive: Bool,
+        for session: SessionData, hostClass: SessionHostClass, processAlive: Bool,
         now: Date, windows: LifecycleWindows, desktopAppRunning: Bool? = nil
     ) -> SessionLifecycle {
         // Codex has one absolute inactivity cap across every surface. Bundle, PID,
@@ -72,13 +76,13 @@ enum SessionLifecyclePolicy {
         return now.timeIntervalSince(disconnectedAt) <= windows.retention ? .dormant : .finished
     }
 
-    static func prefers(_ lhs: DedupCandidate, over rhs: DedupCandidate) -> Bool {
+    static func prefers(_ lhs: SessionRecord, over rhs: SessionRecord) -> Bool {
         if lhs.lifecycleRank != rhs.lifecycleRank { return lhs.lifecycleRank < rhs.lifecycleRank }
-        if lhs.session.lastActivity != rhs.session.lastActivity {
-            return lhs.session.lastActivity > rhs.session.lastActivity
+        if lhs.data.lastActivity != rhs.data.lastActivity {
+            return lhs.data.lastActivity > rhs.data.lastActivity
         }
-        if lhs.session.effectiveEndDate != rhs.session.effectiveEndDate {
-            return lhs.session.effectiveEndDate > rhs.session.effectiveEndDate
+        if lhs.data.effectiveEndDate != rhs.data.effectiveEndDate {
+            return lhs.data.effectiveEndDate > rhs.data.effectiveEndDate
         }
         if lhs.mtime != rhs.mtime { return lhs.mtime > rhs.mtime }
         return lhs.path < rhs.path

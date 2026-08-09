@@ -3,12 +3,12 @@ import XCTest
 
 final class AgentBadgeTests: XCTestCase {
     func testExplicitCC_returnsCC() {
-        let session = Session.mock(source: "cc")
+        let session = SessionData.mock(source: "cc")
         XCTAssertEqual(session.agentBadge, .cc)
     }
 
     func testLegacyNilSource_withoutDesktopBundle_returnsCC() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(program: "Code", bundleId: "com.microsoft.VSCode"),
             source: nil
         )
@@ -16,7 +16,7 @@ final class AgentBadgeTests: XCTestCase {
     }
 
     func testClaudeDesktopBundle_withNilSource_returnsClaudeDesktop() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: nil
         )
@@ -26,7 +26,7 @@ final class AgentBadgeTests: XCTestCase {
     func testClaudeDesktopBundle_withExplicitCCSource_returnsClaudeDesktop() {
         // Defensive: if Claude Desktop ever starts setting `source: "cc"`,
         // the bundle ID should still win and classify as Desktop.
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: "cc"
         )
@@ -34,7 +34,7 @@ final class AgentBadgeTests: XCTestCase {
     }
 
     func testCodexSource_withTerminalBundle_returnsCodex() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(program: "iTerm", bundleId: "com.googlecode.iterm2"),
             source: "codex"
         )
@@ -42,7 +42,7 @@ final class AgentBadgeTests: XCTestCase {
     }
 
     func testCodexSource_withCodexDesktopBundle_returnsCodex() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "codex"
         )
@@ -50,7 +50,7 @@ final class AgentBadgeTests: XCTestCase {
     }
 
     func testCodexDesktopBundleWithNilSourceDoesNotInferCodex() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: nil
         )
@@ -61,7 +61,7 @@ final class AgentBadgeTests: XCTestCase {
         // A cc session is never hosted by Codex Desktop — that bundle id is launcher
         // environment leaked into a Claude Code child process (issue #155). The badge
         // must follow the harness, not the leaked bundle.
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "cc"
         )
@@ -69,7 +69,7 @@ final class AgentBadgeTests: XCTestCase {
     }
 
     func testCodexSource_ignoresLeakedClaudeDesktopBundle() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: "codex"
         )
@@ -77,12 +77,12 @@ final class AgentBadgeTests: XCTestCase {
     }
 
     func testOpencodeSource_returnsOpencode() {
-        let session = Session.mock(source: "opencode")
+        let session = SessionData.mock(source: "opencode")
         XCTAssertEqual(session.agentBadge, .opencode)
     }
 
     func testOpencodeSource_ignoresLeakedCodexDesktopBundle() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "opencode"
         )
@@ -90,12 +90,12 @@ final class AgentBadgeTests: XCTestCase {
     }
 
     func testPiSource_returnsPi() {
-        let session = Session.mock(source: "pi")
+        let session = SessionData.mock(source: "pi")
         XCTAssertEqual(session.agentBadge, .pi)
     }
 
     func testPiSource_ignoresLeakedClaudeDesktopBundle() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: "pi"
         )

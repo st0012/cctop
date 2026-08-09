@@ -8,7 +8,7 @@ final class StatusCountsSessionInitTests: XCTestCase {
     }
 
     func testIdle_countsAsIdle() {
-        let sessions = [Session.mock(status: .idle)]
+        let sessions = [SessionData.mock(status: .idle)]
         let counts = StatusCounts(sessions: sessions)
         XCTAssertEqual(counts.idle, 1)
         XCTAssertEqual(counts.working, 0)
@@ -16,7 +16,7 @@ final class StatusCountsSessionInitTests: XCTestCase {
 
     func testFreshActiveIdle_countsAsIdle() {
         let now = Date()
-        var session = Session.mock(status: .idle)
+        var session = SessionData.mock(status: .idle)
         session.lifecycle = .active
         session.lastActivity = now.addingTimeInterval(-SessionDisplayPolicy.staleIdleInterval + 60)
 
@@ -28,7 +28,7 @@ final class StatusCountsSessionInitTests: XCTestCase {
 
     func testStaleActiveIdle_isExcludedFromCounts() {
         let now = Date()
-        var session = Session.mock(status: .idle)
+        var session = SessionData.mock(status: .idle)
         session.lifecycle = .active
         session.lastActivity = now.addingTimeInterval(-SessionDisplayPolicy.staleIdleInterval - 60)
 
@@ -39,7 +39,7 @@ final class StatusCountsSessionInitTests: XCTestCase {
     }
 
     func testDormantSession_isExcludedFromCounts() {
-        var session = Session.mock(status: .waitingPermission)
+        var session = SessionData.mock(status: .waitingPermission)
         session.lifecycle = .dormant
 
         let counts = StatusCounts(sessions: [session])
@@ -49,44 +49,44 @@ final class StatusCountsSessionInitTests: XCTestCase {
     }
 
     func testWorking_countsAsWorking() {
-        let sessions = [Session.mock(status: .working)]
+        let sessions = [SessionData.mock(status: .working)]
         let counts = StatusCounts(sessions: sessions)
         XCTAssertEqual(counts.working, 1)
     }
 
     func testCompacting_countsAsWorking() {
-        let sessions = [Session.mock(status: .compacting)]
+        let sessions = [SessionData.mock(status: .compacting)]
         let counts = StatusCounts(sessions: sessions)
         XCTAssertEqual(counts.working, 1)
     }
 
     func testWaitingPermission_countsAsPermission() {
-        let sessions = [Session.mock(status: .waitingPermission)]
+        let sessions = [SessionData.mock(status: .waitingPermission)]
         let counts = StatusCounts(sessions: sessions)
         XCTAssertEqual(counts.permission, 1)
     }
 
     func testWaitingInput_countsAsAttention() {
-        let sessions = [Session.mock(status: .waitingInput)]
+        let sessions = [SessionData.mock(status: .waitingInput)]
         let counts = StatusCounts(sessions: sessions)
         XCTAssertEqual(counts.attention, 1)
     }
 
     func testNeedsAttention_countsAsAttention() {
-        let sessions = [Session.mock(status: .needsAttention)]
+        let sessions = [SessionData.mock(status: .needsAttention)]
         let counts = StatusCounts(sessions: sessions)
         XCTAssertEqual(counts.attention, 1)
     }
 
     func testMixedStatuses_aggregatesCorrectly() {
         let sessions = [
-            Session.mock(id: "1", status: .idle),
-            Session.mock(id: "2", status: .idle),
-            Session.mock(id: "3", status: .working),
-            Session.mock(id: "4", status: .compacting),
-            Session.mock(id: "5", status: .waitingPermission),
-            Session.mock(id: "6", status: .waitingInput),
-            Session.mock(id: "7", status: .needsAttention),
+            SessionData.mock(id: "1", status: .idle),
+            SessionData.mock(id: "2", status: .idle),
+            SessionData.mock(id: "3", status: .working),
+            SessionData.mock(id: "4", status: .compacting),
+            SessionData.mock(id: "5", status: .waitingPermission),
+            SessionData.mock(id: "6", status: .waitingInput),
+            SessionData.mock(id: "7", status: .needsAttention),
         ]
         let counts = StatusCounts(sessions: sessions)
         XCTAssertEqual(counts.idle, 2)

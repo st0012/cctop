@@ -19,17 +19,17 @@ final class WorkspaceFileTests: XCTestCase {
         let wsPath = (tempDir as NSString).appendingPathComponent("project.code-workspace")
         FileManager.default.createFile(atPath: wsPath, contents: Data("{}".utf8))
 
-        let result = Session.findWorkspaceFile(in: tempDir)
+        let result = SessionData.findWorkspaceFile(in: tempDir)
         XCTAssertEqual(result, wsPath)
     }
 
     func testReturnsNilWhenNoWorkspaceFile() {
-        let result = Session.findWorkspaceFile(in: tempDir)
+        let result = SessionData.findWorkspaceFile(in: tempDir)
         XCTAssertNil(result)
     }
 
     func testReturnsNilForNonexistentDirectory() {
-        let result = Session.findWorkspaceFile(in: "/nonexistent/path/\(UUID().uuidString)")
+        let result = SessionData.findWorkspaceFile(in: "/nonexistent/path/\(UUID().uuidString)")
         XCTAssertNil(result)
     }
 
@@ -40,7 +40,7 @@ final class WorkspaceFileTests: XCTestCase {
         FileManager.default.createFile(atPath: matchPath, contents: Data("{}".utf8))
         FileManager.default.createFile(atPath: otherPath, contents: Data("{}".utf8))
 
-        let result = Session.findWorkspaceFile(in: tempDir)
+        let result = SessionData.findWorkspaceFile(in: tempDir)
         XCTAssertEqual(result, matchPath)
     }
 
@@ -50,7 +50,7 @@ final class WorkspaceFileTests: XCTestCase {
         FileManager.default.createFile(atPath: path1, contents: Data("{}".utf8))
         FileManager.default.createFile(atPath: path2, contents: Data("{}".utf8))
 
-        let result = Session.findWorkspaceFile(in: tempDir)
+        let result = SessionData.findWorkspaceFile(in: tempDir)
         XCTAssertNil(result)
     }
 
@@ -60,7 +60,7 @@ final class WorkspaceFileTests: XCTestCase {
         FileManager.default.createFile(atPath: txtPath, contents: Data("".utf8))
         FileManager.default.createFile(atPath: swiftPath, contents: Data("".utf8))
 
-        let result = Session.findWorkspaceFile(in: tempDir)
+        let result = SessionData.findWorkspaceFile(in: tempDir)
         XCTAssertNil(result)
     }
 }

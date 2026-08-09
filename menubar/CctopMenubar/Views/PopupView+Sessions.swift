@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PanelSessionRow: Identifiable {
     let slot: Int
-    let session: Session
+    let session: SessionData
     let id: SessionIdentityPolicy.LogicalIdentity
 }
 
@@ -10,7 +10,7 @@ extension PopupView {
     var isNavigateActive: Bool { navigate?.isActive ?? false }
     var hasMultipleSources: Bool { Set(sessions.map(\.agentBadge)).count > 1 }
 
-    var currentActiveSessions: [Session] {
+    var currentActiveSessions: [SessionData] {
         SessionDisplayPolicy.activeSessions(from: sessions)
     }
 
@@ -25,20 +25,17 @@ extension PopupView {
             }
         }
         return identities.enumerated().compactMap { index, identity in
-            guard let session = FocusTargetResolver.currentSession(
-                for: identity,
-                in: currentActiveSessions
-            ) else { return nil }
+            guard let session = currentSession(for: identity, in: .active) else { return nil }
             return PanelSessionRow(slot: index, session: session, id: identity)
         }
     }
 
-    var sortedActiveSessions: [Session] {
+    var sortedActiveSessions: [SessionData] {
         activeSessionRows.map(\.session)
     }
 
-    var sortedIdleSessions: [Session] {
-        Session.sorted(SessionDisplayPolicy.idleSessions(from: sessions))
+    var sortedIdleSessions: [SessionData] {
+        SessionData.sorted(SessionDisplayPolicy.idleSessions(from: sessions))
     }
 
     var idleSessionRows: [PanelSessionRow] {
@@ -99,12 +96,12 @@ extension PopupView {
             Button { requestHideSession(row.session) } label: {
                 Label("Hide Session", systemImage: "eye.slash")
             }
-            .disabled(!Session.isValidCctopSessionId(row.session.cctopSessionId))
+            .disabled(!CctopSessionID.isValid(row.session.cctopSessionId))
         }
         .help("Click to jump to session")
         .accessibilityActions {
             Button("Hide Session") { requestHideSession(row.session) }
-                .disabled(!Session.isValidCctopSessionId(row.session.cctopSessionId))
+                .disabled(!CctopSessionID.isValid(row.session.cctopSessionId))
         }
     }
 
@@ -121,9 +118,24 @@ extension PopupView {
 
     func confirmSessionSelection() {
         guard let identity = selectedSessionIdentity else { return }
-        let observations = selectedTab == .active ? currentActiveSessions : sortedIdleSessions
-        guard let session = FocusTargetResolver.currentSession(for: identity, in: observations) else { return }
+        guard let session = currentSession(for: identity, in: selectedTab) else { return }
         focusSession(session)
         if isNavigateActive { navigate?.didConfirmSubject.send() }
+    }
+
+    func currentSession(
+        for identity: SessionIdentityPolicy.LogicalIdentity,
+        in tab: PopupTab
+    ) -> SessionData? {
+        let candidates: [UserSession]
+        switch tab {
+        case .active:
+            candidates = SessionDisplayPolicy.activeSessions(from: userSessions)
+        case .idle:
+            candidates = SessionDisplayPolicy.idleSessions(from: userSessions)
+        case .recent, .cleanup:
+            return nil
+        }
+        return FocusTargetResolver.currentSession(for: identity, in: candidates)
     }
 }

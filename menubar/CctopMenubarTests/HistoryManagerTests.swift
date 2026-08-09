@@ -32,8 +32,8 @@ final class HistoryManagerTests: XCTestCase {
         lastActivity: Date = Date(),
         terminal: TerminalInfo? = TerminalInfo(program: "Code"),
         source: String? = nil
-    ) -> Session {
-        Session(
+    ) -> SessionData {
+        SessionData(
             sessionId: UUID().uuidString,
             projectPath: projectPath ?? "/Users/test/\(project)",
             projectName: project,
@@ -57,7 +57,7 @@ final class HistoryManagerTests: XCTestCase {
         projectPath: String? = nil,
         endedAt: Date? = nil,
         lastActivity: Date = Date()
-    ) -> (url: URL, session: Session) {
+    ) -> (url: URL, session: SessionData) {
         let session = mockSession(
             project: project,
             projectPath: projectPath,
@@ -69,7 +69,7 @@ final class HistoryManagerTests: XCTestCase {
     }
 
     private func filesToPrune(
-        from entries: [(url: URL, session: Session)],
+        from entries: [(url: URL, session: SessionData)],
         existingPaths: Set<String>? = nil
     ) -> [URL] {
         sut.filesToPrune(
@@ -79,7 +79,7 @@ final class HistoryManagerTests: XCTestCase {
     }
 
     private func recentProjects(
-        from sessions: [Session],
+        from sessions: [SessionData],
         excludingActive activePaths: Set<String> = [],
         existingPaths: Set<String>? = nil
     ) -> [RecentProject] {
@@ -132,7 +132,7 @@ final class HistoryManagerTests: XCTestCase {
 
     func testFilesToPruneEnforcesMaxFiles() {
         let now = Date()
-        var entries: [(url: URL, session: Session)] = []
+        var entries: [(url: URL, session: SessionData)] = []
         for i in 0..<55 {
             entries.append(mockEntry(
                 project: "proj-\(i)",
@@ -164,7 +164,7 @@ final class HistoryManagerTests: XCTestCase {
     func testFilesToPruneDoesNotLetNonDurableRowsEvictDurableProjects() {
         let now = Date()
         let durableRoot = "/Users/test/projects"
-        var entries: [(url: URL, session: Session)] = []
+        var entries: [(url: URL, session: SessionData)] = []
         for i in 0..<HistoryManager.maxFiles {
             entries.append(mockEntry(
                 project: "durable-\(i)",
@@ -284,7 +284,7 @@ final class HistoryManagerTests: XCTestCase {
 
     func testBuildRecentProjectsCapsAtTen() {
         let now = Date()
-        var sessions: [Session] = []
+        var sessions: [SessionData] = []
         for i in 0..<15 {
             sessions.append(mockSession(
                 project: "proj-\(i)",
@@ -321,7 +321,7 @@ final class HistoryManagerTests: XCTestCase {
                 endedAt: Date(),
                 terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
             ),
-            mockSession(project: "source-codex", endedAt: Date(), source: Session.codexSource),
+            mockSession(project: "source-codex", endedAt: Date(), source: SessionData.codexSource),
             mockSession(project: "vscode-thing", endedAt: Date()),
         ]
 
@@ -481,7 +481,7 @@ final class HistoryManagerTests: XCTestCase {
     }
 
     func testBuildRecentProjectsPopulatesLastEditor() {
-        let session = Session(
+        let session = SessionData(
             sessionId: "test",
             projectPath: "/Users/test/app",
             projectName: "app",
@@ -515,7 +515,7 @@ final class HistoryManagerTests: XCTestCase {
         let session = mockSession(
             project: "agent-created",
             terminal: TerminalInfo(program: "Claude Code"),
-            source: Session.ccSource
+            source: SessionData.ccSource
         )
         let result = recentProjects(from: [session])
         XCTAssertNil(result[0].lastEditor)
@@ -714,7 +714,7 @@ final class HistoryManagerTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(atPath: root) }
 
-        var session = Session(
+        var session = SessionData(
             sessionId: "recent-session",
             projectPath: "/tmp/recent",
             branch: "main",

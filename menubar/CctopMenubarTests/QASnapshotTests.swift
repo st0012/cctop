@@ -25,53 +25,53 @@ final class QASnapshotTests: XCTestCase {
     }
 
     func testSingleSession() throws {
-        try renderSnapshot(sessions: Session.qaSingle, name: "02-single")
+        try renderSnapshot(sessions: SessionData.qaSingle, name: "02-single")
     }
 
     func testFourSessions() throws {
-        try renderSnapshot(sessions: Session.mockSessions, name: "03-four-sessions")
+        try renderSnapshot(sessions: SessionData.mockSessions, name: "03-four-sessions")
     }
 
     func testFiveSessions() throws {
-        try renderSnapshot(sessions: Session.qaFiveSessions, name: "04-five-sessions")
+        try renderSnapshot(sessions: SessionData.qaFiveSessions, name: "04-five-sessions")
     }
 
     func testSixSessions() throws {
-        try renderSnapshot(sessions: Session.qaSixSessions, name: "05-six-sessions")
+        try renderSnapshot(sessions: SessionData.qaSixSessions, name: "05-six-sessions")
     }
 
     func testEightSessions() throws {
-        try renderSnapshot(sessions: Session.qaEightSessions, name: "06-eight-sessions")
+        try renderSnapshot(sessions: SessionData.qaEightSessions, name: "06-eight-sessions")
     }
 
     // MARK: - Badge count scenarios
 
     func testAllAttention() throws {
-        try renderSnapshot(sessions: Session.qaAllAttention, name: "07-all-attention")
+        try renderSnapshot(sessions: SessionData.qaAllAttention, name: "07-all-attention")
     }
 
     func testAllIdle() throws {
-        try renderSnapshot(sessions: Session.qaAllIdle, name: "08-all-idle")
+        try renderSnapshot(sessions: SessionData.qaAllIdle, name: "08-all-idle")
     }
 
     // MARK: - Edge cases
 
     func testLongNames() throws {
-        try renderSnapshot(sessions: Session.qaLongNames, name: "09-long-names")
+        try renderSnapshot(sessions: SessionData.qaLongNames, name: "09-long-names")
     }
 
     func testLongSessionNames() throws {
-        try renderSnapshot(sessions: Session.qaLongSessionNames, name: "09b-long-session-names")
+        try renderSnapshot(sessions: SessionData.qaLongSessionNames, name: "09b-long-session-names")
     }
 
     func testDesktopProjectNames() throws {
-        try renderSnapshot(sessions: Session.qaShowcase, name: "09c-desktop-project-names")
+        try renderSnapshot(sessions: SessionData.qaShowcase, name: "09c-desktop-project-names")
     }
 
     // MARK: - Dark mode
 
     func testFiveSessionsDark() throws {
-        try renderSnapshot(sessions: Session.qaFiveSessions, name: "10-five-sessions-dark", colorScheme: .dark)
+        try renderSnapshot(sessions: SessionData.qaFiveSessions, name: "10-five-sessions-dark", colorScheme: .dark)
     }
 
     // MARK: - Update UI scenarios
@@ -79,13 +79,13 @@ final class QASnapshotTests: XCTestCase {
     func testFooterUpdateAvailable() throws {
         let updater = DisabledUpdater()
         updater.pendingUpdateVersion = "0.7.0"
-        try renderSnapshot(sessions: Session.qaShowcase, updater: updater, name: "11b-footer-update-available")
+        try renderSnapshot(sessions: SessionData.qaShowcase, updater: updater, name: "11b-footer-update-available")
     }
 
     func testFooterUpdateDownloading() throws {
         let updater = DisabledUpdater()
         updater.downloadingUpdateVersion = "0.7.0"
-        try renderSnapshot(sessions: Session.qaShowcase, updater: updater, name: "11c-footer-update-downloading")
+        try renderSnapshot(sessions: SessionData.qaShowcase, updater: updater, name: "11c-footer-update-downloading")
     }
 
     func testSettingsUpdateAvailable() throws {
@@ -140,7 +140,7 @@ final class QASnapshotTests: XCTestCase {
             ThemeManager.shared.setTheme(theme)
             for (colorScheme, schemeName) in schemes {
                 try renderSnapshot(
-                    sessions: Session.qaShowcase,
+                    sessions: SessionData.qaShowcase,
                     name: "20-active-\(theme.rawValue)-\(schemeName)",
                     colorScheme: colorScheme
                 )
@@ -169,13 +169,19 @@ final class QASnapshotTests: XCTestCase {
         let schemes: [(ColorScheme, String)] = [(.light, "light"), (.dark, "dark")]
         for (colorScheme, schemeName) in schemes {
             try renderRefinedPanelContextSnapshot(
-                PopupView(sessions: Session.qaShowcase, updater: DisabledUpdater(), pluginManager: inertPluginManager()),
+                PopupView(
+                    sessions: SessionData.qaShowcase,
+                    userSessions: userSessionProjection(from: SessionData.qaShowcase),
+                    updater: DisabledUpdater(),
+                    pluginManager: inertPluginManager()
+                ),
                 name: "24-refined-active-tokyoNight-\(schemeName)",
                 colorScheme: colorScheme
             )
             try renderRefinedPanelContextSnapshot(
                 PopupView(
-                    sessions: Session.qaShowcase,
+                    sessions: SessionData.qaShowcase,
+                    userSessions: userSessionProjection(from: SessionData.qaShowcase),
                     recentProjects: RecentProject.mockRecents,
                     updater: DisabledUpdater(),
                     pluginManager: inertPluginManager(),
@@ -207,7 +213,7 @@ final class QASnapshotTests: XCTestCase {
         )
         window.appearance = NSAppearance(named: .aqua)
 
-        let hostingView = NSHostingView(rootView: AnyView(popupView(for: Session.mockSessions)))
+        let hostingView = NSHostingView(rootView: AnyView(popupView(for: SessionData.mockSessions)))
         window.contentView = hostingView
 
         // Render "before" with 4 sessions
@@ -218,7 +224,7 @@ final class QASnapshotTests: XCTestCase {
         try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/11-add-fifth-before.png")
 
         // Update to 5 sessions in the same hosting view
-        hostingView.rootView = AnyView(popupView(for: Session.qaFiveSessions))
+        hostingView.rootView = AnyView(popupView(for: SessionData.qaFiveSessions))
         fittingSize = hostingView.fittingSize
         window.setContentSize(fittingSize)
         hostingView.frame = NSRect(origin: .zero, size: fittingSize)
@@ -226,8 +232,13 @@ final class QASnapshotTests: XCTestCase {
         try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/11-add-fifth-after.png")
     }
 
-    private func popupView(for sessions: [Session]) -> some View {
-        PopupView(sessions: sessions, updater: DisabledUpdater(), pluginManager: inertPluginManager())
+    private func popupView(for sessions: [SessionData]) -> some View {
+        PopupView(
+            sessions: sessions,
+            userSessions: userSessionProjection(from: sessions),
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager()
+        )
             .frame(width: 320)
             .panelSnapshotChrome()
             .environment(\.colorScheme, .light)
@@ -236,12 +247,17 @@ final class QASnapshotTests: XCTestCase {
     // MARK: - Rendering
 
     private func renderSnapshot(
-        sessions: [Session],
+        sessions: [SessionData],
         updater: UpdaterBase? = nil,
         name: String,
         colorScheme: ColorScheme = .light
     ) throws {
-        let view = PopupView(sessions: sessions, updater: updater ?? DisabledUpdater(), pluginManager: inertPluginManager())
+        let view = PopupView(
+            sessions: sessions,
+            userSessions: userSessionProjection(from: sessions),
+            updater: updater ?? DisabledUpdater(),
+            pluginManager: inertPluginManager()
+        )
             .frame(width: 320)
             .panelSnapshotChrome()
             .environment(\.colorScheme, colorScheme)
@@ -271,7 +287,8 @@ final class QASnapshotTests: XCTestCase {
         colorScheme: ColorScheme = .light
     ) throws {
         let view = PopupView(
-            sessions: Session.qaShowcase,
+            sessions: SessionData.qaShowcase,
+            userSessions: userSessionProjection(from: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             updater: DisabledUpdater(),
             pluginManager: inertPluginManager(),

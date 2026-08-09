@@ -19,9 +19,9 @@ enum HookHandler {
         }
 
         let sessionsDir = deps.sessionsDir()
-        let safeId = Session.sanitizeSessionId(raw: input.sessionId)
+        let safeId = SessionData.sanitizeSessionId(raw: input.sessionId)
         let pid = deps.process.parentPID()
-        let source = input.resolvedHarnessName ?? Session.ccSource
+        let source = input.resolvedHarnessName ?? SessionData.ccSource
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
         let sessionPath = (sessionsDir as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
 
@@ -47,45 +47,45 @@ enum HookHandler {
         // independently, and the last writer wins — clobbering the first writer's changes.
         var didApplyHook = false
         try withSessionLock(sessionPath: sessionPath, onError: deps.logger.logError) {
-            var freshSession = Session(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
-            freshSession.source = source
-            freshSession.cctopSessionId = cctopSessionId
-            freshSession.harnessSessionId = input.sessionId
-            let loaded: (session: Session, isNewSessionFile: Bool)
+            var freshData = SessionData(sessionId: safeId, projectPath: input.cwd, branch: branch, terminal: terminal)
+            freshData.source = source
+            freshData.cctopSessionId = cctopSessionId
+            freshData.harnessSessionId = input.sessionId
+            let loaded: (data: SessionData, isNewSessionFile: Bool)
             do {
                 loaded = try loadOrCreateSession(
-                    path: sessionPath, event: event, startTime: startTime, fresh: freshSession
+                    path: sessionPath, event: event, startTime: startTime, fresh: freshData
                 )
             } catch {
                 logSessionLoadFailureOnce(hookName: hookName, sessionPath: sessionPath, error: error, logger: deps.logger)
                 return
             }
-            var session = loaded.session
+            var data = loaded.data
             let isNewSessionFile = loaded.isNewSessionFile
 
-            session.pid = pid
-            session.pidStartTime = startTime
+            data.pid = pid
+            data.pidStartTime = startTime
             stampSessionIdentity(
-                &session, cctopSessionId: cctopSessionId,
+                &data, cctopSessionId: cctopSessionId,
                 input: input, source: source, safeId: safeId
             )
 
-            let (oldStatus, newStatus) = applyTransition(&session, event: event, input: input, branch: branch, terminal: terminal)
-            applySessionName(&session, event: event, input: input, names: deps.names)
-            if event != .sessionStart, isNewSessionFile, source == Session.codexSource {
-                session.workspaceFile = Session.findWorkspaceFile(in: input.cwd)
+            let (oldStatus, newStatus) = applyTransition(&data, event: event, input: input, branch: branch, terminal: terminal)
+            applySessionName(&data, event: event, input: input, names: deps.names)
+            if event != .sessionStart, isNewSessionFile, source == SessionData.codexSource {
+                data.workspaceFile = SessionData.findWorkspaceFile(in: input.cwd)
             }
-            applySideEffects(event: event, session: &session, input: input, sessionsDir: sessionsDir, safeId: safeId)
-            if input.isSubagentSession == true { session.isSubagentSession = true }
-            if session.shouldAutoHide || (event == .userPromptSubmit && input.hasCodexProjectSuggestionEvidence) { session.hidden = true }
-            session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: isNewSessionFile)
+            applySideEffects(event: event, data: &data, input: input, sessionsDir: sessionsDir, safeId: safeId)
+            if input.isSubagentSession == true { data.isSubagentSession = true }
+            if data.shouldAutoHide || (event == .userPromptSubmit && input.hasCodexProjectSuggestionEvidence) { data.hidden = true }
+            data.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: isNewSessionFile)
 
             let suffix = newStatus == nil ? " (preserved)" : ""
             deps.logger.appendHookLog(
                 sessionId: safeId, event: hookName, label: label,
-                transition: "\(oldStatus) -> \(session.status.rawValue)\(suffix)"
+                transition: "\(oldStatus) -> \(data.status.rawValue)\(suffix)"
             )
-            try session.writeToFile(path: sessionPath)
+            try data.writeToFile(path: sessionPath)
             didApplyHook = true
         }
 
@@ -94,29 +94,29 @@ enum HookHandler {
         }
     }
 
-    private static func clearToolState(_ session: inout Session) {
-        clearRunningToolState(&session)
-        session.notificationMessage = nil
+    private static func clearToolState(_ data: inout SessionData) {
+        clearRunningToolState(&data)
+        data.notificationMessage = nil
     }
 
-    private static func clearRunningToolState(_ session: inout Session) {
-        session.lastTool = nil
-        session.lastToolDetail = nil
+    private static func clearRunningToolState(_ data: inout SessionData) {
+        data.lastTool = nil
+        data.lastToolDetail = nil
     }
 
-    private static func applySubagentEvent(event: HookEvent, session: inout Session, input: HookInput) {
+    private static func applySubagentEvent(event: HookEvent, data: inout SessionData, input: HookInput) {
         switch event {
         case .subagentStart:
             guard let agentId = input.agentId, let agentType = input.agentType else { return }
-            if session.activeSubagents == nil { session.activeSubagents = [] }
-            if !session.activeSubagents!.contains(where: { $0.agentId == agentId }) {
-                session.activeSubagents!.append(
+            if data.activeSubagents == nil { data.activeSubagents = [] }
+            if !data.activeSubagents!.contains(where: { $0.agentId == agentId }) {
+                data.activeSubagents!.append(
                     SubagentInfo(agentId: agentId, agentType: agentType, startedAt: Date())
                 )
             }
         case .subagentStop:
             if let agentId = input.agentId {
-                session.activeSubagents?.removeAll { $0.agentId == agentId }
+                data.activeSubagents?.removeAll { $0.agentId == agentId }
             }
         default:
             break
@@ -125,36 +125,36 @@ enum HookHandler {
 
     /// Apply status transition and update session metadata. Returns (oldStatus, newStatus).
     private static func applyTransition(
-        _ session: inout Session, event: HookEvent, input: HookInput,
+        _ data: inout SessionData, event: HookEvent, input: HookInput,
         branch: String, terminal: TerminalInfo
     ) -> (String, SessionStatus?) {
-        let oldStatus = session.status.rawValue
-        let newStatus = Transition.forEvent(session.status, event: event)
-        if let newStatus { session.status = newStatus }
+        let oldStatus = data.status.rawValue
+        let newStatus = Transition.forEvent(data.status, event: event)
+        if let newStatus { data.status = newStatus }
         // Skip lastActivity for notificationPermission — PermissionRequest already set it,
         // and the menubar app needs the original timestamp for child-process-start-time comparison.
-        if event != .notificationPermission { session.lastActivity = Date() }
+        if event != .notificationPermission { data.lastActivity = Date() }
         if Transition.clearsInactiveMarkers(event: event) {
-            session.endedAt = nil
-            session.disconnectedAt = nil
+            data.endedAt = nil
+            data.disconnectedAt = nil
         }
-        session.branch = branch; session.terminal = terminal
+        data.branch = branch; data.terminal = terminal
         // MIGRATION(harness_name): The session JSON file still uses the `source` key.
         // Renaming the JSON key would require a reader-side migration in SessionManager.
         // Do that in a future PR once `harness_name` is settled.
-        if let harness = input.resolvedHarnessName { session.source = harness }
+        if let harness = input.resolvedHarnessName { data.source = harness }
         return (oldStatus, newStatus)
     }
 
     /// Update the user-visible session name. Runs right after applyTransition, once
     /// source/terminal are current, since the lookup strategy depends on both.
     private static func applySessionName(
-        _ session: inout Session, event: HookEvent, input: HookInput, names: any SessionNameResolving
+        _ data: inout SessionData, event: HookEvent, input: HookInput, names: any SessionNameResolving
     ) {
         if let name = input.sessionName {
-            session.sessionName = name
+            data.sessionName = name
         } else if event == .sessionStart || event == .userPromptSubmit || event == .stop
-                    || (session.source == "codex" && session.sessionName == nil) {
+                    || (data.source == "codex" && data.sessionName == nil) {
             // Only overwrite when the lookup succeeds (preserve-on-fail). Re-run on prompt
             // boundaries (and .stop, for Claude Code) to catch renames. Codex additionally
             // re-runs on ANY event while the name is still missing: it never fires .stop and
@@ -167,9 +167,9 @@ enum HookHandler {
             //                     Desktop never writes a `custom-title` to the CC transcript
             //   - terminal CC:    the transcript JSONL `custom-title` entry
             let lookedUp: String?
-            if session.source == "codex" {
+            if data.source == "codex" {
                 lookedUp = names.codexThreadName(sessionId: input.sessionId)
-            } else if session.terminal?.bundleId == HostAppBundleID.claudeDesktop {
+            } else if data.terminal?.bundleId == HostAppBundleID.claudeDesktop {
                 lookedUp = names.claudeDesktopTitle(cliSessionId: input.sessionId)
             } else {
                 lookedUp = names.transcriptSessionName(
@@ -177,27 +177,27 @@ enum HookHandler {
                 )
             }
             if let name = lookedUp {
-                session.sessionName = name
+                data.sessionName = name
             }
         }
     }
 
     private static func applySideEffects(
-        event: HookEvent, session: inout Session, input: HookInput,
+        event: HookEvent, data: inout SessionData, input: HookInput,
         sessionsDir: String, safeId: String
     ) {
         switch event {
         case .sessionStart:
-            clearToolState(&session)
-            session.activeSubagents = []
-            session.workspaceFile = Session.findWorkspaceFile(in: input.cwd)
+            clearToolState(&data)
+            data.activeSubagents = []
+            data.workspaceFile = SessionData.findWorkspaceFile(in: input.cwd)
         case .userPromptSubmit:
-            clearToolState(&session)
-            if let prompt = input.prompt { session.lastPrompt = prompt }
+            clearToolState(&data)
+            if let prompt = input.prompt { data.lastPrompt = prompt }
         case .preToolUse:
             if let toolName = input.toolName {
-                session.lastTool = toolName
-                session.lastToolDetail = extractToolDetail(toolName: toolName, toolInput: input.toolInput)
+                data.lastTool = toolName
+                data.lastToolDetail = extractToolDetail(toolName: toolName, toolInput: input.toolInput)
             }
 
         case .permissionRequest:
@@ -206,21 +206,21 @@ enum HookHandler {
                 if let detail { return "\(tool): \(detail)" }
                 return tool
             }
-            session.notificationMessage = msg
+            data.notificationMessage = msg
             // Keep lastTool/lastToolDetail from the preceding PreToolUse — when the
             // delayed Notification transitions to .working, the card can show what tool is running.
 
         case .notificationIdle, .notificationOther:
-            applyNotificationEvent(event: event, session: &session, input: input)
+            applyNotificationEvent(event: event, data: &data, input: input)
         case .stop:
-            clearToolState(&session)
+            clearToolState(&data)
         case .postToolUseFailure:
-            if let error = input.error { session.notificationMessage = error }
+            if let error = input.error { data.notificationMessage = error }
         case .subagentStart, .subagentStop:
-            applySubagentEvent(event: event, session: &session, input: input)
+            applySubagentEvent(event: event, data: &data, input: input)
 
         case .sessionError:
-            session.notificationMessage = input.error ?? input.message
+            data.notificationMessage = input.error ?? input.message
 
         // notificationPermission: PermissionRequest already handles side effects; Notification fires ~6s later.
         case .notificationPermission, .postCompact, .preCompact, .postToolUse, .sessionEnd, .unknown:
@@ -228,12 +228,12 @@ enum HookHandler {
         }
     }
 
-    private static func applyNotificationEvent(event: HookEvent, session: inout Session, input: HookInput) {
-        clearRunningToolState(&session)
+    private static func applyNotificationEvent(event: HookEvent, data: inout SessionData, input: HookInput) {
+        clearRunningToolState(&data)
         if event == .notificationIdle && input.notificationType == "idle_prompt" {
-            session.notificationMessage = nil
+            data.notificationMessage = nil
         } else if let message = input.message {
-            session.notificationMessage = message
+            data.notificationMessage = message
         }
     }
 
@@ -404,11 +404,11 @@ extension HookHandler {
     // swiftlint:disable:next function_body_length
     private static func handleSessionEnd(hookName: String, input: HookInput, deps: HookDependencies) {
         let pid = deps.process.parentPID()
-        let safeId = Session.sanitizeSessionId(raw: input.sessionId)
+        let safeId = SessionData.sanitizeSessionId(raw: input.sessionId)
         let sessionsDir = deps.sessionsDir()
         let primaryPath = (sessionsDir as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
-        let source = input.resolvedHarnessName ?? Session.ccSource
+        let source = input.resolvedHarnessName ?? SessionData.ccSource
 
         // The end-time parent walk can resolve a different PID than at start (ancestors
         // exit during teardown), so the PID-derived path may miss the session's file or
@@ -420,19 +420,19 @@ extension HookHandler {
             // No file holds this session. Keep the legacy corrupt-file cleanup on the
             // primary path, but never touch another conversation's healthy file.
             try? withSessionLock(sessionPath: primaryPath, onError: deps.logger.logError) {
-                guard (try? Session.fromFile(path: primaryPath)) == nil else { return }
+                guard (try? SessionData.fromFile(path: primaryPath)) == nil else { return }
                 deps.logger.appendHookLog(sessionId: safeId, event: hookName, label: label, transition: "-> removed")
                 removeSession(at: primaryPath, sessionId: safeId, logger: deps.logger)
             }
             return
         }
 
-        let existingTarget = try? Session.fromFile(path: target.path)
-        let existingCctopSessionId = existingTarget.flatMap { session -> String? in
+        let existingTarget = try? SessionData.fromFile(path: target.path)
+        let existingCctopSessionId = existingTarget.flatMap { data -> String? in
             guard sessionEndIdentityMatch(
-                session, safeId: safeId, rawId: input.sessionId, source: source
-            ) == target.match, Session.isValidCctopSessionId(session.cctopSessionId) else { return nil }
-            return session.cctopSessionId
+                data, safeId: safeId, rawId: input.sessionId, source: source
+            ) == target.match, CctopSessionID.isValid(data.cctopSessionId) else { return nil }
+            return data.cctopSessionId
         }
         guard let cctopSessionId = existingCctopSessionId ?? resolvedCctopSessionIDForEnd(
             input: input, sessionsDir: sessionsDir, source: source,
@@ -442,9 +442,9 @@ extension HookHandler {
         // Stamp endedAt instead of deleting — the menubar app archives to history on next poll.
         try? withSessionLock(sessionPath: target.path, onError: deps.logger.logError) {
             // Re-validate under the lock: the file can change between the scan and the stamp.
-            guard var session = try? Session.fromFile(path: target.path),
+            guard var data = try? SessionData.fromFile(path: target.path),
                   sessionEndIdentityMatch(
-                    session, safeId: safeId, rawId: input.sessionId, source: source
+                    data, safeId: safeId, rawId: input.sessionId, source: source
                   ) == target.match else { return }
             // A legacy match is allowed only while it remains the sole fallback. If an
             // exact record appeared or another legacy candidate became visible after the
@@ -456,16 +456,16 @@ extension HookHandler {
                 ) == target else { return }
             }
             let endedAt = Date()
-            if shouldAdoptResolvedCctopSessionID(session, input: input, source: source, safeId: safeId) {
-                session.cctopSessionId = cctopSessionId
+            if shouldAdoptResolvedCctopSessionID(data, input: input, source: source, safeId: safeId) {
+                data.cctopSessionId = cctopSessionId
             }
-            session.endedAt = endedAt
-            if hasTrustedClaudeDesktopBundle(session, sourceOverride: input.resolvedHarnessName) {
-                session.disconnectedAt = session.disconnectedAt ?? endedAt
+            data.endedAt = endedAt
+            if hasTrustedClaudeDesktopBundle(data, sourceOverride: input.resolvedHarnessName) {
+                data.disconnectedAt = data.disconnectedAt ?? endedAt
             }
-            session.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
+            data.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
             do {
-                try session.writeToFile(path: target.path)
+                try data.writeToFile(path: target.path)
             } catch {
                 deps.logger.logError("\(hookName): \(error)")
                 return
@@ -493,11 +493,11 @@ extension HookHandler {
         input: HookInput, sessionPath: String, sessionsDir: String,
         source: String, safeId: String
     ) throws -> String {
-        if let session = try? Session.fromFile(path: sessionPath),
-           (session.source ?? Session.ccSource) == source,
-           session.harnessSessionId == input.sessionId,
-           Session.isValidCctopSessionId(session.cctopSessionId),
-           let cctopSessionId = session.cctopSessionId {
+        if let data = try? SessionData.fromFile(path: sessionPath),
+           (data.source ?? SessionData.ccSource) == source,
+           data.harnessSessionId == input.sessionId,
+           CctopSessionID.isValid(data.cctopSessionId),
+           let cctopSessionId = data.cctopSessionId {
             return cctopSessionId
         }
         return try resolveCctopSessionID(
@@ -520,21 +520,21 @@ extension HookHandler {
     }
 
     private static func stampSessionIdentity(
-        _ session: inout Session, cctopSessionId: String,
+        _ data: inout SessionData, cctopSessionId: String,
         input: HookInput, source: String, safeId: String
     ) {
-        if shouldAdoptResolvedCctopSessionID(session, input: input, source: source, safeId: safeId) {
-            session.cctopSessionId = cctopSessionId
+        if shouldAdoptResolvedCctopSessionID(data, input: input, source: source, safeId: safeId) {
+            data.cctopSessionId = cctopSessionId
         }
         // Stamped after a matching event loads the record so pre-field files gain the
         // exact reference mid-life; only SessionStart may rotate conversations.
-        session.harnessSessionId = input.sessionId
+        data.harnessSessionId = input.sessionId
     }
 
     private static func shouldAdoptResolvedCctopSessionID(
-        _ session: Session, input: HookInput, source: String, safeId: String
+        _ data: SessionData, input: HookInput, source: String, safeId: String
     ) -> Bool {
-        !Session.isValidCctopSessionId(session.cctopSessionId)
+        !CctopSessionID.isValid(data.cctopSessionId)
             || CctopSessionIdentityStore.durableEvidence(
                 source: source,
                 harnessSessionId: input.sessionId,
@@ -548,11 +548,11 @@ extension HookHandler {
     }
 
     private static func sessionEndIdentityMatch(
-        _ session: Session, safeId: String, rawId: String, source: String
+        _ data: SessionData, safeId: String, rawId: String, source: String
     ) -> SessionEndIdentityMatch? {
-        guard session.sessionId == safeId,
-              (session.source ?? Session.ccSource) == source else { return nil }
-        guard let harnessSessionId = session.harnessSessionId else { return .legacy }
+        guard data.sessionId == safeId,
+              (data.source ?? SessionData.ccSource) == source else { return nil }
+        guard let harnessSessionId = data.harnessSessionId else { return .legacy }
         return harnessSessionId == rawId ? .exact : nil
     }
 
@@ -562,12 +562,12 @@ extension HookHandler {
     private static func sessionEndTarget(
         primaryPath: String, sessionsDir: String, safeId: String, rawId: String, source: String
     ) -> SessionEndTarget? {
-        var exact: [(path: String, session: Session)] = []
+        var exact: [(path: String, data: SessionData)] = []
         var legacyPaths: [String] = []
-        forEachSession(in: sessionsDir) { path, session in
-            switch sessionEndIdentityMatch(session, safeId: safeId, rawId: rawId, source: source) {
+        forEachSession(in: sessionsDir) { path, data in
+            switch sessionEndIdentityMatch(data, safeId: safeId, rawId: rawId, source: source) {
             case .exact:
-                exact.append((path, session))
+                exact.append((path, data))
             case .legacy:
                 legacyPaths.append(path)
             case nil:
@@ -581,11 +581,11 @@ extension HookHandler {
             }
             var best = exact[0]
             for candidate in exact.dropFirst() {
-                let candidateUnended = candidate.session.endedAt == nil
-                let currentUnended = best.session.endedAt == nil
+                let candidateUnended = candidate.data.endedAt == nil
+                let currentUnended = best.data.endedAt == nil
                 if candidateUnended != currentUnended {
                     if candidateUnended { best = candidate }
-                } else if candidate.session.lastActivity > best.session.lastActivity {
+                } else if candidate.data.lastActivity > best.data.lastActivity {
                     best = candidate
                 }
             }
@@ -600,53 +600,53 @@ extension HookHandler {
         sessionsDir: String, projectPath: String, currentPid: UInt32?,
         process: any ProcessProbing = LiveProcessProber(), logger: HookLogger = HookLogger()
     ) {
-        forEachSession(in: sessionsDir) { path, session in
-            guard session.projectPath == projectPath, session.pid != currentPid else { return }
+        forEachSession(in: sessionsDir) { path, data in
+            guard data.projectPath == projectPath, data.pid != currentPid else { return }
 
             // Retained conversations are reaped by the menubar's lock-held lifecycle GC. The hook
             // must not delete a recent Codex thread or Claude Desktop sibling on a new process start.
-            guard !session.isCodex, !hasTrustedClaudeDesktopBundle(session) else { return }
+            guard !data.isCodex, !hasTrustedClaudeDesktopBundle(data) else { return }
 
-            guard !session.hidden, !session.shouldAutoHide else { return }
+            guard !data.hidden, !data.shouldAutoHide else { return }
 
             let isStale: Bool
-            if let pid = session.pid {
+            if let pid = data.pid {
                 if !process.isAlive(pid: pid) {
                     isStale = true
-                } else if let storedStart = session.pidStartTime,
+                } else if let storedStart = data.pidStartTime,
                           let currentStart = process.startTime(pid: pid),
                           abs(storedStart - currentStart) > 1.0 {
                     isStale = true  // PID reused by a different process
                 } else if let comm = process.commandName(pid: pid),
-                          Session.isForeignHarnessComm(comm, source: session.source) {
+                          SessionData.isForeignHarnessComm(comm, source: data.source) {
                     isStale = true  // PID adopted from/reused by another harness (issue #155)
                 } else {
                     isStale = false
                 }
             } else {
                 // MIGRATION(v0.6.0): Remove no-PID branch after all users have migrated.
-                isStale = -session.lastActivity.timeIntervalSinceNow > noPIDMaxAge
+                isStale = -data.lastActivity.timeIntervalSinceNow > noPIDMaxAge
             }
 
             if isStale {
-                removeSession(at: path, sessionId: session.sessionId, logger: logger)
+                removeSession(at: path, sessionId: data.sessionId, logger: logger)
             }
         }
     }
 
-    fileprivate static func hasTrustedClaudeDesktopBundle(_ session: Session, sourceOverride: String? = nil) -> Bool {
-        let bundleID = session.terminal?.bundleId
+    fileprivate static func hasTrustedClaudeDesktopBundle(_ data: SessionData, sourceOverride: String? = nil) -> Bool {
+        let bundleID = data.terminal?.bundleId
         return bundleID == HostAppBundleID.claudeDesktop
-            && Session.trustsDesktopBundle(source: session.source ?? sourceOverride, bundleId: bundleID)
+            && SessionData.trustsDesktopBundle(source: data.source ?? sourceOverride, bundleId: bundleID)
     }
 
-    private static func forEachSession(in dir: String, body: (String, Session) -> Void) {
+    private static func forEachSession(in dir: String, body: (String, SessionData) -> Void) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(atPath: dir) else { return }
         for entry in entries where entry.hasSuffix(".json") {
             let path = (dir as NSString).appendingPathComponent(entry)
-            guard let session = try? Session.fromFile(path: path) else { continue }
-            body(path, session)
+            guard let data = try? SessionData.fromFile(path: path) else { continue }
+            body(path, data)
         }
     }
 
@@ -657,8 +657,8 @@ extension HookHandler {
         // (one conversation dual-written as <pid>.json and codex-<sid>.json) — only
         // remove the log when no surviving session file still owns it.
         var sharedByOtherFile = false
-        forEachSession(in: (path as NSString).deletingLastPathComponent) { otherPath, session in
-            if otherPath != path, session.sessionId == sessionId { sharedByOtherFile = true }
+        forEachSession(in: (path as NSString).deletingLastPathComponent) { otherPath, data in
+            if otherPath != path, data.sessionId == sessionId { sharedByOtherFile = true }
         }
         if !sharedByOtherFile {
             logger.cleanupSessionLog(sessionId: sessionId)
@@ -681,11 +681,11 @@ private func logForeignHarnessWarning(
     // harness's own process. A foreign-harness PID means liveness for this file will
     // track the wrong process — log it so the adoption path can be confirmed in the field.
     guard let parentComm = deps.process.commandName(pid: pid),
-          Session.isForeignHarnessComm(parentComm, source: input.resolvedHarnessName) else {
+          SessionData.isForeignHarnessComm(parentComm, source: input.resolvedHarnessName) else {
         return
     }
     deps.logger.appendHookLog(
-        sessionId: Session.sanitizeSessionId(raw: input.sessionId), event: hookName, label: label,
+        sessionId: SessionData.sanitizeSessionId(raw: input.sessionId), event: hookName, label: label,
         transition: "warning: parent pid \(pid) is '\(parentComm)', a foreign harness"
     )
 }
@@ -706,12 +706,12 @@ private func runProjectCleanupIfNeeded(
 }
 
 private func loadOrCreateSession(
-    path: String, event: HookEvent, startTime: TimeInterval?, fresh: Session
-) throws -> (session: Session, isNewSessionFile: Bool) {
+    path: String, event: HookEvent, startTime: TimeInterval?, fresh: SessionData
+) throws -> (data: SessionData, isNewSessionFile: Bool) {
     guard FileManager.default.fileExists(atPath: path) else {
         return (fresh, true)
     }
-    let existing: Session
+    let existing: SessionData
     do {
         existing = try decodeExistingSessionFile(path: path)
     } catch SessionLoadError.undecodableExistingFile(_) where event == .sessionStart {
@@ -735,7 +735,7 @@ private func loadOrCreateSession(
         }
         var replacement = fresh
         if CctopSessionIdentityStore.durableEvidence(for: fresh) == nil {
-            replacement.cctopSessionId = Session.makeCctopSessionId()
+            replacement.cctopSessionId = CctopSessionID.make()
         }
         return (replacement, true)
     }
@@ -776,7 +776,7 @@ private enum SessionLoadError: Error, CustomStringConvertible {
     }
 }
 
-private func decodeExistingSessionFile(path: String) throws -> Session {
+private func decodeExistingSessionFile(path: String) throws -> SessionData {
     let data: Data
     do {
         data = try Data(contentsOf: URL(fileURLWithPath: path))
@@ -785,7 +785,7 @@ private func decodeExistingSessionFile(path: String) throws -> Session {
     }
 
     do {
-        return try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+        return try JSONDecoder.sessionDecoder.decode(SessionData.self, from: data)
     } catch {
         throw SessionLoadError.undecodableExistingFile(error)
     }
@@ -803,9 +803,9 @@ private func logSessionLoadFailureOnce(hookName: String, sessionPath: String, er
     )
 }
 
-private func canReplaceDecodedSessionFile(existing: Session, fresh: Session, event: HookEvent) -> Bool {
+private func canReplaceDecodedSessionFile(existing: SessionData, fresh: SessionData, event: HookEvent) -> Bool {
     guard event == .sessionStart else { return false }
-    guard existing.source != Session.codexSource, fresh.source != Session.codexSource else { return false }
+    guard existing.source != SessionData.codexSource, fresh.source != SessionData.codexSource else { return false }
     guard !HookHandler.hasTrustedClaudeDesktopBundle(existing),
           !HookHandler.hasTrustedClaudeDesktopBundle(fresh) else {
         return false
@@ -820,7 +820,7 @@ private func canReplaceDecodedSessionFile(existing: Session, fresh: Session, eve
 /// The `codex-` prefix also keeps Codex files out of the reader-side legacy UUID-file
 /// sweep (`SessionManager.isLegacyUUIDFilename`) — keep both sides in sync.
 func sessionFileName(input: HookInput, pid: UInt32, safeSessionId: String) -> String {
-    if input.resolvedHarnessName == Session.codexSource {
+    if input.resolvedHarnessName == SessionData.codexSource {
         return "codex-\(safeSessionId).json"
     }
     return "\(pid).json"

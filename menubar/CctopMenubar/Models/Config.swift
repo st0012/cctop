@@ -165,21 +165,21 @@ enum Config {
     }
 }
 
-extension Session {
+extension SessionData {
     private static let codexTitleGenerationPromptPrefix =
         "You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title"
 
     /// True for Codex's local memory-consolidation runs. Codex owns this exact directory,
     /// and app-server hooks do not consistently preserve their Desktop bundle identity.
     var isCodexMemoryMaintenanceSession: Bool {
-        source == Session.codexSource
+        source == SessionData.codexSource
             && Config.standardizedPath(projectPath) == Config.standardizedPath(Config.codexMemoriesDir())
     }
 
     /// True for Codex's internal title-generation helper runs. They briefly create
     /// hook-visible conversations in the current project, but are not user workspace sessions.
     var isCodexTitleGenerationSession: Bool {
-        source == Session.codexSource
+        source == SessionData.codexSource
             && (sessionName?.isEmpty ?? true)
             && (lastPrompt?.hasPrefix(Self.codexTitleGenerationPromptPrefix) == true)
             && (lastPrompt?.contains("Generate a concise UI title") == true)

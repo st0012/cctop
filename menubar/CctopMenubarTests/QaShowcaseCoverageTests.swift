@@ -3,14 +3,14 @@ import XCTest
 
 final class QaShowcaseCoverageTests: XCTestCase {
     func testShowcaseCoversPrimaryAgentBadgeVariants() {
-        let badges = Set(Session.qaShowcase.map { $0.agentBadge })
+        let badges = Set(SessionData.qaShowcase.map { $0.agentBadge })
         XCTAssertTrue(badges.contains(.cc), "qaShowcase should include a CC session")
         XCTAssertTrue(badges.contains(.claudeDesktop), "qaShowcase should include a Claude Desktop session")
         XCTAssertTrue(badges.contains(.codex), "qaShowcase should include a Codex session")
     }
 
     func testShowcaseHasMixOfStatuses() {
-        let statuses = Set(Session.qaShowcase.map { $0.status })
+        let statuses = Set(SessionData.qaShowcase.map { $0.status })
         XCTAssertTrue(statuses.contains(.working), "qaShowcase should include a working session")
         XCTAssertTrue(statuses.contains(.idle), "qaShowcase should include an idle session")
         let hasWaiting = statuses.contains(.waitingInput)
@@ -23,7 +23,7 @@ final class QaShowcaseCoverageTests: XCTestCase {
         // Permission is the only status that renders the dedicated red-orange
         // "Permission" pill (everything else uses amber "Waiting"). Lock it
         // into the showcase so README screenshots always demonstrate it.
-        let statuses = Session.qaShowcase.map { $0.status }
+        let statuses = SessionData.qaShowcase.map { $0.status }
         XCTAssertTrue(
             statuses.contains(.waitingPermission),
             "qaShowcase must include a waitingPermission session so the dedicated Permission pill is visible in screenshots"

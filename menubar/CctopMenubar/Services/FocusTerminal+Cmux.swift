@@ -39,12 +39,12 @@ func cmuxFocusArguments(socket: String, workspaceId: String, surfaceId: String?,
     return ["--socket", socket, "focus-surface", "--workspace", workspaceId, "--surface", surfaceId]
 }
 
-func resolveCmuxLiveMultiplexer(session: Session) -> MultiplexerInfo? {
+func resolveCmuxLiveMultiplexer(session: SessionData) -> MultiplexerInfo? {
     resolveCmuxLiveMultiplexer(session: session, environmentLookup: cmuxEnvironmentForProcess(pid:))
 }
 
 func resolveCmuxLiveMultiplexer(
-    session: Session,
+    session: SessionData,
     environmentLookup: (UInt32) -> [String: String]?
 ) -> MultiplexerInfo? {
     guard session.terminal?.multiplexer == nil,

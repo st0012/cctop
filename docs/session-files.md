@@ -13,12 +13,12 @@ Type: `string` (lowercase UUID)
 Default: absent only on legacy records awaiting migration.
 
 `cctop_session_id` is an opaque identifier generated and owned by cctop for a
-logical session. It is random: it is never derived from the client, title,
+user session. It is random: it is never derived from the client, title,
 project path, prompt or transcript content, PID, process generation, terminal,
 window, or focus target. When a client supplies a supported durable resume
 reference, the value remains stable across cctop and client restarts on the
 same machine while cctop's local identity data remains. Otherwise it is
-permanent only for that observed record.
+permanent only for that session record.
 
 For supported resume contracts, cctop keeps a private UUID-only mapping under
 `~/.cctop/session-identities/`. Mapping filenames hash the source-scoped client
@@ -63,47 +63,109 @@ may replace a PID-keyed record only through `SessionStart`-driven rotation.
 |---|---|---|
 | Codex CLI/Desktop | Yes | The client supplies the same UUID conversation reference across process generations. |
 | Claude Code/Desktop | Yes when a UUID session reference is available | Claude session/transcript state preserves that UUID across resume. |
-| pi | Yes only when `getSessionId()` supplies a real UUID | Synthetic `pi-<pid>` fallback observations remain record-local. |
+| pi | Yes only when `getSessionId()` supplies a real UUID | Synthetic `pi-<pid>` fallback records remain separate. |
 | OpenCode | Not yet | The plugin intentionally uses a process-scoped synthetic reference until per-event session routing is reliable. |
 
-Every newly observed record still receives a `cctop_session_id`; “not yet” means
-cctop cannot promise that a later reopened observation will recover the same
-one. References are always source-scoped. cctop never infers that conversations
+Every new session record still receives a `cctop_session_id`. “Not yet” means
+that cctop cannot promise the same ID for a later reopened record.
+References are always source-scoped. cctop never infers that conversations
 from different clients contain the same content.
+
+### Internal session model
+
+The names separate decoded data from the work session that the user sees.
+
+- `SessionData` is the Codable payload model for one hook-owned JSON file.
+- `SessionRecord` contains one `SessionData` value plus file and runtime evidence.
+- One or more related `SessionRecord` values form a `UserSession`.
+- `displayRecord.data` supplies the visible row and the current target for indirect actions.
+
+`SessionDataCleanupSource` is a cleanup-only projection derived from
+`SessionData`. It is not a persisted `SessionRecord` or a `UserSession`.
+
+The selected winner's valid `cctop_session_id` becomes the permanent identity
+of at most one current `UserSession`. More than one `SessionRecord` can carry
+that ID because one work session can have more than one file or host record.
+Older retained records can contain a stale or conflicting ID, but they do not
+redefine the current group. Hidden and finished records do not form a current
+`UserSession`, even when they carry an ID.
+
+The hook and identity store assign the ID to `SessionData` before the app forms
+`UserSession`. `CctopSessionID` owns ID creation and validation. `SessionData`
+only carries the serialized value.
+
+`SessionData.lifecycle` is an existing display overlay. cctop derives it after
+decode and never writes it to JSON. `SessionRecord` also stores the lifecycle
+comparison rank, file path, and modification time. The record is not a
+persisted schema.
+
+`SessionData` replaces the old `Session` type name. The value describes one
+file payload, not the full work session that the user sees. `SessionRecord`
+replaces the old “observation” name because “record” describes its role more
+clearly.
+
+`SessionDataSources` is a separate dependency container for `SessionManager`.
+It is not part of this three-layer model.
+
+`UserSession` means one current, user-visible work session. It is not a user
+account, a stored schema, or a client connection.
+
+A work session can move between CLI and desktop surfaces of the same supported
+client when both records have matching identity evidence. cctop never groups
+different clients by project, title, prompt, or transcript content.
+
+`LogicalIdentity` remains the name of the grouping rule. It uses the winner's
+permanent cctop ID when that ID is valid. An unstamped legacy record uses a safe
+fallback until it receives a permanent ID. It is not a separate session type.
+
+Stable-key selection first chooses one authoritative record for each host
+conversation. That record sets the group identity. Older related records remain
+attached as evidence, even when their identity data is stale.
+
+`SessionManager.sessions` remains the canonical visible row order. It contains
+the selected `SessionData` from each visible `UserSession`.
+
+Direct row actions keep the exact rendered `SessionData`. Indirect URL,
+notification, hide, and keyboard actions resolve the current `UserSession` and
+fail closed when the identity evidence is missing, invalid, or ambiguous.
+
+Hidden, archived, finished, and cleanup-only records do not automatically enter
+the `UserSession` projection.
 
 ### Stream Deck routing
 
 Display-state schema v2 publishes `cctop_session_id` for every session row.
 Stream Deck caches the ID that a key rendered, so a press cannot accidentally
 target an unrelated session that moved into the same slot. cctop then resolves
-that permanent session ID against current observations from canonical
-`SessionManager.sessions`. It focuses the first matching current observation in
-canonical panel order. If no current observation matches, cctop records a
-privacy-safe stale-state diagnostic, performs exactly one synchronous canonical
-reload and one re-resolution, then fails closed if the target is still missing.
-It never falls back to a client conversation reference, PID, or display slot.
+that permanent session ID to the canonical `UserSession`. It focuses the
+session's `focusTarget`, which is the `displayRecord.data` selected by the
+existing lifecycle preference. If no current user session matches, cctop records
+a privacy-safe stale-state diagnostic. It performs one canonical reload and one
+re-resolution, then fails closed if the target is still missing. It never falls
+back to a client conversation reference, PID, or display slot.
 
-`SessionManager` collapses visible observations with the same logical identity
+`SessionManager` collapses visible records with the same logical identity
 into one panel row before applying its existing status-group ordering. The first
-logical row position is retained while the existing lifecycle preference chooses
-the current observation. Panel, URL focus, DisplayStateWriter, and Stream Deck
+user-session row position is retained while the existing lifecycle preference
+chooses the display record. Panel, URL focus, DisplayStateWriter, and Stream Deck
 then consume that canonical order. DisplayStateWriter never independently sorts,
 deduplicates, or removes manager rows, so its slots remain a one-to-one projection.
 
-A direct pointer or context-menu action focuses the exact current observation
+A direct pointer or context-menu action focuses the exact current record
 rendered in that row. Keyboard selection instead retains logical identity and
-resolves it against current panel observations, so reloads, focus-target changes,
+resolves it against current user sessions, so reloads, focus-target changes,
 and status-group movement cannot retarget selection by row index. Navigate-mode
 number slots freeze those identities at activation; a missing identity leaves its
 original number unusable rather than shifting a later conversation into that slot.
 
 This version does not offer user-selectable routing among multiple simultaneous
-focus targets. Observations sharing one ID form one logical panel row, and a
-permanent-ID resolver supplied with multiple current observations uses the first
-match in canonical panel order. This is the temporary single-target policy.
-Future support extends the resolver with an explicit selection policy rather than
-changing logical identity, lifecycle/liveness classification, canonical order,
-or terminal/window execution.
+focus targets. Records sharing one ID form one user-session row. The
+permanent-ID resolver finds that canonical `UserSession` and uses its
+`displayRecord` as the focus target. The existing lifecycle preference selects
+that record. This is the temporary single-target policy. Future support extends
+the resolver with an explicit selection policy rather than changing logical
+identity, lifecycle/liveness classification, canonical order, or terminal/window
+execution.
 Cross-client equivalence and cross-machine identity are out of scope. Manual
 hiding and notification grouping use `cctop_session_id`. Archived desktop Recent
 rows also prefer it for logical row identity; path-based Recent Projects, Cleanup,
@@ -199,7 +261,7 @@ available until the record is removed externally.
 Upgrades migrate an unambiguous legacy Codex or desktop key to its permanent
 `cctop_session_id` before building the visible projection. The canonical source
 and session UUID in the key can adopt the sole permanent ID already stamped on
-a peer even after the exact legacy observation disappears. Partial inventories
+a peer even after the exact legacy record disappears. Partial inventories
 retain the fallback; zero or multiple matching permanent IDs keep every current
 candidate hidden and the visibility projections frozen. Complete inventories
 retire disk-confirmed migrations and proven-missing keys. Process/PID keys are

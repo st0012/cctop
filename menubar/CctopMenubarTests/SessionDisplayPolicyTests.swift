@@ -45,9 +45,9 @@ final class SessionDisplayPolicyTests: XCTestCase {
 
     func testReconciledActiveOrderKeepsWaitingPeerOrderAcrossSameGroupUpdates() {
         let now = Date(timeIntervalSince1970: 10_000)
-        var first = Session.mock(id: "first", status: .waitingInput, notificationMessage: "old")
+        var first = SessionData.mock(id: "first", status: .waitingInput, notificationMessage: "old")
         first.lastActivity = now.addingTimeInterval(-300)
-        var second = Session.mock(id: "second", status: .needsAttention, notificationMessage: "old")
+        var second = SessionData.mock(id: "second", status: .needsAttention, notificationMessage: "old")
         second.lastActivity = now.addingTimeInterval(-200)
         let previous = [first, second]
 
@@ -71,10 +71,10 @@ final class SessionDisplayPolicyTests: XCTestCase {
 
     func testReconciledActiveOrderKeepsWorkingAndActiveIdlePeerOrderAcrossActivityChanges() {
         let now = Date(timeIntervalSince1970: 20_000)
-        var workA = Session.mock(id: "work-a", status: .working)
-        var workB = Session.mock(id: "work-b", status: .working)
-        var idleA = Session.mock(id: "idle-a", status: .idle)
-        var idleB = Session.mock(id: "idle-b", status: .idle)
+        var workA = SessionData.mock(id: "work-a", status: .working)
+        var workB = SessionData.mock(id: "work-b", status: .working)
+        var idleA = SessionData.mock(id: "idle-a", status: .idle)
+        var idleB = SessionData.mock(id: "idle-b", status: .idle)
         let previous = [workA, workB, idleA, idleB]
 
         workA.lastActivity = now
@@ -93,9 +93,9 @@ final class SessionDisplayPolicyTests: XCTestCase {
 
     func testReconciledActiveOrderMovesWorkingSessionToWaitingGroupTail() {
         let now = Date(timeIntervalSince1970: 30_000)
-        let waitA = Session.mock(id: "wait-a", status: .waitingInput)
-        let waitB = Session.mock(id: "wait-b", status: .needsAttention)
-        var working = Session.mock(id: "working", status: .working)
+        let waitA = SessionData.mock(id: "wait-a", status: .waitingInput)
+        let waitB = SessionData.mock(id: "wait-b", status: .needsAttention)
+        var working = SessionData.mock(id: "working", status: .working)
         let previous = [waitA, waitB, working]
 
         working.status = .waitingInput
@@ -111,9 +111,9 @@ final class SessionDisplayPolicyTests: XCTestCase {
 
     func testReconciledActiveOrderMovesWaitingSessionToWorkingGroupTail() {
         let now = Date(timeIntervalSince1970: 40_000)
-        var waiting = Session.mock(id: "waiting", status: .waitingInput)
-        let workA = Session.mock(id: "work-a", status: .working)
-        let workB = Session.mock(id: "work-b", status: .working)
+        var waiting = SessionData.mock(id: "waiting", status: .waitingInput)
+        let workA = SessionData.mock(id: "work-a", status: .working)
+        let workB = SessionData.mock(id: "work-b", status: .working)
         let previous = [waiting, workA, workB]
 
         waiting.status = .working
@@ -128,16 +128,16 @@ final class SessionDisplayPolicyTests: XCTestCase {
 
     func testReconciledActiveOrderAppendsNewcomersWithinEachPriorityGroup() {
         let now = Date(timeIntervalSince1970: 50_000)
-        let permission = Session.mock(id: "permission", status: .waitingPermission)
-        let waiting = Session.mock(id: "waiting", status: .waitingInput)
-        let working = Session.mock(id: "working", status: .working)
-        let compacting = Session.mock(id: "compacting", status: .compacting)
-        let idle = Session.mock(id: "idle", status: .idle)
-        let newPermission = Session.mock(id: "new-permission", status: .waitingPermission)
-        let newWaiting = Session.mock(id: "new-waiting", status: .waitingInput)
-        let newWorking = Session.mock(id: "new-working", status: .working)
-        let newCompacting = Session.mock(id: "new-compacting", status: .compacting)
-        let newIdle = Session.mock(id: "new-idle", status: .idle)
+        let permission = SessionData.mock(id: "permission", status: .waitingPermission)
+        let waiting = SessionData.mock(id: "waiting", status: .waitingInput)
+        let working = SessionData.mock(id: "working", status: .working)
+        let compacting = SessionData.mock(id: "compacting", status: .compacting)
+        let idle = SessionData.mock(id: "idle", status: .idle)
+        let newPermission = SessionData.mock(id: "new-permission", status: .waitingPermission)
+        let newWaiting = SessionData.mock(id: "new-waiting", status: .waitingInput)
+        let newWorking = SessionData.mock(id: "new-working", status: .working)
+        let newCompacting = SessionData.mock(id: "new-compacting", status: .compacting)
+        let newIdle = SessionData.mock(id: "new-idle", status: .idle)
 
         let result = SessionDisplayPolicy.reconcilingActiveOrder(
             in: [newIdle, newCompacting, newWorking, newWaiting, newPermission, idle, compacting, working, waiting, permission],
@@ -156,11 +156,11 @@ final class SessionDisplayPolicyTests: XCTestCase {
 
     func testReconciledActiveOrderCompactsSurvivorsAndKeepsNonActiveRemainderOrder() {
         let now = Date(timeIntervalSince1970: 60_000)
-        let waitA = Session.mock(id: "wait-a", status: .waitingInput)
-        let waitB = Session.mock(id: "wait-b", status: .waitingInput)
-        let workA = Session.mock(id: "work-a", status: .working)
-        let workB = Session.mock(id: "work-b", status: .working)
-        var dormant = Session.mock(id: "dormant", status: .idle)
+        let waitA = SessionData.mock(id: "wait-a", status: .waitingInput)
+        let waitB = SessionData.mock(id: "wait-b", status: .waitingInput)
+        let workA = SessionData.mock(id: "work-a", status: .working)
+        let workB = SessionData.mock(id: "work-b", status: .working)
+        var dormant = SessionData.mock(id: "dormant", status: .idle)
         dormant.lifecycle = .dormant
 
         let result = SessionDisplayPolicy.reconcilingActiveOrder(
@@ -176,10 +176,10 @@ final class SessionDisplayPolicyTests: XCTestCase {
 
     func testReconciledActiveOrderUsesDeterministicCurrentInputOnInitialLoad() {
         let now = Date(timeIntervalSince1970: 70_000)
-        let workA = Session.mock(id: "a-work", status: .working)
-        let waiting = Session.mock(id: "b-wait", status: .waitingInput)
-        let workB = Session.mock(id: "c-work", status: .working)
-        let idle = Session.mock(id: "d-idle", status: .idle)
+        let workA = SessionData.mock(id: "a-work", status: .working)
+        let waiting = SessionData.mock(id: "b-wait", status: .waitingInput)
+        let workB = SessionData.mock(id: "c-work", status: .working)
+        let idle = SessionData.mock(id: "d-idle", status: .idle)
 
         let result = SessionDisplayPolicy.reconcilingActiveOrder(
             in: [workA, waiting, workB, idle],
@@ -192,8 +192,8 @@ final class SessionDisplayPolicyTests: XCTestCase {
 
     func testReconciledActiveOrderTreatsStaleIdleReentryAsGroupEntrant() {
         let now = Date(timeIntervalSince1970: 80_000)
-        let survivor = Session.mock(id: "survivor", status: .working)
-        var returning = Session.mock(id: "returning", status: .idle)
+        let survivor = SessionData.mock(id: "survivor", status: .working)
+        var returning = SessionData.mock(id: "returning", status: .idle)
         returning.lastActivity = now.addingTimeInterval(-SessionDisplayPolicy.staleIdleInterval - 1)
         let previous = [returning, survivor]
 
@@ -211,14 +211,14 @@ final class SessionDisplayPolicyTests: XCTestCase {
     func testReconciledActiveOrderUsesStableConversationIdentityAcrossDesktopPIDChange() {
         let now = Date(timeIntervalSince1970: 90_000)
         let terminal = TerminalInfo(program: "Claude", bundleId: HostAppBundleID.claudeDesktop)
-        var desktop = Session.mock(
+        var desktop = SessionData.mock(
             id: "conversation",
             status: .working,
             pid: 100,
             terminal: terminal,
-            source: Session.ccSource
+            source: SessionData.ccSource
         )
-        let other = Session.mock(id: "other", status: .working, source: Session.codexSource)
+        let other = SessionData.mock(id: "other", status: .working, source: SessionData.codexSource)
         let previous = [desktop, other]
 
         desktop.pid = 200
@@ -236,29 +236,29 @@ final class SessionDisplayPolicyTests: XCTestCase {
         )
     }
 
-    func testReconciledActiveOrderUsesPermanentIdentityAcrossObservationReplacementAndStatusMovement() {
+    func testReconciledActiveOrderUsesPermanentIdentityAcrossRecordReplacementAndStatusMovement() {
         let now = Date(timeIntervalSince1970: 95_000)
         let sharedID = "11111111-1111-4111-8111-111111111111"
-        var logicalSession = Session.mock(
+        var userSession = SessionData.mock(
             id: "old-observation", cctopSessionId: sharedID,
-            status: .working, pid: 100, source: Session.opencodeSource
+            status: .working, pid: 100, source: SessionData.opencodeSource
         )
-        let workingPeer = Session.mock(id: "peer", status: .working, pid: 200, source: Session.opencodeSource)
-        let previous = [logicalSession, workingPeer]
+        let workingPeer = SessionData.mock(id: "peer", status: .working, pid: 200, source: SessionData.opencodeSource)
+        let previous = [userSession, workingPeer]
 
-        logicalSession = Session.mock(
+        userSession = SessionData.mock(
             id: "new-observation", cctopSessionId: sharedID,
-            status: .waitingInput, pid: 300, source: Session.opencodeSource
+            status: .waitingInput, pid: 300, source: SessionData.opencodeSource
         )
         let result = SessionDisplayPolicy.reconcilingActiveOrder(
-            in: [workingPeer, logicalSession], preserving: previous, now: now
+            in: [workingPeer, userSession], preserving: previous, now: now
         )
 
         XCTAssertEqual(result.map(\.pid), [300, 200])
         XCTAssertEqual(
             result.map { SessionIdentityPolicy.logicalIdentity(for: $0) },
             [
-                SessionIdentityPolicy.logicalIdentity(for: logicalSession),
+                SessionIdentityPolicy.logicalIdentity(for: userSession),
                 SessionIdentityPolicy.logicalIdentity(for: workingPeer),
             ]
         )
@@ -267,17 +267,17 @@ final class SessionDisplayPolicyTests: XCTestCase {
     func testReconciledActiveOrderDoesNotReplayDuplicatePreviousLogicalRows() {
         let now = Date(timeIntervalSince1970: 96_000)
         let sharedID = "11111111-1111-4111-8111-111111111111"
-        let previousFirst = Session.mock(
+        let previousFirst = SessionData.mock(
             id: "old-first", cctopSessionId: sharedID,
-            status: .working, pid: 100, source: Session.opencodeSource
+            status: .working, pid: 100, source: SessionData.opencodeSource
         )
-        let previousSecond = Session.mock(
+        let previousSecond = SessionData.mock(
             id: "old-second", cctopSessionId: sharedID,
-            status: .working, pid: 200, source: Session.opencodeSource
+            status: .working, pid: 200, source: SessionData.opencodeSource
         )
-        let current = Session.mock(
+        let current = SessionData.mock(
             id: "current", cctopSessionId: sharedID,
-            status: .working, pid: 300, source: Session.opencodeSource
+            status: .working, pid: 300, source: SessionData.opencodeSource
         )
 
         let result = SessionDisplayPolicy.reconcilingActiveOrder(
@@ -287,22 +287,22 @@ final class SessionDisplayPolicyTests: XCTestCase {
         XCTAssertEqual(result.map(\.pid), [300])
     }
 
-    private func activeIdle(id: String, lastActivity: Date) -> Session {
-        var session = Session.mock(id: id, status: .idle)
+    private func activeIdle(id: String, lastActivity: Date) -> SessionData {
+        var session = SessionData.mock(id: id, status: .idle)
         session.lifecycle = .active
         session.lastActivity = lastActivity
         return session
     }
 
-    private func activeWaiting(id: String, lastActivity: Date) -> Session {
-        var session = Session.mock(id: id, status: .waitingInput)
+    private func activeWaiting(id: String, lastActivity: Date) -> SessionData {
+        var session = SessionData.mock(id: id, status: .waitingInput)
         session.lifecycle = .active
         session.lastActivity = lastActivity
         return session
     }
 
-    private func dormant(id: String) -> Session {
-        var session = Session.mock(id: id, status: .idle)
+    private func dormant(id: String) -> SessionData {
+        var session = SessionData.mock(id: id, status: .idle)
         session.lifecycle = .dormant
         return session
     }

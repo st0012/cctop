@@ -119,13 +119,13 @@ struct HookInput: Codable {
     }
 
     var hasCodexStartupDeferralEvidence: Bool {
-        resolvedHarnessName == Session.codexSource
+        resolvedHarnessName == SessionData.codexSource
             && codexSessionStartKind == "startup"
             && transcriptPathWasExplicitlyNull
     }
 
     var hasCodexProjectSuggestionEvidence: Bool {
-        guard resolvedHarnessName == Session.codexSource,
+        guard resolvedHarnessName == SessionData.codexSource,
               transcriptPathWasExplicitlyNull,
               let prompt,
               let range = prompt.range(of: Self.codexProjectSuggestionPromptFragment) else { return false }

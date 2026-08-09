@@ -417,7 +417,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             sessionManager.loadSessions()
             if let session = Self.notificationFocusSession(
                 matchingUserInfo: userInfo,
-                in: sessionManager.sessions
+                in: sessionManager.userSessions
             ) {
                 focusTerminal(session: session)
             }
@@ -435,15 +435,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     nonisolated static func notificationFocusSession(
         matchingUserInfo userInfo: [AnyHashable: Any],
-        in sessions: [Session]
-    ) -> Session? {
+        in userSessions: [UserSession]
+    ) -> SessionData? {
         guard let cctopSessionID = SessionIdentityPolicy.notificationCctopSessionID(
             matchingNotificationUserInfo: userInfo,
-            in: sessions
+            in: userSessions
         ) else { return nil }
         return FocusTargetResolver.currentSession(
             forCctopSessionID: cctopSessionID,
-            in: SessionDisplayPolicy.activeSessions(from: sessions)
+            in: SessionDisplayPolicy.activeSessions(from: userSessions)
         )
     }
 
@@ -654,7 +654,7 @@ extension AppDelegate {
 
     @MainActor private func jumpToSession(index: Int) {
         guard let identity = navigateController.sessionIdentity(at: index) else { return }
-        let currentSessions = SessionDisplayPolicy.activeSessions(from: sessionManager.sessions)
+        let currentSessions = SessionDisplayPolicy.activeSessions(from: sessionManager.userSessions)
         guard let session = FocusTargetResolver.currentSession(for: identity, in: currentSessions) else { return }
         focusTerminal(session: session)
         handleEvent(.navigateConfirmed)
@@ -780,7 +780,7 @@ extension AppDelegate {
             togglePanel()
         case "focus":
             guard let cctopSessionID = Self.focusSessionID(from: url),
-                  Session.isValidCctopSessionId(cctopSessionID) else {
+                  CctopSessionID.isValid(cctopSessionID) else {
                 Self.urlLogger.notice("Ignored malformed cctop focus command")
                 return
             }
@@ -788,7 +788,7 @@ extension AppDelegate {
             let initialActiveSessions = SessionDisplayPolicy.activeSessions(from: initialSessions)
             if let session = FocusTargetResolver.currentSession(
                 forCctopSessionID: cctopSessionID,
-                in: initialActiveSessions
+                in: SessionDisplayPolicy.activeSessions(from: sessionManager.userSessions)
             ) {
                 focusTerminal(session: session)
                 return
@@ -808,7 +808,7 @@ extension AppDelegate {
             let refreshedActiveSessions = SessionDisplayPolicy.activeSessions(from: refreshedSessions)
             let resolvedSession = FocusTargetResolver.currentSession(
                 forCctopSessionID: cctopSessionID,
-                in: refreshedActiveSessions
+                in: SessionDisplayPolicy.activeSessions(from: sessionManager.userSessions)
             )
             logFocusTargetRefreshOutcome(
                 outcome: resolvedSession == nil ? "final_missing" : "recovered_after_refresh",
@@ -840,12 +840,12 @@ extension AppDelegate {
 
     private func logFocusTargetMissBeforeRefresh(
         requestedID: String,
-        canonicalSessions: [Session],
-        activeSessions: [Session],
+        canonicalSessions: [SessionData],
+        activeSessions: [SessionData],
         displayState: DisplayState?
     ) {
         let processPID = ProcessInfo.processInfo.processIdentifier
-        let processStartTime = Session.processStartTime(pid: UInt32(processPID))
+        let processStartTime = SessionData.processStartTime(pid: UInt32(processPID))
         let appVersion = Bundle.main.appVersion.isEmpty ? "unavailable" : Bundle.main.appVersion
         let canonicalMatches = canonicalSessions.filter { $0.cctopSessionId == requestedID }
         let processStartValue = processStartTime.map { String($0) } ?? "unavailable"
@@ -863,8 +863,8 @@ extension AppDelegate {
             requested_cctop_session_id=\(requestedID, privacy: .private(mask: .hash)) \
             app_version=\(appVersion, privacy: .public) app_pid=\(processPID, privacy: .public) \
             app_start_time=\(processStartValue, privacy: .public) \
-            canonical_observation_count=\(canonicalSessions.count, privacy: .public) \
-            focus_eligible_observation_count=\(activeSessions.count, privacy: .public) \
+            canonical_record_count=\(canonicalSessions.count, privacy: .public) \
+            focus_eligible_record_count=\(activeSessions.count, privacy: .public) \
             requested_id_canonical_matches=\(canonicalMatches.count, privacy: .public) \
             display_state_generated_at=\(displayGeneratedAt, privacy: .public) \
             display_state_owner_pid=\(displayOwnerPID, privacy: .public) \
@@ -878,8 +878,8 @@ extension AppDelegate {
     private func logFocusTargetRefreshOutcome(
         outcome: String,
         requestedID: String,
-        canonicalSessions: [Session],
-        activeSessions: [Session],
+        canonicalSessions: [SessionData],
+        activeSessions: [SessionData],
         refreshElapsedMilliseconds: Double
     ) {
         let canonicalMatchCount = canonicalSessions.count { $0.cctopSessionId == requestedID }
@@ -892,8 +892,8 @@ extension AppDelegate {
             outcome=\(outcome, privacy: .public) \
             requested_cctop_session_id=\(requestedID, privacy: .private(mask: .hash)) \
             refresh_elapsed_ms=\(elapsed, privacy: .public) \
-            canonical_observation_count=\(canonicalSessions.count, privacy: .public) \
-            focus_eligible_observation_count=\(activeSessions.count, privacy: .public) \
+            canonical_record_count=\(canonicalSessions.count, privacy: .public) \
+            focus_eligible_record_count=\(activeSessions.count, privacy: .public) \
             requested_id_canonical_matches=\(canonicalMatchCount, privacy: .public) \
             requested_id_active_matches=\(activeMatchCount, privacy: .public)
             """

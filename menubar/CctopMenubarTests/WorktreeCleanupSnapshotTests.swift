@@ -310,11 +310,12 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
     private func cleanupPopup(
         candidates: [WorktreeCleanupCandidate],
         selectedCandidate: WorktreeCleanupCandidate? = nil,
-        sessions: [Session] = Session.qaShowcase,
+        sessions: [SessionData] = SessionData.qaShowcase,
         isScanning: Bool = false
     ) -> PopupView {
         PopupView(
             sessions: sessions,
+            userSessions: userSessionProjection(from: sessions),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             cleanupIsScanning: isScanning,

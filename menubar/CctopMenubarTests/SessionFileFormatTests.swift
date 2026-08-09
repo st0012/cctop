@@ -22,7 +22,7 @@ final class SessionFileFormatTests: XCTestCase {
 
         let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
         let sessionURL = URL(fileURLWithPath: (sessionsDir as NSString).appendingPathComponent("cached.json"))
-        try Session(sessionId: "cached-session", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        try SessionData(sessionId: "cached-session", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
             .writeToFile(path: sessionURL.path)
         let originalMtime = Date(timeIntervalSince1970: 1_800_000_000)
         try FileManager.default.setAttributes([.modificationDate: originalMtime], ofItemAtPath: sessionURL.path)
@@ -48,14 +48,14 @@ final class SessionFileFormatTests: XCTestCase {
 
         let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
         let sessionURL = URL(fileURLWithPath: (sessionsDir as NSString).appendingPathComponent("cached.json"))
-        try Session(sessionId: "cached-session", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        try SessionData(sessionId: "cached-session", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
             .writeToFile(path: sessionURL.path)
         let originalMtime = Date(timeIntervalSince1970: 1_800_000_000)
         try FileManager.default.setAttributes([.modificationDate: originalMtime], ofItemAtPath: sessionURL.path)
 
         XCTAssertEqual(manager.decodedSessions(from: [sessionURL]).map(\.session.sessionId), ["cached-session"])
 
-        try Session(sessionId: "changed-session", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        try SessionData(sessionId: "changed-session", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
             .writeToFile(path: sessionURL.path)
         try FileManager.default.setAttributes(
             [.modificationDate: originalMtime.addingTimeInterval(10)],

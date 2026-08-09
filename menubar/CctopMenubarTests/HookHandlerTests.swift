@@ -100,8 +100,8 @@ final class HookHandlerTests: XCTestCase {
         (sessionsDir as NSString).appendingPathComponent(fileName)
     }
 
-    private func loadSession(_ fileName: String = "4242.json") throws -> Session {
-        try Session.fromFile(path: sessionFilePath(fileName))
+    private func loadSession(_ fileName: String = "4242.json") throws -> SessionData {
+        try SessionData.fromFile(path: sessionFilePath(fileName))
     }
 
     private func sessionFileExists(_ fileName: String = "4242.json") -> Bool {
@@ -140,7 +140,7 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(session.projectName, "test-project")
         XCTAssertEqual(session.pid, 4242)
         XCTAssertEqual(session.activeSubagents?.count, 0)
-        XCTAssertTrue(Session.isValidCctopSessionId(session.cctopSessionId))
+        XCTAssertTrue(CctopSessionID.isValid(session.cctopSessionId))
     }
 
     func testNewHookSessionFileRecordsWriterMetadata() throws {
@@ -267,11 +267,11 @@ final class HookHandlerTests: XCTestCase {
     }
 
     func testSessionEndExactMatchWinsOverLegacyPrimaryPath() throws {
-        var legacy = Session.mock(id: "endA", pid: 4242, source: "cc")
+        var legacy = SessionData.mock(id: "endA", pid: 4242, source: "cc")
         legacy.harnessSessionId = nil
         try legacy.writeToFile(path: sessionFilePath())
 
-        let exact = Session.mock(id: "endA", harnessSessionId: "endA", pid: 5002, source: "cc")
+        let exact = SessionData.mock(id: "endA", harnessSessionId: "endA", pid: 5002, source: "cc")
         try exact.writeToFile(path: sessionFilePath("5002.json"))
 
         try handleHook("""
@@ -283,8 +283,8 @@ final class HookHandlerTests: XCTestCase {
     }
 
     func testSessionEndDoesNotUseAmbiguousLegacyFallback() throws {
-        let first = Session.mock(id: "legacy-end", pid: 4242, source: "cc")
-        let second = Session.mock(id: "legacy-end", pid: 5002, source: "cc")
+        let first = SessionData.mock(id: "legacy-end", pid: 4242, source: "cc")
+        let second = SessionData.mock(id: "legacy-end", pid: 5002, source: "cc")
         try first.writeToFile(path: sessionFilePath())
         try second.writeToFile(path: sessionFilePath("5002.json"))
 
@@ -297,7 +297,7 @@ final class HookHandlerTests: XCTestCase {
     }
 
     func testSessionEndDoesNotMatchExactReferenceFromAnotherSource() throws {
-        let opencode = Session.mock(
+        let opencode = SessionData.mock(
             id: "shared-end", harnessSessionId: "shared-end", pid: 5002, source: "opencode"
         )
         try opencode.writeToFile(path: sessionFilePath("5002.json"))
@@ -396,7 +396,7 @@ final class HookHandlerTests: XCTestCase {
         try handleFixture("SessionStart")
 
         let path = sessionFilePath()
-        var legacy = try Session.fromFile(path: path)
+        var legacy = try SessionData.fromFile(path: path)
         legacy.createdByHookVersion = nil
         legacy.lastWrittenByHookVersion = nil
         try legacy.writeToFile(path: path)
@@ -427,7 +427,7 @@ final class HookHandlerTests: XCTestCase {
 
     func testExistingTrustedDesktopSessionWithDifferentIdIsNotReplacedAtSessionStart() throws {
         let path = sessionFilePath()
-        var existing = Session(
+        var existing = SessionData(
             sessionId: "desktop-existing",
             projectPath: "/tmp/desktop-existing",
             projectName: "desktop-existing",
@@ -460,7 +460,7 @@ final class HookHandlerTests: XCTestCase {
 
     func testTrustedDesktopPidReuseMismatchIsNotReplacedAtSessionStart() throws {
         let path = sessionFilePath()
-        var existing = Session(
+        var existing = SessionData(
             sessionId: "desktop-existing",
             projectPath: "/tmp/desktop-existing",
             projectName: "desktop-existing",
@@ -492,7 +492,7 @@ final class HookHandlerTests: XCTestCase {
 
     func testCodexSessionIdKeyedMismatchIsNotReplaced() throws {
         let path = sessionFilePath("codex-incoming-thread.json")
-        var existing = Session(
+        var existing = SessionData(
             sessionId: "existing-thread",
             projectPath: "/tmp/existing-thread",
             projectName: "existing-thread",
@@ -508,7 +508,7 @@ final class HookHandlerTests: XCTestCase {
             lastToolDetail: nil,
             notificationMessage: nil
         )
-        existing.source = Session.codexSource
+        existing.source = SessionData.codexSource
         existing.sessionName = "Existing Codex thread"
         try existing.writeToFile(path: path)
 
@@ -529,7 +529,7 @@ final class HookHandlerTests: XCTestCase {
         try corrupt.write(to: URL(fileURLWithPath: primaryPath))
 
         let stalePath = sessionFilePath("7777.json")
-        let stale = Session(
+        let stale = SessionData(
             sessionId: "stale-same-project",
             projectPath: "/tmp/test-project",
             projectName: "test-project",
@@ -559,7 +559,7 @@ final class HookHandlerTests: XCTestCase {
         try handleFixture("SessionStart")
 
         let path = sessionFilePath()
-        var session = try Session.fromFile(path: path)
+        var session = try SessionData.fromFile(path: path)
         session.lastWrittenByHookVersion = "0.16.0-dev"
         try session.writeToFile(path: path)
 
@@ -896,7 +896,7 @@ final class HookHandlerTests: XCTestCase {
     // file by session_id instead of silently stamping nothing (issue #155 P3).
     func testSessionEndStampsFileFoundBySessionIdWhenPidPathMisses() throws {
         // 7777.json — NOT the fake prober's parent PID (4242), so the primary path misses.
-        let session = Session.mock(id: "end-by-sid", pid: 7777)
+        let session = SessionData.mock(id: "end-by-sid", pid: 7777)
         let path = (sessionsDir as NSString).appendingPathComponent("7777.json")
         try session.writeToFile(path: path)
 
@@ -904,7 +904,7 @@ final class HookHandlerTests: XCTestCase {
         {"session_id":"end-by-sid","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"cc"}
         """, hookName: "SessionEnd")
 
-        XCTAssertNotNil(try Session.fromFile(path: path).endedAt)
+        XCTAssertNotNil(try SessionData.fromFile(path: path).endedAt)
     }
 
     // The PID-derived path can hold a DIFFERENT conversation. SessionEnd must never
@@ -936,18 +936,18 @@ final class HookHandlerTests: XCTestCase {
         try handleFixture("SessionStart")
         let primary = sessionFilePath()
         let twinPath = (sessionsDir as NSString).appendingPathComponent("7777.json")
-        try Session.mock(id: "test-session-001", pid: 7777).writeToFile(path: twinPath)
+        try SessionData.mock(id: "test-session-001", pid: 7777).writeToFile(path: twinPath)
 
         try handleFixture("SessionEnd")
 
-        XCTAssertNotNil(try Session.fromFile(path: primary).endedAt)
-        XCTAssertNil(try Session.fromFile(path: twinPath).endedAt)
+        XCTAssertNotNil(try SessionData.fromFile(path: primary).endedAt)
+        XCTAssertNil(try SessionData.fromFile(path: twinPath).endedAt)
     }
 
     // When the PID-derived path misses, multiple exact raw/source matches prefer the
     // live (un-ended) process generation over a stale already-ended one.
     func testSessionEndStampsUnendedDuplicateWhenPrimaryMisses() throws {
-        var stale = Session.mock(id: "dup-sid", pid: 1111)
+        var stale = SessionData.mock(id: "dup-sid", pid: 1111)
         stale.harnessSessionId = "dup-sid"
         stale.source = "cc"
         let staleEnd = Date(timeIntervalSince1970: 1_000)
@@ -956,7 +956,7 @@ final class HookHandlerTests: XCTestCase {
         try stale.writeToFile(path: stalePath)
 
         let livePath = (sessionsDir as NSString).appendingPathComponent("2222.json")
-        try Session.mock(
+        try SessionData.mock(
             id: "dup-sid", harnessSessionId: "dup-sid", pid: 2222, source: "cc"
         ).writeToFile(path: livePath)
 
@@ -964,8 +964,8 @@ final class HookHandlerTests: XCTestCase {
         {"session_id":"dup-sid","cwd":"/tmp/test-project","hook_event_name":"SessionEnd","harness_name":"cc"}
         """, hookName: "SessionEnd")
 
-        XCTAssertNotNil(try Session.fromFile(path: livePath).endedAt)
-        XCTAssertEqual(try Session.fromFile(path: stalePath).endedAt, staleEnd)
+        XCTAssertNotNil(try SessionData.fromFile(path: livePath).endedAt)
+        XCTAssertEqual(try SessionData.fromFile(path: stalePath).endedAt, staleEnd)
     }
 
     func testSessionStartClearsEndedAndDisconnectedAt() throws {
@@ -1141,7 +1141,7 @@ final class HookHandlerTests: XCTestCase {
     }
 
     func testSessionStartDoesNotInferReplacementProtectionFromCodexBundleAlone() throws {
-        var existing = Session(
+        var existing = SessionData(
             sessionId: "bundle-only-old",
             projectPath: "/tmp/test-project",
             branch: "main",
@@ -1159,7 +1159,7 @@ final class HookHandlerTests: XCTestCase {
     }
 
     func testSessionStartPreservesClaudeDesktopReplacementProtection() throws {
-        var existing = Session(
+        var existing = SessionData(
             sessionId: "claude-desktop-old",
             projectPath: "/tmp/test-project",
             branch: "main",
@@ -1411,7 +1411,7 @@ final class HookHandlerTests: XCTestCase {
 
     func testCodexExplicitlyNullSessionStartStillRunsProjectCleanup() throws {
         let stalePath = sessionFilePath("7777.json")
-        let stale = Session(
+        let stale = SessionData(
             sessionId: "stale-same-project",
             projectPath: "/tmp/ordinary-project",
             projectName: "ordinary-project",
@@ -1785,14 +1785,14 @@ final class HookHandlerTests: XCTestCase {
         let sid = "shared-log-sid"
         let logger = HookLogger(logsDir: logsDir)
 
-        var stale = Session(sessionId: sid, projectPath: project, branch: "main", terminal: TerminalInfo())
+        var stale = SessionData(sessionId: sid, projectPath: project, branch: "main", terminal: TerminalInfo())
         stale.pid = 999_999
         let stalePath = (sessionsDir as NSString).appendingPathComponent("999999.json")
         try stale.writeToFile(path: stalePath)
 
         // Same conversation dual-written under the codex key; its PID is the currentPid,
         // so cleanup skips it and it remains the log's owner.
-        var survivor = Session(sessionId: sid, projectPath: project, branch: "main", terminal: TerminalInfo())
+        var survivor = SessionData(sessionId: sid, projectPath: project, branch: "main", terminal: TerminalInfo())
         survivor.pid = 4242
         let survivorPath = (sessionsDir as NSString).appendingPathComponent("codex-\(sid).json")
         try survivor.writeToFile(path: survivorPath)

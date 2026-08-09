@@ -2,12 +2,12 @@ import AppKit
 import SwiftUI
 
 struct ManualSessionHideConfirmation: Identifiable, Equatable {
-    let session: Session
+    let session: SessionData
     let cctopSessionID: String
 
-    init?(session: Session) {
+    init?(session: SessionData) {
         guard let cctopSessionID = session.cctopSessionId,
-              Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+              CctopSessionID.isValid(cctopSessionID) else { return nil }
         self.session = session
         self.cctopSessionID = cctopSessionID
     }
@@ -271,7 +271,7 @@ struct FooterUpdateStatusView: View {
 }
 
 extension PopupView {
-    func requestHideSession(_ session: Session) {
+    func requestHideSession(_ session: SessionData) {
         guard let confirmation = ManualSessionHideConfirmation(session: session) else { return }
         pendingConfirmation = .sessionHide(confirmation)
     }
@@ -296,9 +296,9 @@ extension PopupView {
         )
     }
 
-    func hideSession(_ session: Session) {
+    func hideSession(_ session: SessionData) {
         guard let cctopSessionID = session.cctopSessionId,
-              Session.isValidCctopSessionId(cctopSessionID),
+              CctopSessionID.isValid(cctopSessionID),
               sessions.contains(where: { $0.cctopSessionId == cctopSessionID }) else { return }
         onHideSession(session)
         selectedIndex = nil
@@ -329,6 +329,7 @@ struct PanelContentView: View {
     var body: some View {
         PopupView(
             sessions: sessionManager.sessions,
+            userSessions: sessionManager.userSessions,
             recentProjects: historyManager.recentProjects,
             recentResumeTargets: sessionManager.recentResumeTargets,
             cleanupCandidates: cleanupManager.candidates,
@@ -365,50 +366,79 @@ struct PanelContentView: View {
     PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
 }
 
+private func previewUserSessions(from sessions: [SessionData]) -> [UserSession] {
+    let records = sessions.enumerated().map { index, data in
+        SessionRecord(
+            data: data,
+            lifecycleRank: data.lifecycle.rawValue,
+            mtime: .distantPast,
+            path: "/preview-session-\(index).json"
+        )
+    }
+    return UserSession.grouping(
+        winners: SessionIdentityPolicy.dedupedCandidatesByStableKey(records),
+        records: records
+    )
+}
+
 #Preview("With sessions") {
     PopupView(
-        sessions: Session.mockSessions, updater: DisabledUpdater(), pluginManager: previewPluginManager()
+        sessions: SessionData.mockSessions,
+        userSessions: previewUserSessions(from: SessionData.mockSessions),
+        updater: DisabledUpdater(),
+        pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Mixed sources") {
     PopupView(
-        sessions: Session.qaShowcase, updater: DisabledUpdater(), pluginManager: previewPluginManager()
+        sessions: SessionData.qaShowcase,
+        userSessions: previewUserSessions(from: SessionData.qaShowcase),
+        updater: DisabledUpdater(),
+        pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Empty") {
     PopupView(
-        sessions: [], updater: DisabledUpdater(), pluginManager: previewPluginManager()
+        sessions: [], userSessions: [], updater: DisabledUpdater(), pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("With Tabs") {
     PopupView(
-        sessions: Session.mockSessions, recentProjects: RecentProject.mockRecents,
+        sessions: SessionData.mockSessions,
+        userSessions: previewUserSessions(from: SessionData.mockSessions),
+        recentProjects: RecentProject.mockRecents,
         updater: DisabledUpdater(), pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Cleanup") {
     PopupView(
-        sessions: Session.mockSessions, recentProjects: RecentProject.mockRecents,
+        sessions: SessionData.mockSessions,
+        userSessions: previewUserSessions(from: SessionData.mockSessions),
+        recentProjects: RecentProject.mockRecents,
         cleanupCandidates: WorktreeCleanupCandidate.mockCandidates,
         updater: DisabledUpdater(), pluginManager: previewPluginManager(), initialTab: .cleanup
     ).frame(width: 320)
 }
 #Preview("Only Recents") {
     PopupView(
-        sessions: [], recentProjects: RecentProject.mockRecents,
+        sessions: [], userSessions: [], recentProjects: RecentProject.mockRecents,
         updater: DisabledUpdater(), pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Empty Recents Tab") {
     PopupView(
-        sessions: Session.mockSessions, recentProjects: [RecentProject.mock()],
+        sessions: SessionData.mockSessions,
+        userSessions: previewUserSessions(from: SessionData.mockSessions),
+        recentProjects: [RecentProject.mock()],
         updater: DisabledUpdater(), pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Navigate") {
     let rc = NavigateController(); rc.isActive = true
     return PopupView(
-        sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
+        sessions: SessionData.qaShowcase,
+        userSessions: previewUserSessions(from: SessionData.qaShowcase),
+        recentProjects: RecentProject.mockRecents,
         updater: DisabledUpdater(), pluginManager: previewPluginManager(), navigate: rc
     ).frame(width: 320)
 }

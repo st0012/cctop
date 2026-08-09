@@ -6,7 +6,8 @@ private let overlayAnimationDuration: TimeInterval = 0.2
 private let relativeTimeRefresh = Timer.publish(every: 10, on: .main, in: .common).autoconnect()
 
 struct PopupView: View {
-    let sessions: [Session]
+    let sessions: [SessionData]
+    let userSessions: [UserSession]
     var recentProjects: [RecentProject] = []
     var recentResumeTargets: [RecentResumeTarget]?
     var cleanupCandidates: [WorktreeCleanupCandidate] = []
@@ -19,7 +20,7 @@ struct PopupView: View {
     var initialTab: PopupTab = .active
     var initialCleanupCandidate: WorktreeCleanupCandidate?
     var onOpenUpdater: (() -> Void)?
-    var onHideSession: (Session) -> Void = { _ in }
+    var onHideSession: (SessionData) -> Void = { _ in }
     var onSelectCleanupRemovalAction: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalAction)?
     var onExecuteCleanupRemovalAction: ((WorktreeRemovalService.RemovalAction) async -> WorktreeRemovalService.RemovalResult)?
     var onCleanupTabVisible: () -> Void = {}
@@ -351,7 +352,7 @@ extension PopupView {
         PopupTab.allCases
     }
 
-    func focusSession(_ session: Session) {
+    func focusSession(_ session: SessionData) {
         guard Date().timeIntervalSince(lastFocusTime) > 0.5 else { return }
         lastFocusTime = Date()
         focusTerminal(session: session)

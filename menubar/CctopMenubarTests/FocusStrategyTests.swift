@@ -13,8 +13,8 @@ final class FocusStrategyTests: XCTestCase {
         socket: String? = nil,
         binaryPaths: [String: String]? = nil,
         sessionUuid: String = "test"
-    ) -> Session {
-        Session.mock(
+    ) -> SessionData {
+        SessionData.mock(
             id: sessionUuid,
             project: "myapp",
             terminal: TerminalInfo(
@@ -336,7 +336,7 @@ final class FocusStrategyTests: XCTestCase {
                 bundleId: bundleID,
                 sessionUuid: threadID
             )
-            session.source = Session.codexSource
+            session.source = SessionData.codexSource
 
             XCTAssertEqual(
                 resolveFocusStrategy(session: session),
@@ -349,7 +349,7 @@ final class FocusStrategyTests: XCTestCase {
     func testCodexProgramNameIsNotDirectHostEvidence() throws {
         let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         var session = makeSession(program: "Codex", sessionUuid: threadID)
-        session.source = Session.codexSource
+        session.source = SessionData.codexSource
 
         XCTAssertEqual(
             resolveFocusStrategy(session: session, multiplexerOverride: nil),
@@ -366,7 +366,7 @@ final class FocusStrategyTests: XCTestCase {
             bundleId: HostAppBundleID.codexDesktop,
             sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         )
-        session.source = Session.codexSource
+        session.source = SessionData.codexSource
 
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
 
@@ -382,7 +382,7 @@ final class FocusStrategyTests: XCTestCase {
             bundleId: "com.googlecode.iterm2",
             sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         )
-        session.source = Session.codexSource
+        session.source = SessionData.codexSource
 
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
 
@@ -394,7 +394,7 @@ final class FocusStrategyTests: XCTestCase {
             program: "UnsupportedHost",
             sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         )
-        session.source = Session.codexSource
+        session.source = SessionData.codexSource
 
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
 
@@ -407,7 +407,7 @@ final class FocusStrategyTests: XCTestCase {
             tty: "/dev/ttys017",
             sessionUuid: "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
         )
-        session.source = Session.codexSource
+        session.source = SessionData.codexSource
 
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
 
@@ -420,11 +420,11 @@ final class FocusStrategyTests: XCTestCase {
             paneId: "terminal_1",
             binaryPath: "/usr/bin/zellij"
         )
-        let session = Session.mock(
+        let session = SessionData.mock(
             id: "019e1eff-3374-74b0-8d3d-6fba94e7d75f",
             project: "myapp",
             terminal: TerminalInfo(program: "", multiplexer: multiplexer),
-            source: Session.codexSource
+            source: SessionData.codexSource
         )
 
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
@@ -439,19 +439,19 @@ final class FocusStrategyTests: XCTestCase {
     func testCurrentPermanentIDCodexRouteUsesThreadDeepLinkDespiteStalePID() throws {
         let threadID = "019faecb-6e9b-7f41-a51f-bb998875ca77"
         let cctopSessionID = "82498aba-410e-4b6b-b48d-62f7c6a81eae"
-        let observation = Session.mock(
+        let observation = SessionData.mock(
             id: threadID,
             cctopSessionId: cctopSessionID,
             harnessSessionId: threadID,
             project: "cctop",
             pid: 61_870,
             terminal: TerminalInfo(program: ""),
-            source: Session.codexSource
+            source: SessionData.codexSource
         )
         let current = try XCTUnwrap(
             FocusTargetResolver.currentSession(
                 forCctopSessionID: cctopSessionID,
-                in: [observation]
+                in: userSessionProjection(from: [observation])
             )
         )
         let strategy = resolveFocusStrategy(session: current, multiplexerOverride: nil)
@@ -467,7 +467,7 @@ final class FocusStrategyTests: XCTestCase {
         var session = makeSession(
             program: "", bundleId: HostAppBundleID.codexDesktop, sessionUuid: "not-a-uuid"
         )
-        session.source = Session.codexSource
+        session.source = SessionData.codexSource
 
         XCTAssertEqual(
             resolveFocusStrategy(session: session, multiplexerOverride: nil),
@@ -490,15 +490,15 @@ final class FocusStrategyTests: XCTestCase {
     // MARK: - No terminal info falls back to Finder
 
     func testNoTerminalInfoOpensInFinder() {
-        let session = Session.mock(id: "test", project: "myapp", terminal: nil)
+        let session = SessionData.mock(id: "test", project: "myapp", terminal: nil)
         let strategy = resolveFocusStrategy(session: session)
         XCTAssertEqual(strategy, .openInFinder(projectPath))
     }
 
     func testCodexWithoutTerminalInfoUsesThreadDeepLink() throws {
         let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
-        var session = Session.mock(id: threadID, project: "myapp", terminal: nil)
-        session.source = Session.codexSource
+        var session = SessionData.mock(id: threadID, project: "myapp", terminal: nil)
+        session.source = SessionData.codexSource
 
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: nil)
 

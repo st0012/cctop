@@ -41,17 +41,17 @@ final class PanelToggleTests: XCTestCase {
         XCTAssertNil(AppDelegate.focusSessionID(from: try XCTUnwrap(URL(string: "cctop://focus?sid="))))
     }
 
-    func testNotificationActivationResolvesPermanentIDToCurrentCanonicalObservation() {
+    func testNotificationActivationResolvesPermanentIDToCurrentCanonicalRecord() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        var current = Session.mock(
+        var current = SessionData.mock(
             id: "current-observation", cctopSessionId: cctopSessionID,
-            pid: 22_222, source: Session.opencodeSource
+            pid: 22_222, source: SessionData.opencodeSource
         )
         current.lifecycle = .active
 
         let resolved = AppDelegate.notificationFocusSession(
             matchingUserInfo: [SessionIdentityPolicy.notificationCctopSessionIDKey: cctopSessionID],
-            in: [current]
+            in: [userSession(display: current, records: [current])]
         )
 
         XCTAssertEqual(resolved?.sessionId, "current-observation")
@@ -60,26 +60,33 @@ final class PanelToggleTests: XCTestCase {
 
     func testLegacyNotificationActivationResolvesReplacementThroughPermanentID() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        var current = Session.mock(
+        var previous = SessionData.mock(
             id: "codex-thread-1", cctopSessionId: cctopSessionID,
-            pid: 22_222, source: Session.codexSource
+            pid: 11_111, source: SessionData.codexSource
+        )
+        previous.cctopSessionId = nil
+        previous.lifecycle = .dormant
+        var current = SessionData.mock(
+            id: "replacement-observation", cctopSessionId: cctopSessionID,
+            pid: 22_222, source: SessionData.codexSource
         )
         current.lifecycle = .active
 
         let resolved = AppDelegate.notificationFocusSession(
             matchingUserInfo: [SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1"],
-            in: [current]
+            in: [userSession(display: current, records: [previous, current])]
         )
 
-        XCTAssertEqual(resolved?.id, "codex-thread-1")
+        XCTAssertEqual(resolved?.sessionId, "replacement-observation")
+        XCTAssertEqual(resolved?.pid, 22_222)
     }
 
     func testNotificationActivationFailsClosedForUnknownPermanentID() {
-        let current = Session.mock(
+        let current = SessionData.mock(
             id: "other-session",
             cctopSessionId: "22222222-2222-4222-8222-222222222222",
             pid: 22_222,
-            source: Session.opencodeSource
+            source: SessionData.opencodeSource
         )
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationCctopSessionIDKey: "11111111-1111-4111-8111-111111111111",
@@ -87,7 +94,12 @@ final class PanelToggleTests: XCTestCase {
             SessionIdentityPolicy.notificationSessionPIDKey: "22222",
         ]
 
-        XCTAssertNil(AppDelegate.notificationFocusSession(matchingUserInfo: userInfo, in: [current]))
-        XCTAssertNil(AppDelegate.notificationFocusSession(matchingUserInfo: [:], in: [current]))
+        let userSessions = [userSession(display: current, records: [current])]
+        XCTAssertNil(AppDelegate.notificationFocusSession(matchingUserInfo: userInfo, in: userSessions))
+        XCTAssertNil(AppDelegate.notificationFocusSession(
+            matchingUserInfo: [SessionIdentityPolicy.notificationCctopSessionIDKey: "malformed"],
+            in: userSessions
+        ))
+        XCTAssertNil(AppDelegate.notificationFocusSession(matchingUserInfo: [:], in: userSessions))
     }
 }

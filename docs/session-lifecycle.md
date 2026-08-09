@@ -17,23 +17,32 @@ The key split is intentional:
 
 ## Display Pipeline
 
+This pipeline uses the internal model from
+[`session-files.md`](session-files.md#internal-session-model). The grouping step
+does not change lifecycle, persistence, or canonical row order.
+
 ```mermaid
 flowchart TD
-    A["Session .json files"] --> B["Decode records"]
-    B --> C["Build SessionClassificationSnapshot<br/>lifecycle + host metadata"]
-    C --> D{"Disposition"}
+    A["Session JSON files"] --> B["Decode as SessionData"]
+    B --> C["Create SessionRecord<br/>SessionData + file and runtime evidence"]
+    C --> D["Build SessionClassificationSnapshot<br/>lifecycle + host metadata"]
+    D --> E{"Disposition"}
 
-    D -->|"archived Codex thread"| E["Hide active/dormant record<br/>preserve .json"]
-    D -->|"archived Claude Desktop session"| E
-    D -->|"archived Codex or Claude Desktop + known project path"| L["Emit cleanup source<br/>preserve .json"]
-    D -->|"subagent-owned session"| K["Mark hidden<br/>preserve .json"]
-    D -->|"Claude orphan startup record"| E
-    D -->|"display record"| F["Deduplicate by stable key"]
+    E -->|"archived Codex thread"| F["Hide active/dormant record<br/>preserve .json"]
+    E -->|"archived Claude Desktop session"| F
+    E -->|"archived Codex or Claude Desktop + known project path"| M["Emit cleanup source<br/>preserve .json"]
+    E -->|"subagent-owned session"| L["Mark hidden<br/>preserve .json"]
+    E -->|"Claude orphan startup record"| F
+    E -->|"display record"| G["Select stable-key winners"]
 
-    F --> G{"Winner lifecycle"}
-    G -->|active| H["Publish active session"]
-    G -->|dormant| I["Publish dormant session<br/>neutral status, no notifications"]
-    G -->|finished| J["Do not publish"]
+    G --> H{"Winner lifecycle"}
+    H -->|finished| O["Do not publish"]
+    H -->|active| I["Group current records into UserSession<br/>using the winner's cctop ID or legacy fallback"]
+    H -->|dormant| I
+    I --> J["Choose displayRecord<br/>and preserve canonical row order"]
+    J --> K{"Display lifecycle"}
+    K -->|active| N["Publish through SessionManager.sessions<br/>as active"]
+    K -->|dormant| P["Publish through SessionManager.sessions<br/>as dormant, with neutral status"]
 ```
 
 ## Lifecycle Derivation

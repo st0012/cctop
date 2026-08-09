@@ -13,7 +13,7 @@ class HistoryManager: ObservableObject {
     let historyDir: URL
     static let maxFiles = 50
     static let maxAgeDays = 30
-    private(set) var lastDecodedHistorySessions: [Session] = []
+    private(set) var lastDecodedHistorySessions: [SessionData] = []
     private var lastRebuildFingerprint: HistoryRebuildFingerprint?
 
     init(historyDir: URL = URL(fileURLWithPath: Config.historyDir())) {
@@ -27,7 +27,7 @@ class HistoryManager: ObservableObject {
     /// Sets `endedAt`, writes to history, prunes old files, and returns success.
     /// Codex conversations and Claude Desktop sessions are not archived as project-history rows.
     @discardableResult
-    func archiveSession(_ session: Session) -> Bool {
+    func archiveSession(_ session: SessionData) -> Bool {
         if session.isCodex || session.isClaudeDesktopHost {
             logger.info("skipping archive for retained session \(session.sessionId, privacy: .public)")
             return false
@@ -83,12 +83,12 @@ class HistoryManager: ObservableObject {
     /// Pure function: group sessions by project, take most recent per project,
     /// filter active, sort by date, cap at 10.
     static func buildRecentProjects(
-        from sessions: [Session],
+        from sessions: [SessionData],
         excludingActive activePaths: Set<String> = [],
         projectPathExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> [RecentProject] {
         let activeProjectPaths = Set(activePaths.map(canonicalRecentProjectPath))
-        var grouped: [String: (latest: Session, count: Int, projectPath: String)] = [:]
+        var grouped: [String: (latest: SessionData, count: Int, projectPath: String)] = [:]
         for session in sessions {
             if session.isCodex || session.isClaudeDesktopHost { continue }
             let canonicalProjectPath = canonicalRecentProjectPath(session.projectPath)
@@ -174,7 +174,7 @@ class HistoryManager: ObservableObject {
 
     // MARK: - Internal (testable)
 
-    func loadDecodedHistoryFiles() -> [(url: URL, session: Session)] {
+    func loadDecodedHistoryFiles() -> [(url: URL, session: SessionData)] {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
             at: historyDir, includingPropertiesForKeys: nil
@@ -186,7 +186,7 @@ class HistoryManager: ObservableObject {
             $0.pathExtension == "json"
             && !$0.lastPathComponent.hasSuffix(".tmp")
         }
-        var decoded: [(url: URL, session: Session)] = jsonFiles
+        var decoded: [(url: URL, session: SessionData)] = jsonFiles
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url) else {
                     logger.warning(
@@ -195,7 +195,7 @@ class HistoryManager: ObservableObject {
                     return nil
                 }
                 guard let session = try? JSONDecoder.sessionDecoder
-                    .decode(Session.self, from: data)
+                    .decode(SessionData.self, from: data)
                 else {
                     logger.error(
                         "loadDecodedHistoryFiles: decode failed \(url.lastPathComponent, privacy: .public)"
@@ -209,11 +209,11 @@ class HistoryManager: ObservableObject {
     }
 
     func filesToPrune(
-        from decoded: [(url: URL, session: Session)],
+        from decoded: [(url: URL, session: SessionData)],
         projectPathExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> [URL] {
         var seenProjects: Set<String> = []
-        var capEligibleKeep: [(url: URL, session: Session)] = []
+        var capEligibleKeep: [(url: URL, session: SessionData)] = []
         var toRemove: [URL] = []
         let cutoff = Date().addingTimeInterval(
             TimeInterval(-Self.maxAgeDays * 86400)
@@ -258,7 +258,7 @@ class HistoryManager: ObservableObject {
     }
 
     private func historyFingerprint(
-        from decoded: [(url: URL, session: Session)],
+        from decoded: [(url: URL, session: SessionData)],
         excludingActive activePaths: Set<String>
     ) -> HistoryRebuildFingerprint? {
         let fm = FileManager.default
@@ -288,7 +288,7 @@ class HistoryManager: ObservableObject {
         )
     }
 
-    private func recentProjectPathFingerprints(from sessions: [Session]) -> [HistoryProjectPathFingerprint] {
+    private func recentProjectPathFingerprints(from sessions: [SessionData]) -> [HistoryProjectPathFingerprint] {
         var states: [String: Bool] = [:]
         for session in sessions where !session.isCodex && !session.isClaudeDesktopHost {
             let canonicalPath = Self.canonicalRecentProjectPath(session.projectPath)

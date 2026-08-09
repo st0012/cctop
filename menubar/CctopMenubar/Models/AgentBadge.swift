@@ -29,7 +29,7 @@ enum AgentBadge: Equatable {
     }
 }
 
-extension Session {
+extension SessionData {
     /// Classify the session source. Codex is one source across every surface.
     ///
     var agentBadge: AgentBadge {

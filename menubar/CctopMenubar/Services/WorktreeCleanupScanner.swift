@@ -3,24 +3,24 @@ import Foundation
 /// Minimal session-derived row that the session classifier has deemed safe to use as a cleanup
 /// starting point. The scanner intentionally knows nothing about cctop lifecycle, archive state,
 /// host metadata, or process liveness; it only validates the filesystem/git worktree from here.
-struct SessionCleanupSource: Equatable {
+struct SessionDataCleanupSource: Equatable {
     let sessionId: String
     let projectPath: String
     let sessionName: String
     let branch: String
     let lastActiveAt: Date
 
-    init(session: Session) {
-        sessionId = session.sessionId
-        projectPath = session.projectPath
-        sessionName = session.displayName
-        branch = session.branch
-        lastActiveAt = session.effectiveEndDate
+    init(data: SessionData) {
+        sessionId = data.sessionId
+        projectPath = data.projectPath
+        sessionName = data.displayName
+        branch = data.branch
+        lastActiveAt = data.effectiveEndDate
     }
 
-    init?(endedSession session: Session) {
-        guard session.endedAt != nil else { return nil }
-        self.init(session: session)
+    init?(endedSession data: SessionData) {
+        guard data.endedAt != nil else { return nil }
+        self.init(data: data)
     }
 }
 
@@ -77,7 +77,7 @@ struct WorktreeCleanupScanner {
     }
 
     func candidates(
-        from cleanupSources: [SessionCleanupSource],
+        from cleanupSources: [SessionDataCleanupSource],
         activeProjectPaths: Set<String>
     ) -> [WorktreeCleanupCandidate] {
         let contexts = candidateContexts(from: cleanupSources)
@@ -93,7 +93,7 @@ struct WorktreeCleanupScanner {
             }
     }
 
-    private func candidateContexts(from cleanupSources: [SessionCleanupSource]) -> [String: CandidateContext] {
+    private func candidateContexts(from cleanupSources: [SessionDataCleanupSource]) -> [String: CandidateContext] {
         var result: [String: CandidateContext] = [:]
         var resolvedPaths: [String: String] = [:]
         for source in cleanupSources {
@@ -380,7 +380,7 @@ struct WorktreeCleanupScanner {
 extension WorktreeCleanupScanner {
     func candidate(
         withID id: String,
-        from cleanupSources: [SessionCleanupSource],
+        from cleanupSources: [SessionDataCleanupSource],
         activeProjectPaths: Set<String>
     ) -> WorktreeCleanupCandidate? {
         let id = Self.standardizedPath(id)
@@ -389,7 +389,7 @@ extension WorktreeCleanupScanner {
         return candidate(from: context, activeProjectPaths: activePaths)
     }
 
-    private func candidateContext(withID id: String, from cleanupSources: [SessionCleanupSource]) -> CandidateContext? {
+    private func candidateContext(withID id: String, from cleanupSources: [SessionDataCleanupSource]) -> CandidateContext? {
         var result: CandidateContext?
         var resolvedPaths: [String: String] = [:]
         for source in cleanupSources {
@@ -452,7 +452,7 @@ private struct CandidateContext {
     let fallbackBranch: String
     let lastActiveAt: Date
 
-    init(source: SessionCleanupSource, path: String? = nil) {
+    init(source: SessionDataCleanupSource, path: String? = nil) {
         self.path = path ?? WorktreeCleanupScanner.standardizedPath(source.projectPath)
         sessionName = source.sessionName
         worktreeName = URL(fileURLWithPath: self.path).lastPathComponent

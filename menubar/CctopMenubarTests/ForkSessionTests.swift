@@ -44,10 +44,10 @@ final class ForkSessionTests: XCTestCase {
         pidStartTime: TimeInterval? = nil,
         status: SessionStatus = .working
     ) {
-        let session = Session(
+        let session = SessionData(
             sessionId: id,
             projectPath: projectPath,
-            projectName: Session.extractProjectName(projectPath),
+            projectName: SessionData.extractProjectName(projectPath),
             branch: "main",
             status: status,
             lastPrompt: nil,
@@ -75,8 +75,8 @@ final class ForkSessionTests: XCTestCase {
         FileManager.default.fileExists(atPath: pidPath(pid))
     }
 
-    private func readPid(_ pid: UInt32) -> Session? {
-        try? Session.fromFile(path: pidPath(pid))
+    private func readPid(_ pid: UInt32) -> SessionData? {
+        try? SessionData.fromFile(path: pidPath(pid))
     }
 
     @discardableResult
@@ -133,7 +133,7 @@ final class ForkSessionTests: XCTestCase {
         for entry in entries where entry.hasSuffix(".json") {
             let path = (sessionsDir as NSString)
                 .appendingPathComponent(entry)
-            guard let session = try? Session.fromFile(path: path),
+            guard let session = try? SessionData.fromFile(path: path),
                   session.sessionId == sessionId
             else { continue }
             return session.pid
@@ -241,7 +241,7 @@ final class ForkSessionTests: XCTestCase {
         // Use PID 1 (launchd) — always alive and different from
         // the hook's resolved PID (which is the test runner)
         let otherPID: UInt32 = 1
-        let otherStart = Session.processStartTime(pid: otherPID)
+        let otherStart = SessionData.processStartTime(pid: otherPID)
         writeSession(
             id: "other-session",
             projectPath: "/tmp/project",
@@ -272,13 +272,13 @@ final class ForkSessionTests: XCTestCase {
     func testCleanupSkipsDesktopAppSessionsButReapsDeadTerminal() throws {
         let project = "/tmp/cctop-gate-\(UUID().uuidString)"
         // PIDs above macOS PID_MAX (99999) can never be live → deterministically "dead".
-        var desktop = Session(sessionId: "desk-1", projectPath: project, branch: "main",
+        var desktop = SessionData(sessionId: "desk-1", projectPath: project, branch: "main",
                               terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop))
         desktop.pid = 999_999
         let desktopPath = sessionsDir + "999999.json"
         try desktop.writeToFile(path: desktopPath)
 
-        var term = Session(sessionId: "term-1", projectPath: project, branch: "main",
+        var term = SessionData(sessionId: "term-1", projectPath: project, branch: "main",
                            terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"))
         term.pid = 999_998
         let termPath = sessionsDir + "999998.json"
@@ -300,7 +300,7 @@ final class ForkSessionTests: XCTestCase {
     func testCleanupLeavesLockFileWhenRemovingDeadTerminalSession() throws {
         let project = "/tmp/cctop-lock-\(UUID().uuidString)"
         let deadPID: UInt32 = 999_997
-        var term = Session(sessionId: "term-lock", projectPath: project, branch: "main",
+        var term = SessionData(sessionId: "term-lock", projectPath: project, branch: "main",
                            terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"))
         term.pid = deadPID
         let termPath = sessionsDir + "\(deadPID).json"

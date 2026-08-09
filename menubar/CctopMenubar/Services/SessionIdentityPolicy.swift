@@ -16,7 +16,7 @@ enum SessionIdentityPolicy {
     static let notificationCctopSessionIDKey = "cctopSessionID"
 
     /// Legacy grouping key used by pre-ID dedup and conservative compatibility paths.
-    static func stableKey(for session: Session) -> String {
+    static func stableKey(for session: SessionData) -> String {
         if session.isCodex {
             return "codex:\(session.sessionId)"
         }
@@ -28,9 +28,9 @@ enum SessionIdentityPolicy {
 
     /// Panel identity prefers cctop's permanent UUID. Legacy records retain the existing
     /// source- and host-aware key until a permanent ID becomes available.
-    static func logicalIdentity(for session: Session) -> LogicalIdentity {
+    static func logicalIdentity(for session: SessionData) -> LogicalIdentity {
         if let cctopSessionID = session.cctopSessionId,
-           Session.isValidCctopSessionId(cctopSessionID),
+           CctopSessionID.isValid(cctopSessionID),
            let id = UUID(uuidString: cctopSessionID) {
             return .permanent(id)
         }
@@ -38,23 +38,23 @@ enum SessionIdentityPolicy {
     }
 
     /// The validated permanent cctop session ID, if the session carries one.
-    static func permanentSessionID(for session: Session) -> String? {
+    static func permanentSessionID(for session: SessionData) -> String? {
         logicalIdentity(for: session).cctopSessionID
     }
 
     static func notificationRequestIdentifier(forCctopSessionID cctopSessionID: String) -> String? {
-        guard Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+        guard CctopSessionID.isValid(cctopSessionID) else { return nil }
         return "session-\(cctopSessionID)"
     }
 
     static func notificationUserInfo(forCctopSessionID cctopSessionID: String) -> [AnyHashable: Any]? {
-        guard Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+        guard CctopSessionID.isValid(cctopSessionID) else { return nil }
         return [notificationCctopSessionIDKey: cctopSessionID]
     }
 
     /// Identifier used by already-delivered pre-migration notifications with durable
-    /// Codex or desktop conversation identity. Process-scoped observations are excluded.
-    static func legacyNotificationRequestIdentifier(for session: Session) -> String? {
+    /// Codex or desktop conversation identity. Process-scoped records are excluded.
+    static func legacyNotificationRequestIdentifier(for session: SessionData) -> String? {
         guard session.isCodex || session.hostClass == .desktop,
               !notificationSessionID(for: session).isEmpty else { return nil }
         return "session-\(stableKey(for: session))"
@@ -62,40 +62,45 @@ enum SessionIdentityPolicy {
 
     static func cctopSessionID(matchingNotificationUserInfo userInfo: [AnyHashable: Any]) -> String? {
         guard let cctopSessionID = nonEmptyString(userInfo[notificationCctopSessionIDKey]),
-              Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+              CctopSessionID.isValid(cctopSessionID) else { return nil }
         return cctopSessionID
     }
 
-    /// Recover permanent identity from an already-delivered pre-migration payload.
-    /// A present permanent-ID field is authoritative; invalid or missing targets fail closed.
+    /// Recover a user session from a pre-migration notification even when the named
+    /// session record has not been stamped yet. The user-session group remains authoritative.
     static func notificationCctopSessionID(
         matchingNotificationUserInfo userInfo: [AnyHashable: Any],
-        in sessions: [Session]
+        in userSessions: [UserSession]
     ) -> String? {
         if let permanentValue = userInfo[notificationCctopSessionIDKey] {
             guard let cctopSessionID = nonEmptyString(permanentValue),
-                  Session.isValidCctopSessionId(cctopSessionID) else { return nil }
+                  CctopSessionID.isValid(cctopSessionID) else { return nil }
             return cctopSessionID
         }
 
         guard let sessionIDValue = userInfo[notificationSessionIDKey],
               let sessionID = nonEmptyString(sessionIDValue) else { return nil }
-        let candidates = sessions.filter {
-            ($0.isCodex || $0.hostClass == .desktop)
-                && notificationSessionID(for: $0) == sessionID
+        let matches = userSessions.filter { userSession in
+            userSession.records.contains { record in
+                let data = record.data
+                return (data.isCodex || data.hostClass == .desktop)
+                    && notificationSessionID(for: data) == sessionID
+            }
         }
-
-        guard !candidates.isEmpty else { return nil }
+        guard !matches.isEmpty else { return nil }
         var permanentIDs: Set<String> = []
-        for candidate in candidates {
-            guard let cctopSessionID = permanentSessionID(for: candidate) else { return nil }
+        for match in matches {
+            let matchingIDs = Set(match.records.compactMap {
+                permanentSessionID(for: $0.data)
+            })
+            guard matchingIDs.count == 1, let cctopSessionID = matchingIDs.first else { return nil }
             permanentIDs.insert(cctopSessionID)
         }
         guard permanentIDs.count == 1 else { return nil }
         return permanentIDs.first
     }
 
-    private static func notificationSessionID(for session: Session) -> String {
+    private static func notificationSessionID(for session: SessionData) -> String {
         if session.isCodex || session.hostClass == .desktop {
             return session.sessionId
         }
@@ -108,35 +113,16 @@ enum SessionIdentityPolicy {
     }
 
     /// Collapse multiple files for one conversation only for hosts with stable conversation identity.
-    static func dedupedCandidatesByStableKey(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
-        var byKey: [String: DedupCandidate] = [:]
+    static func dedupedCandidatesByStableKey(_ candidates: [SessionRecord]) -> [SessionRecord] {
+        var byKey: [String: SessionRecord] = [:]
         for candidate in candidates {
-            let key = stableKey(for: candidate.session)
+            let key = stableKey(for: candidate.data)
             if let existing = byKey[key], SessionLifecyclePolicy.prefers(existing, over: candidate) { continue }
             byKey[key] = candidate
         }
-        return byKey.values.sorted { stableKey(for: $0.session) < stableKey(for: $1.session) }
+        return byKey.values.sorted { stableKey(for: $0.data) < stableKey(for: $1.data) }
     }
 
-    /// Collapse visible observations that resolve to one logical panel row. The first
-    /// occurrence owns the row position while the lifecycle policy chooses its observation.
-    static func dedupedCandidatesByLogicalIdentity(_ candidates: [DedupCandidate]) -> [DedupCandidate] {
-        var result: [DedupCandidate] = []
-        var indexByIdentity: [LogicalIdentity: Int] = [:]
-
-        for candidate in candidates {
-            let identity = logicalIdentity(for: candidate.session)
-            if let index = indexByIdentity[identity] {
-                if SessionLifecyclePolicy.prefers(candidate, over: result[index]) {
-                    result[index] = candidate
-                }
-            } else {
-                indexByIdentity[identity] = result.count
-                result.append(candidate)
-            }
-        }
-        return result
-    }
 }
 
 /// One pass's snapshot of every way a session can match a manual hide: migrated
@@ -150,7 +136,7 @@ struct ManualHideEvidence {
 
     var hasUnresolvedLegacyKeys: Bool { !legacyKeys.isEmpty }
 
-    func matches(_ session: Session) -> Bool {
+    func matches(_ session: SessionData) -> Bool {
         if let cctopSessionID = session.cctopSessionId, hiddenSessionIDs.contains(cctopSessionID) {
             return true
         }
@@ -178,7 +164,7 @@ struct ManualSessionVisibilityStore {
     }
 
     var hiddenSessionIDs: Set<String> {
-        Set((defaults.stringArray(forKey: Self.defaultsKey) ?? []).filter(Session.isValidCctopSessionId))
+        Set((defaults.stringArray(forKey: Self.defaultsKey) ?? []).filter(CctopSessionID.isValid))
     }
 
     var hasStoredHideEvidence: Bool {
@@ -194,7 +180,7 @@ struct ManualSessionVisibilityStore {
     /// Snapshot manual-hide match state for one pass over the given session inventory.
     /// The inventory only contributes durable evidence for sessions still matching an
     /// unresolved legacy key; permanent IDs and legacy keys come from the store itself.
-    func manualHideEvidence(in sessions: [Session]) -> ManualHideEvidence {
+    func manualHideEvidence(in sessions: [SessionData]) -> ManualHideEvidence {
         let legacyKeys = unresolvedDurableLegacyKeys
         var evidence = Set(legacyKeys.compactMap(Self.durableEvidence(forLegacyKey:)))
         evidence.formUnion(sessions
@@ -207,15 +193,15 @@ struct ManualSessionVisibilityStore {
         )
     }
 
-    func isHidden(_ session: Session) -> Bool {
+    func isHidden(_ session: SessionData) -> Bool {
         guard let cctopSessionID = session.cctopSessionId,
-              Session.isValidCctopSessionId(cctopSessionID) else { return false }
+              CctopSessionID.isValid(cctopSessionID) else { return false }
         return hiddenSessionIDs.contains(cctopSessionID)
     }
 
-    func hide(_ session: Session) {
+    func hide(_ session: SessionData) {
         guard let cctopSessionID = session.cctopSessionId,
-              Session.isValidCctopSessionId(cctopSessionID) else { return }
+              CctopSessionID.isValid(cctopSessionID) else { return }
         var sessionIDs = hiddenSessionIDs
         sessionIDs.insert(cctopSessionID)
         save(sessionIDs)
@@ -226,8 +212,8 @@ struct ManualSessionVisibilityStore {
     /// Process-scoped `active:<pid>` keys are retired rather than rebound to a new process generation.
     @discardableResult
     func migrateLegacyStableKeys(
-        using sessions: [Session],
-        persistedSessions: [Session],
+        using sessions: [SessionData],
+        persistedSessions: [SessionData],
         inventoryComplete: Bool
     ) -> Set<String> {
         let legacyKeys = legacyStableKeys
@@ -298,7 +284,7 @@ struct ManualSessionVisibilityStore {
     }
 
     private static func persistedLegacyMigrationMatches(
-        in sessions: [Session],
+        in sessions: [SessionData],
         legacyKeys: Set<String>
     ) -> PersistedLegacyMatches {
         var matches = PersistedLegacyMatches()
@@ -324,7 +310,7 @@ struct ManualSessionVisibilityStore {
     }
 
     private static func legacyMigrationCandidateIDs(
-        for session: Session,
+        for session: SessionData,
         persistedSessionIDsByEvidence: [String: Set<String>]
     ) -> Set<String> {
         var matches: Set<String> = []
@@ -342,8 +328,8 @@ struct ManualSessionVisibilityStore {
         guard components.count == 2 else { return nil }
         let source: String
         switch components[0] {
-        case "codex": source = Session.codexSource
-        case "desktop": source = Session.ccSource
+        case "codex": source = SessionData.codexSource
+        case "desktop": source = SessionData.ccSource
         default: return nil
         }
         let sessionID = String(components[1])
