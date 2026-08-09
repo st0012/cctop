@@ -35,7 +35,7 @@ they land on master — no site change required.
 | README FAQ | `#faq` `<details>` entries | Manual. |
 | Hero copy, install copy, privacy copy | Hero / install / tools sections | Manual — site has its own short-form copy that mirrors the README's tone. |
 | Custom domain (`cctop.app`) | `site/CNAME` | Auto — file ships with every deploy so the Pages "Custom domain" setting persists. |
-| Social preview card | `site/og.html` (rendered to PNG externally for OG metadata) | Manual — update copy and re-render to PNG when hero copy or palette changes substantively. |
+| Social preview card | `site/og.html` and `site/og.png` | Manual — update the source and render the PNG when the copy or palette changes. |
 
 ## When you change the implementation
 
@@ -46,3 +46,9 @@ the README and the site should always match what shipped.
 For visuals: regenerate the snapshot-backed PNGs with `CctopMenubarTests/SnapshotTests`,
 replace the matching files under `docs/`, and the site will reflect the new images
 without a markup edit unless the image dimensions changed.
+
+## Social preview card
+
+If you change `site/og.html`, run `scripts/render-og.sh`. Commit the generated `site/og.png` in the same change.
+
+The script renders a 1200 x 630 PNG and replaces the prior file. The site metadata uses `https://cctop.app/og.png`.

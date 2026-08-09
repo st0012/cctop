@@ -45,7 +45,18 @@ git tag v<version> && git push origin v<version>
 
 - Monitor the Release workflow to completion (`gh run watch`, or poll `gh run list --workflow release.yml` with retry/backoff on transient `gh` failures).
 - Do not name shell variables `status`; it is readonly in zsh and has silently broken CI watchers before.
-- If any job fails, stop immediately and report the exact failure with logs. Signing/notarization pitfalls are documented in `AGENTS.md` under Release Pipeline. The `--dry-run` and `--sign-only` flags on `scripts/sign-and-notarize.sh` help local debugging.
+- If any job fails, stop immediately and report the exact failure with logs. Use the signing and appcast rules below for local diagnosis.
+
+### Signing and appcast rules
+
+- Sign Sparkle components without the app's entitlements. Apply entitlements only to the main executable and the app bundle.
+- Sign from the inside out: libraries, inner executables, nested bundles, the main executable, and then the app bundle.
+- Search `Sparkle.framework/Versions/B/Autoupdate` for executable components. This path has no `MacOS` directory.
+- Use `./scripts/sign-and-notarize.sh --dry-run dist/cctop.app` to inspect signing order.
+- Use `--sign-only` only for local signing diagnosis. It does not prove notarization.
+- Keep arm64 and x86_64 appcast enclosures in separate `<item>` elements. Sparkle selects hardware at the item level.
+- If Homebrew does not link the tools, the script searches `/opt/homebrew/Caskroom/sparkle/*/bin/` for them.
+- Use `SPARKLE_PRIVATE_KEY_FILE=<key> ./scripts/generate-appcast.sh --version <version> arm64.zip x86_64.zip` for local appcast diagnosis.
 
 ## 5. Verify
 
