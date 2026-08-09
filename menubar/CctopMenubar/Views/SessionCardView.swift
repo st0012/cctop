@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SessionCardView: View {
-    let session: Session
+    let session: SessionData
     /// 1-based index for navigate mode (1-9). nil = normal mode.
     var navigateIndex: Int?
     var showSourceBadge = false
@@ -218,7 +218,7 @@ struct SessionCardView: View {
     // MARK: - Computed copy
 
     /// Text for the third row when the session is working/compacting — the command stripe.
-    /// Reuses `Session.contextLine` formatting (Reading X.swift, Running: foo, etc.).
+    /// Reuses `SessionData.contextLine` formatting (Reading X.swift, Running: foo, etc.).
     private var workingCommandText: String? {
         guard session.status == .working || session.status == .compacting else { return nil }
         return session.contextLine

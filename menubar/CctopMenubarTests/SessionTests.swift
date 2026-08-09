@@ -23,7 +23,7 @@ final class SessionTests: XCTestCase {
             "notification_message": null
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
 
         XCTAssertEqual(session.sessionId, "abc-123")
         XCTAssertEqual(session.projectName, "myapp")
@@ -48,7 +48,7 @@ final class SessionTests: XCTestCase {
             "hidden": true
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertTrue(session.hidden)
     }
 
@@ -65,32 +65,32 @@ final class SessionTests: XCTestCase {
             "terminal": {"program": "Code"}
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(session.sessionId, "frac-test")
     }
 
     func testContextLineIdle() {
-        let session = Session.mock(status: .idle)
+        let session = SessionData.mock(status: .idle)
         XCTAssertNil(session.contextLine)
     }
 
     func testContextLineWorking() {
-        let session = Session.mock(status: .working, lastTool: "Bash", lastToolDetail: "npm test")
+        let session = SessionData.mock(status: .working, lastTool: "Bash", lastToolDetail: "npm test")
         XCTAssertEqual(session.contextLine, "Running: npm test")
     }
 
     func testContextLinePermission() {
-        let session = Session.mock(status: .waitingPermission, notificationMessage: "Allow Bash: rm -rf /")
+        let session = SessionData.mock(status: .waitingPermission, notificationMessage: "Allow Bash: rm -rf /")
         XCTAssertEqual(session.contextLine, "Allow Bash: rm -rf /")
     }
 
     func testContextLinePermissionDefault() {
-        let session = Session.mock(status: .waitingPermission)
+        let session = SessionData.mock(status: .waitingPermission)
         XCTAssertEqual(session.contextLine, "Permission needed")
     }
 
     func testContextLineWaitingInputPrefersNotificationMessage() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             status: .waitingInput,
             lastPrompt: "Original user prompt",
             notificationMessage: "Which direction should I take?"
@@ -99,7 +99,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testContextLineWaitingInputFallsBackToPromptSnippet() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             status: .waitingInput,
             lastPrompt: "Original user prompt"
         )
@@ -107,17 +107,17 @@ final class SessionTests: XCTestCase {
     }
 
     func testContextLineNeedsAttentionFallsBackToNeedsAttention() {
-        let session = Session.mock(status: .needsAttention)
+        let session = SessionData.mock(status: .needsAttention)
         XCTAssertEqual(session.contextLine, "Needs attention")
     }
 
     func testContextLineCompacting() {
-        let session = Session.mock(status: .compacting)
+        let session = SessionData.mock(status: .compacting)
         XCTAssertEqual(session.contextLine, "Compacting context...")
     }
 
     func testNotificationContentPrefixesDistinctSessionTitleWithProject() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Handle notification permission flow",
             status: .waitingInput,
@@ -134,7 +134,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationContentDoesNotDuplicateProjectTitle() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             status: .waitingInput,
             lastPrompt: "How can I watch it",
@@ -147,7 +147,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationContentUsesDesktopProjectPrefix() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "generated-worktree",
             sessionName: "Handle notification permission flow",
             status: .waitingPermission,
@@ -163,7 +163,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationContentPrefixesTitleStartingWithProjectName() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "optimistic-mestorf-1d360b",
             sessionName: "CCTOP promotional video",
             status: .waitingInput,
@@ -178,7 +178,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationContentCleansAndTruncatesBody() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "rdoc",
             sessionName: "Identify RDoc plugin incompatibility",
             status: .waitingInput,
@@ -193,7 +193,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyPreservesUserTextCasing() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Brand wording",
             status: .waitingInput,
@@ -206,7 +206,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyPrefersNotificationMessageForWaitingInput() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Elicitation dialog",
             status: .waitingInput,
@@ -219,7 +219,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyPreservesMachineLikeNotificationMessage() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Elicitation dialog",
             status: .waitingInput,
@@ -232,7 +232,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyFallsBackToLastPromptForWaitingInput() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Generic idle prompt",
             status: .waitingInput,
@@ -244,7 +244,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyPreservesNonCodexPromptFallback() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Generic idle prompt",
             status: .waitingInput,
@@ -256,7 +256,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyPreservesCodexPromptFallbackStartingWithScaffoldHeading() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Generic idle prompt",
             status: .waitingInput,
@@ -268,7 +268,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyExtractsUserRequestFromCodexScaffold() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Chief driver",
             status: .waitingInput,
@@ -289,7 +289,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyFallsBackForMachineOnlyCodexScaffoldWithMultipleSections() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Generated context",
             status: .waitingInput,
@@ -307,7 +307,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyFallsBackForMachineWrapperPrompts() {
-        let heartbeat = Session.mock(
+        let heartbeat = SessionData.mock(
             project: "cctop",
             sessionName: "Chief watchdog",
             status: .waitingInput,
@@ -318,7 +318,7 @@ final class SessionTests: XCTestCase {
             """,
             source: "codex"
         )
-        let delegation = Session.mock(
+        let delegation = SessionData.mock(
             project: "cctop",
             sessionName: "Driver task",
             status: .waitingInput,
@@ -335,7 +335,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyRejectsMachineWrapperBeforeExtractingCodexMarker() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Driver task",
             status: .waitingInput,
@@ -354,7 +354,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationBodyDoesNotExtractCodexMarkerFromOrdinaryPrompt() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "cctop",
             sessionName: "Docs edit",
             status: .waitingInput,
@@ -386,7 +386,7 @@ final class SessionTests: XCTestCase {
             "session_name": "refactor auth"
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(session.sessionName, "refactor auth")
         XCTAssertEqual(session.displayName, "refactor auth")
     }
@@ -406,7 +406,7 @@ final class SessionTests: XCTestCase {
             "source": "codex"
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(session.desktopProjectName, "cctop")
         XCTAssertEqual(session.displayName, "codex-worktree")
     }
@@ -424,48 +424,48 @@ final class SessionTests: XCTestCase {
             "terminal": {"program": "Code"}
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertNil(session.sessionName)
         XCTAssertEqual(session.displayName, "myapp")
     }
 
     func testDisplayNameReturnsSessionNameWhenSet() {
-        let session = Session.mock(sessionName: "my task")
+        let session = SessionData.mock(sessionName: "my task")
         XCTAssertEqual(session.displayName, "my task")
     }
 
     func testDisplayNameFallsBackToProjectName() {
-        let session = Session.mock(project: "myapp")
+        let session = SessionData.mock(project: "myapp")
         XCTAssertEqual(session.displayName, "myapp")
     }
 
     // MARK: - PID-keyed identity
 
     func testIdUsesPIDWhenAvailable() {
-        let session = Session.mock(pid: 12345)
+        let session = SessionData.mock(pid: 12345)
         XCTAssertEqual(session.id, "12345")
     }
 
     func testIdFallsBackToSessionIdWhenNoPID() {
-        let session = Session.mock(id: "abc-123")
+        let session = SessionData.mock(id: "abc-123")
         XCTAssertEqual(session.id, "abc-123")
     }
 
     func testIdentifiableIDUsesHarnessSpecificDisplayIdentity() {
-        let cases: [(name: String, session: Session, expectedID: String)] = [
+        let cases: [(name: String, session: SessionData, expectedID: String)] = [
             (
                 "codex conversations use session id even with a shared host pid",
-                Session.mock(id: "codex-thread-1", pid: 12345, source: Session.codexSource),
+                SessionData.mock(id: "codex-thread-1", pid: 12345, source: SessionData.codexSource),
                 "codex-thread-1"
             ),
             (
                 "non-codex sessions use pid when available",
-                Session.mock(id: "claude-thread-1", pid: 12345, source: Session.ccSource),
+                SessionData.mock(id: "claude-thread-1", pid: 12345, source: SessionData.ccSource),
                 "12345"
             ),
             (
                 "non-codex sessions fall back to session id when pid is missing",
-                Session.mock(id: "claude-thread-2", source: Session.ccSource),
+                SessionData.mock(id: "claude-thread-2", source: SessionData.ccSource),
                 "claude-thread-2"
             ),
         ]
@@ -493,31 +493,31 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(SessionIdentityPolicy.notificationUserInfo(forCctopSessionID: "not-a-uuid"))
     }
 
-    func testNotificationMetadataFindsPriorProcessObservationByPermanentIdentity() throws {
+    func testNotificationMetadataFindsPriorProcessRecordByPermanentIdentity() throws {
         let sharedID = "11111111-1111-4111-8111-111111111111"
-        let oldObservation = Session.mock(
+        let oldRecord = SessionData.mock(
             id: "old-process", cctopSessionId: sharedID,
-            status: .waitingPermission, pid: 11_111, source: Session.opencodeSource
+            status: .waitingPermission, pid: 11_111, source: SessionData.opencodeSource
         )
-        let currentObservation = Session.mock(
+        let currentRecord = SessionData.mock(
             id: "new-process", cctopSessionId: sharedID,
-            status: .waitingPermission, pid: 22_222, source: Session.opencodeSource
+            status: .waitingPermission, pid: 22_222, source: SessionData.opencodeSource
         )
-        let unrelated = Session.mock(
+        let unrelated = SessionData.mock(
             id: "unrelated", cctopSessionId: "22222222-2222-4222-8222-222222222222",
-            status: .waitingPermission, pid: 33_333, source: Session.opencodeSource
+            status: .waitingPermission, pid: 33_333, source: SessionData.opencodeSource
         )
-        let oldRequest = try XCTUnwrap(SessionManager.notificationRequest(for: oldObservation))
-        let currentRequest = try XCTUnwrap(SessionManager.notificationRequest(for: currentObservation))
+        let oldRequest = try XCTUnwrap(SessionManager.notificationRequest(for: oldRecord))
+        let currentRequest = try XCTUnwrap(SessionManager.notificationRequest(for: currentRecord))
         let unrelatedRequest = try XCTUnwrap(SessionManager.notificationRequest(for: unrelated))
         let preMigrationContent = UNMutableNotificationContent()
         preMigrationContent.userInfo = [
             SessionIdentityPolicy.notificationCctopSessionIDKey: sharedID,
-            SessionIdentityPolicy.notificationSessionIDKey: oldObservation.sessionId,
-            SessionIdentityPolicy.notificationSessionPIDKey: String(try XCTUnwrap(oldObservation.pid)),
+            SessionIdentityPolicy.notificationSessionIDKey: oldRecord.sessionId,
+            SessionIdentityPolicy.notificationSessionPIDKey: String(try XCTUnwrap(oldRecord.pid)),
         ]
         let preMigrationRequest = UNNotificationRequest(
-            identifier: "session-active:\(oldObservation.id)",
+            identifier: "session-active:\(oldRecord.id)",
             content: preMigrationContent,
             trigger: nil
         )
@@ -542,8 +542,8 @@ final class SessionTests: XCTestCase {
     func testNotificationPayloadPermanentIDOverridesStaleLegacyFields() {
         let firstID = "11111111-1111-4111-8111-111111111111"
         let secondID = "22222222-2222-4222-8222-222222222222"
-        let first = Session.mock(id: "codex-thread-1", cctopSessionId: firstID, pid: 12345, source: "codex")
-        let second = Session.mock(id: "codex-thread-2", cctopSessionId: secondID, pid: 12345, source: "codex")
+        let first = SessionData.mock(id: "codex-thread-1", cctopSessionId: firstID, pid: 12345, source: "codex")
+        let second = SessionData.mock(id: "codex-thread-2", cctopSessionId: secondID, pid: 12345, source: "codex")
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationCctopSessionIDKey: secondID,
             SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1",
@@ -552,14 +552,14 @@ final class SessionTests: XCTestCase {
 
         let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
             matchingNotificationUserInfo: userInfo,
-            in: [first, second]
+            in: userSessionProjection(from: [first, second])
         )
 
         XCTAssertEqual(resolvedID, secondID)
     }
 
     func testNotificationPayloadWithMalformedPermanentIDDoesNotFallBack() {
-        let session = Session.mock(id: "codex-thread-1", pid: 12345, source: "codex")
+        let session = SessionData.mock(id: "codex-thread-1", pid: 12345, source: "codex")
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationCctopSessionIDKey: "not-a-uuid",
             SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1",
@@ -568,7 +568,7 @@ final class SessionTests: XCTestCase {
 
         let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
             matchingNotificationUserInfo: userInfo,
-            in: [session]
+            in: userSessionProjection(from: [session])
         )
 
         XCTAssertNil(resolvedID)
@@ -576,7 +576,7 @@ final class SessionTests: XCTestCase {
 
     func testLegacyNotificationPayloadRecoversOnePermanentLogicalID() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let currentObservation = Session.mock(
+        let currentRecord = SessionData.mock(
             id: "codex-thread-1", cctopSessionId: cctopSessionID, pid: 67890, source: "codex"
         )
         let userInfo: [AnyHashable: Any] = [
@@ -586,34 +586,79 @@ final class SessionTests: XCTestCase {
 
         let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
             matchingNotificationUserInfo: userInfo,
-            in: [currentObservation]
+            in: userSessionProjection(from: [currentRecord])
         )
 
         XCTAssertEqual(resolvedID, cctopSessionID)
     }
 
     func testLegacyNotificationPayloadFailsClosedForAmbiguousPermanentIdentity() {
-        let first = Session.mock(
+        let first = SessionData.mock(
             id: "codex-thread-1", cctopSessionId: "11111111-1111-4111-8111-111111111111",
-            pid: 12_345, source: Session.codexSource
+            pid: 12_345, source: SessionData.codexSource
         )
-        let second = Session.mock(
+        let second = SessionData.mock(
             id: "codex-thread-1", cctopSessionId: "22222222-2222-4222-8222-222222222222",
-            pid: 67_890, source: Session.codexSource
+            pid: 67_890,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: SessionData.ccSource
         )
 
         XCTAssertNil(
             SessionIdentityPolicy.notificationCctopSessionID(
                 matchingNotificationUserInfo: [SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1"],
-                in: [first, second]
+                in: userSessionProjection(from: [first, second])
+            )
+        )
+    }
+
+    func testLegacyNotificationPayloadUsesAuthoritativeIdentityWhenRetainedRecordConflicts() {
+        let stale = SessionData.mock(
+            id: "codex-thread-1", cctopSessionId: "11111111-1111-4111-8111-111111111111",
+            pid: 12_345, source: SessionData.codexSource
+        )
+        let current = SessionData.mock(
+            id: "codex-thread-1", cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            pid: 67_890, source: SessionData.codexSource
+        )
+
+        let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
+            matchingNotificationUserInfo: [
+                SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1",
+            ],
+            in: [userSession(display: current, records: [stale, current])]
+        )
+
+        XCTAssertEqual(resolvedID, current.cctopSessionId)
+    }
+
+    func testLegacyNotificationPayloadFailsClosedWhenOneMatchingUserSessionIsUnstamped() {
+        var unstampedCodex = SessionData.mock(
+            id: "shared-session", pid: 12_345, source: SessionData.codexSource
+        )
+        unstampedCodex.cctopSessionId = nil
+        let stampedDesktop = SessionData.mock(
+            id: "shared-session",
+            cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            pid: 67_890,
+            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
+            source: SessionData.ccSource
+        )
+
+        XCTAssertNil(
+            SessionIdentityPolicy.notificationCctopSessionID(
+                matchingNotificationUserInfo: [
+                    SessionIdentityPolicy.notificationSessionIDKey: "shared-session",
+                ],
+                in: userSessionProjection(from: [unstampedCodex, stampedDesktop])
             )
         )
     }
 
     func testLegacyNotificationSessionIDMissDoesNotFallThroughToPID() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             id: "current-session", cctopSessionId: "11111111-1111-4111-8111-111111111111",
-            pid: 12345, source: Session.opencodeSource
+            pid: 12345, source: SessionData.opencodeSource
         )
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationSessionIDKey: "stale-session",
@@ -623,15 +668,15 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(
             SessionIdentityPolicy.notificationCctopSessionID(
                 matchingNotificationUserInfo: userInfo,
-                in: [session]
+                in: userSessionProjection(from: [session])
             )
         )
     }
 
     func testLegacyNotificationPayloadFailsClosedForUniquePID() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             id: "current-process", cctopSessionId: "11111111-1111-4111-8111-111111111111",
-            pid: 12345, source: Session.opencodeSource
+            pid: 12345, source: SessionData.opencodeSource
         )
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationSessionPIDKey: "12345",
@@ -640,15 +685,15 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(
             SessionIdentityPolicy.notificationCctopSessionID(
                 matchingNotificationUserInfo: userInfo,
-                in: [session]
+                in: userSessionProjection(from: [session])
             )
         )
     }
 
     func testLegacyNotificationPayloadFailsClosedForProcessSessionID() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             id: "12345", cctopSessionId: "11111111-1111-4111-8111-111111111111",
-            pid: 12345, source: Session.opencodeSource
+            pid: 12345, source: SessionData.opencodeSource
         )
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationSessionIDKey: "12345",
@@ -657,7 +702,7 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(
             SessionIdentityPolicy.notificationCctopSessionID(
                 matchingNotificationUserInfo: userInfo,
-                in: [session]
+                in: userSessionProjection(from: [session])
             )
         )
     }
@@ -677,7 +722,7 @@ final class SessionTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = ManualSessionVisibilityStore(defaults: defaults)
 
-        var terminal = Session(
+        var terminal = SessionData(
             sessionId: "private-terminal-conversation",
             projectPath: "/private/project/path",
             branch: "secret-branch",
@@ -686,10 +731,10 @@ final class SessionTests: XCTestCase {
         terminal.cctopSessionId = "11111111-1111-4111-8111-111111111111"
         terminal.pid = 42
         terminal.sessionName = "Private session title"
-        let codex = Session.mock(
+        let codex = SessionData.mock(
             id: "codex-thread",
             cctopSessionId: "22222222-2222-4222-8222-222222222222",
-            source: Session.codexSource
+            source: SessionData.codexSource
         )
 
         store.hide(terminal)
@@ -712,11 +757,11 @@ final class SessionTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = ManualSessionVisibilityStore(defaults: defaults)
-        let first = Session.mock(
+        let first = SessionData.mock(
             id: "first", cctopSessionId: "11111111-1111-4111-8111-111111111111"
         )
         let secondID = "22222222-2222-4222-8222-222222222222"
-        let second = Session.mock(id: "second", cctopSessionId: secondID)
+        let second = SessionData.mock(id: "second", cctopSessionId: secondID)
 
         store.hide(first)
         store.hide(second)
@@ -737,14 +782,14 @@ final class SessionTests: XCTestCase {
             forKey: ManualSessionVisibilityStore.legacyDefaultsKey
         )
         let store = ManualSessionVisibilityStore(defaults: defaults)
-        let codex = Session.mock(id: "durable-codex", cctopSessionId: codexID, source: Session.codexSource)
-        let desktop = Session.mock(
+        let codex = SessionData.mock(id: "durable-codex", cctopSessionId: codexID, source: SessionData.codexSource)
+        let desktop = SessionData.mock(
             id: "durable-desktop",
             cctopSessionId: desktopID,
             terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
-            source: Session.ccSource
+            source: SessionData.ccSource
         )
-        let active = Session.mock(id: "terminal", cctopSessionId: activeID, pid: 42, source: Session.ccSource)
+        let active = SessionData.mock(id: "terminal", cctopSessionId: activeID, pid: 42, source: SessionData.ccSource)
         var unstampedCodex = codex
         unstampedCodex.cctopSessionId = nil
 
@@ -816,7 +861,7 @@ final class SessionTests: XCTestCase {
         let store = ManualSessionVisibilityStore(defaults: defaults)
         let firstID = "11111111-1111-4111-8111-111111111111"
         let secondID = "22222222-2222-4222-8222-222222222222"
-        var legacy = Session.mock(id: threadID, harnessSessionId: threadID, source: Session.codexSource)
+        var legacy = SessionData.mock(id: threadID, harnessSessionId: threadID, source: SessionData.codexSource)
         legacy.cctopSessionId = nil
         let unresolvedIDs = store.migrateLegacyStableKeys(
             using: [legacy],
@@ -828,17 +873,17 @@ final class SessionTests: XCTestCase {
         XCTAssertTrue(store.hiddenSessionIDs.isEmpty)
         XCTAssertEqual(store.unresolvedDurableLegacyKeys, [legacyKey])
 
-        let first = Session.mock(
+        let first = SessionData.mock(
             id: "first-observation",
             cctopSessionId: firstID,
             harnessSessionId: threadID,
-            source: Session.codexSource
+            source: SessionData.codexSource
         )
-        let second = Session.mock(
+        let second = SessionData.mock(
             id: "second-observation",
             cctopSessionId: secondID,
             harnessSessionId: threadID,
-            source: Session.codexSource
+            source: SessionData.codexSource
         )
         let ambiguousIDs = store.migrateLegacyStableKeys(
             using: [legacy, first, second],
@@ -856,7 +901,7 @@ final class SessionTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = ManualSessionVisibilityStore(defaults: defaults)
-        var legacy = Session.mock(id: "legacy")
+        var legacy = SessionData.mock(id: "legacy")
         legacy.cctopSessionId = nil
 
         store.hide(legacy)
@@ -867,12 +912,12 @@ final class SessionTests: XCTestCase {
     }
 
     func testManualSessionHideConfirmationDescribesIrreversibleVisibleEffect() throws {
-        let session = Session.mock(
+        let session = SessionData.mock(
             id: "private-session",
             cctopSessionId: "11111111-1111-4111-8111-111111111111",
             project: "cctop",
             sessionName: "Investigate lifecycle",
-            source: Session.codexSource
+            source: SessionData.codexSource
         )
 
         let confirmation = try XCTUnwrap(ManualSessionHideConfirmation(session: session))
@@ -897,7 +942,7 @@ final class SessionTests: XCTestCase {
             session: .mock(
                 id: "private-session",
                 cctopSessionId: "11111111-1111-4111-8111-111111111111",
-                source: Session.codexSource
+                source: SessionData.codexSource
             )
         ))
         let cleanupRoute = PopupConfirmation.cleanup(cleanupConfirmation)
@@ -920,7 +965,7 @@ final class SessionTests: XCTestCase {
 
     func testNotificationRequestDoesNotUseVisibleThreadGrouping() throws {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let session = Session.mock(
+        let session = SessionData.mock(
             id: "claude-desktop-thread-1",
             cctopSessionId: cctopSessionID,
             pid: 12345,
@@ -935,7 +980,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationRequestFailsClosedWithoutPermanentIdentity() {
-        var missing = Session.mock(id: "legacy", status: .waitingInput)
+        var missing = SessionData.mock(id: "legacy", status: .waitingInput)
         missing.cctopSessionId = nil
         var malformed = missing
         malformed.cctopSessionId = "not-a-uuid"
@@ -965,7 +1010,7 @@ final class SessionTests: XCTestCase {
             }
         )
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let session = Session.mock(
+        let session = SessionData.mock(
             id: "claude-desktop-thread-1",
             cctopSessionId: cctopSessionID,
             status: .waitingPermission,
@@ -978,7 +1023,7 @@ final class SessionTests: XCTestCase {
             dataSources: sources,
             startMonitoring: false
         )
-        manager.sessions = [session]
+        setSessionProjection([session], on: manager)
 
         manager.postNotification(for: session)
 
@@ -1010,9 +1055,9 @@ final class SessionTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = ManualSessionVisibilityStore(defaults: defaults)
-        let session = Session.mock(
+        let session = SessionData.mock(
             id: "hidden-attention", status: .waitingPermission,
-            source: Session.codexSource
+            source: SessionData.codexSource
         )
 
         let recorder = Recorder()
@@ -1032,15 +1077,15 @@ final class SessionTests: XCTestCase {
         )
         var noLongerNeedsAttention = session
         noLongerNeedsAttention.status = .working
-        manager.sessions = [noLongerNeedsAttention]
+        setSessionProjection([noLongerNeedsAttention], on: manager)
         manager.postNotification(for: session)
 
-        manager.sessions = [session]
+        setSessionProjection([session], on: manager)
         store.hide(session)
 
         manager.postNotification(for: session)
         store.prune(retaining: [])
-        manager.sessions = []
+        setSessionProjection([], on: manager)
         manager.postNotification(for: session)
 
         XCTAssertEqual(recorder.events, [])
@@ -1062,20 +1107,20 @@ final class SessionTests: XCTestCase {
             removePending: { _ in recorder.events.append("removePending") },
             removeDelivered: { _ in recorder.events.append("removeDelivered") }
         )
-        let original = Session.mock(
+        let original = SessionData.mock(
             id: "reused-pid", cctopSessionId: "11111111-1111-4111-8111-111111111111",
-            pid: 42_042, source: Session.ccSource
+            pid: 42_042, source: SessionData.ccSource
         )
-        let replacement = Session.mock(
+        let replacement = SessionData.mock(
             id: "reused-pid", cctopSessionId: "22222222-2222-4222-8222-222222222222",
-            pid: 42_042, source: Session.ccSource
+            pid: 42_042, source: SessionData.ccSource
         )
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
             dataSources: sources,
             startMonitoring: false
         )
-        manager.sessions = [replacement]
+        setSessionProjection([replacement], on: manager)
 
         manager.postNotification(for: original)
 
@@ -1098,10 +1143,10 @@ final class SessionTests: XCTestCase {
             removePending: { _ in recorder.events.append("removePending") },
             removeDelivered: { _ in recorder.events.append("removeDelivered") }
         )
-        var missingIdentity = Session.mock(
+        var missingIdentity = SessionData.mock(
             id: "legacy-session", harnessSessionId: "legacy-session",
             status: .waitingInput, pid: 42_042, pidStartTime: 1_000,
-            source: Session.opencodeSource
+            source: SessionData.opencodeSource
         )
         missingIdentity.cctopSessionId = nil
         missingIdentity.lifecycle = .active
@@ -1110,7 +1155,7 @@ final class SessionTests: XCTestCase {
             dataSources: sources,
             startMonitoring: false
         )
-        manager.sessions = [missingIdentity]
+        setSessionProjection([missingIdentity], on: manager)
 
         manager.postNotification(for: missingIdentity)
 
@@ -1118,7 +1163,7 @@ final class SessionTests: XCTestCase {
     }
 
     @MainActor
-    func testPostNotificationMatchesCurrentCanonicalObservationForPendingRequest() throws {
+    func testPostNotificationMatchesCurrentCanonicalRecordForPendingRequest() throws {
         final class Recorder {
             var requests: [UNNotificationRequest] = []
             var removals: [String] = []
@@ -1135,14 +1180,14 @@ final class SessionTests: XCTestCase {
             removeDelivered: { recorder.removals.append("delivered:\($0.joined(separator: ","))") }
         )
         let sharedID = "11111111-1111-4111-8111-111111111111"
-        var working = Session.mock(
+        var working = SessionData.mock(
             id: "first", cctopSessionId: sharedID,
-            status: .working, pid: 11_111, source: Session.opencodeSource
+            status: .working, pid: 11_111, source: SessionData.opencodeSource
         )
         working.lifecycle = .active
-        var waiting = Session.mock(
+        var waiting = SessionData.mock(
             id: "second", cctopSessionId: sharedID,
-            status: .waitingPermission, pid: 22_222, source: Session.opencodeSource
+            status: .waitingPermission, pid: 22_222, source: SessionData.opencodeSource
         )
         waiting.lifecycle = .active
         let manager = SessionManager(
@@ -1154,7 +1199,7 @@ final class SessionTests: XCTestCase {
         staleWaitingSnapshot.status = .waitingPermission
         staleWaitingSnapshot.notificationMessage = "Stale observation"
         waiting.notificationMessage = "Current observation"
-        manager.sessions = [waiting]
+        setSessionProjection([waiting], on: manager)
 
         manager.postNotification(for: staleWaitingSnapshot)
 
@@ -1168,7 +1213,7 @@ final class SessionTests: XCTestCase {
 
         recorder.requests.removeAll()
         recorder.removals.removeAll()
-        manager.sessions = [working]
+        setSessionProjection([working], on: manager)
         manager.postNotification(for: staleWaitingSnapshot)
         XCTAssertTrue(recorder.requests.isEmpty)
         XCTAssertTrue(recorder.removals.isEmpty)
@@ -1192,24 +1237,35 @@ final class SessionTests: XCTestCase {
             removeByCctopSessionID: { recorder.cctopSessionIDs.append($0) }
         )
         let sharedID = "11111111-1111-4111-8111-111111111111"
-        let first = Session.mock(
-            id: "codex-thread-1", cctopSessionId: sharedID,
-            status: .working, pid: 11_111, source: Session.codexSource
+        var unstamped = SessionData.mock(
+            id: "legacy-codex-thread", cctopSessionId: sharedID,
+            status: .idle, pid: 10_000, source: SessionData.codexSource
         )
-        let processScoped = Session.mock(
+        unstamped.cctopSessionId = nil
+        let first = SessionData.mock(
+            id: "current-codex-thread", cctopSessionId: sharedID,
+            status: .working, pid: 11_111, source: SessionData.codexSource
+        )
+        let processScoped = SessionData.mock(
             id: "11111", cctopSessionId: sharedID,
-            status: .working, pid: 11_111, source: Session.opencodeSource
+            status: .working, pid: 11_111, source: SessionData.opencodeSource
         )
         let manager = SessionManager(
             historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
             dataSources: sources,
             startMonitoring: false
         )
-        manager.sessions = [first]
+        manager.updateSessionProjection([
+            userSession(display: first, records: [unstamped, first]),
+        ])
 
         manager.hideSession(first)
 
-        let expectedIdentifiers = ["session-\(sharedID)", "session-codex:codex-thread-1"]
+        let expectedIdentifiers = [
+            "session-\(sharedID)",
+            "session-codex:current-codex-thread",
+            "session-codex:legacy-codex-thread",
+        ]
         XCTAssertTrue(manager.sessions.isEmpty)
         XCTAssertEqual(recorder.pending, [expectedIdentifiers])
         XCTAssertEqual(recorder.delivered, [expectedIdentifiers])
@@ -1255,12 +1311,12 @@ final class SessionTests: XCTestCase {
             startMonitoring: false
         )
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        var attention = Session.mock(
+        var attention = SessionData.mock(
             id: "attention", cctopSessionId: cctopSessionID,
-            status: .waitingInput, source: Session.codexSource
+            status: .waitingInput, source: SessionData.codexSource
         )
         attention.lifecycle = .active
-        manager.sessions = [attention]
+        setSessionProjection([attention], on: manager)
 
         manager.hideSession(attention)
 
@@ -1273,16 +1329,16 @@ final class SessionTests: XCTestCase {
 
     func testNotificationActionsRemoveResolvedAttentionSession() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "old-observation", cctopSessionId: cctopSessionID,
             status: .waitingInput,
             lastPrompt: "Waiting",
-            pid: 11_111, source: Session.opencodeSource
+            pid: 11_111, source: SessionData.opencodeSource
         )
-        let resolvedSession = Session.mock(
+        let resolvedSession = SessionData.mock(
             id: "new-observation", cctopSessionId: cctopSessionID,
             status: .working,
-            pid: 22_222, source: Session.opencodeSource
+            pid: 22_222, source: SessionData.opencodeSource
         )
 
         XCTAssertEqual(
@@ -1297,7 +1353,7 @@ final class SessionTests: XCTestCase {
 
     func testNotificationActionsRemoveMissingAttentionSession() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "codex-thread-1", cctopSessionId: cctopSessionID,
             status: .waitingInput,
             lastPrompt: "Waiting",
@@ -1336,13 +1392,13 @@ final class SessionTests: XCTestCase {
             startMonitoring: false
         )
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "codex-thread-1", cctopSessionId: cctopSessionID,
-            status: .waitingPermission, pid: 11_111, source: Session.codexSource
+            status: .waitingPermission, pid: 11_111, source: SessionData.codexSource
         )
-        let currentSession = Session.mock(
+        let currentSession = SessionData.mock(
             id: "codex-thread-1", cctopSessionId: cctopSessionID,
-            status: .working, pid: 22_222, source: Session.codexSource
+            status: .working, pid: 22_222, source: SessionData.codexSource
         )
 
         manager.syncTransitionNotifications(for: [currentSession], oldSessions: [oldSession])
@@ -1353,17 +1409,17 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(recorder.cctopSessionIDs, [cctopSessionID])
     }
 
-    func testNotificationActionsPostOneTransitionAcrossReplacementObservation() {
+    func testNotificationActionsPostOneTransitionAcrossReplacementRecord() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "old-observation", cctopSessionId: cctopSessionID,
-            status: .working, pid: 11_111, source: Session.opencodeSource
+            status: .working, pid: 11_111, source: SessionData.opencodeSource
         )
-        let waitingSession = Session.mock(
+        let waitingSession = SessionData.mock(
             id: "new-observation", cctopSessionId: cctopSessionID,
             status: .waitingInput,
             lastPrompt: "Waiting",
-            pid: 22_222, source: Session.opencodeSource
+            pid: 22_222, source: SessionData.opencodeSource
         )
 
         XCTAssertEqual(
@@ -1376,15 +1432,15 @@ final class SessionTests: XCTestCase {
         )
     }
 
-    func testNotificationActionsDoNotRepostWaitingTransitionAcrossReplacementObservation() {
+    func testNotificationActionsDoNotRepostWaitingTransitionAcrossReplacementRecord() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "old-observation", cctopSessionId: cctopSessionID,
-            status: .waitingPermission, pid: 11_111, source: Session.opencodeSource
+            status: .waitingPermission, pid: 11_111, source: SessionData.opencodeSource
         )
-        let replacement = Session.mock(
+        let replacement = SessionData.mock(
             id: "new-observation", cctopSessionId: cctopSessionID,
-            status: .waitingPermission, pid: 22_222, source: Session.opencodeSource
+            status: .waitingPermission, pid: 22_222, source: SessionData.opencodeSource
         )
 
         XCTAssertEqual(
@@ -1396,7 +1452,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationActionsFailClosedWithoutPermanentIdentity() {
-        var oldSession = Session.mock(id: "legacy", status: .working)
+        var oldSession = SessionData.mock(id: "legacy", status: .working)
         var waitingSession = oldSession
         oldSession.cctopSessionId = nil
         waitingSession.cctopSessionId = nil
@@ -1412,8 +1468,8 @@ final class SessionTests: XCTestCase {
     }
 
     private func notificationActions(
-        newSession: Session,
-        oldSession: Session,
+        newSession: SessionData,
+        oldSession: SessionData,
         notificationsEnabled: Bool = true
     ) -> [SessionNotificationAction] {
         XCTAssertEqual(newSession.cctopSessionId, oldSession.cctopSessionId)
@@ -1425,13 +1481,13 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationActionsSuppressMachineOnlyCodexEnvelopeWaitingInput() {
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .working,
             source: "codex"
         )
-        let heartbeatSession = Session.mock(
+        let heartbeatSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1442,7 +1498,7 @@ final class SessionTests: XCTestCase {
             """,
             source: "codex"
         )
-        let delegationSession = Session.mock(
+        let delegationSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1465,13 +1521,13 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationActionsSuppressCodexScaffoldWithoutUserRequest() {
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .working,
             source: "codex"
         )
-        let browserScaffoldSession = Session.mock(
+        let browserScaffoldSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1481,7 +1537,7 @@ final class SessionTests: XCTestCase {
             """,
             source: "codex"
         )
-        let fileScaffoldSession = Session.mock(
+        let fileScaffoldSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1491,7 +1547,7 @@ final class SessionTests: XCTestCase {
             """,
             source: "codex"
         )
-        let multiSectionScaffoldSession = Session.mock(
+        let multiSectionScaffoldSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1520,14 +1576,14 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationActionsDoNotApplyCodexSuppressionToLeakedDesktopBundle() {
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "cc-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .working,
             terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop),
             source: "cc",
         )
-        let waitingSession = Session.mock(
+        let waitingSession = SessionData.mock(
             id: "cc-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1546,13 +1602,13 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationActionsPostUserFacingCodexWaitingInput() {
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .working,
             source: "codex"
         )
-        let explicitMessageSession = Session.mock(
+        let explicitMessageSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1564,7 +1620,7 @@ final class SessionTests: XCTestCase {
             notificationMessage: "Which option should I choose?",
             source: "codex"
         )
-        let scaffoldWithRequestSession = Session.mock(
+        let scaffoldWithRequestSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1577,14 +1633,14 @@ final class SessionTests: XCTestCase {
             """,
             source: "codex"
         )
-        let promptStartingWithScaffoldHeading = Session.mock(
+        let promptStartingWithScaffoldHeading = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
             lastPrompt: "# Files: draft a changelog entry",
             source: "codex"
         )
-        let multilinePromptStartingWithScaffoldHeading = Session.mock(
+        let multilinePromptStartingWithScaffoldHeading = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1614,13 +1670,13 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationActionsPostCodexPermissionAndErrorAttention() {
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .working,
             source: "codex"
         )
-        let permissionSession = Session.mock(
+        let permissionSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingPermission,
@@ -1628,7 +1684,7 @@ final class SessionTests: XCTestCase {
             notificationMessage: "Allow Bash: make all",
             source: "codex"
         )
-        let errorSession = Session.mock(
+        let errorSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .needsAttention,
@@ -1648,14 +1704,14 @@ final class SessionTests: XCTestCase {
     }
 
     func testNotificationActionsPostWhenSuppressedCodexWaitingInputBecomesUserFacing() {
-        let oldMachineOnlySession = Session.mock(
+        let oldMachineOnlySession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
             lastPrompt: "<heartbeat></heartbeat>",
             source: "codex"
         )
-        let userFacingSession = Session.mock(
+        let userFacingSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: notificationTestCctopSessionID,
             status: .waitingInput,
@@ -1671,14 +1727,14 @@ final class SessionTests: XCTestCase {
 
     func testNotificationActionsRemoveWhenUserFacingCodexWaitingInputBecomesMachineOnly() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let oldUserFacingSession = Session.mock(
+        let oldUserFacingSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: cctopSessionID,
             status: .waitingInput,
             lastPrompt: "Can you check this?",
             source: "codex"
         )
-        let machineOnlySession = Session.mock(
+        let machineOnlySession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: cctopSessionID,
             status: .waitingInput,
@@ -1694,13 +1750,13 @@ final class SessionTests: XCTestCase {
 
     func testNotificationActionsDoNotPostWhenNotificationsDisabled() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
-        let oldSession = Session.mock(
+        let oldSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: cctopSessionID,
             status: .working,
             source: "codex"
         )
-        let waitingSession = Session.mock(
+        let waitingSession = SessionData.mock(
             id: "codex-thread-1",
             cctopSessionId: cctopSessionID,
             status: .waitingInput,
@@ -1733,7 +1789,7 @@ final class SessionTests: XCTestCase {
             "pid_start_time": 1707400000.123
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(session.pid, 9999)
         XCTAssertEqual(session.pidStartTime!, 1707400000.123, accuracy: 0.001)
     }
@@ -1752,7 +1808,7 @@ final class SessionTests: XCTestCase {
             "pid": 5555
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(session.pid, 5555)
         XCTAssertNil(session.pidStartTime)
     }
@@ -1770,13 +1826,13 @@ final class SessionTests: XCTestCase {
             "terminal": {"program": "Code"}
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertNil(session.createdByHookVersion)
         XCTAssertNil(session.lastWrittenByHookVersion)
     }
 
     func testEncodesHookWriterMetadata() throws {
-        var session = Session.mock()
+        var session = SessionData.mock()
         session.createdByHookVersion = "0.16.0"
         session.lastWrittenByHookVersion = "0.16.1"
 
@@ -1788,7 +1844,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testMarkWrittenByHookDoesNotBackfillLegacyCreator() {
-        var session = Session.mock()
+        var session = SessionData.mock()
         session.markWrittenByHook(version: "0.16.0", isNewSessionFile: false)
 
         XCTAssertNil(session.createdByHookVersion)
@@ -1796,7 +1852,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testMarkWrittenByHookStampsNewSessionCreator() {
-        var session = Session.mock()
+        var session = SessionData.mock()
         session.markWrittenByHook(version: "0.16.0", isNewSessionFile: true)
 
         XCTAssertEqual(session.createdByHookVersion, "0.16.0")
@@ -1817,7 +1873,7 @@ final class SessionTests: XCTestCase {
             "disconnected_at": "2026-02-08T12:05:00Z"
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(
             session.disconnectedAt,
             ISO8601DateFormatter().date(from: "2026-02-08T12:05:00Z")
@@ -1826,7 +1882,7 @@ final class SessionTests: XCTestCase {
 
     func testEncodesDisconnectedAt() throws {
         let disconnectedAt = ISO8601DateFormatter().date(from: "2026-02-08T12:05:00Z")!
-        var session = Session.mock(terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop))
+        var session = SessionData.mock(terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop))
         session.disconnectedAt = disconnectedAt
 
         let data = try JSONEncoder.sessionEncoder.encode(session)
@@ -1836,7 +1892,7 @@ final class SessionTests: XCTestCase {
 
     func testProcessStartTimeReturnsValueForCurrentProcess() {
         let pid = UInt32(getpid())
-        let startTime = Session.processStartTime(pid: pid)
+        let startTime = SessionData.processStartTime(pid: pid)
         XCTAssertNotNil(startTime, "Should get start time for current process")
         XCTAssertGreaterThan(startTime ?? 0, 0)
     }
@@ -1867,16 +1923,16 @@ final class SessionTests: XCTestCase {
     func testIsAliveRejectsPidOwnedByForeignHarnessBinary() throws {
         let process = try spawnProcess(named: "codex")
         let pid = UInt32(process.processIdentifier)
-        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
-        let session = Session.mock(pid: pid, pidStartTime: start, source: "cc")
+        let start = try XCTUnwrap(SessionData.processStartTime(pid: pid))
+        let session = SessionData.mock(pid: pid, pidStartTime: start, source: "cc")
         XCTAssertFalse(session.isAlive)
     }
 
     func testIsAliveAcceptsPidOwnedByOwnHarnessBinary() throws {
         let process = try spawnProcess(named: "codex")
         let pid = UInt32(process.processIdentifier)
-        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
-        let session = Session.mock(pid: pid, pidStartTime: start, source: "codex")
+        let start = try XCTUnwrap(SessionData.processStartTime(pid: pid))
+        let session = SessionData.mock(pid: pid, pidStartTime: start, source: "codex")
         XCTAssertTrue(session.isAlive)
     }
 
@@ -1884,8 +1940,8 @@ final class SessionTests: XCTestCase {
     func testIsAliveAcceptsUnrecognizedProcessName() throws {
         let process = try spawnProcess(named: "sleepyhead")
         let pid = UInt32(process.processIdentifier)
-        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
-        let session = Session.mock(pid: pid, pidStartTime: start, source: "cc")
+        let start = try XCTUnwrap(SessionData.processStartTime(pid: pid))
+        let session = SessionData.mock(pid: pid, pidStartTime: start, source: "cc")
         XCTAssertTrue(session.isAlive)
     }
 
@@ -1893,16 +1949,16 @@ final class SessionTests: XCTestCase {
     func testIsAliveTreatsNilSourceAsClaudeCodeForIdentityCheck() throws {
         let process = try spawnProcess(named: "codex")
         let pid = UInt32(process.processIdentifier)
-        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
-        let session = Session.mock(pid: pid, pidStartTime: start, source: nil)
+        let start = try XCTUnwrap(SessionData.processStartTime(pid: pid))
+        let session = SessionData.mock(pid: pid, pidStartTime: start, source: nil)
         XCTAssertFalse(session.isAlive)
     }
 
     func testHarnessOwningCommRecognizesTruncatedArchSuffixedCodexBinary() {
         // Kernel p_comm of codex-aarch64-apple-darwin, truncated to MAXCOMLEN (16).
-        XCTAssertEqual(Session.harnessOwningComm("codex-aarch64-ap"), Session.codexSource)
-        XCTAssertTrue(Session.isForeignHarnessComm("codex-aarch64-ap", source: Session.ccSource))
-        XCTAssertFalse(Session.isForeignHarnessComm("codex-aarch64-ap", source: Session.codexSource))
+        XCTAssertEqual(SessionData.harnessOwningComm("codex-aarch64-ap"), SessionData.codexSource)
+        XCTAssertTrue(SessionData.isForeignHarnessComm("codex-aarch64-ap", source: SessionData.ccSource))
+        XCTAssertFalse(SessionData.isForeignHarnessComm("codex-aarch64-ap", source: SessionData.codexSource))
     }
 
     // Codex also ships arch-suffixed binaries; the kernel truncates p_comm to MAXCOMLEN.
@@ -1910,10 +1966,10 @@ final class SessionTests: XCTestCase {
     func testIsAliveRejectsPidOwnedByTruncatedArchSuffixedCodexBinary() throws {
         let process = try spawnProcess(named: "codex-aarch64-apple-darwin")
         let pid = UInt32(process.processIdentifier)
-        XCTAssertEqual(Session.processCommandName(pid: pid), "codex-aarch64-ap")
-        let start = try XCTUnwrap(Session.processStartTime(pid: pid))
-        XCTAssertFalse(Session.mock(pid: pid, pidStartTime: start, source: "cc").isAlive)
-        XCTAssertTrue(Session.mock(pid: pid, pidStartTime: start, source: "codex").isAlive)
+        XCTAssertEqual(SessionData.processCommandName(pid: pid), "codex-aarch64-ap")
+        let start = try XCTUnwrap(SessionData.processStartTime(pid: pid))
+        XCTAssertFalse(SessionData.mock(pid: pid, pidStartTime: start, source: "cc").isAlive)
+        XCTAssertTrue(SessionData.mock(pid: pid, pidStartTime: start, source: "codex").isAlive)
     }
 
     func testDecodesWorkspaceFile() throws {
@@ -1930,7 +1986,7 @@ final class SessionTests: XCTestCase {
             "workspace_file": "/Users/test/projects/myapp/myapp.code-workspace"
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(session.workspaceFile, "/Users/test/projects/myapp/myapp.code-workspace")
     }
 
@@ -1947,7 +2003,7 @@ final class SessionTests: XCTestCase {
             "terminal": {"program": "Code"}
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertNil(session.workspaceFile)
     }
 
@@ -1975,7 +2031,7 @@ final class SessionTests: XCTestCase {
             "source": "opencode"
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
 
         XCTAssertEqual(session.sessionId, "oc-session-1")
         XCTAssertEqual(session.projectName, "api-server")
@@ -1999,33 +2055,33 @@ final class SessionTests: XCTestCase {
             "terminal": {"program": "Code"}
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertNil(session.source)
         XCTAssertEqual(session.agentBadge.label, "CC")
     }
 
     func testAgentBadgeLabelOpencode() {
-        let session = Session.mock(source: "opencode")
+        let session = SessionData.mock(source: "opencode")
         XCTAssertEqual(session.agentBadge.label, "OC")
     }
 
     func testAgentBadgeLabelDefault() {
-        let session = Session.mock()
+        let session = SessionData.mock()
         XCTAssertEqual(session.agentBadge.label, "CC")
     }
 
     func testAgentBadgeLabelPi() {
-        let session = Session.mock(source: "pi")
+        let session = SessionData.mock(source: "pi")
         XCTAssertEqual(session.agentBadge.label, "Pi")
     }
 
     func testAgentBadgeLabelUnknownValue() {
-        let session = Session.mock(source: "aider")
+        let session = SessionData.mock(source: "aider")
         XCTAssertEqual(session.agentBadge.label, "CC")
     }
 
     func testSourceCarriedInWithSessionId() {
-        let session = Session.mock(source: "opencode")
+        let session = SessionData.mock(source: "opencode")
         let carried = session.withSessionId("new-id")
         XCTAssertEqual(carried.source, "opencode")
         XCTAssertEqual(carried.sessionId, "new-id")
@@ -2034,17 +2090,17 @@ final class SessionTests: XCTestCase {
     // MARK: - Case-insensitive tool display
 
     func testContextLineLowercaseToolName() {
-        let session = Session.mock(status: .working, lastTool: "bash", lastToolDetail: "go test ./...")
+        let session = SessionData.mock(status: .working, lastTool: "bash", lastToolDetail: "go test ./...")
         XCTAssertEqual(session.contextLine, "Running: go test ./...")
     }
 
     func testContextLineLowercaseEdit() {
-        let session = Session.mock(status: .working, lastTool: "edit", lastToolDetail: "/src/main.go")
+        let session = SessionData.mock(status: .working, lastTool: "edit", lastToolDetail: "/src/main.go")
         XCTAssertEqual(session.contextLine, "Editing main.go")
     }
 
     func testContextLineLowercaseRead() {
-        let session = Session.mock(status: .working, lastTool: "read", lastToolDetail: "/src/config.ts")
+        let session = SessionData.mock(status: .working, lastTool: "read", lastToolDetail: "/src/config.ts")
         XCTAssertEqual(session.contextLine, "Reading config.ts")
     }
 
@@ -2062,7 +2118,7 @@ final class SessionTests: XCTestCase {
             "context_compacted": true
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(session.sessionId, "old-session")
         XCTAssertEqual(session.status, .working)
     }
@@ -2070,12 +2126,12 @@ final class SessionTests: XCTestCase {
     // MARK: - Host classification (Phase 1, file-local, bundle-id only)
 
     func testHostClassClaudeDesktopIsDesktop() {
-        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"))
+        let session = SessionData.mock(terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"))
         XCTAssertEqual(session.hostClass, .desktop)
     }
 
     func testCodexDesktopBundleWithoutSourceIsOnlyFocusEvidence() {
-        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.openai.codex"))
+        let session = SessionData.mock(terminal: TerminalInfo(bundleId: "com.openai.codex"))
         XCTAssertEqual(session.hostClass, .ambiguous)
         XCTAssertEqual(session.trustedHostApp, .codexDesktop)
     }
@@ -2083,7 +2139,7 @@ final class SessionTests: XCTestCase {
     // A `cc` session is never hosted by Codex Desktop: that bundle id can only be
     // launcher environment leaked into a Claude Code child process (issue #155).
     func testHostClassCcIgnoresLeakedCodexDesktopBundle() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "cc"
         )
@@ -2093,7 +2149,7 @@ final class SessionTests: XCTestCase {
 
     // Symmetric: a `codex` session is never hosted by Claude Desktop.
     func testHostClassCodexIgnoresLeakedClaudeDesktopBundle() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: "codex"
         )
@@ -2104,7 +2160,7 @@ final class SessionTests: XCTestCase {
 
     // Claude Desktop remains trusted for its matching `cc` source.
     func testHostClassCcWithClaudeDesktopBundleIsDesktop() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: "cc"
         )
@@ -2113,7 +2169,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testCodexPersistedAppBundleIsNotFocusEvidence() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "codex"
         )
@@ -2122,7 +2178,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testHostClassOpencodeIgnoresLeakedCodexDesktopBundle() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.openai.codex"),
             source: "opencode"
         )
@@ -2131,7 +2187,7 @@ final class SessionTests: XCTestCase {
     }
 
     func testHostClassPiIgnoresLeakedClaudeDesktopBundle() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(bundleId: "com.anthropic.claudefordesktop"),
             source: "pi"
         )
@@ -2141,49 +2197,49 @@ final class SessionTests: XCTestCase {
     }
 
     func testHostClassITerm2IsTerminal() {
-        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"))
+        let session = SessionData.mock(terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"))
         XCTAssertEqual(session.hostClass, .terminal)
     }
 
     func testHostClassVSCodeIsTerminal() {
-        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.microsoft.VSCode"))
+        let session = SessionData.mock(terminal: TerminalInfo(bundleId: "com.microsoft.VSCode"))
         XCTAssertEqual(session.hostClass, .terminal)
     }
 
     func testHostClassNilTerminalIsAmbiguous() {
-        let session = Session.mock(terminal: nil)
+        let session = SessionData.mock(terminal: nil)
         XCTAssertEqual(session.hostClass, .ambiguous)
     }
 
     func testHostClassMissingBundleIdIsAmbiguous() {
-        let session = Session.mock(terminal: TerminalInfo(program: "weird-term"))
+        let session = SessionData.mock(terminal: TerminalInfo(program: "weird-term"))
         XCTAssertEqual(session.hostClass, .ambiguous)
     }
 
     func testHostClassEmptyBundleIdIsAmbiguous() {
-        let session = Session.mock(terminal: TerminalInfo(bundleId: ""))
+        let session = SessionData.mock(terminal: TerminalInfo(bundleId: ""))
         XCTAssertEqual(session.hostClass, .ambiguous)
     }
 
     func testHostClassUnknownBundleIdIsAmbiguous() {
-        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.example.unknownterm"))
+        let session = SessionData.mock(terminal: TerminalInfo(bundleId: "com.example.unknownterm"))
         XCTAssertEqual(session.hostClass, .ambiguous)
     }
 
     // `source` must NEVER classify: it cannot tell desktop from CLI.
     func testHostClassSourceCodexWithoutBundleIdIsAmbiguous() {
-        let session = Session.mock(terminal: nil, source: "codex")
+        let session = SessionData.mock(terminal: nil, source: "codex")
         XCTAssertEqual(session.hostClass, .ambiguous)
     }
 
     func testHostClassSourceCcWithoutBundleIdIsAmbiguous() {
-        let session = Session.mock(terminal: nil, source: "cc")
+        let session = SessionData.mock(terminal: nil, source: "cc")
         XCTAssertEqual(session.hostClass, .ambiguous)
     }
 
     // bundle id wins over source: Codex CLI running inside iTerm2 is terminal.
     func testHostClassCodexCliInTerminalIsTerminal() {
-        let session = Session.mock(terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"), source: "codex")
+        let session = SessionData.mock(terminal: TerminalInfo(bundleId: "com.googlecode.iterm2"), source: "codex")
         XCTAssertEqual(session.hostClass, .terminal)
     }
 
@@ -2191,18 +2247,18 @@ final class SessionTests: XCTestCase {
     func testHostClassDesktopBundleIdWinsOverMultiplexer() {
         let term = TerminalInfo(bundleId: "com.anthropic.claudefordesktop",
                                 multiplexer: .tmux(socket: "/tmp/s", paneId: "%1", binaryPath: nil))
-        XCTAssertEqual(Session.mock(terminal: term).hostClass, .desktop)
+        XCTAssertEqual(SessionData.mock(terminal: term).hostClass, .desktop)
     }
 
     // A multiplexer is hard terminal evidence (desktop is returned first, so this can't be desktop).
     func testHostClassTmuxWithoutBundleIdIsTerminal() {
         let term = TerminalInfo(multiplexer: .tmux(socket: "/tmp/s", paneId: "%1", binaryPath: nil))
-        XCTAssertEqual(Session.mock(terminal: term).hostClass, .terminal)
+        XCTAssertEqual(SessionData.mock(terminal: term).hostClass, .terminal)
     }
 
     func testHostClassZellijWithoutBundleIdIsTerminal() {
         let term = TerminalInfo(multiplexer: .zellij(sessionName: "main", paneId: "0", binaryPath: nil))
-        XCTAssertEqual(Session.mock(terminal: term).hostClass, .terminal)
+        XCTAssertEqual(SessionData.mock(terminal: term).hostClass, .terminal)
     }
 
     func testHostClassCmuxWithoutBundleIdIsTerminal() {
@@ -2215,24 +2271,24 @@ final class SessionTests: XCTestCase {
                 binaryPath: nil
             )
         )
-        XCTAssertEqual(Session.mock(terminal: term).hostClass, .terminal)
+        XCTAssertEqual(SessionData.mock(terminal: term).hostClass, .terminal)
     }
 
     func testHostClassCmuxBundleIdIsTerminal() {
         let term = TerminalInfo(bundleId: "com.cmuxterm.app")
-        XCTAssertEqual(Session.mock(terminal: term).hostClass, .terminal)
+        XCTAssertEqual(SessionData.mock(terminal: term).hostClass, .terminal)
     }
 
     // tty alone is NOT hard evidence — it can be env-copied (env["TTY"]) and inherited by GUI children.
     func testHostClassTtyOnlyIsAmbiguous() {
         let term = TerminalInfo(tty: "/dev/ttys003")
-        XCTAssertEqual(Session.mock(terminal: term).hostClass, .ambiguous)
+        XCTAssertEqual(SessionData.mock(terminal: term).hostClass, .ambiguous)
     }
 
     // program name alone is env-only and leaks to GUI children → must not classify terminal.
     func testHostClassProgramOnlyIsAmbiguous() {
         let term = TerminalInfo(program: "iTerm.app")
-        XCTAssertEqual(Session.mock(terminal: term).hostClass, .ambiguous)
+        XCTAssertEqual(SessionData.mock(terminal: term).hostClass, .ambiguous)
     }
 
     // MARK: - Transient lifecycle field
@@ -2247,13 +2303,13 @@ final class SessionTests: XCTestCase {
             "terminal": {"program": "Code"}
         }
         """
-        let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: Data(json.utf8))
+        let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(session.lifecycle, .active)
     }
 
     // The transient field participates in Equatable, so a dormant flip re-renders the card.
     func testLifecycleParticipatesInEquatable() {
-        let base = Session.mock(id: "life-eq")
+        let base = SessionData.mock(id: "life-eq")
         var dormant = base
         dormant.lifecycle = .dormant
         XCTAssertNotEqual(base, dormant)
@@ -2262,12 +2318,12 @@ final class SessionTests: XCTestCase {
 
     // MARK: - Schema tripwire
 
-    /// A `Session` with every optional field populated, both Bools true, and distinct values
+    /// A `SessionData` with every optional field populated, both Bools true, and distinct values
     /// per field. Dates carry whole milliseconds so the sessionEncoder's fractional-second
     /// ISO 8601 format round-trips them exactly. `lifecycle` is deliberately left at `.active`
     /// because it is transient and never persisted.
-    private func makeFullyPopulatedSession() -> Session {
-        Session(
+    private func makeFullyPopulatedSession() -> SessionData {
+        SessionData(
             sessionId: "full-fixture-1",
             harnessSessionId: "full-fixture-1|raw",
             projectPath: "/Users/test/projects/full-fixture",
@@ -2313,7 +2369,7 @@ final class SessionTests: XCTestCase {
         return formatter.date(from: string)!
     }
 
-    private func encodeToDictionary(_ session: Session) throws -> [String: Any] {
+    private func encodeToDictionary(_ session: SessionData) throws -> [String: Any] {
         let data = try JSONEncoder.sessionEncoder.encode(session)
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
@@ -2330,11 +2386,11 @@ final class SessionTests: XCTestCase {
     func testFullyPopulatedSessionRoundTripsThroughSessionCoders() throws {
         let session = makeFullyPopulatedSession()
         let data = try JSONEncoder.sessionEncoder.encode(session)
-        let decoded = try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+        let decoded = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: data)
         XCTAssertEqual(decoded, session)
     }
 
-    // Session-id rotation must be lossless: the rotated copy's persisted JSON differs from the
+    // Session ID rotation must be lossless: the rotated copy's persisted JSON differs from the
     // original in session_id only, so a future field forgotten in withSessionId fails loudly
     // instead of silently resetting on every Claude Code resume.
     func testWithSessionIdPreservesEveryPersistedField() throws {
@@ -2361,15 +2417,15 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(rotated.terminal, newTerminal)
     }
 
-    func testPermanentIDFocusResolverReturnsCurrentObservation() throws {
+    func testPermanentIDFocusResolverReturnsCurrentRecord() throws {
         let targetID = "11111111-2222-4333-8444-555555555555"
-        let target = Session.mock(id: "abc", cctopSessionId: targetID, harnessSessionId: "abc", pid: 111)
-        let other = Session.mock(id: "def", harnessSessionId: "def", pid: 222)
+        let target = SessionData.mock(id: "abc", cctopSessionId: targetID, harnessSessionId: "abc", pid: 111)
+        let other = SessionData.mock(id: "def", harnessSessionId: "def", pid: 222)
 
         let resolved = try XCTUnwrap(
             FocusTargetResolver.currentSession(
                 forCctopSessionID: targetID,
-                in: [other, target]
+                in: userSessionProjection(from: [other, target])
             )
         )
         XCTAssertEqual(resolved.sessionId, "abc")
@@ -2377,51 +2433,57 @@ final class SessionTests: XCTestCase {
 
     func testPermanentIDFocusResolverRejectsInvalidIdentity() {
         let currentID = "11111111-2222-4333-8444-555555555555"
-        let current = Session.mock(id: "current", cctopSessionId: currentID)
+        let current = SessionData.mock(id: "current", cctopSessionId: currentID)
 
-        XCTAssertNil(FocusTargetResolver.currentSession(forCctopSessionID: "111", in: [current]))
+        XCTAssertNil(FocusTargetResolver.currentSession(
+            forCctopSessionID: "111",
+            in: userSessionProjection(from: [current])
+        ))
     }
 
-    func testPermanentIDFocusResolverReturnsNilForMissingObservation() {
+    func testPermanentIDFocusResolverReturnsNilForMissingRecord() {
         let currentID = "11111111-2222-4333-8444-555555555555"
         let missingID = "22222222-3333-4444-8555-666666666666"
-        let current = Session.mock(id: "current", cctopSessionId: currentID)
+        let current = SessionData.mock(id: "current", cctopSessionId: currentID)
 
-        XCTAssertNil(FocusTargetResolver.currentSession(forCctopSessionID: missingID, in: [current]))
+        let userSessions = userSessionProjection(from: [current])
+        XCTAssertNil(FocusTargetResolver.currentSession(forCctopSessionID: missingID, in: userSessions))
         XCTAssertNil(FocusTargetResolver.currentSession(forCctopSessionID: currentID, in: []))
     }
 
-    func testLogicalFocusResolverUsesFirstCanonicalPermanentObservation() {
+    func testLogicalFocusResolverUsesUserSessionDisplayRecord() {
         let cctopSessionID = "11111111-2222-4333-8444-555555555555"
-        let first = Session.mock(id: "first", cctopSessionId: cctopSessionID, pid: 111)
-        let second = Session.mock(id: "second", cctopSessionId: cctopSessionID, pid: 222)
+        let first = SessionData.mock(id: "first", cctopSessionId: cctopSessionID, pid: 111)
+        let second = SessionData.mock(id: "second", cctopSessionId: cctopSessionID, pid: 222)
         let identity = SessionIdentityPolicy.logicalIdentity(for: first)
+        let current = userSession(display: second, records: [first, second])
 
-        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [first, second])?.pid, 111)
-        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [second, first])?.pid, 222)
+        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [current])?.pid, 222)
     }
 
     func testLogicalFocusResolverKeepsLegacyFallbackUniqueAndFailsClosedWhenAmbiguous() {
-        var first = Session.mock(id: "first", pid: 111, source: Session.opencodeSource)
+        var first = SessionData.mock(id: "first", pid: 111, source: SessionData.opencodeSource)
         first.cctopSessionId = nil
-        var duplicate = Session.mock(id: "duplicate", pid: 111, source: Session.opencodeSource)
-        duplicate.cctopSessionId = nil
         let identity = SessionIdentityPolicy.logicalIdentity(for: first)
+        let current = userSession(display: first, records: [first])
+        var conflicting = first
+        conflicting.cctopSessionId = "22222222-3333-4444-8555-666666666666"
+        let conflictingUserSession = userSession(display: conflicting, records: [conflicting])
 
-        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [first])?.sessionId, "first")
-        XCTAssertNil(FocusTargetResolver.currentSession(for: identity, in: [first, duplicate]))
+        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [current])?.sessionId, "first")
+        XCTAssertNil(FocusTargetResolver.currentSession(for: identity, in: [current, conflictingUserSession]))
         XCTAssertNil(FocusTargetResolver.currentSession(for: identity, in: []))
     }
 
-    func testRepeatedCctopSessionIDKeepsRowsAndResolvesFirstCanonicalObservation() {
+    func testRepeatedCctopSessionIDKeepsRows() {
         let now = Date()
         let cctopSessionID = "11111111-2222-4333-8444-555555555555"
-        var working = Session.mock(
+        var working = SessionData.mock(
             id: "conv-1", cctopSessionId: cctopSessionID, harnessSessionId: "conv-1", status: .working,
             pid: 111, pidStartTime: 1_000
         )
         working.lastActivity = now.addingTimeInterval(-10)
-        var idle = Session.mock(
+        var idle = SessionData.mock(
             id: "conv-1", cctopSessionId: cctopSessionID, harnessSessionId: "conv-1", status: .idle,
             pid: 999, pidStartTime: 2_000
         )
@@ -2439,27 +2501,19 @@ final class SessionTests: XCTestCase {
         let ordered = SessionDisplayPolicy.activeSessions(from: [idle, working], now: now)
         XCTAssertEqual(ordered.count, 2)
         XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [cctopSessionID, cctopSessionID])
-        XCTAssertEqual(
-            FocusTargetResolver.currentSession(forCctopSessionID: cctopSessionID, in: ordered)?.pid,
-            ordered.first?.pid
-        )
-        XCTAssertEqual(
-            FocusTargetResolver.currentSession(forCctopSessionID: cctopSessionID, in: Array(ordered.reversed()))?.pid,
-            ordered.last?.pid
-        )
     }
 
     // MARK: - Cctop session identity
 
     func testNewSessionsReceiveIndependentLowercaseUUIDs() throws {
         let terminal = TerminalInfo(program: "Terminal")
-        let first = Session(sessionId: "same", projectPath: "/tmp/project", branch: "main", terminal: terminal)
-        let second = Session(sessionId: "same", projectPath: "/tmp/project", branch: "main", terminal: terminal)
+        let first = SessionData(sessionId: "same", projectPath: "/tmp/project", branch: "main", terminal: terminal)
+        let second = SessionData(sessionId: "same", projectPath: "/tmp/project", branch: "main", terminal: terminal)
         let firstID = try XCTUnwrap(first.cctopSessionId)
         let secondID = try XCTUnwrap(second.cctopSessionId)
 
-        XCTAssertTrue(Session.isValidCctopSessionId(firstID))
-        XCTAssertTrue(Session.isValidCctopSessionId(secondID))
+        XCTAssertTrue(CctopSessionID.isValid(firstID))
+        XCTAssertTrue(CctopSessionID.isValid(secondID))
         XCTAssertNotEqual(firstID, secondID)
         XCTAssertEqual(firstID, firstID.lowercased())
         XCTAssertEqual(secondID, secondID.lowercased())
@@ -2467,8 +2521,8 @@ final class SessionTests: XCTestCase {
 
     func testCctopSessionIDDoesNotChangeWithFocusTargetMetadata() {
         let cctopSessionID = "11111111-2222-4333-8444-555555555555"
-        let original = Session.mock(cctopSessionId: cctopSessionID, pid: 111, pidStartTime: 1_000)
-        let resumed = Session.mock(cctopSessionId: cctopSessionID, pid: 999, pidStartTime: 2_000)
+        let original = SessionData.mock(cctopSessionId: cctopSessionID, pid: 111, pidStartTime: 1_000)
+        let resumed = SessionData.mock(cctopSessionId: cctopSessionID, pid: 999, pidStartTime: 2_000)
 
         XCTAssertEqual(original.cctopSessionId, resumed.cctopSessionId)
     }
@@ -2494,35 +2548,35 @@ final class CctopSessionIdentityStoreTests: XCTestCase {
         let store = CctopSessionIdentityStore(sessionsDir: sessionsURL)
 
         let codexFirst = try store.resolve(
-            source: Session.codexSource, harnessSessionId: reference, legacySessionId: reference
+            source: SessionData.codexSource, harnessSessionId: reference, legacySessionId: reference
         )
         let codexAgain = try store.resolve(
-            source: Session.codexSource, harnessSessionId: reference, legacySessionId: reference
+            source: SessionData.codexSource, harnessSessionId: reference, legacySessionId: reference
         )
         let claude = try store.resolve(
-            source: Session.ccSource, harnessSessionId: reference, legacySessionId: reference
+            source: SessionData.ccSource, harnessSessionId: reference, legacySessionId: reference
         )
 
         XCTAssertEqual(codexFirst, codexAgain)
         XCTAssertNotEqual(codexFirst, claude)
         XCTAssertNotEqual(codexFirst, reference)
-        XCTAssertTrue(Session.isValidCctopSessionId(codexFirst))
-        XCTAssertTrue(Session.isValidCctopSessionId(claude))
+        XCTAssertTrue(CctopSessionID.isValid(codexFirst))
+        XCTAssertTrue(CctopSessionID.isValid(claude))
     }
 
     func testUnsupportedAndSyntheticReferencesRemainRecordLocal() throws {
         let store = CctopSessionIdentityStore(sessionsDir: sessionsURL)
         let opencodeFirst = try store.resolve(
-            source: Session.opencodeSource, harnessSessionId: "ses_abc", legacySessionId: "ses_abc"
+            source: SessionData.opencodeSource, harnessSessionId: "ses_abc", legacySessionId: "ses_abc"
         )
         let opencodeSecond = try store.resolve(
-            source: Session.opencodeSource, harnessSessionId: "ses_abc", legacySessionId: "ses_abc"
+            source: SessionData.opencodeSource, harnessSessionId: "ses_abc", legacySessionId: "ses_abc"
         )
         let piFirst = try store.resolve(
-            source: Session.piSource, harnessSessionId: "pi-123", legacySessionId: "pi-123"
+            source: SessionData.piSource, harnessSessionId: "pi-123", legacySessionId: "pi-123"
         )
         let piSecond = try store.resolve(
-            source: Session.piSource, harnessSessionId: "pi-123", legacySessionId: "pi-123"
+            source: SessionData.piSource, harnessSessionId: "pi-123", legacySessionId: "pi-123"
         )
 
         XCTAssertNotEqual(opencodeFirst, opencodeSecond)
@@ -2534,10 +2588,10 @@ final class CctopSessionIdentityStoreTests: XCTestCase {
         let store = CctopSessionIdentityStore(sessionsDir: sessionsURL)
 
         let first = try store.resolve(
-            source: Session.piSource, harnessSessionId: reference, legacySessionId: reference
+            source: SessionData.piSource, harnessSessionId: reference, legacySessionId: reference
         )
         let resumed = try store.resolve(
-            source: Session.piSource, harnessSessionId: reference, legacySessionId: reference
+            source: SessionData.piSource, harnessSessionId: reference, legacySessionId: reference
         )
 
         XCTAssertEqual(first, resumed)
@@ -2551,7 +2605,7 @@ final class CctopSessionIdentityStoreTests: XCTestCase {
             source: nil, harnessSessionId: nil, legacySessionId: reference
         )
         let stamped = try store.resolve(
-            source: Session.ccSource, harnessSessionId: reference, legacySessionId: reference
+            source: SessionData.ccSource, harnessSessionId: reference, legacySessionId: reference
         )
 
         XCTAssertEqual(legacy, stamped)
@@ -2571,7 +2625,7 @@ final class CctopSessionIdentityStoreTests: XCTestCase {
                 defer { group.leave() }
                 do {
                     let id = try CctopSessionIdentityStore(sessionsDir: self.sessionsURL).resolve(
-                        source: Session.codexSource,
+                        source: SessionData.codexSource,
                         harnessSessionId: reference,
                         legacySessionId: reference
                     )
@@ -2608,7 +2662,7 @@ final class CctopSessionIdentityStoreTests: XCTestCase {
         let reference = "11111111-2222-4333-8444-555555555555"
         let store = CctopSessionIdentityStore(sessionsDir: sessionsURL)
         _ = try store.resolve(
-            source: Session.codexSource, harnessSessionId: reference, legacySessionId: reference
+            source: SessionData.codexSource, harnessSessionId: reference, legacySessionId: reference
         )
         let identityDirectory = rootURL.appendingPathComponent("session-identities", isDirectory: true)
         let mapping = try XCTUnwrap(
@@ -2619,7 +2673,7 @@ final class CctopSessionIdentityStoreTests: XCTestCase {
 
         XCTAssertThrowsError(
             try store.resolve(
-                source: Session.codexSource, harnessSessionId: reference, legacySessionId: reference
+                source: SessionData.codexSource, harnessSessionId: reference, legacySessionId: reference
             )
         )
     }

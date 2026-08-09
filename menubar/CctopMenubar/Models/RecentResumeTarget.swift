@@ -35,7 +35,7 @@ enum RecentResumeTarget: Identifiable, Equatable {
             return "project:\(project.id)"
         case .desktopThread(let thread):
             if let cctopSessionID = thread.cctopSessionId,
-               Session.isValidCctopSessionId(cctopSessionID) {
+               CctopSessionID.isValid(cctopSessionID) {
                 return "desktop:\(cctopSessionID)"
             }
             return "desktop:Claude Desktop:\(thread.sessionId)"
@@ -166,14 +166,14 @@ enum RecentResumeTarget: Identifiable, Equatable {
         from classification: SessionClassificationSnapshot,
         excludingSessionIDs: Set<String>
     ) -> [RecentResumeTarget] {
-        var targetsByID: [String: (target: RecentResumeTarget, candidate: DedupCandidate)] = [:]
+        var targetsByID: [String: (target: RecentResumeTarget, candidate: SessionRecord)] = [:]
         for record in classification.records {
-            if let cctopSessionID = record.candidate.session.cctopSessionId,
+            if let cctopSessionID = record.candidate.data.cctopSessionId,
                excludingSessionIDs.contains(cctopSessionID) {
                 continue
             }
             guard isArchivedClaudeDesktop(record.disposition),
-                  let thread = DesktopThread(session: record.candidate.session) else {
+                  let thread = DesktopThread(session: record.candidate.data) else {
                 continue
             }
             let target = RecentResumeTarget.desktopThread(thread)
@@ -209,7 +209,7 @@ enum RecentResumeTarget: Identifiable, Equatable {
 }
 
 extension RecentResumeTarget.DesktopThread {
-    init?(session: Session) {
+    init?(session: SessionData) {
         let title = Self.displayTitle(for: session)
         guard !title.isEmpty else { return nil }
         self.init(
@@ -222,7 +222,7 @@ extension RecentResumeTarget.DesktopThread {
         )
     }
 
-    private static func displayTitle(for session: Session) -> String {
+    private static func displayTitle(for session: SessionData) -> String {
         [
             session.sessionName,
             session.lastPrompt,

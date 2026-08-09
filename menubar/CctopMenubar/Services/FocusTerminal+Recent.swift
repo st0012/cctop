@@ -10,7 +10,7 @@ func resolveRecentProjectOpenStrategy(project: RecentProject) -> FocusStrategy {
     let target: String
     if hostApp.usesWorkspaceFile {
         target = project.workspaceFile
-            ?? Session.findWorkspaceFile(in: project.projectPath)
+            ?? SessionData.findWorkspaceFile(in: project.projectPath)
             ?? project.projectPath
     } else {
         target = project.projectPath

@@ -43,7 +43,7 @@ final class WorktreeCleanupTests: XCTestCase {
             existingPaths: [path],
             inspections: [path: cleanInspection(branch: "codex/archived-desktop")]
         ).candidates(
-            from: [SessionCleanupSource(session: session)],
+            from: [SessionDataCleanupSource(data: session)],
             activeProjectPaths: []
         )
 
@@ -73,7 +73,7 @@ final class WorktreeCleanupTests: XCTestCase {
 
         let result = service.remove(
             staleCleanCandidate,
-            cleanupSources: [SessionCleanupSource(session: session)],
+            cleanupSources: [SessionDataCleanupSource(data: session)],
             activeProjectPaths: [worktreePath]
         )
 
@@ -5172,9 +5172,9 @@ final class WorktreeCleanupTests: XCTestCase {
         name: String = "Generate invoice retry path",
         branch: String = "feature/invoices",
         endedAt: Date? = nil
-    ) -> SessionCleanupSource {
+    ) -> SessionDataCleanupSource {
         let lastActivity = endedAt ?? now
-        let session = Session(
+        let session = SessionData(
             sessionId: id,
             projectPath: path,
             projectName: URL(fileURLWithPath: path).lastPathComponent,
@@ -5191,9 +5191,9 @@ final class WorktreeCleanupTests: XCTestCase {
             sessionName: name,
             endedAt: endedAt ?? lastActivity
         )
-        guard let source = SessionCleanupSource(endedSession: session) else {
+        guard let source = SessionDataCleanupSource(endedSession: session) else {
             XCTFail("historySession helper must create an ended cleanup source")
-            return SessionCleanupSource(session: session)
+            return SessionDataCleanupSource(data: session)
         }
         return source
     }
@@ -5203,8 +5203,8 @@ final class WorktreeCleanupTests: XCTestCase {
         path: String,
         name: String = "Active feature work",
         branch: String = "feature/active"
-    ) -> Session {
-        Session(
+    ) -> SessionData {
+        SessionData(
             sessionId: id,
             projectPath: path,
             projectName: URL(fileURLWithPath: path).lastPathComponent,
@@ -5276,6 +5276,7 @@ final class WorktreeCleanupTests: XCTestCase {
     ) -> PopupView {
         PopupView(
             sessions: [],
+            userSessions: [],
             cleanupCandidates: cleanupCandidates,
             updater: DisabledUpdater(),
             pluginManager: pluginManager ?? inertPluginManager(),

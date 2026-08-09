@@ -6,7 +6,7 @@ struct SessionNotificationContent: Equatable {
     let body: String
 }
 
-extension Session {
+extension SessionData {
     private static let notificationBodyLimit = 72
 
     var shouldPostAttentionNotification: Bool {

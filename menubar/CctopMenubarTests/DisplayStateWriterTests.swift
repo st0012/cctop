@@ -33,13 +33,13 @@ final class DisplayStateWriterTests: XCTestCase {
 
     func testSnapshotPreservesCanonicalPanelAndNavigateOrder() {
         let now = Date()
-        var permission = Session.mock(id: "a", project: "alpha", status: .waitingPermission)
+        var permission = SessionData.mock(id: "a", project: "alpha", status: .waitingPermission)
         permission.lastActivity = now.addingTimeInterval(-30)
-        var workingOld = Session.mock(id: "b", project: "bravo", status: .working)
+        var workingOld = SessionData.mock(id: "b", project: "bravo", status: .working)
         workingOld.lastActivity = now.addingTimeInterval(-300)
-        var workingNew = Session.mock(id: "c", project: "charlie", status: .working)
+        var workingNew = SessionData.mock(id: "c", project: "charlie", status: .working)
         workingNew.lastActivity = now.addingTimeInterval(-10)
-        var idle = Session.mock(id: "d", project: "delta", status: .idle)
+        var idle = SessionData.mock(id: "d", project: "delta", status: .idle)
         idle.lastActivity = now.addingTimeInterval(-60)
         let sessions = [permission, workingOld, workingNew, idle]
 
@@ -62,11 +62,11 @@ final class DisplayStateWriterTests: XCTestCase {
 
     func testSnapshotExcludesSessionsTheAppDoesNotDisplay() {
         let now = Date()
-        var dormant = Session.mock(id: "dormant", status: .working)
+        var dormant = SessionData.mock(id: "dormant", status: .working)
         dormant.lifecycle = .dormant
-        var staleIdle = Session.mock(id: "stale", status: .idle)
+        var staleIdle = SessionData.mock(id: "stale", status: .idle)
         staleIdle.lastActivity = now.addingTimeInterval(-SessionDisplayPolicy.staleIdleInterval - 60)
-        let active = Session.mock(id: "active", status: .working)
+        let active = SessionData.mock(id: "active", status: .working)
 
         let snapshot = DisplayStateWriter.snapshot(
             sessions: [dormant, staleIdle, active],
@@ -81,7 +81,7 @@ final class DisplayStateWriterTests: XCTestCase {
 
     func testProjectionContainsOnlyAppOwnedDisplayFields() throws {
         let now = Date()
-        let session = Session.mock(
+        let session = SessionData.mock(
             id: "stable-display-id",
             project: "cctop",
             sessionName: "fix panel drift",
@@ -110,14 +110,14 @@ final class DisplayStateWriterTests: XCTestCase {
         let entry = try XCTUnwrap((object["sessions"] as? [[String: Any]])?.first)
         XCTAssertEqual(Set(entry.keys), ["cctop_session_id", "name", "status", "color"])
         XCTAssertEqual(entry["cctop_session_id"] as? String, session.cctopSessionId)
-        XCTAssertTrue(Session.isValidCctopSessionId(entry["cctop_session_id"] as? String))
+        XCTAssertTrue(CctopSessionID.isValid(entry["cctop_session_id"] as? String))
         XCTAssertEqual(entry["name"] as? String, "fix panel drift")
         XCTAssertEqual(entry["status"] as? String, "working")
         XCTAssertEqual(entry["color"] as? String, "#7EAA6E")
     }
 
     func testStoppedSnapshotPreservesRecentTargetsButDropsProcessIdentity() {
-        let session = Session.mock(id: "stable-display-id", status: .working)
+        let session = SessionData.mock(id: "stable-display-id", status: .working)
         let snapshot = DisplayStateWriter.snapshot(
             sessions: [session],
             theme: .claude,
@@ -135,12 +135,12 @@ final class DisplayStateWriterTests: XCTestCase {
     func testSnapshotKeepsOneOrderedEntryPerVisibleFocusTarget() {
         let now = Date()
         let cctopSessionID = "11111111-2222-4333-8444-555555555555"
-        var original = Session.mock(
+        var original = SessionData.mock(
             id: "conv-1", cctopSessionId: cctopSessionID, harnessSessionId: "conv-1", project: "first",
             status: .working, pid: 111, pidStartTime: 1_000
         )
         original.lastActivity = now.addingTimeInterval(-10)
-        var resumedElsewhere = Session.mock(
+        var resumedElsewhere = SessionData.mock(
             id: "conv-1", cctopSessionId: cctopSessionID, harnessSessionId: "conv-1", project: "second",
             status: .working, pid: 999, pidStartTime: 2_000
         )
@@ -160,9 +160,9 @@ final class DisplayStateWriterTests: XCTestCase {
     }
 
     func testMissingLegacyIdentityLeavesAnEmptySlotWithoutShiftingLaterRows() {
-        var legacy = Session.mock(id: "legacy", project: "first", status: .working)
+        var legacy = SessionData.mock(id: "legacy", project: "first", status: .working)
         legacy.cctopSessionId = nil
-        let current = Session.mock(id: "current", project: "second", status: .working)
+        let current = SessionData.mock(id: "current", project: "second", status: .working)
 
         let snapshot = DisplayStateWriter.snapshot(
             sessions: [legacy, current],

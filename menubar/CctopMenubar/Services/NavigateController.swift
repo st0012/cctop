@@ -7,14 +7,14 @@ class NavigateController: ObservableObject {
     let didConfirmSubject = PassthroughSubject<Void, Never>()
     let navActionSubject = PassthroughSubject<PanelNavAction, Never>()
     /// Canonically ordered logical identities captured when navigate activates.
-    /// Array positions remain the numbered slots even when an observation disappears.
+    /// Array positions remain the numbered slots even when a session record disappears.
     private(set) var frozenSessionIdentities: [SessionIdentityPolicy.LogicalIdentity] = []
     var activeSessionIdentitySnapshot: [SessionIdentityPolicy.LogicalIdentity]? {
         isActive ? frozenSessionIdentities : nil
     }
     private var timeoutWork: DispatchWorkItem?
 
-    func activate(sessions: [Session]) {
+    func activate(sessions: [SessionData]) {
         frozenSessionIdentities = sessions.map(SessionIdentityPolicy.logicalIdentity)
         isActive = true
         didActivateSubject.send()

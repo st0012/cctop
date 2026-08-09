@@ -52,16 +52,16 @@ final class FocusTerminalTests: XCTestCase {
         XCTAssertEqual(result, "id")
     }
 
-    // MARK: - Session.mock() terminal parameter
+    // MARK: - SessionData.mock() terminal parameter
 
     func testMockDefaultTerminalIsCode() {
-        let session = Session.mock()
+        let session = SessionData.mock()
         XCTAssertEqual(session.terminal?.program, "Code")
         XCTAssertNil(session.terminal?.sessionId)
     }
 
     func testMockWithITerm2Terminal() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "iTerm.app",
                 sessionId: "w0t0p0:TEST-GUID",
@@ -74,7 +74,7 @@ final class FocusTerminalTests: XCTestCase {
     }
 
     func testMockWithNilTerminal() {
-        let session = Session.mock(terminal: nil)
+        let session = SessionData.mock(terminal: nil)
         XCTAssertNil(session.terminal)
     }
 

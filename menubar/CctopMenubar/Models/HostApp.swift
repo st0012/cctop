@@ -190,13 +190,13 @@ enum HostApp: CaseIterable {
     }
 }
 
-extension Session {
+extension SessionData {
     /// Trusts desktop bundles for Claude Desktop and nil-source legacy records.
     /// Codex focus ignores persisted `com.openai.codex` metadata.
     var trustedHostApp: HostApp? {
         guard let app = HostApp.from(bundleIdentifier: terminal?.bundleId) else { return nil }
         if app.isDesktopApp,
-           !Session.trustsDesktopBundle(source: source, bundleId: terminal?.bundleId) {
+           !SessionData.trustsDesktopBundle(source: source, bundleId: terminal?.bundleId) {
             return nil
         }
         return app
@@ -217,7 +217,7 @@ enum SessionHostClass: Equatable {
     case ambiguous  // unknown — preserve existing terminal-style cleanup semantics
 }
 
-extension Session {
+extension SessionData {
     /// Phase-1 non-Codex host classification from file-local signals only.
     /// Precedence: a recognized bundle id (`__CFBundleIdentifier`, the same trusted signal
     /// `trustedHostApp` uses) classifies desktop vs terminal. Failing that, a terminal

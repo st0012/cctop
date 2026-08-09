@@ -1,6 +1,6 @@
 import Foundation
 
-extension Session {
+extension SessionData {
     static func mock(
         id: String = "test-123",
         cctopSessionId: String? = nil,
@@ -19,10 +19,10 @@ extension Session {
         source: String? = nil,
         activeSubagents: [SubagentInfo]? = nil,
         desktopProjectName: String? = nil
-    ) -> Session {
-        var session = Session(
+    ) -> SessionData {
+        var session = SessionData(
             sessionId: id,
-            cctopSessionId: cctopSessionId ?? makeCctopSessionId(),
+            cctopSessionId: cctopSessionId ?? CctopSessionID.make(),
             harnessSessionId: harnessSessionId,
             projectPath: "/Users/test/projects/\(project)",
             projectName: project,
@@ -45,7 +45,7 @@ extension Session {
         return session
     }
 
-    static let mockSessions: [Session] = {
+    static let mockSessions: [SessionData] = {
         var s1 = mock(
             id: "1", project: "cctop", branch: "pid-keyed-sessions",
             sessionName: "migrate-off-session-id",
@@ -76,32 +76,32 @@ extension Session {
 
     /// 5 sessions: adds a working session to the baseline 4.
     /// Badges should show: 0 attention, 2 working, 3 idle
-    static let qaFiveSessions: [Session] = mockSessions + [
+    static let qaFiveSessions: [SessionData] = mockSessions + [
         .mock(id: "5", project: "billing", branch: "feature/invoices", status: .working, lastTool: "Bash", lastToolDetail: "cargo test"),
     ]
 
     /// 6 sessions: adds two more to baseline 4.
     /// Badges should show: 0 attention, 2 working, 4 idle
-    static let qaSixSessions: [Session] = qaFiveSessions + [
+    static let qaSixSessions: [SessionData] = qaFiveSessions + [
         .mock(id: "6", project: "infra", branch: "main", status: .idle),
     ]
 
     /// 8 sessions: tests scrolling behavior.
-    static let qaEightSessions: [Session] = qaSixSessions + [
+    static let qaEightSessions: [SessionData] = qaSixSessions + [
         .mock(id: "7", project: "mobile-app", branch: "release/2.0",
               status: .waitingPermission, notificationMessage: "Allow Write: /config/prod.json"),
         .mock(id: "8", project: "analytics", branch: "fix/dashboard", status: .working, lastTool: "Grep", lastToolDetail: "*.ts"),
     ]
 
     /// All sessions needing attention (only amber badge visible).
-    static let qaAllAttention: [Session] = [
+    static let qaAllAttention: [SessionData] = [
         .mock(id: "1", project: "web-app", branch: "main", status: .waitingPermission, notificationMessage: "Allow Bash: rm -rf node_modules"),
         .mock(id: "2", project: "api", branch: "develop", status: .waitingInput, lastPrompt: "Which database migration strategy?"),
         .mock(id: "3", project: "worker", branch: "main", status: .needsAttention),
     ]
 
     /// All sessions idle (only gray badge visible).
-    static let qaAllIdle: [Session] = [
+    static let qaAllIdle: [SessionData] = [
         .mock(id: "1", project: "project-a", branch: "main", status: .idle),
         .mock(id: "2", project: "project-b", branch: "develop", status: .idle),
         .mock(id: "3", project: "project-c", branch: "main", status: .idle),
@@ -109,7 +109,7 @@ extension Session {
     ]
 
     /// Long project and branch names to test truncation.
-    static let qaLongNames: [Session] = [
+    static let qaLongNames: [SessionData] = [
         .mock(id: "1", project: "my-very-long-project-name-here",
               branch: "feature/JIRA-12345-implement-oauth2-refresh-token-rotation",
               status: .working, lastTool: "Edit",
@@ -122,7 +122,7 @@ extension Session {
     ]
 
     /// Long session names to test wrapping (e.g. forked sessions using first message as name).
-    static let qaLongSessionNames: [Session] = [
+    static let qaLongSessionNames: [SessionData] = [
         .mock(id: "1", project: "cctop",
               branch: "redesign",
               sessionName: "Can you use test data to show me what happens if the session name is super long like over 50 characters",
@@ -138,7 +138,7 @@ extension Session {
     ]
 
     /// Single session.
-    static let qaSingle: [Session] = [
+    static let qaSingle: [SessionData] = [
         .mock(id: "1", project: "solo-project", branch: "main", status: .working, lastTool: "Task", lastToolDetail: "Running tests"),
     ]
 
@@ -147,7 +147,7 @@ extension Session {
     /// and both attention pills (Permission + Waiting). Permission sorts above
     /// waitingInput, so the top card always shows the dedicated red-orange "Permission"
     /// pill alongside its italic notification note.
-    static let qaShowcase: [Session] = {
+    static let qaShowcase: [SessionData] = {
         // Top of list — waitingPermission sorts above everything else.
         // Demos the dedicated "Permission" pill + italic permission note.
         var s1 = mock(

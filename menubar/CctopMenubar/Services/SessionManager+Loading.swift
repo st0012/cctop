@@ -27,7 +27,7 @@ struct SessionLoadLogSignature: Equatable {
 
 struct SessionFileCacheEntry {
     let fingerprint: SessionFileFingerprint
-    let session: Session
+    let session: SessionData
 }
 
 struct SessionFileFingerprint: Equatable {
@@ -37,11 +37,11 @@ struct SessionFileFingerprint: Equatable {
 }
 
 extension SessionManager {
-    func decodedSessions(from jsonFiles: [URL]) -> [(url: URL, session: Session)] {
+    func decodedSessions(from jsonFiles: [URL]) -> [(url: URL, session: SessionData)] {
         let currentPaths = Set(jsonFiles.map(\.path))
         sessionFileCache = sessionFileCache.filter { currentPaths.contains($0.key) }
 
-        let decoded = jsonFiles.compactMap { url -> (url: URL, session: Session)? in
+        let decoded = jsonFiles.compactMap { url -> (url: URL, session: SessionData)? in
             guard let fingerprint = sessionFileFingerprint(for: url) else {
                 sessionFileCache.removeValue(forKey: url.path)
                 sessionManagerLogger.warning("loadSessions: could not stat \(url.lastPathComponent, privacy: .public)")
@@ -56,7 +56,7 @@ extension SessionManager {
                 return nil
             }
             do {
-                let session = try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+                let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: data)
                 sessionFileCache[url.path] = SessionFileCacheEntry(
                     fingerprint: fingerprint,
                     session: session
@@ -73,24 +73,24 @@ extension SessionManager {
 
     // Build one evidence index and resolve the bounded publishable set in a single pass.
     func assigningCctopSessionIdentities(
-        to candidates: [DedupCandidate],
-        knownRecords: [(url: URL, session: Session)]
-    ) -> [Session] {
-        var records = candidates.map { (url: URL(fileURLWithPath: $0.path), session: $0.session) }
+        to candidates: [SessionRecord],
+        knownRecords: [(url: URL, session: SessionData)]
+    ) -> [SessionData] {
+        var records = candidates.map { (url: URL(fileURLWithPath: $0.path), session: $0.data) }
         var idsByEvidence: [String: Set<String>] = [:]
-        for record in knownRecords where Session.isValidCctopSessionId(record.session.cctopSessionId) {
+        for record in knownRecords where CctopSessionID.isValid(record.session.cctopSessionId) {
             guard let evidence = CctopSessionIdentityStore.durableEvidence(for: record.session),
                   let cctopSessionId = record.session.cctopSessionId else { continue }
             idsByEvidence[evidence, default: []].insert(cctopSessionId)
         }
 
         let identityStore = CctopSessionIdentityStore(sessionsDir: dataSources.sessionsDir)
-        for index in records.indices where !Session.isValidCctopSessionId(records[index].session.cctopSessionId) {
-            var session = records[index].session
-            guard let evidence = CctopSessionIdentityStore.durableEvidence(for: session) else {
+        for index in records.indices where !CctopSessionID.isValid(records[index].session.cctopSessionId) {
+            var data = records[index].session
+            guard let evidence = CctopSessionIdentityStore.durableEvidence(for: data) else {
                 scheduleCctopSessionIdentityStamp(
                     url: records[index].url,
-                    snapshot: session,
+                    snapshot: data,
                     resolvedID: nil
                 )
                 continue
@@ -98,13 +98,13 @@ extension SessionManager {
             let knownIDs = idsByEvidence[evidence] ?? []
             do {
                 let cctopSessionId = try identityStore.resolve(
-                    source: session.source,
-                    harnessSessionId: session.harnessSessionId,
-                    legacySessionId: session.sessionId,
+                    source: data.source,
+                    harnessSessionId: data.harnessSessionId,
+                    legacySessionId: data.sessionId,
                     knownExistingIDs: knownIDs
                 )
-                session.cctopSessionId = cctopSessionId
-                records[index].session = session
+                data.cctopSessionId = cctopSessionId
+                records[index].session = data
                 idsByEvidence[evidence, default: []].insert(cctopSessionId)
                 scheduleCctopSessionIdentityStamp(
                     url: records[index].url,
@@ -123,14 +123,14 @@ extension SessionManager {
     }
 
     func identifiedPublishableCandidates(
-        winners: [DedupCandidate],
-        knownRecords: [(url: URL, session: Session)]
-    ) -> [DedupCandidate] {
-        let publishableWinners = winners.filter { $0.session.lifecycle != .finished }
+        winners: [SessionRecord],
+        knownRecords: [(url: URL, session: SessionData)]
+    ) -> [SessionRecord] {
+        let publishableWinners = winners.filter { $0.data.lifecycle != .finished }
         let identified = assigningCctopSessionIdentities(to: publishableWinners, knownRecords: knownRecords)
-        return zip(publishableWinners, identified).map { candidate, session in
-            DedupCandidate(
-                session: session,
+        return zip(publishableWinners, identified).map { candidate, data in
+            SessionRecord(
+                data: data,
                 lifecycleRank: candidate.lifecycleRank,
                 mtime: candidate.mtime,
                 path: candidate.path
@@ -140,19 +140,19 @@ extension SessionManager {
 
     func identifyingPersistedRecords(
         in classification: SessionClassificationSnapshot,
-        knownRecords: [(url: URL, session: Session)]
+        knownRecords: [(url: URL, session: SessionData)]
     ) -> SessionClassificationSnapshot {
         let legacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
         let indices = classification.records.indices.filter { index in
             let record = classification.records[index]
-            let session = record.candidate.session
-            guard case .legacy(let stableKey) = SessionIdentityPolicy.logicalIdentity(for: session) else { return false }
-            if hasExistingMappedManualHide(session) { return true }
+            let data = record.candidate.data
+            guard case .legacy(let stableKey) = SessionIdentityPolicy.logicalIdentity(for: data) else { return false }
+            if hasExistingMappedManualHide(data) { return true }
             if legacyKeys.contains(stableKey) { return true }
             guard case .hidden(let reason) = record.disposition else { return false }
             switch reason {
             case .archivedClaudeDesktop:
-                return CctopSessionIdentityStore.durableEvidence(for: session) != nil
+                return CctopSessionIdentityStore.durableEvidence(for: data) != nil
             case .persistedHidden, .autoHidden, .archivedCodexThread, .missingCodexThread,
                  .codexInternalHelper, .codexExecHelper,
                  .orphanedEndedClaudeDesktop, .claudeDesktopStartupPlaceholder:
@@ -166,13 +166,13 @@ extension SessionManager {
             knownRecords: knownRecords
         )
         var records = classification.records
-        for (index, session) in zip(indices, identified) {
+        for (index, data) in zip(indices, identified) {
             let record = records[index]
             let candidate = record.candidate
             records[index] = ClassifiedSessionRecord(
                 url: record.url,
-                candidate: DedupCandidate(
-                    session: session,
+                candidate: SessionRecord(
+                    data: data,
                     lifecycleRank: candidate.lifecycleRank,
                     mtime: candidate.mtime,
                     path: candidate.path
@@ -185,21 +185,21 @@ extension SessionManager {
 
     private func scheduleCctopSessionIdentityStamp(
         url: URL,
-        snapshot: Session,
+        snapshot: SessionData,
         resolvedID: String?
     ) {
         guard pendingIdentityMigrationPaths.insert(url.path).inserted else { return }
         cctopIdentityMigrationQueue.async { [weak self] in
             do {
                 _ = try withSessionLockIfAvailable(sessionPath: url.path) {
-                    guard var current = try? Session.fromFile(path: url.path) else { return }
-                    if Session.isValidCctopSessionId(current.cctopSessionId) {
+                    guard var current = try? SessionData.fromFile(path: url.path) else { return }
+                    if CctopSessionID.isValid(current.cctopSessionId) {
                         return
                     }
                     guard current.sessionId == snapshot.sessionId,
                           current.source == snapshot.source,
                           current.harnessSessionId == snapshot.harnessSessionId else { return }
-                    current.cctopSessionId = resolvedID ?? Session.makeCctopSessionId()
+                    current.cctopSessionId = resolvedID ?? CctopSessionID.make()
                     try current.writeToFile(path: url.path)
                 }
             } catch {

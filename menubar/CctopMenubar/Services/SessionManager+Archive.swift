@@ -12,7 +12,7 @@ struct SessionDataSources {
     var codexThreads: any CodexThreadStateProviding
     var claudeDesktopSessions: any ClaudeDesktopSessionStateProviding
     var desktopAppConnection: DesktopAppConnectionLookup
-    var processAlive: (Session) -> Bool
+    var processAlive: (SessionData) -> Bool
     var notificationsEnabled: () -> Bool
     var notificationClient: SessionNotificationClient = .live
     var manualSessionVisibility: ManualSessionVisibilityStore = .live
@@ -108,7 +108,7 @@ enum SessionDisposition: Equatable {
 
 struct ClassifiedSessionRecord {
     let url: URL
-    let candidate: DedupCandidate
+    let candidate: SessionRecord
     let disposition: SessionDisposition
 }
 
@@ -116,21 +116,21 @@ struct SessionClassificationSnapshot {
     let records: [ClassifiedSessionRecord]
     let evidence: SessionClassificationEvidence
 
-    var displayCandidates: [DedupCandidate] {
+    var displayCandidates: [SessionRecord] {
         records.compactMap { record in
             guard record.disposition == .display else { return nil }
             return record.candidate
         }
     }
 
-    var autoHiddenSessions: [(URL, Session)] {
+    var autoHiddenSessions: [(URL, SessionData)] {
         records.compactMap { record in
             guard case .hidden(.autoHidden) = record.disposition else { return nil }
-            return (record.url, record.candidate.session)
+            return (record.url, record.candidate.data)
         }
     }
 
-    var codexInternalHelperCandidates: [DedupCandidate] {
+    var codexInternalHelperCandidates: [SessionRecord] {
         records.compactMap { record in
             guard case .hidden(.codexInternalHelper) = record.disposition else { return nil }
             return record.candidate
@@ -141,44 +141,44 @@ struct SessionClassificationSnapshot {
         let displayProtected = SessionIdentityPolicy
             .dedupedCandidatesByStableKey(displayCandidates)
             .filter { $0.lifecycleRank != SessionLifecycle.finished.rawValue }
-            .map(\.session.projectPath)
+            .map(\.data.projectPath)
         let hiddenProtected = records.compactMap { record -> String? in
             guard case .hidden(let reason) = record.disposition,
                   reason.protectsCleanupPath,
                   record.candidate.lifecycleRank != SessionLifecycle.finished.rawValue else {
                 return nil
             }
-            return record.candidate.session.projectPath
+            return record.candidate.data.projectPath
         }
         return Set(displayProtected).union(hiddenProtected)
     }
 
-    var finishedNonDesktopCandidates: [DedupCandidate] {
+    var finishedNonDesktopCandidates: [SessionRecord] {
         displayCandidates.filter {
             $0.lifecycleRank == SessionLifecycle.finished.rawValue
-                && !$0.session.isCodex
-                && $0.session.hostClass != .desktop
+                && !$0.data.isCodex
+                && $0.data.hostClass != .desktop
         }
     }
 
     func manualHiddenProjectPaths(_ hiddenSessionIDs: Set<String>) -> Set<String> {
         Set(records.compactMap { record in
-            guard let cctopSessionID = record.candidate.session.cctopSessionId,
+            guard let cctopSessionID = record.candidate.data.cctopSessionId,
                   hiddenSessionIDs.contains(cctopSessionID) else { return nil }
-            return record.candidate.session.projectPath
+            return record.candidate.data.projectPath
         })
     }
 
     /// Archived conversations can seed worktree cleanup while preserving the session file.
     /// Finished non-retained sessions continue to contribute through history.
-    var cleanupSources: [SessionCleanupSource] {
+    var cleanupSources: [SessionDataCleanupSource] {
         records.compactMap { record in
             guard case .hidden(let reason) = record.disposition,
                   reason.emitsCleanupSource,
-                  record.candidate.session.hasCleanupSourcePath else {
+                  record.candidate.data.hasCleanupSourcePath else {
                 return nil
             }
-            return SessionCleanupSource(session: record.candidate.session)
+            return SessionDataCleanupSource(data: record.candidate.data)
         }
     }
 
@@ -203,7 +203,7 @@ private extension SessionHiddenReason {
     }
 }
 
-private extension Session {
+private extension SessionData {
     var hasCleanupSourcePath: Bool {
         let path = WorktreeCleanupScanner.standardizedPath(projectPath)
         return !path.isEmpty && path != "/"
@@ -212,29 +212,29 @@ private extension Session {
 
 extension SessionManager {
     func retainedFinishedCleanupSources(
-        winners: [DedupCandidate],
+        winners: [SessionRecord],
         manualHides: ManualHideEvidence
-    ) -> [SessionCleanupSource] {
+    ) -> [SessionDataCleanupSource] {
         winners.compactMap { candidate in
-            let session = candidate.session
+            let data = candidate.data
             guard candidate.lifecycleRank == SessionLifecycle.finished.rawValue,
-                  shouldRetainFinishedManualHideEvidence(session, matching: manualHides),
-                  session.hasCleanupSourcePath else {
+                  shouldRetainFinishedManualHideEvidence(data, matching: manualHides),
+                  data.hasCleanupSourcePath else {
                 return nil
             }
-            return SessionCleanupSource(session: session)
+            return SessionDataCleanupSource(data: data)
         }
     }
 
     func archiveAndRemoveFinishedNonDesktop(
-        _ candidates: [DedupCandidate],
-        winners: [DedupCandidate],
+        _ candidates: [SessionRecord],
+        winners: [SessionRecord],
         manualHides: ManualHideEvidence
-    ) -> [SessionCleanupSource] {
+    ) -> [SessionDataCleanupSource] {
         let winnerPaths = Set(winners.map(\.path))
-        var newlyArchivedCleanupSources: [SessionCleanupSource] = []
+        var newlyArchivedCleanupSources: [SessionDataCleanupSource] = []
         for candidate in candidates {
-            guard !shouldRetainFinishedManualHideEvidence(candidate.session, matching: manualHides) else { continue }
+            guard !shouldRetainFinishedManualHideEvidence(candidate.data, matching: manualHides) else { continue }
             // A finished dedup winner is a real completed non-desktop session, so keep today's
             // Recent Projects behavior. A finished duplicate loser is stale migration debris;
             // remove it without archiving so it cannot later surface as a separate session.
@@ -250,20 +250,20 @@ extension SessionManager {
     }
 
     func shouldRetainFinishedManualHideEvidence(
-        _ session: Session,
+        _ data: SessionData,
         matching manualHides: ManualHideEvidence
     ) -> Bool {
-        manualHides.matches(session) || hasExistingMappedManualHide(session)
+        manualHides.matches(data) || hasExistingMappedManualHide(data)
     }
 
-    func hasExistingMappedManualHide(_ session: Session) -> Bool {
-        guard !Session.isValidCctopSessionId(session.cctopSessionId) else { return false }
+    func hasExistingMappedManualHide(_ data: SessionData) -> Bool {
+        guard !CctopSessionID.isValid(data.cctopSessionId) else { return false }
         let hiddenSessionIDs = dataSources.manualSessionVisibility.hiddenSessionIDs
         guard !hiddenSessionIDs.isEmpty,
               let existingID = try? CctopSessionIdentityStore(sessionsDir: dataSources.sessionsDir).existingIdentity(
-                  source: session.source,
-                  harnessSessionId: session.harnessSessionId,
-                  legacySessionId: session.sessionId
+                  source: data.source,
+                  harnessSessionId: data.harnessSessionId,
+                  legacySessionId: data.sessionId
               ) else {
             return false
         }
@@ -277,18 +277,18 @@ extension SessionManager {
         guard Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent) else { return false }
         if !dataSources.manualSessionVisibility.hasStoredHideEvidence {
             try? FileManager.default.removeItem(at: url) // Pre-PID legacy file; no live writer to race.
-        } else if let data = try? Data(contentsOf: url),
-                  let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data),
-                  !shouldRetainFinishedManualHideEvidence(session, matching: manualHides) {
+        } else if let fileData = try? Data(contentsOf: url),
+                  let data = try? JSONDecoder.sessionDecoder.decode(SessionData.self, from: fileData),
+                  !shouldRetainFinishedManualHideEvidence(data, matching: manualHides) {
             try? FileManager.default.removeItem(at: url)
         }
         return true
     }
 
     func mergingCleanupSources(
-        _ retained: [SessionCleanupSource],
-        with replacements: [SessionCleanupSource]
-    ) -> [SessionCleanupSource] {
+        _ retained: [SessionDataCleanupSource],
+        with replacements: [SessionDataCleanupSource]
+    ) -> [SessionDataCleanupSource] {
         retained.filter { source in
             !replacements.contains {
                 $0.sessionId == source.sessionId && $0.projectPath == source.projectPath
@@ -296,26 +296,26 @@ extension SessionManager {
         } + replacements
     }
 
-    private func archiveAndRemove(_ candidate: DedupCandidate) -> SessionCleanupSource? {
-        let session = candidate.session
+    private func archiveAndRemove(_ candidate: SessionRecord) -> SessionDataCleanupSource? {
+        let data = candidate.data
         // A dead non-desktop process holds no lock, so removing its .json needs no flock. Remove
         // the .json ONLY — never the .lock (unlinking a lock a hook still holds splits the inode).
-        if historyManager.archiveSession(session) {
+        if historyManager.archiveSession(data) {
             try? FileManager.default.removeItem(atPath: candidate.path)
-            return session.hasCleanupSourcePath ? SessionCleanupSource(session: session) : nil
+            return data.hasCleanupSourcePath ? SessionDataCleanupSource(data: data) : nil
         } else {
-            sessionManagerLogger.warning("skipping removal of \(session.sessionId, privacy: .public) — archive failed")
+            sessionManagerLogger.warning("skipping removal of \(data.sessionId, privacy: .public) — archive failed")
             return nil
         }
     }
 
-    private func removeStaleDuplicate(_ candidate: DedupCandidate) {
+    private func removeStaleDuplicate(_ candidate: SessionRecord) {
         sessionManagerLogger.info("removing stale duplicate session file \(candidate.path, privacy: .public)")
         try? FileManager.default.removeItem(atPath: candidate.path)
     }
 
     nonisolated static func desktopAppRunningByBundleID(
-        in sessions: [Session],
+        in sessions: [SessionData],
         lookup: DesktopAppConnectionLookup
     ) -> [String: Bool] {
         let bundleIDs = Set(sessions.compactMap { session -> String? in
@@ -326,7 +326,7 @@ extension SessionManager {
     }
 
     nonisolated static func desktopAppRunning(
-        for session: Session,
+        for session: SessionData,
         runningByBundleID: [String: Bool]
     ) -> Bool? {
         guard session.hostClass == .desktop,
@@ -337,7 +337,7 @@ extension SessionManager {
     }
 
     nonisolated static func desktopAppRunning(
-        for session: Session,
+        for session: SessionData,
         lookup: DesktopAppConnectionLookup
     ) -> Bool? {
         guard session.hostClass == .desktop,
@@ -351,26 +351,26 @@ extension SessionManager {
         in jsonFiles: [URL],
         now: Date
     ) {
-        var finished: [Session] = []
+        var finished: [SessionData] = []
         for url in jsonFiles {
             guard !Self.isLegacyUUIDFilename(url.deletingPathExtension().lastPathComponent),
-                  let data = try? Data(contentsOf: url),
-                  let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data),
-                  !session.hidden,
-                  !session.shouldAutoHide,
-                  session.isCodex || session.hostClass == .desktop else {
+                  let fileData = try? Data(contentsOf: url),
+                  let data = try? JSONDecoder.sessionDecoder.decode(SessionData.self, from: fileData),
+                  !data.hidden,
+                  !data.shouldAutoHide,
+                  data.isCodex || data.hostClass == .desktop else {
                 continue
             }
             let life = SessionLifecyclePolicy.lifecycle(
-                for: session,
-                hostClass: session.hostClass,
-                processAlive: dataSources.processAlive(session),
+                for: data,
+                hostClass: data.hostClass,
+                processAlive: dataSources.processAlive(data),
                 now: now,
                 windows: Self.lifecycleWindows,
-                desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
+                desktopAppRunning: Self.desktopAppRunning(for: data, lookup: dataSources.desktopAppConnection)
             )
             if life == .finished {
-                finished.append(session)
+                finished.append(data)
             }
         }
 
@@ -385,12 +385,12 @@ extension SessionManager {
     }
 
     nonisolated static func sessionClassificationSnapshot(
-        in candidates: [DedupCandidate],
+        in candidates: [SessionRecord],
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
         claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup(),
         now: Date = Date()
     ) -> SessionClassificationSnapshot {
-        let sessions = candidates.map(\.session)
+        let sessions = candidates.map(\.data)
         let claudeMetadata = claudeDesktopMetadataSnapshot(in: sessions, claudeDesktopSessions: claudeDesktopSessions)
         return sessionClassificationSnapshot(
             in: candidates,
@@ -402,14 +402,14 @@ extension SessionManager {
     }
 
     nonisolated static func sessionClassificationSnapshot(
-        in candidates: [DedupCandidate],
+        in candidates: [SessionRecord],
         claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?,
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
         now: Date = Date()
     ) -> SessionClassificationSnapshot {
         sessionClassificationSnapshot(
             in: candidates,
-            sessions: candidates.map(\.session),
+            sessions: candidates.map(\.data),
             claudeMetadata: claudeMetadata,
             codexThreads: codexThreads,
             now: now
@@ -417,8 +417,8 @@ extension SessionManager {
     }
 
     private nonisolated static func sessionClassificationSnapshot(
-        in candidates: [DedupCandidate],
-        sessions: [Session],
+        in candidates: [SessionRecord],
+        sessions: [SessionData],
         claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?,
         codexThreads: any CodexThreadStateProviding,
         now: Date
@@ -458,7 +458,7 @@ extension SessionManager {
                 url: URL(fileURLWithPath: candidate.path),
                 candidate: candidate,
                 disposition: disposition(
-                    for: candidate.session,
+                    for: candidate.data,
                     evidence: evidence,
                     claudeMetadata: claudeMetadata
                 )
@@ -468,46 +468,46 @@ extension SessionManager {
     }
 
     private nonisolated static func disposition(
-        for session: Session,
+        for data: SessionData,
         evidence: SessionClassificationEvidence,
         claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?
     ) -> SessionDisposition {
         // Priority is behavior-bearing: Codex archive wins so no other hidden reason can protect
         // an archived path from Cleanup. Durable local hides then precede external missing/helper state.
-        let isArchivedCodexSession = session.isCodex
-            && evidence.archivedCodexThreadIDs.contains(session.sessionId)
+        let isArchivedCodexSession = data.isCodex
+            && evidence.archivedCodexThreadIDs.contains(data.sessionId)
         if isArchivedCodexSession {
             return .hidden(.archivedCodexThread)
         }
-        if session.hidden {
+        if data.hidden {
             return .hidden(.persistedHidden)
         }
-        if session.shouldAutoHide {
+        if data.shouldAutoHide {
             return .hidden(.autoHidden)
         }
-        if isMissingCodexSession(session, missingThreadIDs: evidence.missingCodexThreadIDs) {
+        if isMissingCodexSession(data, missingThreadIDs: evidence.missingCodexThreadIDs) {
             return .hidden(.missingCodexThread)
         }
-        if isCodexInternalHelperSession(session, internalHelperThreadIDs: evidence.codexInternalHelperThreadIDs) {
+        if isCodexInternalHelperSession(data, internalHelperThreadIDs: evidence.codexInternalHelperThreadIDs) {
             return .hidden(.codexInternalHelper)
         }
-        if isCodexExecHelperSession(session, execHelperThreadIDs: evidence.codexExecHelperThreadIDs) {
+        if isCodexExecHelperSession(data, execHelperThreadIDs: evidence.codexExecHelperThreadIDs) {
             return .hidden(.codexExecHelper)
         }
-        if isArchivedClaudeDesktopSession(session, archivedSessionIDs: evidence.archivedClaudeSessionIDs) {
+        if isArchivedClaudeDesktopSession(data, archivedSessionIDs: evidence.archivedClaudeSessionIDs) {
             return .hidden(.archivedClaudeDesktop)
         }
         // Claude Desktop `SessionEnd` is worker/session termination, not archive; matched metadata stays resumable.
-        if isOrphanedEndedClaudeDesktopSession(session, metadataSnapshot: claudeMetadata) {
+        if isOrphanedEndedClaudeDesktopSession(data, metadataSnapshot: claudeMetadata) {
             return .hidden(.orphanedEndedClaudeDesktop)
         }
-        if isClaudeDesktopStartupPlaceholder(session, metadataSnapshot: claudeMetadata) {
+        if isClaudeDesktopStartupPlaceholder(data, metadataSnapshot: claudeMetadata) {
             return .hidden(.claudeDesktopStartupPlaceholder)
         }
         return .display
     }
 
-    func deriveSessionClassification(from decoded: [(url: URL, session: Session)]) -> SessionClassificationSnapshot {
+    func deriveSessionClassification(from decoded: [(url: URL, session: SessionData)]) -> SessionClassificationSnapshot {
         let now = dataSources.now()
         let codexThreads = batchedCodexThreadState(
             in: decoded.map(\.session),
@@ -538,21 +538,21 @@ extension SessionManager {
     }
 
     private func repairStickyCodexDelegationState(
-        in decoded: [(url: URL, session: Session)],
+        in decoded: [(url: URL, session: SessionData)],
         codexThreads: FrozenCodexThreadState
-    ) -> [(url: URL, session: Session)] {
+    ) -> [(url: URL, session: SessionData)] {
         guard let index = codexThreads.index else { return decoded }
         let repairableThreadIDs = index.interactiveRootThreadIDs
             .intersection(index.knownNoSpawnEdgeThreadIDs)
         guard !repairableThreadIDs.isEmpty else { return decoded }
 
-        var repairedByPath: [String: Session] = [:]
-        for (url, session) in decoded where session.hidden
-            && session.isSubagentSession
-            && repairableThreadIDs.contains(session.sessionId) {
+        var repairedByPath: [String: SessionData] = [:]
+        for (url, data) in decoded where data.hidden
+            && data.isSubagentSession
+            && repairableThreadIDs.contains(data.sessionId) {
             withSessionLockForMaintenance(
                 sessionPath: url.path,
-                sessionId: session.sessionId,
+                sessionId: data.sessionId,
                 action: "Codex delegated-task classification repair"
             ) {
                 guard let repaired = try Self.repairedCodexInteractiveRootSessionSnapshot(
@@ -564,7 +564,7 @@ extension SessionManager {
                 try repaired.writeToFile(path: url.path)
                 repairedByPath[url.path] = repaired
                 sessionManagerLogger.info(
-                    "restoring interactive Codex session \(session.sessionId, privacy: .public)"
+                    "restoring interactive Codex session \(data.sessionId, privacy: .public)"
                 )
             }
         }
@@ -575,7 +575,7 @@ extension SessionManager {
     }
 
     private func batchedCodexThreadState(
-        in sessions: [Session],
+        in sessions: [SessionData],
         codexThreads: any CodexThreadStateProviding
     ) -> FrozenCodexThreadState {
         let threadIDs = Self.codexThreadIDs(in: sessions)
@@ -587,7 +587,7 @@ extension SessionManager {
         return FrozenCodexThreadState(index: effectiveIndex)
     }
 
-    private nonisolated static func codexThreadIDs(in sessions: [Session]) -> Set<String> {
+    private nonisolated static func codexThreadIDs(in sessions: [SessionData]) -> Set<String> {
         Set(
             sessions
                 .filter(\.isCodex)
@@ -598,7 +598,7 @@ extension SessionManager {
     /// Codex sessions should correspond to a Codex thread row. If the thread store is
     /// readable and the row is gone, the app should not publish the stale hook session.
     private nonisolated static func missingCodexThreadIDs(
-        in sessions: [Session],
+        in sessions: [SessionData],
         index: CodexThreadStateIndex?,
         now: Date
     ) -> Set<String> {
@@ -618,14 +618,14 @@ extension SessionManager {
     }
 
     nonisolated static func isMissingCodexSession(
-        _ session: Session,
+        _ session: SessionData,
         missingThreadIDs: Set<String>
     ) -> Bool {
         session.isCodex && missingThreadIDs.contains(session.sessionId)
     }
 
     nonisolated static func isCodexInternalHelperSession(
-        _ session: Session,
+        _ session: SessionData,
         internalHelperThreadIDs: Set<String>
     ) -> Bool {
         session.isCodex && internalHelperThreadIDs.contains(session.sessionId)
@@ -634,7 +634,7 @@ extension SessionManager {
     /// Codex can launch short-lived `codex exec` helper threads. They are useful as
     /// rollout artifacts but should not appear as user-visible cctop sessions.
     private nonisolated static func codexExecHelperThreadIDs(
-        in sessions: [Session],
+        in sessions: [SessionData],
         index: CodexThreadStateIndex?
     ) -> Set<String> {
         let threadIDs = codexThreadIDs(in: sessions)
@@ -642,7 +642,7 @@ extension SessionManager {
     }
 
     nonisolated static func isCodexExecHelperSession(
-        _ session: Session,
+        _ session: SessionData,
         execHelperThreadIDs: Set<String>
     ) -> Bool {
         session.isCodex && execHelperThreadIDs.contains(session.sessionId)
@@ -654,9 +654,9 @@ extension SessionManager {
     nonisolated static func codexInternalHelperHiddenSessionSnapshot(
         path: String,
         internalHelperThreadIDs: Set<String>
-    ) throws -> Session? {
+    ) throws -> SessionData? {
         guard FileManager.default.fileExists(atPath: path) else { return nil }
-        var latest = try Session.fromFile(path: path)
+        var latest = try SessionData.fromFile(path: path)
         guard !latest.hidden, latest.isCodex else { return nil }
         guard internalHelperThreadIDs.contains(latest.sessionId) else { return nil }
         latest.isSubagentSession = true
@@ -670,9 +670,9 @@ extension SessionManager {
     nonisolated static func repairedCodexInteractiveRootSessionSnapshot(
         path: String,
         repairableThreadIDs: Set<String>
-    ) throws -> Session? {
+    ) throws -> SessionData? {
         guard FileManager.default.fileExists(atPath: path) else { return nil }
-        var latest = try Session.fromFile(path: path)
+        var latest = try SessionData.fromFile(path: path)
         guard latest.hidden,
               latest.isSubagentSession,
               latest.isCodex,
@@ -686,20 +686,20 @@ extension SessionManager {
         return latest
     }
 
-    nonisolated static func autoHiddenSessionSnapshot(path: String) throws -> Session? {
+    nonisolated static func autoHiddenSessionSnapshot(path: String) throws -> SessionData? {
         guard FileManager.default.fileExists(atPath: path) else { return nil }
-        var latest = try Session.fromFile(path: path)
+        var latest = try SessionData.fromFile(path: path)
         guard !latest.hidden, latest.shouldAutoHide else { return nil }
         latest.hidden = true
         return latest
     }
 
-    func hideCodexInternalHelperSessions(_ candidates: [DedupCandidate]) {
-        let internalHelperThreadIDs = Set(candidates.map(\.session.sessionId))
+    func hideCodexInternalHelperSessions(_ candidates: [SessionRecord]) {
+        let internalHelperThreadIDs = Set(candidates.map(\.data.sessionId))
         for candidate in candidates {
             withSessionLockForMaintenance(
                 sessionPath: candidate.path,
-                sessionId: candidate.session.sessionId,
+                sessionId: candidate.data.sessionId,
                 action: "Codex internal helper hide"
             ) {
                 guard let hiddenSession = try Self.codexInternalHelperHiddenSessionSnapshot(
@@ -709,7 +709,7 @@ extension SessionManager {
                     return
                 }
                 sessionManagerLogger.info(
-                    "hiding Codex internal helper session \(candidate.session.sessionId, privacy: .public)"
+                    "hiding Codex internal helper session \(candidate.data.sessionId, privacy: .public)"
                 )
                 try hiddenSession.writeToFile(path: candidate.path)
             }
@@ -717,7 +717,7 @@ extension SessionManager {
     }
 
     nonisolated static func claudeDesktopMetadataSnapshot(
-        in sessions: [Session],
+        in sessions: [SessionData],
         claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup()
     ) -> ClaudeDesktopSessionMetadataSnapshot? {
         let sessionIDs = Set(
@@ -729,14 +729,14 @@ extension SessionManager {
     }
 
     nonisolated static func isArchivedClaudeDesktopSession(
-        _ session: Session,
+        _ session: SessionData,
         archivedSessionIDs: Set<String>
     ) -> Bool {
         session.isClaudeDesktopHost && archivedSessionIDs.contains(session.sessionId)
     }
 
     nonisolated static func isOrphanedEndedClaudeDesktopSession(
-        _ session: Session,
+        _ session: SessionData,
         metadataSnapshot: ClaudeDesktopSessionMetadataSnapshot?
     ) -> Bool {
         guard session.isClaudeDesktopHost,
@@ -747,7 +747,10 @@ extension SessionManager {
         return metadataSnapshot?.matchedSessionIDs.contains(session.sessionId) == false
     }
 
-    nonisolated static func isClaudeDesktopStartupPlaceholder(_ session: Session, metadataSnapshot: ClaudeDesktopSessionMetadataSnapshot?) -> Bool {
+    nonisolated static func isClaudeDesktopStartupPlaceholder(
+        _ session: SessionData,
+        metadataSnapshot: ClaudeDesktopSessionMetadataSnapshot?
+    ) -> Bool {
         guard session.isClaudeDesktopHost,
               session.endedAt == nil, session.disconnectedAt == nil,
               metadataSnapshot?.isAuthoritative == true, metadataSnapshot?.matchedSessionIDs.contains(session.sessionId) == false,
@@ -772,7 +775,7 @@ extension SessionManager {
     /// out from under a pending unarchive. When the store exists but cannot be read, the lookup
     /// returns nil and we fail SAFE.
     nonisolated static func isCodexThreadArchived(
-        _ session: Session,
+        _ session: SessionData,
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup()
     ) -> Bool {
         guard session.isCodex else { return false }
@@ -786,7 +789,7 @@ extension SessionManager {
     /// metadata means "not archived"; unreadable matching metadata means "unknown" and keeps the
     /// file.
     nonisolated static func isClaudeDesktopSessionArchived(
-        _ session: Session,
+        _ session: SessionData,
         claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup()
     ) -> Bool {
         guard session.isClaudeDesktopHost else { return false }
@@ -797,7 +800,7 @@ extension SessionManager {
     }
 
     nonisolated static func isArchivedRetainedSession(
-        _ session: Session,
+        _ session: SessionData,
         codexThreads: any CodexThreadStateProviding = CodexThreadArchiveLookup(),
         claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup()
     ) -> Bool {
@@ -808,30 +811,30 @@ extension SessionManager {
     /// Decode each session file, derive its lifecycle, and capture mtime — the inputs the dedup
     /// comparator needs. Pure (no published state), kept off the main class body.
     nonisolated static func buildCandidates(
-        _ sessionFiles: [(url: URL, session: Session)],
+        _ sessionFiles: [(url: URL, session: SessionData)],
         now: Date,
         desktopAppConnectionLookup: DesktopAppConnectionLookup = .live,
         claudeMetadata: ClaudeDesktopSessionMetadataSnapshot?,
-        processAlive: (Session) -> Bool = { $0.isAlive }
-    ) -> [DedupCandidate] {
+        processAlive: (SessionData) -> Bool = { $0.isAlive }
+    ) -> [SessionRecord] {
         let projectNames = claudeMetadata?.projectNamesBySessionID ?? [:]
         let desktopAppRunningByBundleID = desktopAppRunningByBundleID(
             in: sessionFiles.map(\.session),
             lookup: desktopAppConnectionLookup
         )
-        var candidates: [DedupCandidate] = []
-        for (url, var session) in sessionFiles {
-            if let projectName = projectNames[session.sessionId] {
-                session.desktopProjectName = projectName
+        var candidates: [SessionRecord] = []
+        for (url, var data) in sessionFiles {
+            if let projectName = projectNames[data.sessionId] {
+                data.desktopProjectName = projectName
             }
-            session.lifecycle = SessionLifecyclePolicy.lifecycle(
-                for: session, hostClass: session.hostClass, processAlive: processAlive(session),
+            data.lifecycle = SessionLifecyclePolicy.lifecycle(
+                for: data, hostClass: data.hostClass, processAlive: processAlive(data),
                 now: now, windows: lifecycleWindows,
-                desktopAppRunning: desktopAppRunning(for: session, runningByBundleID: desktopAppRunningByBundleID)
+                desktopAppRunning: desktopAppRunning(for: data, runningByBundleID: desktopAppRunningByBundleID)
             )
             let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
                 .contentModificationDate ?? .distantPast
-            candidates.append(DedupCandidate(session: session, lifecycleRank: session.lifecycle.rawValue,
+            candidates.append(SessionRecord(data: data, lifecycleRank: data.lifecycle.rawValue,
                                              mtime: mtime, path: url.path))
         }
         return candidates
@@ -842,18 +845,18 @@ extension SessionManager {
         now: Date,
         desktopAppConnectionLookup: DesktopAppConnectionLookup = .live,
         claudeDesktopSessions: any ClaudeDesktopSessionStateProviding = ClaudeDesktopSessionArchiveLookup(),
-        processAlive: (Session) -> Bool = { $0.isAlive }
-    ) -> [DedupCandidate] {
-        let sessionFiles: [(url: URL, session: Session)] = jsonFiles.compactMap { url in
-            guard let data = try? Data(contentsOf: url) else {
+        processAlive: (SessionData) -> Bool = { $0.isAlive }
+    ) -> [SessionRecord] {
+        let sessionFiles: [(url: URL, session: SessionData)] = jsonFiles.compactMap { url in
+            guard let fileData = try? Data(contentsOf: url) else {
                 sessionManagerLogger.warning("loadSessions: could not read \(url.lastPathComponent, privacy: .public)")
                 return nil
             }
-            guard let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
+            guard let data = try? JSONDecoder.sessionDecoder.decode(SessionData.self, from: fileData) else {
                 sessionManagerLogger.error("loadSessions: decode failed \(url.lastPathComponent, privacy: .public)")
                 return nil
             }
-            return (url, session)
+            return (url, data)
         }
 
         let claudeMetadata = claudeDesktopMetadataSnapshot(
@@ -867,6 +870,30 @@ extension SessionManager {
             claudeMetadata: claudeMetadata,
             processAlive: processAlive
         )
+    }
+
+    func withSessionLockForMaintenance(
+        sessionPath: String,
+        sessionId: String,
+        action: String,
+        body: () throws -> Void
+    ) {
+        do {
+            let didAcquire = try withSessionLockIfAvailable(
+                sessionPath: sessionPath,
+                onError: { sessionManagerLogger.warning("\($0, privacy: .public)") },
+                body: body
+            )
+            if !didAcquire {
+                sessionManagerLogger.info(
+                    "skipping \(action, privacy: .public) for \(sessionId, privacy: .public): session lock is busy"
+                )
+            }
+        } catch {
+            sessionManagerLogger.warning(
+                "skipping \(action, privacy: .public) for \(sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
 }

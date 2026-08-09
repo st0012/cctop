@@ -199,34 +199,34 @@ extension XCTestCase {
         try executeSQLite(sql, path: path)
     }
 
-    func codexTerminalSession(sessionId: String, projectPath: String) -> Session {
-        var session = Session(
+    func codexTerminalSession(sessionId: String, projectPath: String) -> SessionData {
+        var session = SessionData(
             sessionId: sessionId,
             projectPath: projectPath,
             branch: "main",
             terminal: TerminalInfo(program: "zsh", bundleId: "com.googlecode.iterm2")
         )
-        session.source = Session.codexSource
+        session.source = SessionData.codexSource
         session.pid = UInt32(ProcessInfo.processInfo.processIdentifier)
         session.status = .waitingInput
         return session
     }
 
-    func codexSession(sessionId: String, projectPath: String) -> Session {
-        var session = Session(
+    func codexSession(sessionId: String, projectPath: String) -> SessionData {
+        var session = SessionData(
             sessionId: sessionId,
             projectPath: projectPath,
             branch: "main",
             terminal: TerminalInfo()
         )
-        session.source = Session.codexSource
+        session.source = SessionData.codexSource
         session.pid = UInt32(ProcessInfo.processInfo.processIdentifier)
         session.status = .waitingInput
         return session
     }
 
-    func claudeDesktopSession(sessionId: String, projectPath: String) -> Session {
-        var session = Session(
+    func claudeDesktopSession(sessionId: String, projectPath: String) -> SessionData {
+        var session = SessionData(
             sessionId: sessionId,
             projectPath: projectPath,
             branch: "main",
@@ -278,7 +278,7 @@ extension XCTestCase {
         codexThreads: (any CodexThreadStateProviding)? = nil,
         claudeDesktopSessions: (any ClaudeDesktopSessionStateProviding)? = nil,
         desktopAppConnection: DesktopAppConnectionLookup? = nil,
-        processAlive: ((Session) -> Bool)? = nil,
+        processAlive: ((SessionData) -> Bool)? = nil,
         manualSessionVisibility: ManualSessionVisibilityStore? = nil,
         now: (() -> Date)? = nil
     ) -> SessionManager {
@@ -315,9 +315,9 @@ extension XCTestCase {
         source: String? = nil,
         lastActivity: Date = Date(timeIntervalSince1970: 1000),
         endedAt: Date? = nil, disconnectedAt: Date? = nil, mtime: Date = .distantPast, path: String = "/x.json",
-        update: (inout Session) -> Void = { _ in }
-    ) -> DedupCandidate {
-        var s = Session(sessionId: sessionId, projectPath: "/tmp/p", branch: "main",
+        update: (inout SessionData) -> Void = { _ in }
+    ) -> SessionRecord {
+        var s = SessionData(sessionId: sessionId, projectPath: "/tmp/p", branch: "main",
                         terminal: TerminalInfo(bundleId: bundleId))
         s.pid = pid
         s.source = source
@@ -325,7 +325,50 @@ extension XCTestCase {
         s.endedAt = endedAt
         s.disconnectedAt = disconnectedAt
         update(&s)
-        return DedupCandidate(session: s, lifecycleRank: lifecycleRank, mtime: mtime, path: path)
+        return SessionRecord(data: s, lifecycleRank: lifecycleRank, mtime: mtime, path: path)
+    }
+
+    @MainActor
+    func setSessionProjection(_ sessions: [SessionData], on manager: SessionManager) {
+        manager.updateSessionProjection(userSessionProjection(from: sessions))
+    }
+
+    func userSessionProjection(from sessions: [SessionData]) -> [UserSession] {
+        let records = sessions.enumerated().map { index, session in
+            SessionRecord(
+                data: session,
+                lifecycleRank: session.lifecycle.rawValue,
+                mtime: .distantPast,
+                path: "/test-projection-\(index).json"
+            )
+        }
+        return UserSession.grouping(
+            winners: SessionIdentityPolicy.dedupedCandidatesByStableKey(records),
+            records: records
+        )
+    }
+
+    func userSession(display: SessionData, records: [SessionData]) -> UserSession {
+        let sessionRecords = records.enumerated().map { index, data in
+            SessionRecord(
+                data: data,
+                lifecycleRank: data.lifecycle.rawValue,
+                mtime: .distantPast,
+                path: "/test-user-session-\(index).json"
+            )
+        }
+        let displayRecord = sessionRecords.first { $0.data == display }
+            ?? SessionRecord(
+                data: display,
+                lifecycleRank: display.lifecycle.rawValue,
+                mtime: .distantPast,
+                path: "/test-user-session-display.json"
+            )
+        return UserSession(
+            identity: SessionIdentityPolicy.logicalIdentity(for: display),
+            records: sessionRecords,
+            displayRecord: displayRecord
+        )
     }
 }
 

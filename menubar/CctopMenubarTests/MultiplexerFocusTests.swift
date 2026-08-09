@@ -10,7 +10,7 @@ final class MultiplexerFocusTests: XCTestCase {
     // MARK: - resolveMultiplexerFocus
 
     func testCmuxUUIDSurfaceUsesNavigationURL() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "ghostty",
                 multiplexer: .cmux(
@@ -38,7 +38,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testCmuxUUIDPaneUsesNavigationURL() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "ghostty",
                 multiplexer: .cmux(
@@ -61,7 +61,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testCmuxReturnsSurfaceCliFallbackForReferenceIds() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "ghostty",
                 multiplexer: .cmux(
@@ -88,7 +88,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testCmuxReferencePaneWithoutSurfaceReturnsNil() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "ghostty",
                 multiplexer: .cmux(
@@ -105,7 +105,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testLegacyCmuxSessionUsesLiveProcessEnvironmentForNavigationURL() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             project: "irb",
             pid: 5079,
             terminal: TerminalInfo(
@@ -150,7 +150,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testHerdrReturnsStrategy() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
                 multiplexer: .herdr(
@@ -172,7 +172,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testHerdrNoBinaryPathReturnsNil() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
                 multiplexer: .herdr(
@@ -187,7 +187,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testZellijReturnsStrategy() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
                 multiplexer: .zellij(sessionName: "dev", paneId: "terminal_3", binaryPath: "/usr/bin/zellij")
@@ -198,7 +198,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testTmuxReturnsStrategy() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
                 multiplexer: .tmux(socket: "/tmp/tmux-501/default", paneId: "%3", binaryPath: "/opt/homebrew/bin/tmux")
@@ -212,7 +212,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testNoBinaryPathReturnsNil() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
                 multiplexer: .zellij(sessionName: "dev", paneId: "terminal_3", binaryPath: nil)
@@ -223,7 +223,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testCmuxWithoutSurfaceOrPaneReturnsNil() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "ghostty",
                 multiplexer: .cmux(
@@ -240,7 +240,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testNoMultiplexerReturnsNil() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(program: "Ghostty")
         )
         let strategy = resolveMultiplexerFocus(session: session)
@@ -248,7 +248,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testNoTerminalReturnsNil() {
-        let session = Session.mock(terminal: nil)
+        let session = SessionData.mock(terminal: nil)
         let strategy = resolveMultiplexerFocus(session: session)
         XCTAssertNil(strategy)
     }
@@ -415,7 +415,7 @@ final class MultiplexerFocusTests: XCTestCase {
     func testEmulatorStrategyUnaffectedByMultiplexer() {
         // zellij inside Ghostty — emulator strategy and multiplexer focus are
         // resolved independently from the same session.
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "Ghostty",
                 multiplexer: .zellij(sessionName: "dev", paneId: "terminal_1", binaryPath: "/usr/bin/zellij")
@@ -433,7 +433,7 @@ final class MultiplexerFocusTests: XCTestCase {
     }
 
     func testCmuxMultiplexerResolvesCmuxHostDespiteGhosttyProgram() {
-        let session = Session.mock(
+        let session = SessionData.mock(
             terminal: TerminalInfo(
                 program: "ghostty",
                 multiplexer: .cmux(

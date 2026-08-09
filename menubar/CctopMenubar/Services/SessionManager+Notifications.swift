@@ -67,34 +67,36 @@ struct SessionNotificationClient {
 
 enum SessionNotificationAction: Equatable {
     case remove(cctopSessionID: String)
-    case post(session: Session)
+    case post(session: SessionData)
 }
 
 @MainActor
 extension SessionManager {
-    func hideSession(_ session: Session) {
+    func hideSession(_ session: SessionData) {
         guard let cctopSessionID = session.cctopSessionId,
-              Session.isValidCctopSessionId(cctopSessionID),
-              sessions.contains(where: { $0.cctopSessionId == cctopSessionID }) else { return }
+              CctopSessionID.isValid(cctopSessionID),
+              sessions.contains(where: { $0.cctopSessionId == cctopSessionID }),
+              let hiddenUserSession = userSessions.first(where: {
+                  $0.identity.cctopSessionID == cctopSessionID
+              }) else { return }
 
-        let hiddenSessions = sessions.filter { $0.cctopSessionId == cctopSessionID }
+        let hiddenSessions = hiddenUserSession.records.map(\.data)
         let hiddenProjectPaths = Set(hiddenSessions.map { HistoryManager.canonicalRecentProjectPath($0.projectPath) })
         dataSources.manualSessionVisibility.hide(session)
-        let visibleSessions = sessions.filter { $0.cctopSessionId != cctopSessionID }
         recentResumeTargets.removeAll { target in
             if target.cctopSessionId == cctopSessionID { return true }
             guard case .project = target else { return false }
             return hiddenProjectPaths.contains(HistoryManager.canonicalRecentProjectPath(target.projectPath))
         }
         removeNotification(cctopSessionID: cctopSessionID, matching: hiddenSessions)
-        sessions = visibleSessions
+        updateSessionProjection(userSessions.filter { $0.identity.cctopSessionID != cctopSessionID })
     }
 
-    func isManuallyHidden(_ session: Session) -> Bool {
+    func isManuallyHidden(_ session: SessionData) -> Bool {
         dataSources.manualSessionVisibility.isHidden(session)
     }
 
-    func syncTransitionNotifications(for newSessions: [Session], oldSessions: [Session]) {
+    func syncTransitionNotifications(for newSessions: [SessionData], oldSessions: [SessionData]) {
         for action in Self.notificationActions(
             newSessions: newSessions,
             oldSessions: oldSessions,
@@ -102,7 +104,12 @@ extension SessionManager {
         ) {
             switch action {
             case .remove(let cctopSessionID):
-                removeNotification(cctopSessionID: cctopSessionID, matching: oldSessions)
+                removeNotification(
+                    cctopSessionID: cctopSessionID,
+                    matching: oldSessions.filter {
+                        SessionIdentityPolicy.permanentSessionID(for: $0) == cctopSessionID
+                    }
+                )
             case .post(let session):
                 sendNotification(for: session)
             }
@@ -110,17 +117,17 @@ extension SessionManager {
     }
 
     nonisolated static func notificationActions(
-        newSessions: [Session],
-        oldSessions: [Session],
+        newSessions: [SessionData],
+        oldSessions: [SessionData],
         notificationsEnabled: Bool
     ) -> [SessionNotificationAction] {
-        let newByCctopSessionID: [String: Session] = Dictionary(
+        let newByCctopSessionID: [String: SessionData] = Dictionary(
             newSessions.compactMap { session in
                 SessionIdentityPolicy.permanentSessionID(for: session).map { ($0, session) }
             },
             uniquingKeysWith: { first, _ in first }
         )
-        let oldByCctopSessionID: [String: Session] = Dictionary(
+        let oldByCctopSessionID: [String: SessionData] = Dictionary(
             oldSessions.compactMap { session in
                 SessionIdentityPolicy.permanentSessionID(for: session).map { ($0, session) }
             },
@@ -147,7 +154,7 @@ extension SessionManager {
         return actions
     }
 
-    nonisolated static func notificationRequest(for session: Session) -> UNNotificationRequest? {
+    nonisolated static func notificationRequest(for session: SessionData) -> UNNotificationRequest? {
         guard let cctopSessionID = SessionIdentityPolicy.permanentSessionID(for: session),
               let identifier = SessionIdentityPolicy.notificationRequestIdentifier(
                   forCctopSessionID: cctopSessionID
@@ -171,11 +178,11 @@ extension SessionManager {
         )
     }
 
-    func postNotification(for session: Session) {
+    func postNotification(for session: SessionData) {
         guard let cctopSessionID = SessionIdentityPolicy.permanentSessionID(for: session),
               let currentSession = FocusTargetResolver.currentSession(
                   forCctopSessionID: cctopSessionID,
-                  in: SessionDisplayPolicy.activeSessions(from: sessions)
+                  in: SessionDisplayPolicy.activeSessions(from: userSessions)
               ),
               currentSession.shouldPostAttentionNotification,
               !isManuallyHidden(currentSession),
@@ -191,7 +198,7 @@ extension SessionManager {
         }
     }
 
-    private func sendNotification(for session: Session) {
+    private func sendNotification(for session: SessionData) {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             switch settings.authorizationStatus {
@@ -212,14 +219,18 @@ extension SessionManager {
         }
     }
 
-    private func removeNotification(cctopSessionID: String, matching observations: [Session]) {
+    private func removeNotification(cctopSessionID: String, matching sessions: [SessionData]) {
         guard let identifier = SessionIdentityPolicy.notificationRequestIdentifier(
             forCctopSessionID: cctopSessionID
         ) else { return }
         var identifiers = Set([identifier])
         identifiers.formUnion(
-            observations
-                .filter { $0.cctopSessionId == cctopSessionID }
+            sessions
+                .filter { session in
+                    SessionIdentityPolicy.permanentSessionID(for: session).map {
+                        $0 == cctopSessionID
+                    } ?? true
+                }
                 .compactMap(SessionIdentityPolicy.legacyNotificationRequestIdentifier)
         )
         let sortedIdentifiers = identifiers.sorted()

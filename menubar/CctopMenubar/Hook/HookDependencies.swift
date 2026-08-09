@@ -16,9 +16,9 @@ protocol ProcessProbing {
 /// Production prober backed by getppid/sysctl/kill via the existing helpers.
 struct LiveProcessProber: ProcessProbing {
     func parentPID() -> UInt32 { HookHandler.getParentPID() }
-    func startTime(pid: UInt32) -> TimeInterval? { Session.processStartTime(pid: pid) }
+    func startTime(pid: UInt32) -> TimeInterval? { SessionData.processStartTime(pid: pid) }
     func isAlive(pid: UInt32) -> Bool { HookHandler.isPIDAlive(pid) }
-    func commandName(pid: UInt32) -> String? { Session.processCommandName(pid: pid) }
+    func commandName(pid: UInt32) -> String? { SessionData.processCommandName(pid: pid) }
     func controllingTTY() -> String? { HookHandler.findTTY() }
 }
 

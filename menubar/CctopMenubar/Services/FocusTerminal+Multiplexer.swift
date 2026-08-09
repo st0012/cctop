@@ -16,7 +16,7 @@ enum MultiplexerFocusStrategy: Equatable {
 /// Returns nil when the primary strategy uses the Codex app route so
 /// inherited terminal metadata cannot steal focus after the thread deep link.
 func resolveMultiplexerFocus(
-    session: Session,
+    session: SessionData,
     multiplexerOverride: MultiplexerInfo? = nil,
     primaryStrategy: FocusStrategy? = nil
 ) -> MultiplexerFocusStrategy? {

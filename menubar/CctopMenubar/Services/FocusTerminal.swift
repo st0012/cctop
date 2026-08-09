@@ -34,7 +34,7 @@ struct GhosttyFocusTarget: Equatable {
 
 /// Resolve which strategy to use for jumping to a session.
 /// Pure function — no AppKit side effects, fully testable.
-func resolveFocusStrategy(session: Session) -> FocusStrategy {
+func resolveFocusStrategy(session: SessionData) -> FocusStrategy {
     resolveFocusStrategy(session: session, multiplexerOverride: nil)
 }
 
@@ -42,7 +42,7 @@ func resolveFocusStrategy(session: Session) -> FocusStrategy {
 /// freshly resolved multiplexer metadata for legacy live sessions.
 /// Pure function — no AppKit side effects, fully testable.
 func resolveFocusStrategy(
-    session: Session,
+    session: SessionData,
     multiplexerOverride: MultiplexerInfo?
 ) -> FocusStrategy {
     let terminal = session.terminal
@@ -125,7 +125,7 @@ func resolveFocusStrategy(
 private let focusQueue = DispatchQueue(label: "cctop.focus-terminal", qos: .userInitiated)
 /// Cmux `ps` probing, focus scripts, and kitty/multiplexer CLIs all block — so the whole jump runs on `focusQueue`, serial so a
 /// slow jump can't finish after (and steal focus from) a later one. AppKit calls hop back to the main thread.
-func focusTerminal(session: Session) {
+func focusTerminal(session: SessionData) {
     focusQueue.async {
         let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
         let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride)
@@ -330,7 +330,7 @@ func buildOSC7CWD(host: String, workingDirectory: String) -> String {
     return "\u{1B}]7;file://\(host)\(encoded)\u{07}"
 }
 
-func ghosttyFocusTarget(for session: Session, temporaryDirectory: String = NSTemporaryDirectory()) -> GhosttyFocusTarget {
+func ghosttyFocusTarget(for session: SessionData, temporaryDirectory: String = NSTemporaryDirectory()) -> GhosttyFocusTarget {
     guard let tty = session.terminal?.tty,
           tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil else {
         return GhosttyFocusTarget(tty: nil, matchDirectory: session.projectPath, restoreDirectory: nil)
@@ -345,7 +345,7 @@ func ghosttyFocusTarget(for session: Session, temporaryDirectory: String = NSTem
 }
 
 private func sanitizedGhosttyFocusComponent(_ value: String) -> String {
-    let sanitized = Session.sanitizeSessionId(raw: value)
+    let sanitized = SessionData.sanitizeSessionId(raw: value)
     return sanitized.isEmpty ? "session" : sanitized
 }
 

@@ -73,13 +73,13 @@ final class DisplayStateWriter {
 
     private var lastSnapshot: Data?
 
-    func write(sessions: [Session], theme: AppTheme, appRunning: Bool, now: Date = Date()) {
+    func write(sessions: [SessionData], theme: AppTheme, appRunning: Bool, now: Date = Date()) {
         // An Xcode test host launches the app executable but is not a user-facing
         // cctop instance. It must not claim liveness or overwrite the user's surface.
         guard !Self.isXcodeTestHost else { return }
         let appPID = appRunning ? ProcessInfo.processInfo.processIdentifier : nil
         let appIdentity = appPID.flatMap { pid -> DisplayState.ProcessIdentity? in
-            guard let startTime = Session.processStartTime(pid: UInt32(pid)) else { return nil }
+            guard let startTime = SessionData.processStartTime(pid: UInt32(pid)) else { return nil }
             return DisplayState.ProcessIdentity(pid: pid, startTime: startTime)
         }
         let snapshot = Self.snapshot(
@@ -109,7 +109,7 @@ final class DisplayStateWriter {
     }
 
     static func snapshot(
-        sessions: [Session],
+        sessions: [SessionData],
         theme: AppTheme,
         appRunning: Bool,
         appIdentity: DisplayState.ProcessIdentity?,

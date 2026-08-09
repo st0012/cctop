@@ -218,36 +218,36 @@ final class HookEventTests: XCTestCase {
     // MARK: - sanitizeSessionId
 
     func testSanitizeRemovesForwardSlash() {
-        XCTAssertEqual(Session.sanitizeSessionId(raw: "foo/bar"), "foobar")
+        XCTAssertEqual(SessionData.sanitizeSessionId(raw: "foo/bar"), "foobar")
     }
 
     func testSanitizeRemovesBackslash() {
-        XCTAssertEqual(Session.sanitizeSessionId(raw: "foo\\bar"), "foobar")
+        XCTAssertEqual(SessionData.sanitizeSessionId(raw: "foo\\bar"), "foobar")
     }
 
     func testSanitizeRemovesDoubleDot() {
-        XCTAssertEqual(Session.sanitizeSessionId(raw: "../../.bashrc"), "bashrc")
+        XCTAssertEqual(SessionData.sanitizeSessionId(raw: "../../.bashrc"), "bashrc")
     }
 
     func testSanitizePathTraversal() {
-        XCTAssertEqual(Session.sanitizeSessionId(raw: "../etc/passwd"), "etcpasswd")
+        XCTAssertEqual(SessionData.sanitizeSessionId(raw: "../etc/passwd"), "etcpasswd")
     }
 
     func testSanitizeDoubleDotOnly() {
-        XCTAssertEqual(Session.sanitizeSessionId(raw: ".."), "")
+        XCTAssertEqual(SessionData.sanitizeSessionId(raw: ".."), "")
     }
 
     func testSanitizeCapsLength() {
         let long = String(repeating: "a", count: 100)
-        XCTAssertEqual(Session.sanitizeSessionId(raw: long).count, 64)
+        XCTAssertEqual(SessionData.sanitizeSessionId(raw: long).count, 64)
     }
 
     func testSanitizeNormalIdUnchanged() {
-        XCTAssertEqual(Session.sanitizeSessionId(raw: "abc-123-def"), "abc-123-def")
+        XCTAssertEqual(SessionData.sanitizeSessionId(raw: "abc-123-def"), "abc-123-def")
     }
 
     func testSanitizeUUIDUnchanged() {
         let uuid = "550e8400-e29b-41d4-a716-446655440000"
-        XCTAssertEqual(Session.sanitizeSessionId(raw: uuid), uuid)
+        XCTAssertEqual(SessionData.sanitizeSessionId(raw: uuid), uuid)
     }
 }

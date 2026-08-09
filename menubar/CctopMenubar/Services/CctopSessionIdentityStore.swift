@@ -1,9 +1,9 @@
 import CryptoKit
 import Foundation
 
-/// Persists cctop-owned session identities separately from live session records.
-/// Client references are used only as lookup evidence for clients whose local
-/// resume contracts expose a stable UUID.
+/// Persists the cctop-owned IDs used to form `UserSession` values. The hook and app
+/// assign IDs to `SessionData` before the app builds that projection. Client references
+/// are lookup evidence only for clients whose local resume contracts expose a stable UUID.
 struct CctopSessionIdentityStore {
     enum StoreError: Error {
         case corruptMapping(String)
@@ -50,7 +50,7 @@ struct CctopSessionIdentityStore {
             harnessSessionId: harnessSessionId,
             legacySessionId: legacySessionId
         ) else {
-            return Session.makeCctopSessionId()
+            return CctopSessionID.make()
         }
 
         let directory = identityDirectory
@@ -71,10 +71,10 @@ struct CctopSessionIdentityStore {
             var existing = knownExistingIDs ?? []
             if knownExistingIDs == nil {
                 for url in sessionFiles() {
-                    guard let session = try? Session.fromFile(path: url.path),
-                          Self.durableEvidence(for: session) == evidence,
-                          Session.isValidCctopSessionId(session.cctopSessionId),
-                          let cctopSessionId = session.cctopSessionId else { continue }
+                    guard let data = try? SessionData.fromFile(path: url.path),
+                          Self.durableEvidence(for: data) == evidence,
+                          CctopSessionID.isValid(data.cctopSessionId),
+                          let cctopSessionId = data.cctopSessionId else { continue }
                     existing.insert(cctopSessionId)
                 }
             }
@@ -82,7 +82,7 @@ struct CctopSessionIdentityStore {
                 throw StoreError.conflictingExistingIdentities(mappingURL.lastPathComponent)
             }
 
-            let cctopSessionId = existing.first ?? Session.makeCctopSessionId()
+            let cctopSessionId = existing.first ?? CctopSessionID.make()
             try writeMapping(Mapping(cctopSessionId: cctopSessionId), to: mappingURL)
             resolved = cctopSessionId
         }
@@ -92,12 +92,12 @@ struct CctopSessionIdentityStore {
         return resolved
     }
 
-    /// Session-shaped convenience over `durableEvidence(source:harnessSessionId:legacySessionId:)`.
-    static func durableEvidence(for session: Session) -> String? {
+    /// SessionData-shaped convenience over `durableEvidence(source:harnessSessionId:legacySessionId:)`.
+    static func durableEvidence(for data: SessionData) -> String? {
         durableEvidence(
-            source: session.source,
-            harnessSessionId: session.harnessSessionId,
-            legacySessionId: session.sessionId
+            source: data.source,
+            harnessSessionId: data.harnessSessionId,
+            legacySessionId: data.sessionId
         )
     }
 
@@ -111,8 +111,8 @@ struct CctopSessionIdentityStore {
     ) -> String? {
         // The established session-file migration contract treats a missing source as
         // Claude Code; retain that narrow legacy rule without inferring across clients.
-        let normalizedSource = source ?? Session.ccSource
-        guard [Session.codexSource, Session.ccSource, Session.piSource].contains(normalizedSource) else {
+        let normalizedSource = source ?? SessionData.ccSource
+        guard [SessionData.codexSource, SessionData.ccSource, SessionData.piSource].contains(normalizedSource) else {
             return nil
         }
         let reference = harnessSessionId.flatMap { $0.isEmpty ? nil : $0 } ?? legacySessionId
@@ -148,7 +148,7 @@ struct CctopSessionIdentityStore {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let mapping = try decoder.decode(Mapping.self, from: Data(contentsOf: url))
-        guard Session.isValidCctopSessionId(mapping.cctopSessionId) else {
+        guard CctopSessionID.isValid(mapping.cctopSessionId) else {
             throw StoreError.corruptMapping(url.lastPathComponent)
         }
         return mapping.cctopSessionId

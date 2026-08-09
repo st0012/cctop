@@ -13,8 +13,8 @@ final class SessionLifecycleTests: XCTestCase {
         source: String? = nil,
         agoSeconds: TimeInterval,
         disconnectedAgoSeconds: TimeInterval? = nil
-    ) -> Session {
-        var session = Session(sessionId: "s", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+    ) -> SessionData {
+        var session = SessionData(sessionId: "s", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
         session.source = source
         session.lastActivity = Self.lifeNow.addingTimeInterval(-agoSeconds)
         if let disconnectedAgoSeconds {
@@ -24,7 +24,7 @@ final class SessionLifecycleTests: XCTestCase {
     }
 
     private func life(
-        _ session: Session,
+        _ session: SessionData,
         _ hostClass: SessionHostClass,
         alive: Bool,
         desktopAppRunning: Bool? = nil
@@ -40,7 +40,7 @@ final class SessionLifecycleTests: XCTestCase {
     }
 
     private func connection(
-        _ session: Session,
+        _ session: SessionData,
         _ hostClass: SessionHostClass,
         alive: Bool,
         desktopAppRunning: Bool? = nil
@@ -58,7 +58,7 @@ final class SessionLifecycleTests: XCTestCase {
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let sessionPath = (root as NSString).appendingPathComponent("codex-stale.json")
-        var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
+        var session = lifeSession(source: SessionData.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
         session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         session.pid = nil
         try session.writeToFile(path: sessionPath)
@@ -75,7 +75,7 @@ final class SessionLifecycleTests: XCTestCase {
             processAlive: { _ in false }
         )
 
-        XCTAssertEqual(candidates.map(\.session.lifecycle), [.dormant])
+        XCTAssertEqual(candidates.map(\.data.lifecycle), [.dormant])
     }
 
     func testBuildCandidatesBatchesDesktopAppRunningLookupByBundleID() {
@@ -164,7 +164,7 @@ final class SessionLifecycleTests: XCTestCase {
         }
 
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-reconnected.json")
-        var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
+        var session = lifeSession(source: SessionData.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
         session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         session.pid = nil
         // SessionManager derives lifecycle against the real clock; keep the session idle
@@ -182,7 +182,7 @@ final class SessionLifecycleTests: XCTestCase {
         )
 
         XCTAssertEqual(manager.sessions.map(\.lifecycle), [.dormant])
-        XCTAssertNotNil(try Session.fromFile(path: sessionPath).disconnectedAt)
+        XCTAssertNotNil(try SessionData.fromFile(path: sessionPath).disconnectedAt)
     }
 
     @MainActor
@@ -202,7 +202,7 @@ final class SessionLifecycleTests: XCTestCase {
         }
 
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("codex-ended.json")
-        var session = lifeSession(source: Session.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
+        var session = lifeSession(source: SessionData.codexSource, agoSeconds: 10_000, disconnectedAgoSeconds: 10_000)
         session.terminal = TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         session.pid = nil
         // SessionManager derives lifecycle against the real clock; keep the session idle
@@ -223,7 +223,7 @@ final class SessionLifecycleTests: XCTestCase {
         )
 
         XCTAssertEqual(manager.sessions.map(\.lifecycle), [.dormant])
-        XCTAssertEqual(try Session.fromFile(path: sessionPath).disconnectedAt, disconnectedAt)
+        XCTAssertEqual(try SessionData.fromFile(path: sessionPath).disconnectedAt, disconnectedAt)
     }
 
     // The headline issue #155 file class: a DEAD Claude Code session that inherited
@@ -239,7 +239,7 @@ final class SessionLifecycleTests: XCTestCase {
         defer { try? FileManager.default.removeItem(atPath: root) }
 
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("54321.json")
-        var session = Session(sessionId: "cc-ghost", projectPath: "/tmp/p", branch: "main",
+        var session = SessionData(sessionId: "cc-ghost", projectPath: "/tmp/p", branch: "main",
                               terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop))
         session.source = "cc"
         session.pid = 999_999
@@ -285,11 +285,11 @@ final class SessionLifecycleTests: XCTestCase {
 
         let pid = UInt32(process.processIdentifier)
         let sessionPath = (sessionsDir as NSString).appendingPathComponent("\(pid).json")
-        var session = Session(sessionId: "cc-live", projectPath: "/tmp/p", branch: "main",
+        var session = SessionData(sessionId: "cc-live", projectPath: "/tmp/p", branch: "main",
                               terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop))
         session.source = "cc"
         session.pid = pid
-        session.pidStartTime = Session.processStartTime(pid: pid)
+        session.pidStartTime = SessionData.processStartTime(pid: pid)
         session.lastActivity = Date().addingTimeInterval(-60)
         try session.writeToFile(path: sessionPath)
 
@@ -307,18 +307,18 @@ final class SessionLifecycleTests: XCTestCase {
     }
 
     func testIdentityPolicyNamesStableGroupingRules() {
-        var codex = Session(sessionId: "codex-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
-        codex.source = Session.codexSource
+        var codex = SessionData(sessionId: "codex-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        codex.source = SessionData.codexSource
         codex.lastActivity = Self.lifeNow.addingTimeInterval(-60)
         codex.pid = 31349
 
-        var desktop = Session(sessionId: "desktop-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        var desktop = SessionData(sessionId: "desktop-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
         desktop.source = "cc"
         desktop.lastActivity = Self.lifeNow.addingTimeInterval(-60)
         desktop.terminal = TerminalInfo(bundleId: HostAppBundleID.claudeDesktop)
         desktop.pid = 99
 
-        var terminal = Session(sessionId: "terminal-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        var terminal = SessionData(sessionId: "terminal-conversation", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
         terminal.source = "cc"
         terminal.lastActivity = Self.lifeNow.addingTimeInterval(-60)
         terminal.pid = 42
@@ -396,11 +396,11 @@ final class SessionLifecycleTests: XCTestCase {
 
     func testLifecycleCodexUsesOneFourteenDayPolicyAcrossBundleVariants() {
         for bundleID in [nil, HostAppBundleID.codexDesktop, "com.googlecode.iterm2"] {
-            var expired = lifeSession(source: Session.codexSource, agoSeconds: Self.retentionWin)
+            var expired = lifeSession(source: SessionData.codexSource, agoSeconds: Self.retentionWin)
             expired.terminal = TerminalInfo(bundleId: bundleID)
             XCTAssertEqual(life(expired, expired.hostClass, alive: true, desktopAppRunning: true), .finished)
 
-            var disconnected = lifeSession(source: Session.codexSource, agoSeconds: 600)
+            var disconnected = lifeSession(source: SessionData.codexSource, agoSeconds: 600)
             disconnected.terminal = TerminalInfo(bundleId: bundleID)
             XCTAssertEqual(life(disconnected, disconnected.hostClass, alive: false, desktopAppRunning: false), .dormant)
 
@@ -414,7 +414,7 @@ final class SessionLifecycleTests: XCTestCase {
 
     func testLifecycleFreshCodexHookActivityRevivesEndedSessionAcrossBundleVariants() {
         for bundleID in [nil, HostAppBundleID.codexDesktop, "com.googlecode.iterm2"] {
-            var session = lifeSession(source: Session.codexSource, agoSeconds: Self.retentionWin + 1)
+            var session = lifeSession(source: SessionData.codexSource, agoSeconds: Self.retentionWin + 1)
             session.terminal = TerminalInfo(bundleId: bundleID)
             session.endedAt = Self.lifeNow.addingTimeInterval(-Self.retentionWin)
             XCTAssertEqual(life(session, session.hostClass, alive: true), .finished)
@@ -531,11 +531,11 @@ final class SessionLifecycleTests: XCTestCase {
 
     func testClassificationSnapshotFiltersArchivedSubagentExecHelperAndOrphanedSessions() {
         let archived = candidate(sessionId: "archived-thread", pid: 1, bundleId: HostAppBundleID.codexDesktop,
-                                 lifecycleRank: 0, source: Session.codexSource, path: "/archived.json")
+                                 lifecycleRank: 0, source: SessionData.codexSource, path: "/archived.json")
         let subagent = candidate(sessionId: "subagent-thread", pid: 2, bundleId: "com.googlecode.iterm2",
-                                 lifecycleRank: 0, source: Session.codexSource, path: "/subagent.json")
+                                 lifecycleRank: 0, source: SessionData.codexSource, path: "/subagent.json")
         let execHelper = candidate(sessionId: "exec-helper-thread", pid: 3, bundleId: HostAppBundleID.codexDesktop,
-                                   lifecycleRank: 0, source: Session.codexSource, path: "/exec.json")
+                                   lifecycleRank: 0, source: SessionData.codexSource, path: "/exec.json")
         let archivedClaude = candidate(sessionId: "archived-claude", pid: 4, bundleId: HostAppBundleID.claudeDesktop,
                                        lifecycleRank: 0, source: "cc", path: "/claude-archived.json")
         // Ended, with authoritative metadata that does not know the session -> orphaned, filtered.
@@ -543,7 +543,7 @@ final class SessionLifecycleTests: XCTestCase {
                                      lifecycleRank: 0, source: "cc",
                                      endedAt: Date(timeIntervalSince1970: 2000), path: "/claude-orphan.json")
         let visibleCodex = candidate(sessionId: "visible-thread", pid: 6, bundleId: HostAppBundleID.codexDesktop,
-                                     lifecycleRank: 0, source: Session.codexSource, path: "/visible.json")
+                                     lifecycleRank: 0, source: SessionData.codexSource, path: "/visible.json")
         let visibleClaude = candidate(sessionId: "visible-claude", pid: 7, bundleId: HostAppBundleID.claudeDesktop,
                                       lifecycleRank: 0, source: "cc", path: "/claude-visible.json") { session in
             session.sessionName = "Visible Claude session"
@@ -570,10 +570,10 @@ final class SessionLifecycleTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            classification.displayCandidates.map(\.session.sessionId).sorted(),
+            classification.displayCandidates.map(\.data.sessionId).sorted(),
             ["matched-ended-claude", "visible-claude", "visible-thread"]
         )
-        XCTAssertEqual(classification.codexInternalHelperCandidates.map(\.session.sessionId), [])
+        XCTAssertEqual(classification.codexInternalHelperCandidates.map(\.data.sessionId), [])
         XCTAssertEqual(classification.archivedCodexThreadIDs, ["archived-thread", "subagent-thread"])
         XCTAssertEqual(classification.codexInternalHelperThreadIDs, ["subagent-thread"])
         XCTAssertEqual(classification.codexExecHelperThreadIDs, ["exec-helper-thread"])
@@ -583,19 +583,19 @@ final class SessionLifecycleTests: XCTestCase {
     func testClassificationSnapshotHidesArchivedCodexAcrossHostsWithoutInferringDesktop() {
         let archivedWithoutBundle = candidate(
             sessionId: "archived-no-bundle", pid: 1, bundleId: nil,
-            lifecycleRank: 0, source: Session.codexSource, path: "/archived-no-bundle.json"
+            lifecycleRank: 0, source: SessionData.codexSource, path: "/archived-no-bundle.json"
         )
         let archivedCLI = candidate(
             sessionId: "archived-cli", pid: 2, bundleId: "com.googlecode.iterm2",
-            lifecycleRank: 0, source: Session.codexSource, path: "/archived-cli.json"
+            lifecycleRank: 0, source: SessionData.codexSource, path: "/archived-cli.json"
         )
         let visibleWithoutBundle = candidate(
             sessionId: "visible-no-bundle", pid: 3, bundleId: nil,
-            lifecycleRank: 0, source: Session.codexSource, path: "/visible-no-bundle.json"
+            lifecycleRank: 0, source: SessionData.codexSource, path: "/visible-no-bundle.json"
         )
         let visibleCLI = candidate(
             sessionId: "visible-cli", pid: 4, bundleId: "com.googlecode.iterm2",
-            lifecycleRank: 0, source: Session.codexSource, path: "/visible-cli.json"
+            lifecycleRank: 0, source: SessionData.codexSource, path: "/visible-cli.json"
         )
         let opencodeWithLeakedBundle = candidate(
             sessionId: "opencode", pid: 5, bundleId: HostAppBundleID.codexDesktop,
@@ -611,7 +611,7 @@ final class SessionLifecycleTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            classification.displayCandidates.map(\.session.sessionId).sorted(),
+            classification.displayCandidates.map(\.data.sessionId).sorted(),
             ["opencode", "visible-cli", "visible-no-bundle"]
         )
         XCTAssertEqual(classification.archivedCodexThreadIDs, ["archived-cli", "archived-no-bundle"])
@@ -631,13 +631,13 @@ final class SessionLifecycleTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 10_000)
         let missingWithoutBundle = candidate(
             sessionId: "missing-no-bundle", pid: 1, bundleId: nil,
-            lifecycleRank: 0, source: Session.codexSource,
+            lifecycleRank: 0, source: SessionData.codexSource,
             lastActivity: now.addingTimeInterval(-SessionManager.codexMissingThreadGraceSeconds - 1),
             path: "/missing-no-bundle.json"
         )
         let missingWithBundle = candidate(
             sessionId: "missing-with-bundle", pid: 2, bundleId: HostAppBundleID.codexDesktop,
-            lifecycleRank: 0, source: Session.codexSource,
+            lifecycleRank: 0, source: SessionData.codexSource,
             lastActivity: now.addingTimeInterval(-SessionManager.codexMissingThreadGraceSeconds - 1),
             path: "/missing-with-bundle.json"
         )
@@ -648,7 +648,7 @@ final class SessionLifecycleTests: XCTestCase {
             codexThreads: StubCodexThreadState(existing: []),
             now: now
         )
-        XCTAssertEqual(missing.displayCandidates.map(\.session.sessionId), [])
+        XCTAssertEqual(missing.displayCandidates.map(\.data.sessionId), [])
 
         let unreadable = SessionManager.sessionClassificationSnapshot(
             in: [missingWithoutBundle, missingWithBundle],
@@ -657,7 +657,7 @@ final class SessionLifecycleTests: XCTestCase {
             now: now
         )
         XCTAssertEqual(
-            unreadable.displayCandidates.map(\.session.sessionId).sorted(),
+            unreadable.displayCandidates.map(\.data.sessionId).sorted(),
             ["missing-no-bundle", "missing-with-bundle"]
         )
     }
@@ -665,7 +665,7 @@ final class SessionLifecycleTests: XCTestCase {
     func testArchivedFinishedCodexUsesSourceOnlyHiddenCleanupPath() {
         let finishedCLI = candidate(
             sessionId: "archived-finished-cli", pid: 1, bundleId: "com.googlecode.iterm2",
-            lifecycleRank: SessionLifecycle.finished.rawValue, source: Session.codexSource, path: "/finished.json"
+            lifecycleRank: SessionLifecycle.finished.rawValue, source: SessionData.codexSource, path: "/finished.json"
         ) { session in
             session.lifecycle = .finished
         }
@@ -676,8 +676,8 @@ final class SessionLifecycleTests: XCTestCase {
             codexThreads: StubCodexThreadState(archived: ["archived-finished-cli"])
         )
 
-        XCTAssertEqual(classification.displayCandidates.map(\.session.sessionId), [])
-        XCTAssertEqual(classification.finishedNonDesktopCandidates.map(\.session.sessionId), [])
+        XCTAssertEqual(classification.displayCandidates.map(\.data.sessionId), [])
+        XCTAssertEqual(classification.finishedNonDesktopCandidates.map(\.data.sessionId), [])
         XCTAssertEqual(classification.cleanupSources.map(\.sessionId), ["archived-finished-cli"])
         XCTAssertEqual(classification.protectedProjectPathsForCleanup, [])
     }
@@ -686,7 +686,7 @@ final class SessionLifecycleTests: XCTestCase {
         let persistedHidden = candidate(
             sessionId: "archived-hidden", pid: 1, bundleId: nil,
             lifecycleRank: SessionLifecycle.active.rawValue,
-            source: Session.codexSource,
+            source: SessionData.codexSource,
             path: "/archived-hidden.json"
         ) { $0.hidden = true }
 
@@ -702,13 +702,13 @@ final class SessionLifecycleTests: XCTestCase {
 
     func testClassificationSnapshotEmitsCleanupSourcesForArchivedCodexSessions() {
         let archived = candidate(sessionId: "archived-thread", pid: 1, bundleId: nil,
-                                 lifecycleRank: 0, source: Session.codexSource, path: "/archived.json") { session in
+                                 lifecycleRank: 0, source: SessionData.codexSource, path: "/archived.json") { session in
             session.sessionName = "Archived Codex work"
         }
         let visible = candidate(sessionId: "visible-thread", pid: 2, bundleId: nil,
-                                lifecycleRank: 0, source: Session.codexSource, path: "/visible.json")
+                                lifecycleRank: 0, source: SessionData.codexSource, path: "/visible.json")
         let subagent = candidate(sessionId: "subagent-thread", pid: 3, bundleId: nil,
-                                 lifecycleRank: 0, source: Session.codexSource, path: "/subagent.json")
+                                 lifecycleRank: 0, source: SessionData.codexSource, path: "/subagent.json")
 
         let state = SessionManager.sessionClassificationSnapshot(
             in: [archived, visible, subagent],
@@ -719,24 +719,24 @@ final class SessionLifecycleTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(state.displayCandidates.map(\.session.sessionId), ["visible-thread"])
+        XCTAssertEqual(state.displayCandidates.map(\.data.sessionId), ["visible-thread"])
         XCTAssertEqual(state.cleanupSources.map(\.sessionId), ["archived-thread"])
         XCTAssertEqual(state.cleanupSources.map(\.projectPath), ["/tmp/p"])
         XCTAssertEqual(state.cleanupSources.map(\.sessionName), ["Archived Codex work"])
-        XCTAssertEqual(state.codexInternalHelperCandidates.map(\.session.sessionId), ["subagent-thread"])
+        XCTAssertEqual(state.codexInternalHelperCandidates.map(\.data.sessionId), ["subagent-thread"])
     }
 
     func testClassificationSnapshotMapsDispositionsToAllowedActions() {
         let archivedCodex = candidate(sessionId: "archived-thread", pid: 1, bundleId: HostAppBundleID.codexDesktop,
-                                      lifecycleRank: 0, source: Session.codexSource, path: "/archived.json")
+                                      lifecycleRank: 0, source: SessionData.codexSource, path: "/archived.json")
         let archivedClaude = candidate(sessionId: "archived-claude", pid: 2, bundleId: HostAppBundleID.claudeDesktop,
                                        lifecycleRank: 0, source: "cc", path: "/archived-claude.json")
         let codexSubagent = candidate(sessionId: "subagent-thread", pid: 3, bundleId: HostAppBundleID.codexDesktop,
-                                      lifecycleRank: 0, source: Session.codexSource, path: "/subagent.json")
+                                      lifecycleRank: 0, source: SessionData.codexSource, path: "/subagent.json")
         let codexExecHelper = candidate(sessionId: "exec-helper-thread", pid: 4, bundleId: HostAppBundleID.codexDesktop,
-                                        lifecycleRank: 0, source: Session.codexSource, path: "/exec-helper.json")
+                                        lifecycleRank: 0, source: SessionData.codexSource, path: "/exec-helper.json")
         let autoHidden = candidate(sessionId: "auto-hidden", pid: 5, bundleId: HostAppBundleID.codexDesktop,
-                                   lifecycleRank: 0, source: Session.codexSource, path: "/auto-hidden.json") { session in
+                                   lifecycleRank: 0, source: SessionData.codexSource, path: "/auto-hidden.json") { session in
             session.isSubagentSession = true
         }
         let persistedHidden = candidate(sessionId: "persisted-hidden", pid: 6, bundleId: "com.googlecode.iterm2",
@@ -746,7 +746,7 @@ final class SessionLifecycleTests: XCTestCase {
         let terminalFinished = candidate(sessionId: "terminal-finished", pid: 7, bundleId: "com.googlecode.iterm2",
                                          lifecycleRank: 2, source: "cc", path: "/terminal-finished.json")
         let visible = candidate(sessionId: "visible-thread", pid: 8, bundleId: HostAppBundleID.codexDesktop,
-                                lifecycleRank: 0, source: Session.codexSource, path: "/visible.json")
+                                lifecycleRank: 0, source: SessionData.codexSource, path: "/visible.json")
 
         let state = SessionManager.sessionClassificationSnapshot(
             in: [
@@ -772,16 +772,16 @@ final class SessionLifecycleTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            state.displayCandidates.map(\.session.sessionId).sorted(),
+            state.displayCandidates.map(\.data.sessionId).sorted(),
             ["terminal-finished", "visible-thread"]
         )
-        XCTAssertEqual(state.finishedNonDesktopCandidates.map(\.session.sessionId), ["terminal-finished"])
+        XCTAssertEqual(state.finishedNonDesktopCandidates.map(\.data.sessionId), ["terminal-finished"])
         XCTAssertEqual(
             state.cleanupSources.map(\.sessionId).sorted(),
             ["archived-claude", "archived-thread"]
         )
         XCTAssertEqual(state.autoHiddenSessions.map(\.1.sessionId), ["auto-hidden"])
-        XCTAssertEqual(state.codexInternalHelperCandidates.map(\.session.sessionId), ["subagent-thread"])
+        XCTAssertEqual(state.codexInternalHelperCandidates.map(\.data.sessionId), ["subagent-thread"])
         XCTAssertEqual(state.protectedProjectPathsForCleanup, ["/tmp/p"])
     }
 
@@ -793,7 +793,7 @@ final class SessionLifecycleTests: XCTestCase {
             pid: 1,
             bundleId: HostAppBundleID.codexDesktop,
             lifecycleRank: SessionLifecycle.dormant.rawValue,
-            source: Session.codexSource,
+            source: SessionData.codexSource,
             lastActivity: Date(timeIntervalSince1970: 3000),
             path: "/codex.json"
         ) { session in
@@ -805,7 +805,7 @@ final class SessionLifecycleTests: XCTestCase {
             pid: 2,
             bundleId: HostAppBundleID.claudeDesktop,
             lifecycleRank: SessionLifecycle.dormant.rawValue,
-            source: Session.ccSource,
+            source: SessionData.ccSource,
             lastActivity: Date(timeIntervalSince1970: 2000),
             path: "/claude.json"
         ) { session in
@@ -832,7 +832,7 @@ final class SessionLifecycleTests: XCTestCase {
         XCTAssertFalse(targets.contains { $0.showsCopyPathAction })
     }
 
-    func testRecentResumeTargetsUsePermanentIdentityAndDeterministicArchivedObservation() throws {
+    func testRecentResumeTargetsUsePermanentIdentityAndDeterministicArchivedRecord() throws {
         let permanentID = "11111111-1111-4111-8111-111111111111"
         let preferredSessionID = "preferred-archived-observation"
         let otherSessionID = "other-archived-observation"
@@ -841,7 +841,7 @@ final class SessionLifecycleTests: XCTestCase {
             pid: 1,
             bundleId: HostAppBundleID.claudeDesktop,
             lifecycleRank: SessionLifecycle.dormant.rawValue,
-            source: Session.ccSource,
+            source: SessionData.ccSource,
             lastActivity: Date(timeIntervalSince1970: 3_000),
             mtime: Date(timeIntervalSince1970: 4_000),
             path: "/a-preferred.json"
@@ -855,7 +855,7 @@ final class SessionLifecycleTests: XCTestCase {
             pid: 2,
             bundleId: HostAppBundleID.claudeDesktop,
             lifecycleRank: SessionLifecycle.dormant.rawValue,
-            source: Session.ccSource,
+            source: SessionData.ccSource,
             lastActivity: Date(timeIntervalSince1970: 3_000),
             mtime: Date(timeIntervalSince1970: 4_000),
             path: "/z-other.json"
@@ -902,7 +902,7 @@ final class SessionLifecycleTests: XCTestCase {
         )
     }
 
-    func testRecentResumeTargetPermanentIdentityIsStableAcrossObservationMetadataChanges() throws {
+    func testRecentResumeTargetPermanentIdentityIsStableAcrossRecordMetadataChanges() throws {
         let permanentID = "22222222-2222-4222-8222-222222222222"
         let sessionID = "archived-observation"
         func target(title: String, projectName: String) throws -> RecentResumeTarget {
@@ -911,7 +911,7 @@ final class SessionLifecycleTests: XCTestCase {
                 pid: 1,
                 bundleId: HostAppBundleID.claudeDesktop,
                 lifecycleRank: SessionLifecycle.dormant.rawValue,
-                source: Session.ccSource,
+                source: SessionData.ccSource,
                 path: "/archived.json"
             ) { session in
                 session.cctopSessionId = permanentID
@@ -950,7 +950,7 @@ final class SessionLifecycleTests: XCTestCase {
             pid: 1,
             bundleId: HostAppBundleID.claudeDesktop,
             lifecycleRank: SessionLifecycle.dormant.rawValue,
-            source: Session.ccSource,
+            source: SessionData.ccSource,
             path: "/legacy-without-id.json"
         ) { session in
             session.cctopSessionId = nil
@@ -961,15 +961,15 @@ final class SessionLifecycleTests: XCTestCase {
             pid: 2,
             bundleId: HostAppBundleID.claudeDesktop,
             lifecycleRank: SessionLifecycle.dormant.rawValue,
-            source: Session.ccSource,
+            source: SessionData.ccSource,
             path: "/legacy-invalid-id.json"
         ) { session in
             session.cctopSessionId = "not-a-permanent-id"
             session.sessionName = "Legacy invalid ID"
         }
         let metadata = ClaudeDesktopSessionMetadataSnapshot(
-            matchedSessionIDs: [nilID.session.sessionId, invalidID.session.sessionId],
-            archivedSessionIDs: [nilID.session.sessionId, invalidID.session.sessionId],
+            matchedSessionIDs: [nilID.data.sessionId, invalidID.data.sessionId],
+            archivedSessionIDs: [nilID.data.sessionId, invalidID.data.sessionId],
             isAuthoritative: true
         )
         let classification = SessionManager.sessionClassificationSnapshot(
@@ -992,7 +992,7 @@ final class SessionLifecycleTests: XCTestCase {
             pid: 1,
             bundleId: nil,
             lifecycleRank: SessionLifecycle.dormant.rawValue,
-            source: Session.codexSource,
+            source: SessionData.codexSource,
             path: "/missing.json"
         )
         let classification = SessionManager.sessionClassificationSnapshot(
@@ -1083,15 +1083,15 @@ final class SessionLifecycleTests: XCTestCase {
     }
 
     func testClassificationSnapshotDoesNotEmitCleanupSourceForArchivedDesktopWithoutKnownPath() {
-        var session = Session(
+        var session = SessionData(
             sessionId: "archived-root",
             projectPath: "/",
             branch: "main",
             terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         )
-        session.source = Session.codexSource
-        let archived = DedupCandidate(
-            session: session,
+        session.source = SessionData.codexSource
+        let archived = SessionRecord(
+            data: session,
             lifecycleRank: SessionLifecycle.active.rawValue,
             mtime: .distantPast,
             path: "/archived-root.json"
@@ -1102,28 +1102,28 @@ final class SessionLifecycleTests: XCTestCase {
             codexThreads: StubCodexThreadState(archived: ["archived-root"])
         )
 
-        XCTAssertEqual(state.displayCandidates.map(\.session.sessionId), [])
+        XCTAssertEqual(state.displayCandidates.map(\.data.sessionId), [])
         XCTAssertEqual(state.cleanupSources.map(\.sessionId), [])
     }
 
     func testClassificationSnapshotDoesNotEmitCleanupSourcesForNonArchivedHiddenDesktopReasons() {
-        var missingCodexSession = Session(
+        var missingCodexSession = SessionData(
             sessionId: "missing-codex",
             projectPath: "/Users/dev/.codex/worktrees/missing-codex",
             branch: "main",
             terminal: TerminalInfo(bundleId: HostAppBundleID.codexDesktop)
         )
         missingCodexSession.pid = 1
-        missingCodexSession.source = Session.codexSource
+        missingCodexSession.source = SessionData.codexSource
         missingCodexSession.lastActivity = Date(timeIntervalSinceNow: -86_400)
-        let missingCodex = DedupCandidate(
-            session: missingCodexSession,
+        let missingCodex = SessionRecord(
+            data: missingCodexSession,
             lifecycleRank: SessionLifecycle.active.rawValue,
             mtime: .distantPast,
             path: "/missing-codex.json"
         )
 
-        var orphanClaudeSession = Session(
+        var orphanClaudeSession = SessionData(
             sessionId: "orphan-claude",
             projectPath: "/Users/dev/.codex/worktrees/orphan-claude",
             branch: "main",
@@ -1132,14 +1132,14 @@ final class SessionLifecycleTests: XCTestCase {
         orphanClaudeSession.pid = 2
         orphanClaudeSession.source = "cc"
         orphanClaudeSession.endedAt = Date(timeIntervalSince1970: 2000)
-        let orphanClaude = DedupCandidate(
-            session: orphanClaudeSession,
+        let orphanClaude = SessionRecord(
+            data: orphanClaudeSession,
             lifecycleRank: SessionLifecycle.active.rawValue,
             mtime: .distantPast,
             path: "/orphan-claude.json"
         )
 
-        var startupPlaceholderSession = Session(
+        var startupPlaceholderSession = SessionData(
             sessionId: "startup-placeholder",
             projectPath: "/Users/dev/.codex/worktrees/startup-placeholder",
             branch: "main",
@@ -1147,8 +1147,8 @@ final class SessionLifecycleTests: XCTestCase {
         )
         startupPlaceholderSession.pid = 3
         startupPlaceholderSession.source = "cc"
-        let startupPlaceholder = DedupCandidate(
-            session: startupPlaceholderSession,
+        let startupPlaceholder = SessionRecord(
+            data: startupPlaceholderSession,
             lifecycleRank: SessionLifecycle.active.rawValue,
             mtime: .distantPast,
             path: "/startup-placeholder.json"
@@ -1164,7 +1164,7 @@ final class SessionLifecycleTests: XCTestCase {
             codexThreads: StubCodexThreadState(existing: [])
         )
 
-        XCTAssertEqual(state.displayCandidates.map(\.session.sessionId), [String]())
+        XCTAssertEqual(state.displayCandidates.map(\.data.sessionId), [String]())
         XCTAssertEqual(state.cleanupSources.map(\.sessionId), [String]())
     }
 
@@ -1205,7 +1205,7 @@ final class SessionLifecycleTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            classification.displayCandidates.map(\.session.sessionId).sorted(),
+            classification.displayCandidates.map(\.data.sessionId).sorted(),
             ["named-idle", "notification-idle", "prompted-idle", "subagent-idle", "tool-detail-idle", "tool-idle"]
         )
     }
@@ -1214,7 +1214,7 @@ final class SessionLifecycleTests: XCTestCase {
     // sessions stay visible for the pass rather than vanishing on lookup uncertainty.
     func testClassificationSnapshotFailsOpenWhenExternalStoresAreUnreadable() {
         let codexThread = candidate(sessionId: "maybe-archived", pid: 1, bundleId: HostAppBundleID.codexDesktop,
-                                    lifecycleRank: 0, source: Session.codexSource, path: "/maybe.json")
+                                    lifecycleRank: 0, source: SessionData.codexSource, path: "/maybe.json")
         let claudeSession = candidate(sessionId: "maybe-orphaned", pid: 2, bundleId: HostAppBundleID.claudeDesktop,
                                       lifecycleRank: 0, source: "cc",
                                       endedAt: Date(timeIntervalSince1970: 2000), path: "/claude-maybe.json")
@@ -1228,10 +1228,10 @@ final class SessionLifecycleTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            classification.displayCandidates.map(\.session.sessionId).sorted(),
+            classification.displayCandidates.map(\.data.sessionId).sorted(),
             ["maybe-archived", "maybe-orphaned", "maybe-startup-only"]
         )
-        XCTAssertEqual(classification.codexInternalHelperCandidates.map(\.session.sessionId), [])
+        XCTAssertEqual(classification.codexInternalHelperCandidates.map(\.data.sessionId), [])
         XCTAssertEqual(classification.cleanupSources.map(\.sessionId), [])
     }
 
@@ -1270,7 +1270,7 @@ final class SessionLifecycleTests: XCTestCase {
             startMonitoring: false
         )
 
-        func record(_ sessionID: String, terminalHosted: Bool = false) -> (url: URL, session: Session) {
+        func record(_ sessionID: String, terminalHosted: Bool = false) -> (url: URL, session: SessionData) {
             var session = terminalHosted
                 ? codexTerminalSession(sessionId: sessionID, projectPath: "/tmp/\(sessionID)")
                 : codexSession(sessionId: sessionID, projectPath: "/tmp/\(sessionID)")
@@ -1290,10 +1290,10 @@ final class SessionLifecycleTests: XCTestCase {
             record("visible"),
         ]
         let first = manager.deriveSessionClassification(from: initialRecords)
-        XCTAssertEqual(first.displayCandidates.map(\.session.sessionId), ["visible"])
+        XCTAssertEqual(first.displayCandidates.map(\.data.sessionId), ["visible"])
 
         let second = manager.deriveSessionClassification(from: initialRecords + [record("new")])
-        XCTAssertEqual(second.displayCandidates.map(\.session.sessionId), ["visible", "new"])
+        XCTAssertEqual(second.displayCandidates.map(\.data.sessionId), ["visible", "new"])
         XCTAssertEqual(second.archivedCodexThreadIDs, ["archived", "archived-cli"])
         XCTAssertEqual(second.missingCodexThreadIDs, ["missing"])
         XCTAssertEqual(second.codexInternalHelperThreadIDs, ["internal"])
@@ -1301,7 +1301,7 @@ final class SessionLifecycleTests: XCTestCase {
 
         let third = manager.deriveSessionClassification(from: initialRecords + [record("new")])
         XCTAssertEqual(
-            third.displayCandidates.map(\.session.sessionId),
+            third.displayCandidates.map(\.data.sessionId),
             ["archived", "archived-cli", "missing", "internal", "exec-helper", "visible", "new"]
         )
         XCTAssertEqual(third.archivedCodexThreadIDs, [])
@@ -1344,7 +1344,7 @@ final class SessionLifecycleTests: XCTestCase {
     // Lifecycle used to be testable only by fabricating PIDs that could not exist; with liveness
     // injected, the same session flips between finished and active purely by the injected answer.
     func testBuildCandidatesDerivesLifecycleFromInjectedProcessAlive() {
-        var session = Session(
+        var session = SessionData(
             sessionId: "terminal-session", projectPath: "/tmp/p", branch: "main",
             terminal: TerminalInfo(program: "zsh", bundleId: "com.googlecode.iterm2")
         )
@@ -1360,7 +1360,7 @@ final class SessionLifecycleTests: XCTestCase {
             claudeMetadata: nil,
             processAlive: { _ in false }
         )
-        XCTAssertEqual(dead.map(\.session.lifecycle), [.finished])
+        XCTAssertEqual(dead.map(\.data.lifecycle), [.finished])
 
         let alive = SessionManager.buildCandidates(
             files, now: Self.lifeNow,
@@ -1368,7 +1368,7 @@ final class SessionLifecycleTests: XCTestCase {
             claudeMetadata: nil,
             processAlive: { _ in true }
         )
-        XCTAssertEqual(alive.map(\.session.lifecycle), [.active])
+        XCTAssertEqual(alive.map(\.data.lifecycle), [.active])
     }
 
     func testChildProcessProbeTreatsProcListChildPidsResultAsPIDCount() {
@@ -1380,7 +1380,7 @@ final class SessionLifecycleTests: XCTestCase {
     // MARK: - Idle timeout with an injected clock
 
     func testAdjustIdleTimeoutUsesInjectedNow() {
-        var session = Session(sessionId: "s", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
+        var session = SessionData(sessionId: "s", projectPath: "/tmp/p", branch: "main", terminal: TerminalInfo())
         session.status = .waitingInput
         session.lastActivity = Date(timeIntervalSince1970: 1_000_000)
 

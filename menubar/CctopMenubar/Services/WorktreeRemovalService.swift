@@ -30,7 +30,7 @@ struct WorktreeRemovalService {
 
     func selectedAction(
         for candidate: WorktreeCleanupCandidate,
-        cleanupSources: [SessionCleanupSource],
+        cleanupSources: [SessionDataCleanupSource],
         activeProjectPaths: Set<String>
     ) -> RemovalAction {
         switch readyCandidate(candidate, cleanupSources: cleanupSources, activeProjectPaths: activeProjectPaths) {
@@ -68,7 +68,7 @@ struct WorktreeRemovalService {
 
     func executeConfirmed(
         _ action: RemovalAction,
-        cleanupSources: [SessionCleanupSource],
+        cleanupSources: [SessionDataCleanupSource],
         activeProjectPaths: Set<String>
     ) -> RemovalResult {
         if case .blocked(let candidate, _) = action {
@@ -101,7 +101,7 @@ struct WorktreeRemovalService {
 
     func remove(
         _ candidate: WorktreeCleanupCandidate,
-        cleanupSources: [SessionCleanupSource],
+        cleanupSources: [SessionDataCleanupSource],
         activeProjectPaths: Set<String>
     ) -> RemovalResult {
         executeConfirmed(
@@ -118,7 +118,7 @@ struct WorktreeRemovalService {
 
     private func readyCandidate(
         _ candidate: WorktreeCleanupCandidate,
-        cleanupSources: [SessionCleanupSource],
+        cleanupSources: [SessionDataCleanupSource],
         activeProjectPaths: Set<String>
     ) -> ReadinessResult {
         guard candidate.state.isActionable else {

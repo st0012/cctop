@@ -210,11 +210,26 @@ enum SessionLifecycle: Int, Equatable {
     case finished = 2  // ended or aged out → eligible for GC
 }
 
-struct Session: Codable, Identifiable, Equatable {
+/// A cctop-owned user-session ID. The selected winner's value forms the current identity.
+/// Multiple `SessionRecord` values can carry the same ID before the app forms that group.
+enum CctopSessionID {
+    static func make() -> String {
+        UUID().uuidString.lowercased()
+    }
+
+    static func isValid(_ value: String?) -> Bool {
+        guard let value, let uuid = UUID(uuidString: value) else { return false }
+        return uuid.uuidString.lowercased() == value
+    }
+}
+
+/// The Codable model for session data decoded from one hook-owned JSON file.
+/// `lifecycle` is a derived display overlay and is never written to that JSON file.
+struct SessionData: Codable, Identifiable, Equatable {
     var sessionId: String
-    /// Cctop-owned identity for this logical session. It is deliberately independent of
-    /// harness references and live focus-target metadata. Nil only on legacy records that
-    /// have not yet been migrated by the app or touched by a current hook.
+    /// Serialized cctop-owned ID used to form one `UserSession`. It is deliberately
+    /// independent of harness references and live focus-target metadata. Nil only on legacy
+    /// records that have not yet been migrated by the app or touched by a current hook.
     var cctopSessionId: String?
     /// The exact unsanitized session reference supplied to the hook, byte-for-byte.
     /// This is lookup evidence for supported resume mappings, never cctop identity.
@@ -410,12 +425,12 @@ struct Session: Codable, Identifiable, Equatable {
     }
 
     /// Convenience init for creating new sessions (used by cctop-hook).
-    /// Delegates to the memberwise init so fields added to `Session` later pick up
+    /// Delegates to the memberwise init so fields added to `SessionData` later pick up
     /// their memberwise defaults here instead of needing a second hand-synced list.
     init(sessionId: String, projectPath: String, branch: String, terminal: TerminalInfo) {
         self.init(
             sessionId: sessionId,
-            cctopSessionId: Self.makeCctopSessionId(),
+            cctopSessionId: CctopSessionID.make(),
             projectPath: projectPath,
             projectName: Self.extractProjectName(projectPath),
             branch: branch,
@@ -431,15 +446,6 @@ struct Session: Codable, Identifiable, Equatable {
         )
     }
 
-    static func makeCctopSessionId() -> String {
-        UUID().uuidString.lowercased()
-    }
-
-    static func isValidCctopSessionId(_ value: String?) -> Bool {
-        guard let value, let uuid = UUID(uuidString: value) else { return false }
-        return uuid.uuidString.lowercased() == value
-    }
-
     mutating func markWrittenByHook(version: String, isNewSessionFile: Bool) {
         if isNewSessionFile { createdByHookVersion = version }
         lastWrittenByHookVersion = version
@@ -447,9 +453,9 @@ struct Session: Codable, Identifiable, Equatable {
 
     // MARK: - File I/O
 
-    static func fromFile(path: String) throws -> Session {
+    static func fromFile(path: String) throws -> SessionData {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
-        return try JSONDecoder.sessionDecoder.decode(Session.self, from: data)
+        return try JSONDecoder.sessionDecoder.decode(SessionData.self, from: data)
     }
 
     func writeToFile(path: String) throws {
@@ -487,8 +493,8 @@ struct Session: Codable, Identifiable, Equatable {
     /// Returns a copy with a new session_id (and optionally updated branch/terminal).
     /// Used when the same OS process gets a new CC session_id on resume.
     /// Copy-mutation preserves every other field by construction, so fields added
-    /// to `Session` later can never be silently dropped on session-id rotation.
-    func withSessionId(_ newId: String, branch: String? = nil, terminal: TerminalInfo? = nil) -> Session {
+    /// to `SessionData` later can never be silently dropped on session-id rotation.
+    func withSessionId(_ newId: String, branch: String? = nil, terminal: TerminalInfo? = nil) -> SessionData {
         var copy = self
         copy.sessionId = newId
         if let branch { copy.branch = branch }
@@ -522,7 +528,7 @@ struct Session: Codable, Identifiable, Equatable {
         return nil
     }
 
-    static func sorted(_ sessions: [Session]) -> [Session] {
+    static func sorted(_ sessions: [SessionData]) -> [SessionData] {
         // Live (active) sessions first, then dormant; within each tier by status, then recency.
         sessions.sorted {
             ($0.lifecycle.rawValue, $0.status.sortOrder, $1.lastActivity)
@@ -535,7 +541,7 @@ struct Session: Codable, Identifiable, Equatable {
     }
 }
 
-extension Session {
+extension SessionData {
     /// The best available inactive timestamp for ordering retained files.
     var effectiveEndDate: Date {
         disconnectedAt ?? endedAt ?? lastActivity
@@ -591,7 +597,7 @@ extension Session {
 
 // MARK: - Process Liveness
 
-extension Session {
+extension SessionData {
     static func processInfo(pid: UInt32) -> kinfo_proc? {
         var info = kinfo_proc()
         var size = MemoryLayout<kinfo_proc>.size

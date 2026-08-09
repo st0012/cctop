@@ -13,8 +13,8 @@
 		TOMLDEC0100000000000002 /* TOMLDecoder in Frameworks */ = {isa = PBXBuildFile; productRef = TOMLDEC0300000000000002 /* TOMLDecoder */; };
 		A10000010000000000000001 /* CctopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000020000000000000001 /* CctopApp.swift */; };
 		AC0000010000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AC0000020000000000000001 /* Assets.xcassets */; };
-		B10000010000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
-		SNC000010000000000000001 /* Session+NotificationContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = SNC000020000000000000001 /* Session+NotificationContent.swift */; };
+		B10000010000000000000001 /* SessionData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* SessionData.swift */; };
+		SNC000010000000000000001 /* SessionData+NotificationContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = SNC000020000000000000001 /* SessionData+NotificationContent.swift */; };
 		B10000030000000000000001 /* SessionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000040000000000000001 /* SessionStatus.swift */; };
 		C10000010000000000000001 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000020000000000000001 /* SessionManager.swift */; };
 		D10000010000000000000001 /* StatusChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000020000000000000001 /* StatusChip.swift */; };
@@ -33,7 +33,7 @@
 		EMUX0010000000000000001 /* FocusTerminal+Multiplexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EMUX0020000000000000001 /* FocusTerminal+Multiplexer.swift */; };
 		ERCT00010000000000000001 /* FocusTerminal+Recent.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERCT00020000000000000001 /* FocusTerminal+Recent.swift */; };
 		EK0000010000000000000001 /* HostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EK0000020000000000000001 /* HostApp.swift */; };
-		F10000010000000000000001 /* Session+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000020000000000000001 /* Session+Mock.swift */; };
+		F10000010000000000000001 /* SessionData+Mock.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000020000000000000001 /* SessionData+Mock.swift */; };
 		FK0000010000000000000001 /* ForkSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FK0000020000000000000001 /* ForkSessionTests.swift */; };
 		FT0000010000000000000001 /* WorkspaceFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000001 /* WorkspaceFileTests.swift */; };
 		FT0000010000000000000002 /* FocusTerminalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000002 /* FocusTerminalTests.swift */; };
@@ -79,7 +79,7 @@
 		P10000030000000000000001 /* HookInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000040000000000000001 /* HookInput.swift */; };
 		P10000050000000000000001 /* HookHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000060000000000000001 /* HookHandler.swift */; };
 		P10000070000000000000001 /* HookLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000080000000000000001 /* HookLogger.swift */; };
-		P10000090000000000000001 /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* Session.swift */; };
+		P10000090000000000000001 /* SessionData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000020000000000000001 /* SessionData.swift */; };
 		HM0000010000000000000001 /* HistoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = HM0000020000000000000001 /* HistoryManager.swift */; };
 		JM0000010000000000000001 /* NavigateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = JM0000020000000000000001 /* NavigateController.swift */; };
 		PC0000010000000000000001 /* PanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = PC0000020000000000000001 /* PanelCoordinator.swift */; };
@@ -150,6 +150,7 @@
 		WCT000010000000000000001 /* WorktreeCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WCT000020000000000000001 /* WorktreeCleanupTests.swift */; };
 		SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SLP000020000000000000001 /* SessionLifecyclePolicy.swift */; };
 		SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = SIP000020000000000000001 /* SessionIdentityPolicy.swift */; };
+		LGS000010000000000000001 /* UserSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = LGS000020000000000000001 /* UserSession.swift */; };
 		CSI000010000000000000001 /* CctopSessionIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CSI000030000000000000001 /* CctopSessionIdentityStore.swift */; };
 		CSI000020000000000000001 /* CctopSessionIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = CSI000030000000000000001 /* CctopSessionIdentityStore.swift */; };
 		DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */; };
@@ -188,12 +189,13 @@
 		A10000020000000000000001 /* CctopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CctopApp.swift; sourceTree = "<group>"; };
 		A10000030000000000000001 /* CctopMenubar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CctopMenubar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC0000020000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		B10000020000000000000001 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
-		SNC000020000000000000001 /* Session+NotificationContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Session+NotificationContent.swift"; sourceTree = "<group>"; };
+		B10000020000000000000001 /* SessionData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionData.swift; sourceTree = "<group>"; };
+		SNC000020000000000000001 /* SessionData+NotificationContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionData+NotificationContent.swift"; sourceTree = "<group>"; };
 		B10000040000000000000001 /* SessionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStatus.swift; sourceTree = "<group>"; };
 		C10000020000000000000001 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
 		SLP000020000000000000001 /* SessionLifecyclePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLifecyclePolicy.swift; sourceTree = "<group>"; };
 		SIP000020000000000000001 /* SessionIdentityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionIdentityPolicy.swift; sourceTree = "<group>"; };
+		LGS000020000000000000001 /* UserSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSession.swift; sourceTree = "<group>"; };
 		CSI000030000000000000001 /* CctopSessionIdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CctopSessionIdentityStore.swift; sourceTree = "<group>"; };
 		DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopAppConnectionLookup.swift; sourceTree = "<group>"; };
 		CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexThreadArchiveLookup.swift; sourceTree = "<group>"; };
@@ -221,7 +223,7 @@
 		EMUX0020000000000000001 /* FocusTerminal+Multiplexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+Multiplexer.swift"; sourceTree = "<group>"; };
 		ERCT00020000000000000001 /* FocusTerminal+Recent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+Recent.swift"; sourceTree = "<group>"; };
 		EK0000020000000000000001 /* HostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostApp.swift; sourceTree = "<group>"; };
-		F10000020000000000000001 /* Session+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Session+Mock.swift"; sourceTree = "<group>"; };
+		F10000020000000000000001 /* SessionData+Mock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionData+Mock.swift"; sourceTree = "<group>"; };
 		FK0000020000000000000001 /* ForkSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForkSessionTests.swift; sourceTree = "<group>"; };
 		FT0000020000000000000001 /* WorkspaceFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceFileTests.swift; sourceTree = "<group>"; };
 		FT0000020000000000000002 /* FocusTerminalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminalTests.swift; sourceTree = "<group>"; };
@@ -376,6 +378,7 @@
 				C10000020000000000000001 /* SessionManager.swift */,
 				SLP000020000000000000001 /* SessionLifecyclePolicy.swift */,
 				SIP000020000000000000001 /* SessionIdentityPolicy.swift */,
+				LGS000020000000000000001 /* UserSession.swift */,
 				CSI000030000000000000001 /* CctopSessionIdentityStore.swift */,
 				DCL000020000000000000001 /* DesktopAppConnectionLookup.swift */,
 				CTA000020000000000000001 /* CodexThreadArchiveLookup.swift */,
@@ -454,12 +457,12 @@
 		A10000080000000000000001 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				B10000020000000000000001 /* Session.swift */,
-				SNC000020000000000000001 /* Session+NotificationContent.swift */,
+				B10000020000000000000001 /* SessionData.swift */,
+				SNC000020000000000000001 /* SessionData+NotificationContent.swift */,
 				B10000040000000000000001 /* SessionStatus.swift */,
 				N10000040000000000000001 /* HookEvent.swift */,
 				N10000060000000000000001 /* Config.swift */,
-				F10000020000000000000001 /* Session+Mock.swift */,
+				F10000020000000000000001 /* SessionData+Mock.swift */,
 				H10000020000000000000001 /* AppSettings.swift */,
 				ATH000020000000000000001 /* AppTheme.swift */,
 				AGB000020000000000000001 /* AgentBadge.swift */,
@@ -702,12 +705,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000010000000000000001 /* CctopApp.swift in Sources */,
-				B10000010000000000000001 /* Session.swift in Sources */,
-				SNC000010000000000000001 /* Session+NotificationContent.swift in Sources */,
+				B10000010000000000000001 /* SessionData.swift in Sources */,
+				SNC000010000000000000001 /* SessionData+NotificationContent.swift in Sources */,
 				B10000030000000000000001 /* SessionStatus.swift in Sources */,
 				C10000010000000000000001 /* SessionManager.swift in Sources */,
 				SLP000010000000000000001 /* SessionLifecyclePolicy.swift in Sources */,
 				SIP000010000000000000001 /* SessionIdentityPolicy.swift in Sources */,
+				LGS000010000000000000001 /* UserSession.swift in Sources */,
 				CSI000010000000000000001 /* CctopSessionIdentityStore.swift in Sources */,
 				DCL000010000000000000001 /* DesktopAppConnectionLookup.swift in Sources */,
 				CTA000010000000000000001 /* CodexThreadArchiveLookup.swift in Sources */,
@@ -734,7 +738,7 @@
 				ECMUX001000000000000001 /* FocusTerminal+Cmux.swift in Sources */,
 				EMUX0010000000000000001 /* FocusTerminal+Multiplexer.swift in Sources */,
 				ERCT00010000000000000001 /* FocusTerminal+Recent.swift in Sources */,
-				F10000010000000000000001 /* Session+Mock.swift in Sources */,
+				F10000010000000000000001 /* SessionData+Mock.swift in Sources */,
 				G10000010000000000000001 /* FloatingPanel.swift in Sources */,
 				G10000030000000000000001 /* AppDelegate.swift in Sources */,
 				H10000010000000000000001 /* AppSettings.swift in Sources */,
@@ -812,7 +816,7 @@
 				HD0000020000000000000001 /* HookDependencies.swift in Sources */,
 				P10000070000000000000001 /* HookLogger.swift in Sources */,
 				SN0000010000000000000001 /* SessionNameLookup.swift in Sources */,
-				P10000090000000000000001 /* Session.swift in Sources */,
+				P10000090000000000000001 /* SessionData.swift in Sources */,
 				P1000000A000000000000001 /* SessionStatus.swift in Sources */,
 				P1000000B000000000000001 /* HookEvent.swift in Sources */,
 				P1000000C000000000000001 /* Config.swift in Sources */,

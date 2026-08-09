@@ -20,7 +20,7 @@ class WorktreeCleanupManager: ObservableObject {
     }
 
     func refresh(
-        from cleanupSources: [SessionCleanupSource],
+        from cleanupSources: [SessionDataCleanupSource],
         activeProjectPaths: Set<String>,
         force: Bool = false,
         onCompletion: (([WorktreeCleanupCandidate]) -> Void)? = nil
@@ -58,7 +58,7 @@ final class WorktreeCleanupRefreshGate: ObservableObject {
     @Published private(set) var hasHiddenCleanupNudge = false
 
     private let manager: WorktreeCleanupManager
-    private var cleanupSources: [SessionCleanupSource] = []
+    private var cleanupSources: [SessionDataCleanupSource] = []
     private var activeProjectPaths: Set<String> = []
     private var isCleanupTabSelected = false
     private var isPanelVisible = false
@@ -69,7 +69,7 @@ final class WorktreeCleanupRefreshGate: ObservableObject {
         self.manager = manager
     }
 
-    func updateSources(_ cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
+    func updateSources(_ cleanupSources: [SessionDataCleanupSource], activeProjectPaths: Set<String>) {
         self.cleanupSources = cleanupSources
         self.activeProjectPaths = activeProjectPaths
         if isCleanupVisible {
@@ -158,7 +158,7 @@ struct WorktreeCleanupRefreshSignature: Equatable {
     private let cleanupSources: [CleanupSourceFingerprint]
     private let activeProjectPaths: [String]
 
-    init(cleanupSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
+    init(cleanupSources: [SessionDataCleanupSource], activeProjectPaths: Set<String>) {
         self.cleanupSources = cleanupSources
             .compactMap {
                 let path = WorktreeCleanupScanner.standardizedPath($0.projectPath)

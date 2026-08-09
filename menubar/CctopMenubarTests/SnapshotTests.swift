@@ -127,7 +127,10 @@ final class SnapshotTests: XCTestCase {
     ///   make snapshots
     func testGenerateMenubarScreenshot() throws {
         let view = PopupView(
-            sessions: Session.qaShowcase, updater: DisabledUpdater(), pluginManager: inertPluginManager()
+            sessions: SessionData.qaShowcase,
+            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager()
         )
         try renderScreenshot(view: view, colorScheme: .light, filename: "menubar-light.png")
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-dark.png")
@@ -137,7 +140,9 @@ final class SnapshotTests: XCTestCase {
         let rc = NavigateController()
         rc.isActive = true
         let view = PopupView(
-            sessions: Array(Session.qaShowcase.prefix(4)), updater: DisabledUpdater(),
+            sessions: Array(SessionData.qaShowcase.prefix(4)),
+            userSessions: userSessionProjection(from: Array(SessionData.qaShowcase.prefix(4))),
+            updater: DisabledUpdater(),
             pluginManager: inertPluginManager(), navigate: rc
         )
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-navigate.png")
@@ -185,7 +190,9 @@ final class SnapshotTests: XCTestCase {
 
     func testGenerateRecentProjectsScreenshot() throws {
         let view = PopupView(
-            sessions: Session.qaShowcase, recentProjects: RecentProject.mockRecents,
+            sessions: SessionData.qaShowcase,
+            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            recentProjects: RecentProject.mockRecents,
             updater: DisabledUpdater(), pluginManager: inertPluginManager(), initialTab: .recent
         )
         try renderScreenshot(view: view, colorScheme: .dark, filename: "menubar-recent.png")
@@ -204,73 +211,73 @@ final class SnapshotTests: XCTestCase {
         let sessions = [
             recentProofSession(
                 projectPath: "/", projectName: "root",
-                branch: "main", source: Session.ccSource,
+                branch: "main", source: SessionData.ccSource,
                 terminal: TerminalInfo(program: "Terminal", bundleId: "com.apple.Terminal"),
                 endedAt: now
             ),
             recentProofSession(
                 projectPath: home, projectName: URL(fileURLWithPath: home).lastPathComponent,
-                branch: "main", source: Session.ccSource,
+                branch: "main", source: SessionData.ccSource,
                 terminal: TerminalInfo(program: "ghostty", bundleId: "com.mitchellh.ghostty"),
                 endedAt: now.addingTimeInterval(-30)
             ),
             recentProofSession(
                 projectPath: projectContainerPath, projectName: "projects",
-                branch: "main", source: Session.codexSource,
+                branch: "main", source: SessionData.codexSource,
                 terminal: TerminalInfo(program: "Cursor"),
                 endedAt: now.addingTimeInterval(-60)
             ),
             recentProofSession(
                 projectPath: "/tmp/cctop-noise", projectName: "cctop-noise",
-                branch: "main", source: Session.codexSource,
+                branch: "main", source: SessionData.codexSource,
                 terminal: TerminalInfo(program: "Cursor"),
                 endedAt: now.addingTimeInterval(-90)
             ),
             recentProofSession(
                 projectPath: "/private/tmp/cctop-noise", projectName: "private-noise",
-                branch: "main", source: Session.ccSource,
+                branch: "main", source: SessionData.ccSource,
                 terminal: TerminalInfo(program: "ghostty", bundleId: "com.mitchellh.ghostty"),
                 endedAt: now.addingTimeInterval(-120)
             ),
             recentProofSession(
                 projectPath: "/var/folders/zz/cctop-noise", projectName: "var-noise",
-                branch: "main", source: Session.opencodeSource,
+                branch: "main", source: SessionData.opencodeSource,
                 terminal: TerminalInfo(program: "Terminal", bundleId: "com.apple.Terminal"),
                 endedAt: now.addingTimeInterval(-150)
             ),
             recentProofSession(
                 projectPath: cachePath, projectName: "cache-noise",
-                branch: "main", source: Session.piSource,
+                branch: "main", source: SessionData.piSource,
                 terminal: TerminalInfo(program: "Zed"),
                 endedAt: now.addingTimeInterval(-180)
             ),
             recentProofSession(
                 projectPath: missingPath, projectName: "missing-noise",
-                branch: "main", source: Session.codexSource,
+                branch: "main", source: SessionData.codexSource,
                 terminal: TerminalInfo(program: "Code"),
                 endedAt: now.addingTimeInterval(-210)
             ),
             recentProofSession(
                 projectPath: durableEditorPath, projectName: "cctop",
-                branch: "codex/recent-projects-open-project", source: Session.codexSource,
+                branch: "codex/recent-projects-open-project", source: SessionData.codexSource,
                 terminal: TerminalInfo(program: "Cursor", bundleId: "com.todesktop.230313mzl4w4u92"),
                 endedAt: now.addingTimeInterval(-240)
             ),
             recentProofSession(
                 projectPath: durableEditorPath, projectName: "cctop",
-                branch: "codex/recent-projects-open-project", source: Session.ccSource,
+                branch: "codex/recent-projects-open-project", source: SessionData.ccSource,
                 terminal: TerminalInfo(program: "Cursor"),
                 endedAt: now.addingTimeInterval(-300)
             ),
             recentProofSession(
                 projectPath: durableTerminalPath, projectName: "irb",
-                branch: "master", source: Session.ccSource,
+                branch: "master", source: SessionData.ccSource,
                 terminal: TerminalInfo(program: "ghostty", bundleId: "com.mitchellh.ghostty"),
                 endedAt: now.addingTimeInterval(-360)
             ),
             recentProofSession(
                 projectPath: durableFallbackPath, projectName: "rdoc",
-                branch: "unknown", source: Session.codexSource,
+                branch: "unknown", source: SessionData.codexSource,
                 terminal: TerminalInfo(program: "Codex"),
                 endedAt: now.addingTimeInterval(-420)
             ),
@@ -296,6 +303,7 @@ final class SnapshotTests: XCTestCase {
 
         let view = PopupView(
             sessions: [],
+            userSessions: [],
             recentProjects: recentProjects,
             updater: DisabledUpdater(),
             pluginManager: inertPluginManager(),
@@ -314,19 +322,19 @@ final class SnapshotTests: XCTestCase {
         let sessions = [
             recentProofSession(
                 projectPath: "/tmp/cctop-noise", projectName: "tmp-noise",
-                branch: "main", source: Session.codexSource,
+                branch: "main", source: SessionData.codexSource,
                 terminal: TerminalInfo(program: "Cursor"),
                 endedAt: Date()
             ),
             recentProofSession(
                 projectPath: "\(home)/Library/Caches/cctop-noise", projectName: "cache-noise",
-                branch: "main", source: Session.ccSource,
+                branch: "main", source: SessionData.ccSource,
                 terminal: TerminalInfo(program: "Ghostty"),
                 endedAt: Date().addingTimeInterval(-60)
             ),
             recentProofSession(
                 projectPath: "\(home)/projects/missing-recent-proof", projectName: "missing-noise",
-                branch: "main", source: Session.codexSource,
+                branch: "main", source: SessionData.codexSource,
                 terminal: TerminalInfo(program: "Code"),
                 endedAt: Date().addingTimeInterval(-120)
             ),
@@ -337,6 +345,7 @@ final class SnapshotTests: XCTestCase {
 
         let view = PopupView(
             sessions: [],
+            userSessions: [],
             recentProjects: recentProjects,
             updater: DisabledUpdater(),
             pluginManager: inertPluginManager(),
@@ -403,6 +412,7 @@ final class SnapshotTests: XCTestCase {
 
         let view = PopupView(
             sessions: [],
+            userSessions: [],
             recentResumeTargets: targets,
             updater: DisabledUpdater(),
             pluginManager: inertPluginManager(),
@@ -419,7 +429,8 @@ final class SnapshotTests: XCTestCase {
 
     func testGenerateCleanupScreenshot() throws {
         let view = PopupView(
-            sessions: Session.qaShowcase,
+            sessions: SessionData.qaShowcase,
+            userSessions: userSessionProjection(from: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: WorktreeCleanupCandidate.mockCandidates.filter(\.state.isActionable),
             updater: DisabledUpdater(),
@@ -433,7 +444,8 @@ final class SnapshotTests: XCTestCase {
         let candidates = WorktreeCleanupCandidate.mockCandidates.filter(\.state.isActionable)
         let directoryName = "cctop-cleanup-discoverability-proof-\(Int(Date().timeIntervalSince1970))"
         let normalView = PopupView(
-            sessions: Session.qaShowcase,
+            sessions: SessionData.qaShowcase,
+            userSessions: userSessionProjection(from: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             updater: DisabledUpdater(),
@@ -441,7 +453,8 @@ final class SnapshotTests: XCTestCase {
             initialTab: .cleanup
         )
         let scanningView = PopupView(
-            sessions: Session.qaShowcase,
+            sessions: SessionData.qaShowcase,
+            userSessions: userSessionProjection(from: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             cleanupIsScanning: true,
@@ -450,7 +463,8 @@ final class SnapshotTests: XCTestCase {
             initialTab: .cleanup
         )
         let nudgedView = PopupView(
-            sessions: Session.qaShowcase,
+            sessions: SessionData.qaShowcase,
+            userSessions: userSessionProjection(from: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             cleanupHasUnseenCandidates: true,
@@ -494,7 +508,8 @@ final class SnapshotTests: XCTestCase {
         let candidates = [clean, review]
 
         let cleanView = PopupView(
-            sessions: Session.qaShowcase,
+            sessions: SessionData.qaShowcase,
+            userSessions: userSessionProjection(from: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             updater: DisabledUpdater(),
@@ -503,7 +518,8 @@ final class SnapshotTests: XCTestCase {
             initialCleanupCandidate: clean
         )
         let reviewView = PopupView(
-            sessions: Session.qaShowcase,
+            sessions: SessionData.qaShowcase,
+            userSessions: userSessionProjection(from: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             updater: DisabledUpdater(),
@@ -533,7 +549,10 @@ final class SnapshotTests: XCTestCase {
         for theme in AppTheme.allCases {
             ThemeManager.shared.setTheme(theme)
             let view = PopupView(
-                sessions: Session.qaShowcase, updater: DisabledUpdater(), pluginManager: inertPluginManager()
+                sessions: SessionData.qaShowcase,
+                userSessions: userSessionProjection(from: SessionData.qaShowcase),
+                updater: DisabledUpdater(),
+                pluginManager: inertPluginManager()
             )
             try renderScreenshot(view: view, colorScheme: .dark, filename: "theme-\(theme.rawValue)-dark.png")
             try renderScreenshot(view: view, colorScheme: .light, filename: "theme-\(theme.rawValue)-light.png")
@@ -559,8 +578,8 @@ final class SnapshotTests: XCTestCase {
         source: String?,
         terminal: TerminalInfo?,
         endedAt: Date
-    ) -> Session {
-        Session(
+    ) -> SessionData {
+        SessionData(
             sessionId: UUID().uuidString,
             projectPath: projectPath,
             projectName: projectName,

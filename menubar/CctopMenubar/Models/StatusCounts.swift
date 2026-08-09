@@ -26,7 +26,7 @@ struct StatusCounts: Equatable {
     }
 
     /// Create counts by aggregating session statuses.
-    init(sessions: [Session], now: Date = Date()) {
+    init(sessions: [SessionData], now: Date = Date()) {
         var perm = 0, attn = 0, work = 0, idleCount = 0
         // Only presentation-active sessions drive the menubar badge. Dormant and stale-idle
         // cards are retained for reachability, not live work, so they never inflate counts.

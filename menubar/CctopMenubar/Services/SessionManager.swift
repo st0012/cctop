@@ -7,22 +7,23 @@ import os.log
 let sessionManagerLogger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
 
 struct WorktreeCleanupSessionSnapshot {
-    let cleanupSources: [SessionCleanupSource]
+    let cleanupSources: [SessionDataCleanupSource]
     let activeProjectPaths: Set<String>
 }
 
 @MainActor
 // swiftlint:disable:next type_body_length
 class SessionManager: ObservableObject {
-    @Published var sessions: [Session] = []
+    @Published private(set) var sessions: [SessionData] = []
     @Published var recentResumeTargets: [RecentResumeTarget] = []
+    private(set) var userSessions: [UserSession] = []
 
     let historyManager: HistoryManager
     let dataSources: SessionDataSources
-    var cleanupRefreshHandler: (([SessionCleanupSource], Set<String>) -> Void)?
-    private(set) var cleanupSources: [SessionCleanupSource] = []
+    var cleanupRefreshHandler: (([SessionDataCleanupSource], Set<String>) -> Void)?
+    private(set) var cleanupSources: [SessionDataCleanupSource] = []
     private(set) var cleanupActiveProjectPaths: Set<String> = []
-    private var currentClassificationCleanupSources: [SessionCleanupSource] = []
+    private var currentClassificationCleanupSources: [SessionDataCleanupSource] = []
     var codexThreadClassificationMemory = CodexThreadClassificationMemory()
 
     private let sessionsDir: URL
@@ -73,7 +74,7 @@ class SessionManager: ObservableObject {
             lastDisplaySignature = .empty
             lastLoadLogSignature = nil
             sessionFileCache.removeAll()
-            sessions = []
+            updateSessionProjection([])
             if !hasStoredHideEvidence {
                 publishRecentResumeTargets(historyManager.recentProjects.map(RecentResumeTarget.project))
             }
@@ -105,7 +106,7 @@ class SessionManager: ObservableObject {
         let winners = SessionIdentityPolicy.dedupedCandidatesByStableKey(displayCandidates)
         let now = dataSources.now()
         let identifiedCandidates = identifiedPublishableCandidates(winners: winners, knownRecords: allDecoded)
-        let identifiedInventory = classification.records.map(\.candidate.session) + identifiedCandidates.map(\.session)
+        let identifiedInventory = classification.records.map(\.candidate.data) + identifiedCandidates.map(\.data)
         dataSources.manualSessionVisibility.migrateLegacyStableKeys(
             using: identifiedInventory, persistedSessions: allDecoded.map(\.session), inventoryComplete: inventoryComplete
         )
@@ -113,22 +114,31 @@ class SessionManager: ObservableObject {
         let hiddenSessionIDs = manualHides.hiddenSessionIDs
         let retainedFinishedCleanupSources = retainedFinishedCleanupSources(winners: winners, manualHides: manualHides)
         let observedCleanupSources = classification.cleanupSources + retainedFinishedCleanupSources
-        let visibleCandidates = identifiedCandidates.filter { !manualHides.matches($0.session) }
-        let identifiedSessions = SessionIdentityPolicy.dedupedCandidatesByLogicalIdentity(visibleCandidates).map(\.session)
-        let loadedSessions = identifiedSessions.map { adjustDisplayStatus($0) }
-        let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
-        let newSessions = orderedSessions
-        let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
-        syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)
-        // Only publish when data actually changed, or when the presentation bucket changed
-        // because an active idle session crossed the stale-idle threshold.
-        if newSessions != sessions || displaySignature != lastDisplaySignature {
-            if newSessions.count != sessions.count {
-                sessionManagerLogger.info("loadSessions: session count \(self.sessions.count) -> \(newSessions.count)")
-            }
-            lastDisplaySignature = displaySignature
-            sessions = newSessions
+        let visibleCandidates = identifiedCandidates.filter { !manualHides.matches($0.data) }
+        let visibleRecords = displayCandidates.filter { !manualHides.matches($0.data) }
+        let groupedUserSessions = UserSession.grouping(
+            winners: visibleCandidates,
+            records: visibleRecords
+        )
+        let loadedUserSessions = groupedUserSessions.map {
+            $0.replacingDisplayData(adjustDisplayStatus($0.displayRecord.data))
         }
+        let loadedSessions = loadedUserSessions.map(\.displayRecord.data)
+        let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
+        let userSessionsByID = Dictionary(
+            uniqueKeysWithValues: loadedUserSessions.map { ($0.identity, $0) }
+        )
+        let newUserSessions = orderedSessions.compactMap { data in
+            let identity = SessionIdentityPolicy.logicalIdentity(for: data)
+            return userSessionsByID[identity]?.replacingDisplayData(data)
+        }
+        let newSessions = newUserSessions.map(\.displayRecord.data)
+        let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
+        updateSessionProjection(
+            newUserSessions,
+            displaySignature: displaySignature,
+            syncNotificationsFrom: oldSessions
+        )
 
         hideAutoHiddenSessions(autoHidden)
         hideCodexInternalHelperSessions(classification.codexInternalHelperCandidates)
@@ -171,7 +181,7 @@ class SessionManager: ObservableObject {
 
         // Prune permanent IDs only after a complete inventory; partial reads retain them to avoid revealing sessions.
         if inventoryComplete {
-            let validSessionIDs = Set(identifiedInventory.compactMap(\.cctopSessionId).filter(Session.isValidCctopSessionId))
+            let validSessionIDs = Set(identifiedInventory.compactMap(\.cctopSessionId).filter(CctopSessionID.isValid))
             dataSources.manualSessionVisibility.prune(retaining: validSessionIDs)
         }
     }
@@ -182,28 +192,26 @@ class SessionManager: ObservableObject {
         }
     }
 
-    func withSessionLockForMaintenance(
-        sessionPath: String,
-        sessionId: String,
-        action: String,
-        body: () throws -> Void
+    func updateSessionProjection(
+        _ newUserSessions: [UserSession],
+        displaySignature: SessionDisplayPolicy.Signature? = nil,
+        syncNotificationsFrom oldSessions: [SessionData]? = nil
     ) {
-        do {
-            let didAcquire = try withSessionLockIfAvailable(
-                sessionPath: sessionPath,
-                onError: { sessionManagerLogger.warning("\($0, privacy: .public)") },
-                body: body
-            )
-            if !didAcquire {
-                sessionManagerLogger.info(
-                    "skipping \(action, privacy: .public) for \(sessionId, privacy: .public): session lock is busy"
-                )
-            }
-        } catch {
-            sessionManagerLogger.warning(
-                "skipping \(action, privacy: .public) for \(sessionId, privacy: .public): \(error.localizedDescription, privacy: .public)"
-            )
+        let newSessions = newUserSessions.map(\.displayRecord.data)
+        userSessions = newUserSessions
+        if let oldSessions {
+            syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)
         }
+
+        let displayChanged = displaySignature.map { $0 != lastDisplaySignature } ?? false
+        guard newSessions != sessions || displayChanged else { return }
+        if newSessions.count != sessions.count {
+            sessionManagerLogger.info("loadSessions: session count \(self.sessions.count) -> \(newSessions.count)")
+        }
+        if let displaySignature {
+            lastDisplaySignature = displaySignature
+        }
+        sessions = newSessions
     }
 
     func cleanupSnapshotForRemoval() -> WorktreeCleanupSessionSnapshot {
@@ -214,7 +222,7 @@ class SessionManager: ObservableObject {
         )
     }
 
-    private func hideAutoHiddenSessions(_ sessions: [(URL, Session)]) {
+    private func hideAutoHiddenSessions(_ sessions: [(URL, SessionData)]) {
         for (url, session) in sessions {
             withSessionLockForMaintenance(sessionPath: url.path, sessionId: session.sessionId, action: "auto-hide update") {
                 guard let hiddenSession = try Self.autoHiddenSessionSnapshot(path: url.path) else { return }
@@ -226,24 +234,24 @@ class SessionManager: ObservableObject {
         }
     }
 
-    private func autoHideReason(for session: Session) -> String {
+    private func autoHideReason(for session: SessionData) -> String {
         if session.isSubagentSession { return "subagent-owned" }
         if session.isCodexMemoryMaintenanceSession { return "Codex memory maintenance" }
         if session.isCodexTitleGenerationSession { return "Codex title generation" }
         return "maintenance"
     }
 
-    private func clearReconnectedDesktopSessions(_ candidates: [DedupCandidate], now: Date) {
+    private func clearReconnectedDesktopSessions(_ candidates: [SessionRecord], now: Date) {
         for candidate in candidates {
-            guard candidate.session.hostClass == .desktop,
-                  candidate.session.lifecycle == .active,
-                  candidate.session.disconnectedAt != nil else { continue }
+            guard candidate.data.hostClass == .desktop,
+                  candidate.data.lifecycle == .active,
+                  candidate.data.disconnectedAt != nil else { continue }
             withSessionLockForMaintenance(
                 sessionPath: candidate.path,
-                sessionId: candidate.session.sessionId,
+                sessionId: candidate.data.sessionId,
                 action: "desktop reconnect update"
             ) {
-                guard var session = try? Session.fromFile(path: candidate.path),
+                guard var session = try? SessionData.fromFile(path: candidate.path),
                       session.hostClass == .desktop,
                       session.disconnectedAt != nil else {
                     return
@@ -263,17 +271,17 @@ class SessionManager: ObservableObject {
         }
     }
 
-    private func stampDisconnectedDesktopSessions(_ candidates: [DedupCandidate], now: Date) {
+    private func stampDisconnectedDesktopSessions(_ candidates: [SessionRecord], now: Date) {
         for candidate in candidates {
-            guard candidate.session.hostClass == .desktop,
-                  candidate.session.lifecycle == .dormant,
-                  candidate.session.disconnectedAt == nil else { continue }
+            guard candidate.data.hostClass == .desktop,
+                  candidate.data.lifecycle == .dormant,
+                  candidate.data.disconnectedAt == nil else { continue }
             withSessionLockForMaintenance(
                 sessionPath: candidate.path,
-                sessionId: candidate.session.sessionId,
+                sessionId: candidate.data.sessionId,
                 action: "desktop disconnect update"
             ) {
-                guard var session = try? Session.fromFile(path: candidate.path),
+                guard var session = try? SessionData.fromFile(path: candidate.path),
                       session.hostClass == .desktop,
                       session.disconnectedAt == nil else {
                     return
@@ -301,7 +309,7 @@ class SessionManager: ObservableObject {
         let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
         let manualHides = dataSources.manualSessionVisibility.manualHideEvidence(
             in: jsonFiles.compactMap { url in
-                (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.sessionDecoder.decode(Session.self, from: $0) }
+                (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.sessionDecoder.decode(SessionData.self, from: $0) }
             }
         )
         preloadArchiveStateForFinishedRetainedSessions(in: jsonFiles, now: now)
@@ -314,7 +322,7 @@ class SessionManager: ObservableObject {
                 action: "retained session GC"
             ) {
                 guard let data = try? Data(contentsOf: url),
-                      let session = try? JSONDecoder.sessionDecoder.decode(Session.self, from: data) else {
+                      let session = try? JSONDecoder.sessionDecoder.decode(SessionData.self, from: data) else {
                     return   // decode failure → never treat as finished
                 }
                 guard !session.hidden, !session.shouldAutoHide else { return }
@@ -345,16 +353,16 @@ class SessionManager: ObservableObject {
         }
     }
 
-    private func refreshCleanupSources(from currentSources: [SessionCleanupSource], activeProjectPaths: Set<String>) {
+    private func refreshCleanupSources(from currentSources: [SessionDataCleanupSource], activeProjectPaths: Set<String>) {
         currentClassificationCleanupSources = currentSources
         cleanupSources = historyManager.lastDecodedHistorySessions
-            .compactMap { SessionCleanupSource(endedSession: $0) } + currentSources
+            .compactMap { SessionDataCleanupSource(endedSession: $0) } + currentSources
         cleanupActiveProjectPaths = activeProjectPaths
         cleanupRefreshHandler?(cleanupSources, activeProjectPaths)
     }
 
     /// Apply display-side status adjustments. The session file on disk is NOT modified.
-    private func adjustDisplayStatus(_ session: Session) -> Session {
+    private func adjustDisplayStatus(_ session: SessionData) -> SessionData {
         // A dormant (backgrounded) session isn't actively in any state — render it neutral (idle)
         // so it never shows a false "waiting"/"permission" pill. It's already excluded from counts
         // and notifications; this keeps the card itself honest.
@@ -372,7 +380,7 @@ class SessionManager: ObservableObject {
 
     /// If a session has been in `waitingInput` for over 60 minutes, treat it as
     /// `idle` for display. The user likely walked away.
-    nonisolated static func adjustIdleTimeout(_ session: Session, now: Date) -> Session {
+    nonisolated static func adjustIdleTimeout(_ session: SessionData, now: Date) -> SessionData {
         guard session.status == .waitingInput,
               now.timeIntervalSince(session.lastActivity) > Self.idleTimeoutSeconds else {
             return session
@@ -390,7 +398,7 @@ class SessionManager: ObservableObject {
     /// This distinguishes tool subprocesses from long-lived children like MCP servers
     /// by comparing each child's start time against `lastActivity` (set when
     /// PermissionRequest fired).
-    private func adjustPermissionStatus(_ session: Session) -> Session {
+    private func adjustPermissionStatus(_ session: SessionData) -> SessionData {
         guard session.status == .waitingPermission,
               let pid = session.pid else {
             return session
@@ -399,7 +407,7 @@ class SessionManager: ObservableObject {
         // Small tolerance for clock/serialization jitter; MCP servers started minutes+ before.
         let cutoff = session.lastActivity.timeIntervalSince1970 - 1.0
         for childPid in listChildPids(pid: pid) {
-            if let startTime = Session.processStartTime(pid: UInt32(childPid)),
+            if let startTime = SessionData.processStartTime(pid: UInt32(childPid)),
                startTime > cutoff {
                 var adjusted = session
                 adjusted.status = .working

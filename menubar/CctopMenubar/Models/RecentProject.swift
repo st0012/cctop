@@ -64,13 +64,13 @@ struct RecentProject: Identifiable, Equatable {
         return hostApp.displayName
     }
 
-    static func agentName(from session: Session) -> String? {
+    static func agentName(from session: SessionData) -> String? {
         if session.isClaudeDesktopHost { return "Claude Desktop" }
         switch session.source {
-        case Session.codexSource?: return "Codex"
-        case Session.ccSource?: return "Claude Code"
-        case Session.opencodeSource?: return "opencode"
-        case Session.piSource?: return "pi"
+        case SessionData.codexSource?: return "Codex"
+        case SessionData.ccSource?: return "Claude Code"
+        case SessionData.opencodeSource?: return "opencode"
+        case SessionData.piSource?: return "pi"
         case .some(let source) where !source.isEmpty: return source
         default: return nil
         }
