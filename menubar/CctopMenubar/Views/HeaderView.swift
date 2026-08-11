@@ -1,11 +1,9 @@
 import SwiftUI
 
 struct HeaderView: View {
-    let sessions: [SessionData]
+    let counts: StatusCounts
 
     var body: some View {
-        let counts = StatusCounts(sessions: sessions)
-
         HStack(spacing: 0) {
             HStack(alignment: .center, spacing: 7) {
                 HairlineBrandMark()
@@ -78,5 +76,7 @@ private struct HairlineBrandMark: View {
 }
 
 #Preview("Normal") {
-    HeaderView(sessions: SessionData.qaShowcase).frame(width: 320).padding()
+    HeaderView(counts: StatusCounts(permission: 1, attention: 1, working: 2, idle: 1))
+        .frame(width: 320)
+        .padding()
 }

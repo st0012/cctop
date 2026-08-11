@@ -314,8 +314,7 @@ final class WorktreeCleanupScenarioSnapshotTests: XCTestCase {
         isScanning: Bool = false
     ) -> PopupView {
         PopupView(
-            sessions: sessions,
-            userSessions: userSessionProjection(from: sessions),
+            userSessions: userSessions(fromDataFixtures: sessions),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             cleanupIsScanning: isScanning,

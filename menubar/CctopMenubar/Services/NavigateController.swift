@@ -14,8 +14,8 @@ class NavigateController: ObservableObject {
     }
     private var timeoutWork: DispatchWorkItem?
 
-    func activate(sessions: [SessionData]) {
-        frozenSessionIdentities = sessions.map(SessionIdentityPolicy.logicalIdentity)
+    func activate(userSessions: [UserSession]) {
+        frozenSessionIdentities = userSessions.map(\.identity)
         isActive = true
         didActivateSubject.send()
     }

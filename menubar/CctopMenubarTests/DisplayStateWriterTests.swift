@@ -42,20 +42,21 @@ final class DisplayStateWriterTests: XCTestCase {
         var idle = SessionData.mock(id: "d", project: "delta", status: .idle)
         idle.lastActivity = now.addingTimeInterval(-60)
         let sessions = [permission, workingOld, workingNew, idle]
+        let userSessions = userSessions(fromDataFixtures: sessions)
 
         let snapshot = DisplayStateWriter.snapshot(
-            sessions: sessions,
+            userSessions: userSessions,
             theme: .claude,
             appRunning: true,
             appIdentity: DisplayState.ProcessIdentity(pid: 123, startTime: 1_000),
             now: now
         )
 
-        let expected = SessionDisplayPolicy.activeSessions(from: sessions, now: now)
+        let expected = SessionDisplayPolicy.activeSessions(from: userSessions, now: now)
         XCTAssertEqual(snapshot.sessions.count, expected.count)
         XCTAssertEqual(
             snapshot.sessions.map(\.cctopSessionId),
-            expected.map { $0.cctopSessionId ?? "" }
+            expected.map { $0.identity.cctopSessionID ?? "" }
         )
         XCTAssertEqual(snapshot.sessions.map(\.name), ["alpha", "bravo", "charlie", "delta"])
     }
@@ -69,7 +70,7 @@ final class DisplayStateWriterTests: XCTestCase {
         let active = SessionData.mock(id: "active", status: .working)
 
         let snapshot = DisplayStateWriter.snapshot(
-            sessions: [dormant, staleIdle, active],
+            userSessions: userSessions(fromDataFixtures: [dormant, staleIdle, active]),
             theme: .claude,
             appRunning: true,
             appIdentity: DisplayState.ProcessIdentity(pid: 123, startTime: 1_000),
@@ -89,7 +90,7 @@ final class DisplayStateWriterTests: XCTestCase {
             source: "codex"
         )
         let snapshot = DisplayStateWriter.snapshot(
-            sessions: [session],
+            userSessions: userSessions(fromDataFixtures: [session]),
             theme: .claude,
             appRunning: true,
             appIdentity: DisplayState.ProcessIdentity(pid: 456, startTime: 1_234.5),
@@ -119,7 +120,7 @@ final class DisplayStateWriterTests: XCTestCase {
     func testStoppedSnapshotPreservesRecentTargetsButDropsProcessIdentity() {
         let session = SessionData.mock(id: "stable-display-id", status: .working)
         let snapshot = DisplayStateWriter.snapshot(
-            sessions: [session],
+            userSessions: userSessions(fromDataFixtures: [session]),
             theme: .claude,
             appRunning: false,
             appIdentity: DisplayState.ProcessIdentity(pid: 456, startTime: 1_234.5),
@@ -132,7 +133,7 @@ final class DisplayStateWriterTests: XCTestCase {
         XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [session.cctopSessionId ?? ""])
     }
 
-    func testSnapshotKeepsOneOrderedEntryPerVisibleFocusTarget() {
+    func testSnapshotKeepsOneEntryForOneUserSessionWithRetainedRecords() {
         let now = Date()
         let cctopSessionID = "11111111-2222-4333-8444-555555555555"
         var original = SessionData.mock(
@@ -145,18 +146,22 @@ final class DisplayStateWriterTests: XCTestCase {
             status: .working, pid: 999, pidStartTime: 2_000
         )
         resumedElsewhere.lastActivity = now.addingTimeInterval(-20)
-        let canonical = [original, resumedElsewhere]
+        let userSession = userSession(
+            identity: SessionIdentityPolicy.logicalIdentity(for: original),
+            display: original,
+            records: [original, resumedElsewhere]
+        )
 
         let snapshot = DisplayStateWriter.snapshot(
-            sessions: canonical,
+            userSessions: [userSession],
             theme: .claude,
             appRunning: true,
             appIdentity: DisplayState.ProcessIdentity(pid: 123, startTime: 1_000),
             now: now
         )
 
-        XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [cctopSessionID, cctopSessionID])
-        XCTAssertEqual(snapshot.sessions.map(\.name), ["first", "second"])
+        XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [cctopSessionID])
+        XCTAssertEqual(snapshot.sessions.map(\.name), ["first"])
     }
 
     func testMissingLegacyIdentityLeavesAnEmptySlotWithoutShiftingLaterRows() {
@@ -165,7 +170,18 @@ final class DisplayStateWriterTests: XCTestCase {
         let current = SessionData.mock(id: "current", project: "second", status: .working)
 
         let snapshot = DisplayStateWriter.snapshot(
-            sessions: [legacy, current],
+            userSessions: [
+                userSession(
+                    identity: SessionIdentityPolicy.logicalIdentity(for: legacy),
+                    display: legacy,
+                    records: [legacy]
+                ),
+                userSession(
+                    identity: SessionIdentityPolicy.logicalIdentity(for: current),
+                    display: current,
+                    records: [current]
+                ),
+            ],
             theme: .claude,
             appRunning: true,
             appIdentity: nil,

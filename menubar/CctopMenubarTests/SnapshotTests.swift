@@ -127,8 +127,7 @@ final class SnapshotTests: XCTestCase {
     ///   make snapshots
     func testGenerateMenubarScreenshot() throws {
         let view = PopupView(
-            sessions: SessionData.qaShowcase,
-            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
             updater: DisabledUpdater(),
             pluginManager: inertPluginManager()
         )
@@ -140,8 +139,7 @@ final class SnapshotTests: XCTestCase {
         let rc = NavigateController()
         rc.isActive = true
         let view = PopupView(
-            sessions: Array(SessionData.qaShowcase.prefix(4)),
-            userSessions: userSessionProjection(from: Array(SessionData.qaShowcase.prefix(4))),
+            userSessions: userSessions(fromDataFixtures: Array(SessionData.qaShowcase.prefix(4))),
             updater: DisabledUpdater(),
             pluginManager: inertPluginManager(), navigate: rc
         )
@@ -190,8 +188,7 @@ final class SnapshotTests: XCTestCase {
 
     func testGenerateRecentProjectsScreenshot() throws {
         let view = PopupView(
-            sessions: SessionData.qaShowcase,
-            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             updater: DisabledUpdater(), pluginManager: inertPluginManager(), initialTab: .recent
         )
@@ -302,7 +299,6 @@ final class SnapshotTests: XCTestCase {
         XCTAssertEqual(recentProjects[2].metadataEvidenceText, "Codex \u{00B7} 1 session")
 
         let view = PopupView(
-            sessions: [],
             userSessions: [],
             recentProjects: recentProjects,
             updater: DisabledUpdater(),
@@ -344,7 +340,6 @@ final class SnapshotTests: XCTestCase {
         XCTAssertTrue(recentProjects.isEmpty)
 
         let view = PopupView(
-            sessions: [],
             userSessions: [],
             recentProjects: recentProjects,
             updater: DisabledUpdater(),
@@ -411,7 +406,6 @@ final class SnapshotTests: XCTestCase {
         XCTAssertFalse(targets.contains { $0.openActionLabel.contains("Thread") || ($0.inlineActionLabel?.contains("Thread") ?? false) })
 
         let view = PopupView(
-            sessions: [],
             userSessions: [],
             recentResumeTargets: targets,
             updater: DisabledUpdater(),
@@ -429,8 +423,7 @@ final class SnapshotTests: XCTestCase {
 
     func testGenerateCleanupScreenshot() throws {
         let view = PopupView(
-            sessions: SessionData.qaShowcase,
-            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: WorktreeCleanupCandidate.mockCandidates.filter(\.state.isActionable),
             updater: DisabledUpdater(),
@@ -444,8 +437,7 @@ final class SnapshotTests: XCTestCase {
         let candidates = WorktreeCleanupCandidate.mockCandidates.filter(\.state.isActionable)
         let directoryName = "cctop-cleanup-discoverability-proof-\(Int(Date().timeIntervalSince1970))"
         let normalView = PopupView(
-            sessions: SessionData.qaShowcase,
-            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             updater: DisabledUpdater(),
@@ -453,8 +445,7 @@ final class SnapshotTests: XCTestCase {
             initialTab: .cleanup
         )
         let scanningView = PopupView(
-            sessions: SessionData.qaShowcase,
-            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             cleanupIsScanning: true,
@@ -463,8 +454,7 @@ final class SnapshotTests: XCTestCase {
             initialTab: .cleanup
         )
         let nudgedView = PopupView(
-            sessions: SessionData.qaShowcase,
-            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             cleanupHasUnseenCandidates: true,
@@ -508,8 +498,7 @@ final class SnapshotTests: XCTestCase {
         let candidates = [clean, review]
 
         let cleanView = PopupView(
-            sessions: SessionData.qaShowcase,
-            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             updater: DisabledUpdater(),
@@ -518,8 +507,7 @@ final class SnapshotTests: XCTestCase {
             initialCleanupCandidate: clean
         )
         let reviewView = PopupView(
-            sessions: SessionData.qaShowcase,
-            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             cleanupCandidates: candidates,
             updater: DisabledUpdater(),
@@ -549,8 +537,7 @@ final class SnapshotTests: XCTestCase {
         for theme in AppTheme.allCases {
             ThemeManager.shared.setTheme(theme)
             let view = PopupView(
-                sessions: SessionData.qaShowcase,
-                userSessions: userSessionProjection(from: SessionData.qaShowcase),
+                userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
                 updater: DisabledUpdater(),
                 pluginManager: inertPluginManager()
             )

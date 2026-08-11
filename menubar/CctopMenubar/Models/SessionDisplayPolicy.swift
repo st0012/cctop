@@ -1,7 +1,7 @@
 import Foundation
 
-/// Presentation-only grouping for visible retained sessions.
-/// This does not change lifecycle or cleanup semantics.
+/// Selects display buckets and reconciles canonical order on `UserSession` values.
+/// It reads `displayRecord.data` only for lifecycle and status; identity stays on the group.
 enum SessionDisplayPolicy {
     struct Signature: Equatable {
         let activeIDs: [SessionIdentityPolicy.LogicalIdentity]
@@ -12,16 +12,8 @@ enum SessionDisplayPolicy {
 
     static let staleIdleInterval: TimeInterval = 172_800 // 48 hours
 
-    static func activeSessions(from sessions: [SessionData], now: Date = Date()) -> [SessionData] {
-        sessions.filter { isActive($0, now: now) }
-    }
-
     static func activeSessions(from userSessions: [UserSession], now: Date = Date()) -> [UserSession] {
         userSessions.filter { isActive($0.displayRecord.data, now: now) }
-    }
-
-    static func idleSessions(from sessions: [SessionData], now: Date = Date()) -> [SessionData] {
-        sessions.filter { isIdle($0, now: now) }
     }
 
     static func idleSessions(from userSessions: [UserSession], now: Date = Date()) -> [UserSession] {
@@ -29,47 +21,74 @@ enum SessionDisplayPolicy {
     }
 
     /// Keeps Active status groups in priority order while preserving the relative order of peers
-    /// that remain in a group. Sessions entering a group append after its surviving members, and
-    /// the full-array return value leaves the current non-Active remainder unchanged.
-    static func reconcilingActiveOrder(
-        in sessions: [SessionData],
-        preserving previousSessions: [SessionData],
+    /// that remain in a group. Sessions entering a group append after its surviving members.
+    /// Idle groups keep the existing lifecycle, status, and recency order at the manager boundary.
+    static func reconcilingOrder(
+        in userSessions: [UserSession],
+        preserving previousUserSessions: [UserSession],
         now: Date = Date()
-    ) -> [SessionData] {
-        let active = activeSessions(from: sessions, now: now)
-        let activeByKey = Dictionary(
-            active.map { (SessionIdentityPolicy.logicalIdentity(for: $0), $0) },
+    ) -> [UserSession] {
+        let active = activeSessions(from: userSessions, now: now)
+        let activeByIdentity = Dictionary(
+            active.map { ($0.identity, $0) },
             uniquingKeysWith: { first, _ in first }
         )
-        let activeKeys = Set(activeByKey.keys)
-        var groups = Array(repeating: [SessionData](), count: SessionStatus.idle.sortOrder + 1)
-        var placedKeys: Set<SessionIdentityPolicy.LogicalIdentity> = []
+        let activeIdentities = Set(activeByIdentity.keys)
+        var groups = Array(repeating: [UserSession](), count: SessionStatus.idle.sortOrder + 1)
+        var placedIdentities: Set<SessionIdentityPolicy.LogicalIdentity> = []
 
-        for previous in activeSessions(from: previousSessions, now: now) {
-            let key = SessionIdentityPolicy.logicalIdentity(for: previous)
-            guard !placedKeys.contains(key),
-                  let current = activeByKey[key],
+        for previous in activeSessions(from: previousUserSessions, now: now) {
+            guard let current = matchingCurrentUserSession(
+                for: previous,
+                active: active,
+                activeByIdentity: activeByIdentity
+            ),
+                  !placedIdentities.contains(current.identity),
                   current.status.sortOrder == previous.status.sortOrder else { continue }
             groups[current.status.sortOrder].append(current)
-            placedKeys.insert(key)
+            placedIdentities.insert(current.identity)
         }
 
         for current in active {
-            let key = SessionIdentityPolicy.logicalIdentity(for: current)
-            guard placedKeys.insert(key).inserted else { continue }
+            guard placedIdentities.insert(current.identity).inserted else { continue }
             groups[current.status.sortOrder].append(current)
         }
 
         let orderedActive = groups.flatMap { $0 }
-        let nonActive = sessions.filter { !activeKeys.contains(SessionIdentityPolicy.logicalIdentity(for: $0)) }
-        return orderedActive + nonActive
+        let orderedIdle = userSessions
+            .filter { !activeIdentities.contains($0.identity) }
+            .sorted(by: precedesInIdleOrder)
+        return orderedActive + orderedIdle
     }
 
-    static func signature(for sessions: [SessionData], now: Date = Date()) -> Signature {
+    static func signature(for userSessions: [UserSession], now: Date = Date()) -> Signature {
         Signature(
-            activeIDs: activeSessions(from: sessions, now: now).map(SessionIdentityPolicy.logicalIdentity),
-            idleIDs: idleSessions(from: sessions, now: now).map(SessionIdentityPolicy.logicalIdentity)
+            activeIDs: activeSessions(from: userSessions, now: now).map(\.identity),
+            idleIDs: idleSessions(from: userSessions, now: now).map(\.identity)
         )
+    }
+
+    private static func matchingCurrentUserSession(
+        for previous: UserSession,
+        active: [UserSession],
+        activeByIdentity: [SessionIdentityPolicy.LogicalIdentity: UserSession]
+    ) -> UserSession? {
+        if let exact = activeByIdentity[previous.identity] { return exact }
+        guard case .legacy(let stableKey) = previous.identity else { return nil }
+        let matches = active.filter { userSession in
+            userSession.records.contains {
+                SessionIdentityPolicy.stableKey(for: $0.data) == stableKey
+            }
+        }
+        guard matches.count == 1 else { return nil }
+        return matches[0]
+    }
+
+    private static func precedesInIdleOrder(_ left: UserSession, _ right: UserSession) -> Bool {
+        let leftData = left.displayRecord.data
+        let rightData = right.displayRecord.data
+        return (leftData.lifecycle.rawValue, left.status.sortOrder, rightData.lastActivity)
+            < (rightData.lifecycle.rawValue, right.status.sortOrder, leftData.lastActivity)
     }
 
     private static func isStaleActiveIdle(_ session: SessionData, now: Date) -> Bool {
