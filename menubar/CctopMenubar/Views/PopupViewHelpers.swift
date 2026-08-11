@@ -2,22 +2,21 @@ import AppKit
 import SwiftUI
 
 struct ManualSessionHideConfirmation: Identifiable, Equatable {
-    let session: SessionData
-    let cctopSessionID: String
+    let identity: SessionIdentityPolicy.LogicalIdentity
+    let displayName: String
 
-    init?(session: SessionData) {
-        guard let cctopSessionID = session.cctopSessionId,
-              CctopSessionID.isValid(cctopSessionID) else { return nil }
-        self.session = session
-        self.cctopSessionID = cctopSessionID
+    init?(identity: SessionIdentityPolicy.LogicalIdentity, displayName: String) {
+        guard identity.cctopSessionID != nil else { return nil }
+        self.identity = identity
+        self.displayName = displayName
     }
 
     var id: String {
-        "hide:\(cctopSessionID)"
+        "hide:\(identity.cctopSessionID ?? "")"
     }
 
     var title: String {
-        "Hide “\(session.displayName)” from cctop?"
+        "Hide “\(displayName)” from cctop?"
     }
 
     let message = "It will disappear from the panel, notifications, Navigate mode, and Stream Deck. "
@@ -271,8 +270,11 @@ struct FooterUpdateStatusView: View {
 }
 
 extension PopupView {
-    func requestHideSession(_ session: SessionData) {
-        guard let confirmation = ManualSessionHideConfirmation(session: session) else { return }
+    func requestHideSession(_ row: PanelSessionRow) {
+        guard let confirmation = ManualSessionHideConfirmation(
+            identity: row.userSession.identity,
+            displayName: row.session.displayName
+        ) else { return }
         pendingConfirmation = .sessionHide(confirmation)
     }
 
@@ -290,17 +292,16 @@ extension PopupView {
             title: Text(confirmation.title),
             message: Text(confirmation.message),
             primaryButton: .destructive(Text(confirmation.primaryButtonTitle)) {
-                hideSession(confirmation.session)
+                hideSession(confirmation.identity)
             },
             secondaryButton: .cancel()
         )
     }
 
-    func hideSession(_ session: SessionData) {
-        guard let cctopSessionID = session.cctopSessionId,
-              CctopSessionID.isValid(cctopSessionID),
-              sessions.contains(where: { $0.cctopSessionId == cctopSessionID }) else { return }
-        onHideSession(session)
+    func hideSession(_ identity: SessionIdentityPolicy.LogicalIdentity) {
+        guard identity.cctopSessionID != nil,
+              userSessions.contains(where: { $0.identity == identity }) else { return }
+        onHideSession(identity)
         selectedIndex = nil
         selectedSessionIdentity = nil
     }
@@ -328,7 +329,6 @@ struct PanelContentView: View {
 
     var body: some View {
         PopupView(
-            sessions: sessionManager.sessions,
             userSessions: sessionManager.userSessions,
             recentProjects: historyManager.recentProjects,
             recentResumeTargets: sessionManager.recentResumeTargets,
@@ -366,8 +366,9 @@ struct PanelContentView: View {
     PluginManager(homeDirectory: URL(fileURLWithPath: "/nonexistent"), refreshOnInit: false)
 }
 
-private func previewUserSessions(from sessions: [SessionData]) -> [UserSession] {
-    let records = sessions.enumerated().map { index, data in
+/// Runs raw preview fixtures forward through the production record and grouping stages.
+private func previewUserSessions(fromDataFixtures dataFixtures: [SessionData]) -> [UserSession] {
+    let records = dataFixtures.enumerated().map { index, data in
         SessionRecord(
             data: data,
             lifecycleRank: data.lifecycle.rawValue,
@@ -383,37 +384,33 @@ private func previewUserSessions(from sessions: [SessionData]) -> [UserSession] 
 
 #Preview("With sessions") {
     PopupView(
-        sessions: SessionData.mockSessions,
-        userSessions: previewUserSessions(from: SessionData.mockSessions),
+        userSessions: previewUserSessions(fromDataFixtures: SessionData.mockSessions),
         updater: DisabledUpdater(),
         pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Mixed sources") {
     PopupView(
-        sessions: SessionData.qaShowcase,
-        userSessions: previewUserSessions(from: SessionData.qaShowcase),
+        userSessions: previewUserSessions(fromDataFixtures: SessionData.qaShowcase),
         updater: DisabledUpdater(),
         pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Empty") {
     PopupView(
-        sessions: [], userSessions: [], updater: DisabledUpdater(), pluginManager: previewPluginManager()
+        userSessions: [], updater: DisabledUpdater(), pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("With Tabs") {
     PopupView(
-        sessions: SessionData.mockSessions,
-        userSessions: previewUserSessions(from: SessionData.mockSessions),
+        userSessions: previewUserSessions(fromDataFixtures: SessionData.mockSessions),
         recentProjects: RecentProject.mockRecents,
         updater: DisabledUpdater(), pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Cleanup") {
     PopupView(
-        sessions: SessionData.mockSessions,
-        userSessions: previewUserSessions(from: SessionData.mockSessions),
+        userSessions: previewUserSessions(fromDataFixtures: SessionData.mockSessions),
         recentProjects: RecentProject.mockRecents,
         cleanupCandidates: WorktreeCleanupCandidate.mockCandidates,
         updater: DisabledUpdater(), pluginManager: previewPluginManager(), initialTab: .cleanup
@@ -421,23 +418,23 @@ private func previewUserSessions(from sessions: [SessionData]) -> [UserSession] 
 }
 #Preview("Only Recents") {
     PopupView(
-        sessions: [], userSessions: [], recentProjects: RecentProject.mockRecents,
+        userSessions: [], recentProjects: RecentProject.mockRecents,
         updater: DisabledUpdater(), pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Empty Recents Tab") {
     PopupView(
-        sessions: SessionData.mockSessions,
-        userSessions: previewUserSessions(from: SessionData.mockSessions),
+        userSessions: previewUserSessions(fromDataFixtures: SessionData.mockSessions),
         recentProjects: [RecentProject.mock()],
         updater: DisabledUpdater(), pluginManager: previewPluginManager()
     ).frame(width: 320)
 }
 #Preview("Navigate") {
-    let rc = NavigateController(); rc.isActive = true
+    let userSessions = previewUserSessions(fromDataFixtures: SessionData.qaShowcase)
+    let rc = NavigateController()
+    rc.activate(userSessions: SessionDisplayPolicy.activeSessions(from: userSessions))
     return PopupView(
-        sessions: SessionData.qaShowcase,
-        userSessions: previewUserSessions(from: SessionData.qaShowcase),
+        userSessions: userSessions,
         recentProjects: RecentProject.mockRecents,
         updater: DisabledUpdater(), pluginManager: previewPluginManager(), navigate: rc
     ).frame(width: 320)

@@ -1,3 +1,4 @@
+import Combine
 import Darwin
 import XCTest
 @testable import CctopMenubar
@@ -49,23 +50,22 @@ final class SessionManagerVisibilityTests: XCTestCase {
             processAlive: { _ in true },
             manualSessionVisibility: visibility
         )
-        let originalOrder = manager.sessions.map { SessionIdentityPolicy.stableKey(for: $0) }
-        let hidden = try XCTUnwrap(manager.sessions.dropFirst().first)
-        let hiddenStableKey = SessionIdentityPolicy.stableKey(for: hidden)
-        let hiddenSessionID = try XCTUnwrap(hidden.cctopSessionId)
+        let originalOrder = manager.userSessions.map(\.identity)
+        let hiddenUserSession = try XCTUnwrap(manager.userSessions.dropFirst().first)
+        let hidden = hiddenUserSession.displayRecord.data
+        let hiddenSessionID = try XCTUnwrap(hiddenUserSession.identity.cctopSessionID)
 
-        manager.hideSession(hidden)
+        manager.hideSession(hiddenUserSession.identity)
 
-        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data), manager.sessions)
         XCTAssertFalse(manager.userSessions.contains { $0.identity.cctopSessionID == hiddenSessionID })
         XCTAssertEqual(
-            manager.sessions.map { SessionIdentityPolicy.stableKey(for: $0) },
-            originalOrder.filter { $0 != hiddenStableKey }
+            manager.userSessions.map(\.identity),
+            originalOrder.filter { $0 != hiddenUserSession.identity }
         )
-        XCTAssertEqual(StatusCounts(sessions: manager.sessions).total, 2)
+        XCTAssertEqual(StatusCounts(userSessions: manager.userSessions).total, 2)
         XCTAssertEqual(
             DisplayStateWriter.snapshot(
-                sessions: manager.sessions,
+                userSessions: manager.userSessions,
                 theme: .claude,
                 appRunning: true,
                 appIdentity: nil,
@@ -79,8 +79,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         manager.loadSessions()
         XCTAssertEqual(
-            manager.sessions.map { SessionIdentityPolicy.stableKey(for: $0) },
-            originalOrder.filter { $0 != hiddenStableKey }
+            manager.userSessions.map(\.identity),
+            originalOrder.filter { $0 != hiddenUserSession.identity }
         )
         XCTAssertTrue(manager.cleanupActiveProjectPaths.contains(hidden.projectPath))
 
@@ -90,7 +90,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             processAlive: { _ in true },
             manualSessionVisibility: visibility
         )
-        XCTAssertFalse(reloaded.sessions.contains { $0.cctopSessionId == hiddenSessionID })
+        XCTAssertFalse(reloaded.userSessions.contains { $0.identity.cctopSessionID == hiddenSessionID })
 
         try FileManager.default.removeItem(atPath: hiddenPath)
         reloaded.loadSessions()
@@ -142,24 +142,120 @@ final class SessionManagerVisibilityTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertEqual(manager.sessions.count, 2)
-        XCTAssertEqual(manager.userSessions.map { $0.displayRecord.data }, manager.sessions)
+        XCTAssertEqual(manager.userSessions.count, 2)
         let shared = try XCTUnwrap(manager.userSessions.first { $0.identity.cctopSessionID == sharedID })
         XCTAssertEqual(shared.displayRecord.data.pid, 22_222)
         XCTAssertEqual(Set(shared.records.compactMap { $0.data.pid }), [11_111, 22_222])
 
-        previous.sessionName = "Updated non-winning observation"
+        previous.sessionName = "Updated non-winning record"
         try previous.writeToFile(path: previousURL.path)
         manager.loadSessions()
 
-        XCTAssertEqual(manager.userSessions.map { $0.displayRecord.data }, manager.sessions)
         let refreshed = try XCTUnwrap(manager.userSessions.first { $0.identity.cctopSessionID == sharedID })
         XCTAssertEqual(refreshed.displayRecord.data.pid, 22_222)
         XCTAssertTrue(refreshed.records.contains { $0.data.sessionName == previous.sessionName })
 
-        manager.hideSession(current)
-        XCTAssertEqual(manager.userSessions.map { $0.displayRecord.data }, manager.sessions)
+        manager.hideSession(refreshed.identity)
         XCTAssertFalse(manager.userSessions.contains { $0.identity.cctopSessionID == sharedID })
+    }
+
+    @MainActor
+    func testUpdateSessionProjectionPublishesRetainedRecordChangesWhenDisplayDataIsUnchanged() throws {
+        let sources = try isolatedSessionDataSources(prefix: "cctop-record-identity")
+        let historyDir = sources.sessionsDir.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: historyDir, withIntermediateDirectories: true)
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: historyDir),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        let displayData = SessionData.mock(
+            id: "display",
+            cctopSessionId: "22222222-2222-4222-8222-222222222222",
+            status: .working,
+            pid: 456,
+            source: SessionData.codexSource
+        )
+        var retainedData = displayData
+        retainedData.pid = 789
+        let displayRecord = SessionRecord(
+            data: displayData,
+            lifecycleRank: SessionLifecycle.active.rawValue,
+            mtime: Date(timeIntervalSince1970: 123_456),
+            path: sources.sessionsDir.appendingPathComponent("display.json").path
+        )
+        let retainedRecord = SessionRecord(
+            data: retainedData,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            mtime: Date(timeIntervalSince1970: 123_400),
+            path: sources.sessionsDir.appendingPathComponent("retained.json").path
+        )
+        let initial = UserSession(
+            identity: SessionIdentityPolicy.logicalIdentity(for: displayData),
+            records: [displayRecord],
+            displayRecord: displayRecord
+        )
+        manager.updateSessionProjection([initial])
+        var didPublish = false
+        let cancellable: AnyCancellable = manager.objectWillChange.sink { didPublish = true }
+        defer { cancellable.cancel() }
+
+        manager.updateSessionProjection([
+            UserSession(
+                identity: initial.identity,
+                records: [displayRecord, retainedRecord],
+                displayRecord: displayRecord
+            ),
+        ])
+
+        XCTAssertTrue(didPublish)
+        XCTAssertEqual(manager.userSessions.first?.records.count, 2)
+    }
+
+    @MainActor
+    func testIdentityAssignmentReturnsTheRecordWithEvidenceIntact() throws {
+        let sources = try isolatedSessionDataSources(prefix: "cctop-record-evidence")
+        let historyDir = sources.sessionsDir.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: historyDir, withIntermediateDirectories: true)
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: historyDir),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        let durableSessionID = "11111111-1111-4111-8111-111111111111"
+        let assignedCctopSessionID = "22222222-2222-4222-8222-222222222222"
+        var data = SessionData.mock(
+            id: durableSessionID,
+            status: .working,
+            pid: 456,
+            source: SessionData.codexSource
+        )
+        data.cctopSessionId = nil
+        data.harnessSessionId = durableSessionID
+        var knownData = data
+        knownData.cctopSessionId = assignedCctopSessionID
+        let recordURL = sources.sessionsDir.appendingPathComponent("record.json")
+        try data.writeToFile(path: recordURL.path)
+        let record = SessionRecord(
+            data: data,
+            lifecycleRank: SessionLifecycle.dormant.rawValue,
+            mtime: Date(timeIntervalSince1970: 123_456),
+            path: recordURL.path
+        )
+
+        let result = try XCTUnwrap(
+            manager.assigningCctopSessionIdentities(
+                to: [record],
+                knownRecords: [(url: sources.sessionsDir.appendingPathComponent("known.json"), session: knownData)]
+            ).first
+        )
+        waitForIdentityMigrationQueue(manager)
+
+        XCTAssertEqual(result.data.cctopSessionId, assignedCctopSessionID)
+        XCTAssertEqual(result.data.sessionId, data.sessionId)
+        XCTAssertEqual(result.lifecycleRank, record.lifecycleRank)
+        XCTAssertEqual(result.mtime, record.mtime)
+        XCTAssertEqual(result.path, record.path)
     }
 
     @MainActor
@@ -185,13 +281,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
             dataSources: sources,
             startMonitoring: false
         )
-        XCTAssertEqual(manager.sessions.count, 1)
         XCTAssertEqual(manager.userSessions.count, 1)
 
         try FileManager.default.removeItem(at: sessionsDir)
         manager.loadSessions()
 
-        XCTAssertTrue(manager.sessions.isEmpty)
         XCTAssertTrue(manager.userSessions.isEmpty)
     }
 
@@ -207,8 +301,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let identityBlockerPath = (root as NSString).appendingPathComponent("session-identities")
         try Data("not a directory".utf8).write(to: URL(fileURLWithPath: identityBlockerPath))
         let threadID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
-        let currentRecordID = "current-observation"
-        let conflictingRecordID = "conflicting-observation"
+        let currentRecordID = "current-record"
+        let conflictingRecordID = "conflicting-record"
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
         let conflictingCctopSessionID = "22222222-2222-4222-8222-222222222222"
         var session = SessionData(
@@ -269,7 +363,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let historyManager = HistoryManager(historyDir: URL(fileURLWithPath: historyDir))
         let manager = SessionManager(historyManager: historyManager, dataSources: sources, startMonitoring: false)
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(postedNotificationIDs.isEmpty)
         XCTAssertTrue(visibility.hiddenSessionIDs.isEmpty)
         XCTAssertNil(try SessionData.fromFile(path: sessionPath).cctopSessionId)
@@ -281,7 +375,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try FileManager.default.removeItem(atPath: conflictingPath)
         manager.loadSessions()
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(postedNotificationIDs.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [cctopSessionID])
         XCTAssertNil(try SessionData.fromFile(path: sessionPath).cctopSessionId)
@@ -293,7 +387,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try FileManager.default.removeItem(atPath: identityBlockerPath)
         manager.loadSessions()
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [cctopSessionID])
         XCTAssertEqual(
             defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
@@ -305,10 +399,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
         manager.loadSessions()
         XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.legacyDefaultsKey))
         manager.loadSessions()
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
 
         let reloaded = SessionManager(historyManager: historyManager, dataSources: sources, startMonitoring: false)
-        XCTAssertTrue(reloaded.sessions.isEmpty)
+        XCTAssertTrue(reloaded.userSessions.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [cctopSessionID])
         XCTAssertTrue(postedNotificationIDs.isEmpty)
     }
@@ -374,7 +468,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertEqual(
             manager.cleanupSources.filter { $0.sessionId == threadID }.map(\.projectPath),
@@ -409,7 +503,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try FileManager.default.removeItem(atPath: brokenPath)
         manager.loadSessions()
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.legacyDefaultsKey))
         XCTAssertEqual(manager.cleanupSources.filter { $0.sessionId == threadID }.count, 1)
         XCTAssertEqual(manager.cleanupSources.filter { $0.sessionId == unrelatedThreadID }.count, 1)
@@ -449,7 +543,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertEqual(manager.cleanupSources.filter { $0.sessionId == threadID }.map(\.projectPath), [projectPath])
         XCTAssertEqual(
@@ -547,7 +641,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertTrue(manager.cleanupSources.contains { $0.projectPath == projectPath })
         XCTAssertEqual(
@@ -595,7 +689,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
             ["codex:\(threadID)"]
         )
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertEqual(manager.cleanupSources.filter { $0.sessionId == threadID }.count, 0)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: historyDir), ["history.json"])
@@ -610,7 +704,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
             ["codex:\(threadID)"]
         )
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertEqual(manager.cleanupSources.filter { $0.sessionId == threadID }.count, 0)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: historyDir), ["history.json"])
@@ -625,7 +719,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.legacyDefaultsKey))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertEqual(visibility.hiddenSessionIDs, migratedSessionIDs)
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertEqual(manager.cleanupSources.filter { $0.sessionId == threadID }.count, 0)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: historyDir), ["history.json"])
@@ -639,7 +733,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         manager.loadSessions()
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertTrue(visibility.hiddenSessionIDs.isEmpty)
         XCTAssertEqual(
@@ -659,7 +753,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         XCTAssertEqual(visibility.hiddenSessionIDs, [try XCTUnwrap(fastPeer.cctopSessionId)])
         XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.legacyDefaultsKey))
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertTrue(FileManager.default.fileExists(atPath: fastPeerPath))
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: historyDir), ["history.json"])
@@ -718,7 +812,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: finishedURL.path))
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(at: historyURL, includingPropertiesForKeys: nil).count, 1)
@@ -766,7 +860,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         archived.cctopSessionId = nil
         archived.harnessSessionId = durableConversationID
-        archived.sessionName = "Archived desktop observation"
+        archived.sessionName = "Archived desktop record"
         archived.lastActivity = Date(timeIntervalSince1970: 2_000)
         try archived.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("archived-desktop.json"))
         try Data("not valid session json".utf8).write(
@@ -786,12 +880,14 @@ final class SessionManagerVisibilityTests: XCTestCase {
             dataSources: sources,
             startMonitoring: false
         )
-        let hidden = try XCTUnwrap(manager.sessions.first { $0.sessionId == live.sessionId })
+        let hiddenUserSession = try XCTUnwrap(manager.userSessions.first {
+            $0.displayRecord.data.sessionId == live.sessionId
+        })
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
 
-        manager.hideSession(hidden)
+        manager.hideSession(hiddenUserSession.identity)
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [sharedID])
 
@@ -800,7 +896,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [sharedID])
     }
@@ -817,7 +913,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let sharedID = "33333333-3333-4333-8333-333333333333"
         let durableConversationID = "59253133-4a65-48fb-af2b-844463d3b5bb"
         var live = SessionData(
-            sessionId: "live-terminal-observation",
+            sessionId: "live-terminal-record",
             projectPath: "/tmp/live-terminal",
             branch: "main",
             terminal: TerminalInfo(program: "zsh")
@@ -836,7 +932,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         archived.cctopSessionId = sharedID
         archived.harnessSessionId = durableConversationID
-        archived.sessionName = "Archived desktop observation"
+        archived.sessionName = "Archived desktop record"
         archived.lastActivity = Date(timeIntervalSince1970: 2_000)
         try archived.writeToFile(path: sessionsURL.appendingPathComponent("archived-desktop.json").path)
 
@@ -854,15 +950,15 @@ final class SessionManagerVisibilityTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertEqual(manager.sessions.map(\.cctopSessionId), [sharedID])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.cctopSessionId), [sharedID])
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
 
         try FileManager.default.removeItem(at: liveURL)
         manager.loadSessions()
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertEqual(manager.recentResumeTargets.map(\.id), ["desktop:\(sharedID)"])
-        XCTAssertEqual(manager.recentResumeTargets.map(\.title), ["Archived desktop observation"])
+        XCTAssertEqual(manager.recentResumeTargets.map(\.title), ["Archived desktop record"])
     }
 
     @MainActor
@@ -889,10 +985,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         var hidden = claudeDesktopSession(sessionId: durableConversationID, projectPath: "/tmp/archived-only")
         hidden.cctopSessionId = sharedID
-        visibility.hide(hidden)
+        visibility.hide(cctopSessionID: try XCTUnwrap(hidden.cctopSessionId))
         hidden.cctopSessionId = nil
         hidden.harnessSessionId = durableConversationID
-        hidden.sessionName = "Archived-only observation"
+        hidden.sessionName = "Archived-only record"
         try hidden.writeToFile(path: sessionsURL.appendingPathComponent("archived-only.json").path)
 
         var sources = isolatedSessionDataSources(sessionsDir: sessionsURL, manualSessionVisibility: visibility)
@@ -908,7 +1004,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [sharedID])
 
@@ -934,8 +1030,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
         let durableSessionID = "59253133-4a65-48fb-af2b-844463d3b5bb"
-        let terminalRecordID = "busy-terminal-observation"
-        let bundlelessRecordID = "busy-desktop-observation"
+        let terminalRecordID = "busy-terminal-record"
+        let bundlelessRecordID = "busy-desktop-record"
         let projectPath = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -1005,14 +1101,14 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         waitForIdentityMigrationQueue(manager)
 
-        let hidden = try XCTUnwrap(manager.sessions.first)
-        let hiddenID = try XCTUnwrap(hidden.cctopSessionId)
-        XCTAssertEqual(manager.sessions.count, 1)
+        let hiddenUserSession = try XCTUnwrap(manager.userSessions.first)
+        let hiddenID = try XCTUnwrap(hiddenUserSession.identity.cctopSessionID)
+        XCTAssertEqual(manager.userSessions.count, 1)
         XCTAssertNil(try SessionData.fromFile(path: terminalURL.path).cctopSessionId)
         XCTAssertNil(try SessionData.fromFile(path: desktopURL.path).cctopSessionId)
 
-        manager.hideSession(hidden)
-        XCTAssertTrue(manager.sessions.isEmpty)
+        manager.hideSession(hiddenUserSession.identity)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [hiddenID])
 
         processAlive = false
@@ -1046,7 +1142,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         processAlive = true
         now = initialNow
         manager.loadSessions()
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [hiddenID])
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertTrue(postedNotificationIDs.isEmpty)
@@ -1083,7 +1179,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
         var hiddenSnapshot = session
         hiddenSnapshot.cctopSessionId = mappedID
-        visibility.hide(hiddenSnapshot)
+        visibility.hide(cctopSessionID: try XCTUnwrap(hiddenSnapshot.cctopSessionId))
 
         var missingSources = isolatedSessionDataSources(sessionsDir: sessionsURL, manualSessionVisibility: visibility)
         missingSources.codexThreads = StubCodexThreadState(existing: [], archived: [])
@@ -1097,7 +1193,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         waitForIdentityMigrationQueue(missingManager)
 
-        XCTAssertTrue(missingManager.sessions.isEmpty)
+        XCTAssertTrue(missingManager.userSessions.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [mappedID])
         XCTAssertEqual(try SessionData.fromFile(path: sessionURL.path).cctopSessionId, mappedID)
 
@@ -1109,7 +1205,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertTrue(restoredManager.sessions.isEmpty)
+        XCTAssertTrue(restoredManager.userSessions.isEmpty)
         XCTAssertEqual(visibility.hiddenSessionIDs, [mappedID])
     }
 
@@ -1155,14 +1251,14 @@ final class SessionManagerVisibilityTests: XCTestCase {
         finished.status = .working
         let finishedURL = sessionsURL.appendingPathComponent("hidden-finished.json")
         try finished.writeToFile(path: finishedURL.path)
-        visibility.hide(finished)
+        visibility.hide(cctopSessionID: try XCTUnwrap(finished.cctopSessionId))
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: historyURL.path)
 
         var sources = isolatedSessionDataSources(sessionsDir: sessionsURL, manualSessionVisibility: visibility)
         sources.processAlive = { _ in false }
         let manager = SessionManager(historyManager: historyManager, dataSources: sources, startMonitoring: false)
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
         XCTAssertTrue(FileManager.default.fileExists(atPath: finishedURL.path))
         XCTAssertEqual(visibility.hiddenSessionIDs, [hiddenID])
@@ -1184,7 +1280,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
         let hidden = SessionData.mock(id: "hidden-thread", source: SessionData.codexSource)
-        visibility.hide(hidden)
+        let hiddenID = try XCTUnwrap(hidden.cctopSessionId)
+        visibility.hide(cctopSessionID: hiddenID)
         try Data("not valid session json".utf8).write(
             to: URL(fileURLWithPath: (sessionsDir as NSString).appendingPathComponent("broken.json"))
         )
@@ -1195,10 +1292,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
             manualSessionVisibility: visibility
         )
 
-        XCTAssertTrue(visibility.isHidden(hidden))
+        XCTAssertTrue(visibility.isHidden(cctopSessionID: hiddenID))
         try FileManager.default.removeItem(atPath: (sessionsDir as NSString).appendingPathComponent("broken.json"))
         manager.loadSessions()
-        XCTAssertFalse(visibility.isHidden(hidden))
+        XCTAssertFalse(visibility.isHidden(cctopSessionID: hiddenID))
     }
 
     @MainActor
@@ -1237,7 +1334,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
-        visibility.hide(hidden)
+        let hiddenID = try XCTUnwrap(hidden.cctopSessionId)
+        visibility.hide(cctopSessionID: hiddenID)
 
         let manager = makeManager(
             sessionsDir: sessionsDir,
@@ -1270,7 +1368,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [projectPath, newActivePath])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), cleanupSourceIDs)
         XCTAssertEqual(refreshedActivePaths, [projectPath, newActivePath])
-        XCTAssertTrue(visibility.isHidden(hidden))
+        XCTAssertTrue(visibility.isHidden(cctopSessionID: hiddenID))
 
         let snapshot = manager.cleanupSnapshotForRemoval()
         XCTAssertEqual(snapshot.activeProjectPaths, [projectPath, newActivePath])
@@ -1328,7 +1426,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
-        visibility.hide(hidden)
+        visibility.hide(cctopSessionID: try XCTUnwrap(hidden.cctopSessionId))
         let manager = makeManager(
             sessionsDir: sessionsDir,
             historyDir: historyDir,
@@ -1350,10 +1448,12 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try live.writeToFile(path: (sessionsDir as NSString).appendingPathComponent("4202.json"))
         manager.loadSessions()
 
-        let visible = try XCTUnwrap(manager.sessions.first { $0.cctopSessionId == live.cctopSessionId })
+        let visibleUserSession = try XCTUnwrap(manager.userSessions.first {
+            $0.identity.cctopSessionID == live.cctopSessionId
+        })
         XCTAssertEqual(Set(manager.recentResumeTargets.map(\.projectPath)), [targetProjectPath, unrelatedProjectPath])
 
-        manager.hideSession(visible)
+        manager.hideSession(visibleUserSession.identity)
 
         XCTAssertEqual(manager.recentResumeTargets.map(\.projectPath), [unrelatedProjectPath])
     }
@@ -1390,7 +1490,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let visibility = ManualSessionVisibilityStore(defaults: defaults)
-        visibility.hide(hidden)
+        let hiddenID = try XCTUnwrap(hidden.cctopSessionId)
+        visibility.hide(cctopSessionID: hiddenID)
 
         let manager = makeManager(
             sessionsDir: sessionsPath,
@@ -1400,7 +1501,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         XCTAssertTrue(manager.historyManager.recentProjects.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
-        XCTAssertTrue(visibility.isHidden(hidden))
+        XCTAssertTrue(visibility.isHidden(cctopSessionID: hiddenID))
 
         let threadID = "legacy-hidden-directory-session"
         let legacySuiteName = "cctop-legacy-hide-recent-directory-\(UUID().uuidString)"
@@ -1444,9 +1545,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
             manualSessionVisibility: visibility
         )
 
-        manager.hideSession(vanished)
+        let vanishedID = try XCTUnwrap(vanished.cctopSessionId)
+        let vanishedUUID = try XCTUnwrap(UUID(uuidString: vanishedID))
+        manager.hideSession(.permanent(vanishedUUID))
 
-        XCTAssertFalse(visibility.isHidden(vanished))
+        XCTAssertFalse(visibility.isHidden(cctopSessionID: vanishedID))
         XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.defaultsKey))
     }
 
@@ -1560,7 +1663,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: memoryPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: memoryPath + ".lock"))
         XCTAssertTrue(try SessionData.fromFile(path: memoryPath).hidden)
@@ -1589,7 +1692,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: titleHelperPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: titleHelperPath + ".lock"))
         XCTAssertTrue(try SessionData.fromFile(path: titleHelperPath).hidden)
@@ -1670,7 +1773,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: hiddenPath))
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
     }
@@ -1704,7 +1807,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [worktreePath])
     }
 
@@ -1734,7 +1837,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [worktreePath])
         XCTAssertTrue(try SessionData.fromFile(path: sessionPath).hidden)
     }
@@ -1905,7 +2008,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         let manager = makeManager(sessionsDir: sessionsDir, historyDir: historyDir)
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath + ".lock"))
         XCTAssertTrue(try SessionData.fromFile(path: sessionPath).hidden)
@@ -1952,7 +2055,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: cliPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: desktopPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: cliPath + ".lock"))
@@ -1995,7 +2098,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["delegated-visible"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["delegated-visible"])
         let persisted = try SessionData.fromFile(path: sessionPath)
         XCTAssertFalse(persisted.hidden)
         XCTAssertFalse(persisted.isSubagentSession)
@@ -2046,7 +2149,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["delegated-sticky"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["delegated-sticky"])
         let persisted = try SessionData.fromFile(path: sessionPath)
         XCTAssertFalse(persisted.hidden)
         XCTAssertFalse(persisted.isSubagentSession)
@@ -2095,7 +2198,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         let persisted = try SessionData.fromFile(path: sessionPath)
         XCTAssertTrue(persisted.hidden)
         XCTAssertTrue(persisted.isSubagentSession)
@@ -2138,7 +2241,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         let persisted = try SessionData.fromFile(path: sessionPath)
         XCTAssertTrue(persisted.hidden)
         XCTAssertTrue(persisted.isSubagentSession)
@@ -2179,7 +2282,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath + ".lock"))
         XCTAssertFalse(try SessionData.fromFile(path: sessionPath).hidden)
@@ -2229,7 +2332,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["visible-thread"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["visible-thread"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: missingPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: missingPath + ".lock"))
         XCTAssertFalse(try SessionData.fromFile(path: missingPath).hidden)
@@ -2272,9 +2375,9 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["fresh-thread"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["fresh-thread"])
         XCTAssertEqual(
-            SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.sessionId),
+            SessionDisplayPolicy.activeSessions(from: manager.userSessions, now: now).map(\.displayRecord.data.sessionId),
             ["fresh-thread"]
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
@@ -2308,7 +2411,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
             processAlive: { _ in true },
             now: { now }
         )
-        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["101", "202"])
+        XCTAssertEqual(
+            SessionDisplayPolicy.activeSessions(from: manager.userSessions, now: now).map(\.displayRecord.data.id),
+            ["101", "202"]
+        )
 
         var gamma = SessionData.mock(id: "gamma", status: .waitingInput, pid: 303, source: SessionData.opencodeSource)
         gamma.lastActivity = now.addingTimeInterval(-30)
@@ -2317,7 +2423,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try gamma.writeToFile(path: gammaPath)
         try delta.writeToFile(path: deltaPath)
         manager.loadSessions()
-        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404", "101", "202"])
+        XCTAssertEqual(
+            SessionDisplayPolicy.activeSessions(from: manager.userSessions, now: now).map(\.displayRecord.data.id),
+            ["303", "404", "101", "202"]
+        )
 
         alpha.status = .waitingInput
         alpha.lastActivity = now
@@ -2330,10 +2439,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try beta.writeToFile(path: betaPath)
         manager.loadSessions()
 
-        let activeAfterUpdates = SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now)
-        XCTAssertEqual(activeAfterUpdates.map(\.id), ["303", "404", "101", "202"])
+        let activeAfterUpdates = SessionDisplayPolicy.activeSessions(from: manager.userSessions, now: now)
+        XCTAssertEqual(activeAfterUpdates.map(\.displayRecord.data.id), ["303", "404", "101", "202"])
         let snapshot = DisplayStateWriter.snapshot(
-            sessions: manager.sessions,
+            userSessions: manager.userSessions,
             theme: .claude,
             appRunning: true,
             appIdentity: DisplayState.ProcessIdentity(pid: 999, startTime: 1_234),
@@ -2341,20 +2450,26 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         XCTAssertEqual(
             snapshot.sessions.map(\.cctopSessionId),
-            activeAfterUpdates.map { $0.cctopSessionId ?? "" }
+            activeAfterUpdates.map { $0.identity.cctopSessionID ?? "" }
         )
         XCTAssertEqual(snapshot.sessions.count, activeAfterUpdates.count)
-        XCTAssertTrue(activeAfterUpdates.allSatisfy { CctopSessionID.isValid($0.cctopSessionId) })
+        XCTAssertTrue(activeAfterUpdates.allSatisfy { CctopSessionID.isValid($0.identity.cctopSessionID) })
 
         alpha.hidden = true
         try alpha.writeToFile(path: alphaPath)
         manager.loadSessions()
-        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404", "202"])
+        XCTAssertEqual(
+            SessionDisplayPolicy.activeSessions(from: manager.userSessions, now: now).map(\.displayRecord.data.id),
+            ["303", "404", "202"]
+        )
 
         beta.endedAt = now
         try beta.writeToFile(path: betaPath)
         manager.loadSessions()
-        XCTAssertEqual(SessionDisplayPolicy.activeSessions(from: manager.sessions, now: now).map(\.id), ["303", "404"])
+        XCTAssertEqual(
+            SessionDisplayPolicy.activeSessions(from: manager.userSessions, now: now).map(\.displayRecord.data.id),
+            ["303", "404"]
+        )
     }
 
     @MainActor
@@ -2384,7 +2499,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
             historyDir: historyDir,
             processAlive: { _ in true }
         )
-        XCTAssertNil(manager.sessions.first?.cctopSessionId)
+        XCTAssertNil(manager.userSessions.first?.displayRecord.data.cctopSessionId)
         waitForIdentityMigrationQueue(manager)
         XCTAssertNil(try SessionData.fromFile(path: sessionPath).cctopSessionId)
 
@@ -2406,7 +2521,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         waitForIdentityMigrationQueue(manager)
 
         XCTAssertEqual(try SessionData.fromFile(path: sessionPath).cctopSessionId, hookAssignedID)
-        XCTAssertEqual(manager.sessions.first?.cctopSessionId, hookAssignedID)
+        XCTAssertEqual(manager.userSessions.first?.displayRecord.data.cctopSessionId, hookAssignedID)
     }
 
     @MainActor
@@ -2431,8 +2546,8 @@ final class SessionManagerVisibilityTests: XCTestCase {
             historyDir: historyDir,
             processAlive: { _ in true }
         )
-        let publishedIDs = Set(manager.sessions.compactMap(\.cctopSessionId))
-        XCTAssertEqual(manager.sessions.count, 1)
+        let publishedIDs = Set(manager.userSessions.compactMap(\.displayRecord.data.cctopSessionId))
+        XCTAssertEqual(manager.userSessions.count, 1)
         XCTAssertEqual(publishedIDs.count, 1)
         XCTAssertTrue(publishedIDs.allSatisfy(CctopSessionID.isValid))
 
@@ -2470,7 +2585,10 @@ final class SessionManagerVisibilityTests: XCTestCase {
             processAlive: { _ in true }
         )
 
-        XCTAssertNil(manager.sessions.first(where: { $0.pid == 6003 })?.cctopSessionId)
+        XCTAssertNil(
+            manager.userSessions.first(where: { $0.displayRecord.data.pid == 6003 })?
+                .displayRecord.data.cctopSessionId
+        )
         XCTAssertNil(try SessionData.fromFile(
             path: (sessionsDir as NSString).appendingPathComponent("6003.json")
         ).cctopSessionId)
@@ -2510,7 +2628,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["codex-user-exec"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["codex-user-exec"])
         XCTAssertFalse(try SessionData.fromFile(path: sessionPath).hidden)
     }
 
@@ -2548,7 +2666,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["codex-exec-first-message"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["codex-exec-first-message"])
         XCTAssertFalse(try SessionData.fromFile(path: sessionPath).hidden)
     }
 
@@ -2586,7 +2704,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["parent-thread"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["parent-thread"])
         XCTAssertFalse(try SessionData.fromFile(path: sessionPath).hidden)
     }
 
@@ -2635,7 +2753,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: oldPath))
         XCTAssertTrue(FileManager.default.fileExists(atPath: desktopPath))
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["conv-a"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["conv-a"])
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
     }
 
@@ -2667,7 +2785,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), [])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-thread"])
         XCTAssertEqual(manager.cleanupSources.map(\.projectPath), ["/tmp/p"])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
@@ -2678,7 +2796,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: ["archived-thread"])
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-thread"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["archived-thread"])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
@@ -2715,11 +2833,11 @@ final class SessionManagerVisibilityTests: XCTestCase {
             processAlive: { _ in true }
         )
         manager.loadSessions()
-        XCTAssertEqual(manager.sessions.map(\.sessionId), [threadID])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), [threadID])
 
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [threadID])
         manager.loadSessions()
-        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), [])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [threadID])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
@@ -2727,7 +2845,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
 
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [], userExecThreads: [threadID])
         manager.loadSessions()
-        XCTAssertEqual(manager.sessions.map(\.sessionId), [threadID])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), [threadID])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
     }
@@ -2762,7 +2880,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-without-source"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["archived-without-source"])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
@@ -2772,7 +2890,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         try writeCodexStateDatabase(path: stateDB, archivedThreads: [])
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-without-source"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["archived-without-source"])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
@@ -2810,7 +2928,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), [])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-claude-session"])
         XCTAssertEqual(manager.cleanupSources.map(\.projectPath), ["/tmp/p"])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
@@ -2826,7 +2944,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), ["archived-claude-session"])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), ["archived-claude-session"])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), [])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, ["/tmp/p"])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
@@ -2865,7 +2983,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), [])
         XCTAssertEqual(manager.cleanupSources.map(\.sessionId), ["archived-claude-without-source"])
         XCTAssertEqual(manager.cleanupSources.map(\.projectPath), ["/tmp/p"])
         XCTAssertEqual(manager.cleanupActiveProjectPaths, [])
@@ -2910,7 +3028,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         )
         manager.loadSessions()
 
-        XCTAssertEqual(manager.sessions.map(\.sessionId), [])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.sessionId), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         XCTAssertFalse(try SessionData.fromFile(path: sessionPath).hidden)
         XCTAssertTrue((try FileManager.default.contentsOfDirectory(atPath: historyDir)).isEmpty)
@@ -3109,7 +3227,7 @@ final class SessionManagerVisibilityTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
         manager.loadSessions()
         XCTAssertEqual(visibility.hiddenSessionIDs, [cctopSessionID])
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertTrue(manager.recentResumeTargets.isEmpty)
 
         defaults.removeObject(forKey: ManualSessionVisibilityStore.defaultsKey)

@@ -170,8 +170,7 @@ final class QASnapshotTests: XCTestCase {
         for (colorScheme, schemeName) in schemes {
             try renderRefinedPanelContextSnapshot(
                 PopupView(
-                    sessions: SessionData.qaShowcase,
-                    userSessions: userSessionProjection(from: SessionData.qaShowcase),
+                    userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
                     updater: DisabledUpdater(),
                     pluginManager: inertPluginManager()
                 ),
@@ -180,8 +179,7 @@ final class QASnapshotTests: XCTestCase {
             )
             try renderRefinedPanelContextSnapshot(
                 PopupView(
-                    sessions: SessionData.qaShowcase,
-                    userSessions: userSessionProjection(from: SessionData.qaShowcase),
+                    userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
                     recentProjects: RecentProject.mockRecents,
                     updater: DisabledUpdater(),
                     pluginManager: inertPluginManager(),
@@ -234,8 +232,7 @@ final class QASnapshotTests: XCTestCase {
 
     private func popupView(for sessions: [SessionData]) -> some View {
         PopupView(
-            sessions: sessions,
-            userSessions: userSessionProjection(from: sessions),
+            userSessions: userSessions(fromDataFixtures: sessions),
             updater: DisabledUpdater(),
             pluginManager: inertPluginManager()
         )
@@ -253,8 +250,7 @@ final class QASnapshotTests: XCTestCase {
         colorScheme: ColorScheme = .light
     ) throws {
         let view = PopupView(
-            sessions: sessions,
-            userSessions: userSessionProjection(from: sessions),
+            userSessions: userSessions(fromDataFixtures: sessions),
             updater: updater ?? DisabledUpdater(),
             pluginManager: inertPluginManager()
         )
@@ -287,8 +283,7 @@ final class QASnapshotTests: XCTestCase {
         colorScheme: ColorScheme = .light
     ) throws {
         let view = PopupView(
-            sessions: SessionData.qaShowcase,
-            userSessions: userSessionProjection(from: SessionData.qaShowcase),
+            userSessions: userSessions(fromDataFixtures: SessionData.qaShowcase),
             recentProjects: RecentProject.mockRecents,
             updater: DisabledUpdater(),
             pluginManager: inertPluginManager(),
@@ -548,7 +543,7 @@ private struct RefinedPanelContextScene: View {
             "  PanelAccentHairline(cornerRadius: 16)",
             "}",
             "cardSelectionStyle(isSelected: true)",
-            "HeaderView(sessions: sessions)",
+            "HeaderView(counts: statusCounts)",
             "renderPanelScreenshot(...)",
         ]
     }

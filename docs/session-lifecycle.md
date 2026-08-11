@@ -19,7 +19,8 @@ The key split is intentional:
 
 This pipeline uses the internal model from
 [`session-files.md`](session-files.md#internal-session-model). The grouping step
-does not change lifecycle, persistence, or canonical row order.
+does not change lifecycle or persistence. Ordered `UserSession` values own the
+canonical visible identity and row order.
 
 ```mermaid
 flowchart TD
@@ -39,10 +40,10 @@ flowchart TD
     H -->|finished| O["Do not publish"]
     H -->|active| I["Group current records into UserSession<br/>using the winner's cctop ID or legacy fallback"]
     H -->|dormant| I
-    I --> J["Choose displayRecord<br/>and preserve canonical row order"]
-    J --> K{"Display lifecycle"}
-    K -->|active| N["Publish through SessionManager.sessions<br/>as active"]
-    K -->|dormant| P["Publish through SessionManager.sessions<br/>as dormant, with neutral status"]
+    I --> J["Choose displayRecord<br/>and apply the existing display-only status adjustment"]
+    J --> K["Reconcile UserSession order<br/>by LogicalIdentity and status group"]
+    K --> N["Publish SessionManager.userSessions"]
+    N --> P["At presentation boundaries, derive SessionData<br/>from each displayRecord.data"]
 ```
 
 ## Lifecycle Derivation

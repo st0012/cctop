@@ -75,8 +75,8 @@ extension SessionManager {
     func assigningCctopSessionIdentities(
         to candidates: [SessionRecord],
         knownRecords: [(url: URL, session: SessionData)]
-    ) -> [SessionData] {
-        var records = candidates.map { (url: URL(fileURLWithPath: $0.path), session: $0.data) }
+    ) -> [SessionRecord] {
+        var records = candidates
         var idsByEvidence: [String: Set<String>] = [:]
         for record in knownRecords where CctopSessionID.isValid(record.session.cctopSessionId) {
             guard let evidence = CctopSessionIdentityStore.durableEvidence(for: record.session),
@@ -85,11 +85,12 @@ extension SessionManager {
         }
 
         let identityStore = CctopSessionIdentityStore(sessionsDir: dataSources.sessionsDir)
-        for index in records.indices where !CctopSessionID.isValid(records[index].session.cctopSessionId) {
-            var data = records[index].session
+        for index in records.indices where !CctopSessionID.isValid(records[index].data.cctopSessionId) {
+            let url = URL(fileURLWithPath: records[index].path)
+            var data = records[index].data
             guard let evidence = CctopSessionIdentityStore.durableEvidence(for: data) else {
                 scheduleCctopSessionIdentityStamp(
-                    url: records[index].url,
+                    url: url,
                     snapshot: data,
                     resolvedID: nil
                 )
@@ -104,22 +105,22 @@ extension SessionManager {
                     knownExistingIDs: knownIDs
                 )
                 data.cctopSessionId = cctopSessionId
-                records[index].session = data
+                records[index] = records[index].replacingData(data)
                 idsByEvidence[evidence, default: []].insert(cctopSessionId)
                 scheduleCctopSessionIdentityStamp(
-                    url: records[index].url,
-                    snapshot: records[index].session,
+                    url: url,
+                    snapshot: records[index].data,
                     resolvedID: cctopSessionId
                 )
             } catch {
-                let fileName = records[index].url.lastPathComponent
+                let fileName = url.lastPathComponent
                 let reason = error.localizedDescription
                 sessionManagerLogger.error(
                     "loadSessions: identity migration failed for \(fileName, privacy: .public): \(reason, privacy: .public)"
                 )
             }
         }
-        return records.map(\.session)
+        return records
     }
 
     func identifiedPublishableCandidates(
@@ -127,15 +128,7 @@ extension SessionManager {
         knownRecords: [(url: URL, session: SessionData)]
     ) -> [SessionRecord] {
         let publishableWinners = winners.filter { $0.data.lifecycle != .finished }
-        let identified = assigningCctopSessionIdentities(to: publishableWinners, knownRecords: knownRecords)
-        return zip(publishableWinners, identified).map { candidate, data in
-            SessionRecord(
-                data: data,
-                lifecycleRank: candidate.lifecycleRank,
-                mtime: candidate.mtime,
-                path: candidate.path
-            )
-        }
+        return assigningCctopSessionIdentities(to: publishableWinners, knownRecords: knownRecords)
     }
 
     func identifyingPersistedRecords(
@@ -146,7 +139,8 @@ extension SessionManager {
         let indices = classification.records.indices.filter { index in
             let record = classification.records[index]
             let data = record.candidate.data
-            guard case .legacy(let stableKey) = SessionIdentityPolicy.logicalIdentity(for: data) else { return false }
+            guard !CctopSessionID.isValid(data.cctopSessionId) else { return false }
+            let stableKey = SessionIdentityPolicy.stableKey(for: data)
             if hasExistingMappedManualHide(data) { return true }
             if legacyKeys.contains(stableKey) { return true }
             guard case .hidden(let reason) = record.disposition else { return false }
@@ -166,17 +160,11 @@ extension SessionManager {
             knownRecords: knownRecords
         )
         var records = classification.records
-        for (index, data) in zip(indices, identified) {
+        for (index, candidate) in zip(indices, identified) {
             let record = records[index]
-            let candidate = record.candidate
             records[index] = ClassifiedSessionRecord(
                 url: record.url,
-                candidate: SessionRecord(
-                    data: data,
-                    lifecycleRank: candidate.lifecycleRank,
-                    mtime: candidate.mtime,
-                    path: candidate.path
-                ),
+                candidate: candidate,
                 disposition: record.disposition
             )
         }

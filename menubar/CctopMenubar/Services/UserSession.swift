@@ -2,10 +2,16 @@ import Foundation
 
 /// One user-visible work session formed from one or more related `SessionRecord` values.
 /// A stable-key winner establishes identity. Older related records remain as evidence.
-struct UserSession {
+struct UserSession: Equatable {
     let identity: SessionIdentityPolicy.LogicalIdentity
     let records: [SessionRecord]
     let displayRecord: SessionRecord
+
+    /// The current visible status supplied by the selected display record.
+    var status: SessionStatus { displayRecord.data.status }
+
+    /// The current visible source badge supplied by the selected display record.
+    var agentBadge: AgentBadge { displayRecord.data.agentBadge }
 
     /// Indirect actions currently follow the same canonical record as the panel.
     /// Direct row actions continue to use the exact row session they received.

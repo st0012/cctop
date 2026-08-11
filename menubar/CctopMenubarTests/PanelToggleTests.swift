@@ -44,17 +44,21 @@ final class PanelToggleTests: XCTestCase {
     func testNotificationActivationResolvesPermanentIDToCurrentCanonicalRecord() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
         var current = SessionData.mock(
-            id: "current-observation", cctopSessionId: cctopSessionID,
+            id: "current-record", cctopSessionId: cctopSessionID,
             pid: 22_222, source: SessionData.opencodeSource
         )
         current.lifecycle = .active
 
-        let resolved = AppDelegate.notificationFocusSession(
+        let resolved = AppDelegate.notificationFocusTarget(
             matchingUserInfo: [SessionIdentityPolicy.notificationCctopSessionIDKey: cctopSessionID],
-            in: [userSession(display: current, records: [current])]
+            in: [userSession(
+                identity: SessionIdentityPolicy.logicalIdentity(for: current),
+                display: current,
+                records: [current]
+            )]
         )
 
-        XCTAssertEqual(resolved?.sessionId, "current-observation")
+        XCTAssertEqual(resolved?.sessionId, "current-record")
         XCTAssertEqual(resolved?.pid, 22_222)
     }
 
@@ -67,17 +71,21 @@ final class PanelToggleTests: XCTestCase {
         previous.cctopSessionId = nil
         previous.lifecycle = .dormant
         var current = SessionData.mock(
-            id: "replacement-observation", cctopSessionId: cctopSessionID,
+            id: "replacement-record", cctopSessionId: cctopSessionID,
             pid: 22_222, source: SessionData.codexSource
         )
         current.lifecycle = .active
 
-        let resolved = AppDelegate.notificationFocusSession(
+        let resolved = AppDelegate.notificationFocusTarget(
             matchingUserInfo: [SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1"],
-            in: [userSession(display: current, records: [previous, current])]
+            in: [userSession(
+                identity: SessionIdentityPolicy.logicalIdentity(for: current),
+                display: current,
+                records: [previous, current]
+            )]
         )
 
-        XCTAssertEqual(resolved?.sessionId, "replacement-observation")
+        XCTAssertEqual(resolved?.sessionId, "replacement-record")
         XCTAssertEqual(resolved?.pid, 22_222)
     }
 
@@ -94,12 +102,16 @@ final class PanelToggleTests: XCTestCase {
             SessionIdentityPolicy.notificationSessionPIDKey: "22222",
         ]
 
-        let userSessions = [userSession(display: current, records: [current])]
-        XCTAssertNil(AppDelegate.notificationFocusSession(matchingUserInfo: userInfo, in: userSessions))
-        XCTAssertNil(AppDelegate.notificationFocusSession(
+        let userSessions = [userSession(
+            identity: SessionIdentityPolicy.logicalIdentity(for: current),
+            display: current,
+            records: [current]
+        )]
+        XCTAssertNil(AppDelegate.notificationFocusTarget(matchingUserInfo: userInfo, in: userSessions))
+        XCTAssertNil(AppDelegate.notificationFocusTarget(
             matchingUserInfo: [SessionIdentityPolicy.notificationCctopSessionIDKey: "malformed"],
             in: userSessions
         ))
-        XCTAssertNil(AppDelegate.notificationFocusSession(matchingUserInfo: [:], in: userSessions))
+        XCTAssertNil(AppDelegate.notificationFocusTarget(matchingUserInfo: [:], in: userSessions))
     }
 }

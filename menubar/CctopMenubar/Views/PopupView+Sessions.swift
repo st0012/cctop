@@ -2,48 +2,51 @@ import SwiftUI
 
 struct PanelSessionRow: Identifiable {
     let slot: Int
-    let session: SessionData
+    let userSession: UserSession
     let id: SessionIdentityPolicy.LogicalIdentity
+
+    /// Direct actions use the exact data selected for this rendered row.
+    var session: SessionData { userSession.displayRecord.data }
 }
 
 extension PopupView {
     var isNavigateActive: Bool { navigate?.isActive ?? false }
-    var hasMultipleSources: Bool { Set(sessions.map(\.agentBadge)).count > 1 }
+    var hasMultipleSources: Bool { Set(userSessions.map(\.agentBadge)).count > 1 }
 
-    var currentActiveSessions: [SessionData] {
-        SessionDisplayPolicy.activeSessions(from: sessions)
+    var currentActiveUserSessions: [UserSession] {
+        SessionDisplayPolicy.activeSessions(from: userSessions)
     }
 
     var activeSessionRows: [PanelSessionRow] {
         guard let identities = navigate?.activeSessionIdentitySnapshot else {
-            return currentActiveSessions.enumerated().map { index, session in
+            return currentActiveUserSessions.enumerated().map { index, userSession in
                 PanelSessionRow(
                     slot: index,
-                    session: session,
-                    id: SessionIdentityPolicy.logicalIdentity(for: session)
+                    userSession: userSession,
+                    id: userSession.identity
                 )
             }
         }
         return identities.enumerated().compactMap { index, identity in
-            guard let session = currentSession(for: identity, in: .active) else { return nil }
-            return PanelSessionRow(slot: index, session: session, id: identity)
+            guard let userSession = currentUserSession(for: identity, in: .active) else { return nil }
+            return PanelSessionRow(
+                slot: index,
+                userSession: userSession,
+                id: identity
+            )
         }
     }
 
-    var sortedActiveSessions: [SessionData] {
-        activeSessionRows.map(\.session)
-    }
-
-    var sortedIdleSessions: [SessionData] {
-        SessionData.sorted(SessionDisplayPolicy.idleSessions(from: sessions))
+    var currentIdleUserSessions: [UserSession] {
+        SessionDisplayPolicy.idleSessions(from: userSessions)
     }
 
     var idleSessionRows: [PanelSessionRow] {
-        sortedIdleSessions.enumerated().map { index, session in
+        currentIdleUserSessions.enumerated().map { index, userSession in
             PanelSessionRow(
                 slot: index,
-                session: session,
-                id: SessionIdentityPolicy.logicalIdentity(for: session)
+                userSession: userSession,
+                id: userSession.identity
             )
         }
     }
@@ -93,15 +96,15 @@ extension PopupView {
                 Label("Copy Project Path", systemImage: "doc.on.doc")
             }
             Divider()
-            Button { requestHideSession(row.session) } label: {
+            Button { requestHideSession(row) } label: {
                 Label("Hide Session", systemImage: "eye.slash")
             }
-            .disabled(!CctopSessionID.isValid(row.session.cctopSessionId))
+            .disabled(row.userSession.identity.cctopSessionID == nil)
         }
         .help("Click to jump to session")
         .accessibilityActions {
-            Button("Hide Session") { requestHideSession(row.session) }
-                .disabled(!CctopSessionID.isValid(row.session.cctopSessionId))
+            Button("Hide Session") { requestHideSession(row) }
+                .disabled(row.userSession.identity.cctopSessionID == nil)
         }
     }
 
@@ -118,15 +121,15 @@ extension PopupView {
 
     func confirmSessionSelection() {
         guard let identity = selectedSessionIdentity else { return }
-        guard let session = currentSession(for: identity, in: selectedTab) else { return }
-        focusSession(session)
+        guard let userSession = currentUserSession(for: identity, in: selectedTab) else { return }
+        focusSession(userSession.focusTarget)
         if isNavigateActive { navigate?.didConfirmSubject.send() }
     }
 
-    func currentSession(
+    func currentUserSession(
         for identity: SessionIdentityPolicy.LogicalIdentity,
         in tab: PopupTab
-    ) -> SessionData? {
+    ) -> UserSession? {
         let candidates: [UserSession]
         switch tab {
         case .active:
@@ -136,6 +139,6 @@ extension PopupView {
         case .recent, .cleanup:
             return nil
         }
-        return FocusTargetResolver.currentSession(for: identity, in: candidates)
+        return FocusTargetResolver.currentUserSession(for: identity, in: candidates)
     }
 }

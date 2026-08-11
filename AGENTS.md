@@ -24,7 +24,7 @@ Keep canonical repository guidance in this file. Pointer files, such as `CLAUDE.
 - Keep app liveness, client liveness, visibility, archive state, hidden state, subagent state, and hook provenance separate.
 - If a shared source changes, update all owners in the same change. Shared sources include schemas, hook versions, install paths, and release tooling.
 - For every version change, run `scripts/bump-version.sh <version>`. Do not edit version values separately.
-- Preserve the canonical order from `SessionManager.sessions`. A direct row action must use the exact `SessionData` value that the row shows.
+- Preserve canonical identity and order in `SessionManager.userSessions`. Derive `SessionData` only at the final presentation or direct-action boundary. A direct row action must use the exact `SessionData` value that the row shows.
 - Keep Stream Deck downstream of the app. It reads `~/.cctop/display-state.json` and must not recreate session policy.
 
 ## Driver Workflow

@@ -119,8 +119,11 @@ final class SessionDedupTests: XCTestCase {
         XCTAssertEqual(result.count, 1)
         XCTAssertEqual(result[0].identity.cctopSessionID, winnerID)
         XCTAssertEqual(result[0].records.map(\.data.cctopSessionId), [discardedID, winnerID])
-        XCTAssertNil(FocusTargetResolver.currentSession(forCctopSessionID: discardedID, in: result))
-        XCTAssertEqual(FocusTargetResolver.currentSession(forCctopSessionID: winnerID, in: result)?.pid, 200)
+        XCTAssertNil(FocusTargetResolver.currentUserSession(forCctopSessionID: discardedID, in: result))
+        XCTAssertEqual(
+            FocusTargetResolver.currentUserSession(forCctopSessionID: winnerID, in: result)?.focusTarget.pid,
+            200
+        )
     }
 
     // MARK: - Desktop dedup by session_id (Phase 1, total order)

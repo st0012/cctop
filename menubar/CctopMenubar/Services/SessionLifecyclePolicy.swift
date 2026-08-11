@@ -3,7 +3,7 @@ import Foundation
 /// One `SessionData` value plus the file and runtime evidence for that value.
 /// This in-memory record is not part of the persisted JSON schema.
 /// `mtime` is `.distantPast` when unknown so lifecycle preference remains a total order.
-struct SessionRecord {
+struct SessionRecord: Equatable {
     let data: SessionData
     let lifecycleRank: Int   // 0 = active, 1 = dormant, 2 = finished (lower = preferred)
     let mtime: Date

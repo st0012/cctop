@@ -181,7 +181,7 @@ final class SessionLifecycleTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(manager.sessions.map(\.lifecycle), [.dormant])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.lifecycle), [.dormant])
         XCTAssertNotNil(try SessionData.fromFile(path: sessionPath).disconnectedAt)
     }
 
@@ -222,7 +222,7 @@ final class SessionLifecycleTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(manager.sessions.map(\.lifecycle), [.dormant])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.lifecycle), [.dormant])
         XCTAssertEqual(try SessionData.fromFile(path: sessionPath).disconnectedAt, disconnectedAt)
     }
 
@@ -254,7 +254,7 @@ final class SessionLifecycleTests: XCTestCase {
             }
         )
 
-        XCTAssertEqual(manager.sessions.count, 0)
+        XCTAssertEqual(manager.userSessions.count, 0)
         XCTAssertFalse(FileManager.default.fileExists(atPath: sessionPath))
     }
 
@@ -302,7 +302,7 @@ final class SessionLifecycleTests: XCTestCase {
             processAlive: { $0.pid == pid && $0.isAlive }
         )
 
-        XCTAssertEqual(manager.sessions.map(\.lifecycle), [.active])
+        XCTAssertEqual(manager.userSessions.map(\.displayRecord.data.lifecycle), [.active])
         XCTAssertTrue(FileManager.default.fileExists(atPath: sessionPath))
     }
 
@@ -1041,7 +1041,7 @@ final class SessionLifecycleTests: XCTestCase {
             startMonitoring: false
         )
 
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertEqual(manager.recentResumeTargets.map(\.title), ["Run plugin node:test suites in CI"])
         XCTAssertEqual(manager.recentResumeTargets.map(\.openActionLabel), ["Open Claude Desktop"])
     }

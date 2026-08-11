@@ -439,7 +439,7 @@ final class FocusStrategyTests: XCTestCase {
     func testCurrentPermanentIDCodexRouteUsesThreadDeepLinkDespiteStalePID() throws {
         let threadID = "019faecb-6e9b-7f41-a51f-bb998875ca77"
         let cctopSessionID = "82498aba-410e-4b6b-b48d-62f7c6a81eae"
-        let observation = SessionData.mock(
+        let record = SessionData.mock(
             id: threadID,
             cctopSessionId: cctopSessionID,
             harnessSessionId: threadID,
@@ -449,10 +449,10 @@ final class FocusStrategyTests: XCTestCase {
             source: SessionData.codexSource
         )
         let current = try XCTUnwrap(
-            FocusTargetResolver.currentSession(
+            FocusTargetResolver.currentUserSession(
                 forCctopSessionID: cctopSessionID,
-                in: userSessionProjection(from: [observation])
-            )
+                in: userSessions(fromDataFixtures: [record])
+            )?.focusTarget
         )
         let strategy = resolveFocusStrategy(session: current, multiplexerOverride: nil)
         let intended = FocusStrategy.openURL(

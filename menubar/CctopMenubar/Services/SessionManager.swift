@@ -14,9 +14,8 @@ struct WorktreeCleanupSessionSnapshot {
 @MainActor
 // swiftlint:disable:next type_body_length
 class SessionManager: ObservableObject {
-    @Published private(set) var sessions: [SessionData] = []
+    @Published private(set) var userSessions: [UserSession] = []
     @Published var recentResumeTargets: [RecentResumeTarget] = []
-    private(set) var userSessions: [UserSession] = []
 
     let historyManager: HistoryManager
     let dataSources: SessionDataSources
@@ -81,7 +80,7 @@ class SessionManager: ObservableObject {
             return
         }
 
-        let oldSessions = sessions
+        let oldUserSessions = userSessions
 
         let jsonFiles = sessionJSONFiles(in: files)
         let allDecoded = decodedSessions(from: jsonFiles)
@@ -123,21 +122,16 @@ class SessionManager: ObservableObject {
         let loadedUserSessions = groupedUserSessions.map {
             $0.replacingDisplayData(adjustDisplayStatus($0.displayRecord.data))
         }
-        let loadedSessions = loadedUserSessions.map(\.displayRecord.data)
-        let orderedSessions = SessionDisplayPolicy.reconcilingActiveOrder(in: loadedSessions, preserving: oldSessions, now: now)
-        let userSessionsByID = Dictionary(
-            uniqueKeysWithValues: loadedUserSessions.map { ($0.identity, $0) }
+        let newUserSessions = SessionDisplayPolicy.reconcilingOrder(
+            in: loadedUserSessions,
+            preserving: oldUserSessions,
+            now: now
         )
-        let newUserSessions = orderedSessions.compactMap { data in
-            let identity = SessionIdentityPolicy.logicalIdentity(for: data)
-            return userSessionsByID[identity]?.replacingDisplayData(data)
-        }
-        let newSessions = newUserSessions.map(\.displayRecord.data)
-        let displaySignature = SessionDisplayPolicy.signature(for: newSessions, now: now)
+        let displaySignature = SessionDisplayPolicy.signature(for: newUserSessions, now: now)
         updateSessionProjection(
             newUserSessions,
             displaySignature: displaySignature,
-            syncNotificationsFrom: oldSessions
+            syncNotificationsFrom: oldUserSessions
         )
 
         hideAutoHiddenSessions(autoHidden)
@@ -154,9 +148,7 @@ class SessionManager: ObservableObject {
         )
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenProjectPaths(hiddenSessionIDs))
-        let publishedSessionIDs = Set(newSessions.compactMap {
-            SessionIdentityPolicy.permanentSessionID(for: $0)
-        })
+        let publishedSessionIDs = Set(newUserSessions.compactMap { $0.identity.cctopSessionID })
         let shouldFreezeVisibilityProjections = manualHides.hasUnresolvedLegacyKeys
             || (!inventoryComplete && !hiddenSessionIDs.isEmpty)
         if !shouldFreezeVisibilityProjections {
@@ -195,23 +187,21 @@ class SessionManager: ObservableObject {
     func updateSessionProjection(
         _ newUserSessions: [UserSession],
         displaySignature: SessionDisplayPolicy.Signature? = nil,
-        syncNotificationsFrom oldSessions: [SessionData]? = nil
+        syncNotificationsFrom oldUserSessions: [UserSession]? = nil
     ) {
-        let newSessions = newUserSessions.map(\.displayRecord.data)
-        userSessions = newUserSessions
-        if let oldSessions {
-            syncTransitionNotifications(for: newSessions, oldSessions: oldSessions)
-        }
-
+        let oldCount = userSessions.count
         let displayChanged = displaySignature.map { $0 != lastDisplaySignature } ?? false
-        guard newSessions != sessions || displayChanged else { return }
-        if newSessions.count != sessions.count {
-            sessionManagerLogger.info("loadSessions: session count \(self.sessions.count) -> \(newSessions.count)")
+        guard newUserSessions != userSessions || displayChanged else { return }
+        if newUserSessions.count != oldCount {
+            sessionManagerLogger.info("loadSessions: session count \(oldCount) -> \(newUserSessions.count)")
         }
         if let displaySignature {
             lastDisplaySignature = displaySignature
         }
-        sessions = newSessions
+        userSessions = newUserSessions
+        if let oldUserSessions {
+            syncTransitionNotifications(for: newUserSessions, oldUserSessions: oldUserSessions)
+        }
     }
 
     func cleanupSnapshotForRemoval() -> WorktreeCleanupSessionSnapshot {

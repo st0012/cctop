@@ -237,14 +237,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @MainActor private func observeSessionUpdates() {
-        sessionManager.$sessions
+        sessionManager.$userSessions
             .receive(on: RunLoop.main)
-            .sink { [weak self] sessions in
+            .sink { [weak self] userSessions in
                 guard let self else { return }
-                let counts = StatusCounts(sessions: sessions)
+                let counts = StatusCounts(userSessions: userSessions)
 
                 self.displayStateWriter.write(
-                    sessions: sessions,
+                    userSessions: userSessions,
                     theme: ThemeManager.shared.current,
                     appRunning: true
                 )
@@ -269,7 +269,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.displayStateWriter.write(
-                    sessions: self.sessionManager.sessions,
+                    userSessions: self.sessionManager.userSessions,
                     theme: ThemeManager.shared.current,
                     appRunning: true
                 )
@@ -282,7 +282,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationWillTerminate(_ notification: Notification) {
         guard let sessionManager else { return }
         displayStateWriter.write(
-            sessions: sessionManager.sessions,
+            userSessions: sessionManager.userSessions,
             theme: ThemeManager.shared.current,
             appRunning: false
         )
@@ -415,11 +415,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             sessionManager.loadSessions()
-            if let session = Self.notificationFocusSession(
+            if let focusTarget = Self.notificationFocusTarget(
                 matchingUserInfo: userInfo,
                 in: sessionManager.userSessions
             ) {
-                focusTerminal(session: session)
+                focusTerminal(session: focusTarget)
             }
         }
         completionHandler()
@@ -433,7 +433,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         completionHandler([.banner, .sound])
     }
 
-    nonisolated static func notificationFocusSession(
+    nonisolated static func notificationFocusTarget(
         matchingUserInfo userInfo: [AnyHashable: Any],
         in userSessions: [UserSession]
     ) -> SessionData? {
@@ -441,10 +441,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             matchingNotificationUserInfo: userInfo,
             in: userSessions
         ) else { return nil }
-        return FocusTargetResolver.currentSession(
+        return FocusTargetResolver.currentUserSession(
             forCctopSessionID: cctopSessionID,
             in: SessionDisplayPolicy.activeSessions(from: userSessions)
-        )
+        )?.focusTarget
     }
 
     private var screenLayouts: [ScreenLayout] {
@@ -504,7 +504,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             guard let self else { return }
             self.suppressResize = false
             self.hasNotch = NSScreen.builtin?.hasPhysicalNotch == true
-            self.refreshStatusDisplay(counts: StatusCounts(sessions: self.sessionManager.sessions))
+            self.refreshStatusDisplay(counts: StatusCounts(userSessions: self.sessionManager.userSessions))
             guard self.panel.isVisible else { return }
             // A click location captured before the debounce must not drive
             // screen-change repositioning; clearing it keeps the key below
@@ -623,7 +623,9 @@ extension AppDelegate {
                     lastExternalApp = prev
                 }
             case .startNavigateMode:
-                navigateController.activate(sessions: SessionDisplayPolicy.activeSessions(from: sessionManager.sessions))
+                navigateController.activate(
+                    userSessions: SessionDisplayPolicy.activeSessions(from: sessionManager.userSessions)
+                )
                 navigateController.startTimeout { [weak self] in
                     self?.handleEvent(.navigateTimedOut)
                 }
@@ -654,9 +656,12 @@ extension AppDelegate {
 
     @MainActor private func jumpToSession(index: Int) {
         guard let identity = navigateController.sessionIdentity(at: index) else { return }
-        let currentSessions = SessionDisplayPolicy.activeSessions(from: sessionManager.userSessions)
-        guard let session = FocusTargetResolver.currentSession(for: identity, in: currentSessions) else { return }
-        focusTerminal(session: session)
+        let currentUserSessions = SessionDisplayPolicy.activeSessions(from: sessionManager.userSessions)
+        guard let userSession = FocusTargetResolver.currentUserSession(
+            for: identity,
+            in: currentUserSessions
+        ) else { return }
+        focusTerminal(session: userSession.focusTarget)
         handleEvent(.navigateConfirmed)
     }
 
@@ -784,41 +789,41 @@ extension AppDelegate {
                 Self.urlLogger.notice("Ignored malformed cctop focus command")
                 return
             }
-            let initialSessions = sessionManager.sessions
-            let initialActiveSessions = SessionDisplayPolicy.activeSessions(from: initialSessions)
-            if let session = FocusTargetResolver.currentSession(
+            let initialUserSessions = sessionManager.userSessions
+            let initialActiveUserSessions = SessionDisplayPolicy.activeSessions(from: initialUserSessions)
+            if let userSession = FocusTargetResolver.currentUserSession(
                 forCctopSessionID: cctopSessionID,
-                in: SessionDisplayPolicy.activeSessions(from: sessionManager.userSessions)
+                in: initialActiveUserSessions
             ) {
-                focusTerminal(session: session)
+                focusTerminal(session: userSession.focusTarget)
                 return
             }
             let displayState = DisplayStateWriter.currentPublishedState()
             logFocusTargetMissBeforeRefresh(
                 requestedID: cctopSessionID,
-                canonicalSessions: initialSessions,
-                activeSessions: initialActiveSessions,
+                userSessions: initialUserSessions,
+                activeUserSessions: initialActiveUserSessions,
                 displayState: displayState
             )
 
             let refreshStart = ProcessInfo.processInfo.systemUptime
             sessionManager.loadSessions()
             let refreshElapsedMilliseconds = (ProcessInfo.processInfo.systemUptime - refreshStart) * 1_000
-            let refreshedSessions = sessionManager.sessions
-            let refreshedActiveSessions = SessionDisplayPolicy.activeSessions(from: refreshedSessions)
-            let resolvedSession = FocusTargetResolver.currentSession(
+            let refreshedUserSessions = sessionManager.userSessions
+            let refreshedActiveUserSessions = SessionDisplayPolicy.activeSessions(from: refreshedUserSessions)
+            let resolvedUserSession = FocusTargetResolver.currentUserSession(
                 forCctopSessionID: cctopSessionID,
-                in: SessionDisplayPolicy.activeSessions(from: sessionManager.userSessions)
+                in: refreshedActiveUserSessions
             )
             logFocusTargetRefreshOutcome(
-                outcome: resolvedSession == nil ? "final_missing" : "recovered_after_refresh",
+                outcome: resolvedUserSession == nil ? "final_missing" : "recovered_after_refresh",
                 requestedID: cctopSessionID,
-                canonicalSessions: refreshedSessions,
-                activeSessions: refreshedActiveSessions,
+                userSessions: refreshedUserSessions,
+                activeUserSessions: refreshedActiveUserSessions,
                 refreshElapsedMilliseconds: refreshElapsedMilliseconds
             )
-            guard let resolvedSession else { return }
-            focusTerminal(session: resolvedSession)
+            guard let resolvedUserSession else { return }
+            focusTerminal(session: resolvedUserSession.focusTarget)
         default:
             break
         }
@@ -840,14 +845,14 @@ extension AppDelegate {
 
     private func logFocusTargetMissBeforeRefresh(
         requestedID: String,
-        canonicalSessions: [SessionData],
-        activeSessions: [SessionData],
+        userSessions: [UserSession],
+        activeUserSessions: [UserSession],
         displayState: DisplayState?
     ) {
         let processPID = ProcessInfo.processInfo.processIdentifier
         let processStartTime = SessionData.processStartTime(pid: UInt32(processPID))
         let appVersion = Bundle.main.appVersion.isEmpty ? "unavailable" : Bundle.main.appVersion
-        let canonicalMatches = canonicalSessions.filter { $0.cctopSessionId == requestedID }
+        let userSessionMatches = userSessions.filter { $0.identity.cctopSessionID == requestedID }
         let processStartValue = processStartTime.map { String($0) } ?? "unavailable"
         let displayGeneratedAt = displayState?.generatedAt ?? "unavailable"
         let displayOwnerPID = displayState.flatMap(\.appPID).map { String($0) } ?? "unavailable"
@@ -863,9 +868,9 @@ extension AppDelegate {
             requested_cctop_session_id=\(requestedID, privacy: .private(mask: .hash)) \
             app_version=\(appVersion, privacy: .public) app_pid=\(processPID, privacy: .public) \
             app_start_time=\(processStartValue, privacy: .public) \
-            canonical_record_count=\(canonicalSessions.count, privacy: .public) \
-            focus_eligible_record_count=\(activeSessions.count, privacy: .public) \
-            requested_id_canonical_matches=\(canonicalMatches.count, privacy: .public) \
+            user_session_count=\(userSessions.count, privacy: .public) \
+            focus_eligible_user_session_count=\(activeUserSessions.count, privacy: .public) \
+            requested_id_user_session_matches=\(userSessionMatches.count, privacy: .public) \
             display_state_generated_at=\(displayGeneratedAt, privacy: .public) \
             display_state_owner_pid=\(displayOwnerPID, privacy: .public) \
             display_state_owner_start_time=\(displayOwnerStartTime, privacy: .public) \
@@ -878,12 +883,12 @@ extension AppDelegate {
     private func logFocusTargetRefreshOutcome(
         outcome: String,
         requestedID: String,
-        canonicalSessions: [SessionData],
-        activeSessions: [SessionData],
+        userSessions: [UserSession],
+        activeUserSessions: [UserSession],
         refreshElapsedMilliseconds: Double
     ) {
-        let canonicalMatchCount = canonicalSessions.count { $0.cctopSessionId == requestedID }
-        let activeMatchCount = activeSessions.count { $0.cctopSessionId == requestedID }
+        let userSessionMatchCount = userSessions.count { $0.identity.cctopSessionID == requestedID }
+        let activeUserSessionMatchCount = activeUserSessions.count { $0.identity.cctopSessionID == requestedID }
         let elapsed = String(format: "%.3f", refreshElapsedMilliseconds)
 
         Self.urlLogger.notice(
@@ -892,10 +897,10 @@ extension AppDelegate {
             outcome=\(outcome, privacy: .public) \
             requested_cctop_session_id=\(requestedID, privacy: .private(mask: .hash)) \
             refresh_elapsed_ms=\(elapsed, privacy: .public) \
-            canonical_record_count=\(canonicalSessions.count, privacy: .public) \
-            focus_eligible_record_count=\(activeSessions.count, privacy: .public) \
-            requested_id_canonical_matches=\(canonicalMatchCount, privacy: .public) \
-            requested_id_active_matches=\(activeMatchCount, privacy: .public)
+            user_session_count=\(userSessions.count, privacy: .public) \
+            focus_eligible_user_session_count=\(activeUserSessions.count, privacy: .public) \
+            requested_id_user_session_matches=\(userSessionMatchCount, privacy: .public) \
+            requested_id_active_user_session_matches=\(activeUserSessionMatchCount, privacy: .public)
             """
         )
     }

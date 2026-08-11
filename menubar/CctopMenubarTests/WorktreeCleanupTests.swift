@@ -5275,7 +5275,6 @@ final class WorktreeCleanupTests: XCTestCase {
         onLayoutChanged: @escaping () -> Void = {}
     ) -> PopupView {
         PopupView(
-            sessions: [],
             userSessions: [],
             cleanupCandidates: cleanupCandidates,
             updater: DisabledUpdater(),

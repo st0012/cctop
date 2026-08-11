@@ -37,9 +37,10 @@ enum SessionIdentityPolicy {
         return .legacy(stableKey(for: session))
     }
 
-    /// The validated permanent cctop session ID, if the session carries one.
-    static func permanentSessionID(for session: SessionData) -> String? {
-        logicalIdentity(for: session).cctopSessionID
+    /// Source-inventory migration helper. Current routing reads identity from `UserSession`.
+    fileprivate static func permanentSessionID(for session: SessionData) -> String? {
+        guard CctopSessionID.isValid(session.cctopSessionId) else { return nil }
+        return session.cctopSessionId
     }
 
     static func notificationRequestIdentifier(forCctopSessionID cctopSessionID: String) -> String? {
@@ -190,15 +191,13 @@ struct ManualSessionVisibilityStore {
         )
     }
 
-    func isHidden(_ session: SessionData) -> Bool {
-        guard let cctopSessionID = session.cctopSessionId,
-              CctopSessionID.isValid(cctopSessionID) else { return false }
+    func isHidden(cctopSessionID: String) -> Bool {
+        guard CctopSessionID.isValid(cctopSessionID) else { return false }
         return hiddenSessionIDs.contains(cctopSessionID)
     }
 
-    func hide(_ session: SessionData) {
-        guard let cctopSessionID = session.cctopSessionId,
-              CctopSessionID.isValid(cctopSessionID) else { return }
+    func hide(cctopSessionID: String) {
+        guard CctopSessionID.isValid(cctopSessionID) else { return }
         var sessionIDs = hiddenSessionIDs
         sessionIDs.insert(cctopSessionID)
         save(sessionIDs)

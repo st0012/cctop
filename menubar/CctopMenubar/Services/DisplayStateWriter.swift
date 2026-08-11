@@ -73,7 +73,7 @@ final class DisplayStateWriter {
 
     private var lastSnapshot: Data?
 
-    func write(sessions: [SessionData], theme: AppTheme, appRunning: Bool, now: Date = Date()) {
+    func write(userSessions: [UserSession], theme: AppTheme, appRunning: Bool, now: Date = Date()) {
         // An Xcode test host launches the app executable but is not a user-facing
         // cctop instance. It must not claim liveness or overwrite the user's surface.
         guard !Self.isXcodeTestHost else { return }
@@ -83,7 +83,7 @@ final class DisplayStateWriter {
             return DisplayState.ProcessIdentity(pid: pid, startTime: startTime)
         }
         let snapshot = Self.snapshot(
-            sessions: sessions,
+            userSessions: userSessions,
             theme: theme,
             appRunning: appRunning,
             appIdentity: appIdentity,
@@ -109,30 +109,30 @@ final class DisplayStateWriter {
     }
 
     static func snapshot(
-        sessions: [SessionData],
+        userSessions: [UserSession],
         theme: AppTheme,
         appRunning: Bool,
         appIdentity: DisplayState.ProcessIdentity?,
         now: Date
     ) -> DisplayState {
-        let ordered = SessionDisplayPolicy.activeSessions(from: sessions, now: now)
+        let ordered = SessionDisplayPolicy.activeSessions(from: userSessions, now: now)
         return DisplayState(
             version: schemaVersion,
             generatedAt: timestampFormatter.string(from: now),
             appRunning: appRunning,
             appPID: appRunning ? appIdentity?.pid : nil,
             appStartTime: appRunning ? appIdentity?.startTime : nil,
-            sessions: ordered.map { session in
-                // SessionManager assigns every publishable legacy record an id before
-                // reaching this boundary. Keep an invalid record in its original slot if
-                // that invariant is ever broken; the consumer renders an empty key rather
-                // than shifting later targets forward.
-                let cctopSessionId = session.cctopSessionId ?? ""
+            sessions: ordered.map { userSession in
+                let data = userSession.displayRecord.data
+                // Permanent identities supply the published key. If a legacy group reaches
+                // this boundary, keep an empty key in its original slot rather than shifting
+                // later targets forward.
+                let cctopSessionId = userSession.identity.cctopSessionID ?? ""
                 return DisplayState.Entry(
                     cctopSessionId: cctopSessionId,
-                    name: session.displayName,
-                    status: session.status.rawValue,
-                    color: hexColor(for: session.status, theme: theme)
+                    name: data.displayName,
+                    status: userSession.status.rawValue,
+                    color: hexColor(for: userSession.status, theme: theme)
                 )
             }
         )

@@ -528,14 +528,6 @@ struct SessionData: Codable, Identifiable, Equatable {
         return nil
     }
 
-    static func sorted(_ sessions: [SessionData]) -> [SessionData] {
-        // Live (active) sessions first, then dormant; within each tier by status, then recency.
-        sessions.sorted {
-            ($0.lifecycle.rawValue, $0.status.sortOrder, $1.lastActivity)
-                < ($1.lifecycle.rawValue, $1.status.sortOrder, $0.lastActivity)
-        }
-    }
-
     static func extractProjectName(_ path: String) -> String {
         URL(fileURLWithPath: path).lastPathComponent
     }

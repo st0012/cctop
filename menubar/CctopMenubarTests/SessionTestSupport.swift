@@ -328,18 +328,14 @@ extension XCTestCase {
         return SessionRecord(data: s, lifecycleRank: lifecycleRank, mtime: mtime, path: path)
     }
 
-    @MainActor
-    func setSessionProjection(_ sessions: [SessionData], on manager: SessionManager) {
-        manager.updateSessionProjection(userSessionProjection(from: sessions))
-    }
-
-    func userSessionProjection(from sessions: [SessionData]) -> [UserSession] {
-        let records = sessions.enumerated().map { index, session in
+    /// Runs raw test fixtures forward through the same record and grouping stages as production.
+    func userSessions(fromDataFixtures dataFixtures: [SessionData]) -> [UserSession] {
+        let records = dataFixtures.enumerated().map { index, data in
             SessionRecord(
-                data: session,
-                lifecycleRank: session.lifecycle.rawValue,
+                data: data,
+                lifecycleRank: data.lifecycle.rawValue,
                 mtime: .distantPast,
-                path: "/test-projection-\(index).json"
+                path: "/test-source-record-\(index).json"
             )
         }
         return UserSession.grouping(
@@ -348,7 +344,11 @@ extension XCTestCase {
         )
     }
 
-    func userSession(display: SessionData, records: [SessionData]) -> UserSession {
+    func userSession(
+        identity: SessionIdentityPolicy.LogicalIdentity,
+        display: SessionData,
+        records: [SessionData]
+    ) -> UserSession {
         let sessionRecords = records.enumerated().map { index, data in
             SessionRecord(
                 data: data,
@@ -365,7 +365,7 @@ extension XCTestCase {
                 path: "/test-user-session-display.json"
             )
         return UserSession(
-            identity: SessionIdentityPolicy.logicalIdentity(for: display),
+            identity: identity,
             records: sessionRecords,
             displayRecord: displayRecord
         )

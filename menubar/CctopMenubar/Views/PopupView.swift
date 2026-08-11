@@ -6,7 +6,6 @@ private let overlayAnimationDuration: TimeInterval = 0.2
 private let relativeTimeRefresh = Timer.publish(every: 10, on: .main, in: .common).autoconnect()
 
 struct PopupView: View {
-    let sessions: [SessionData]
     let userSessions: [UserSession]
     var recentProjects: [RecentProject] = []
     var recentResumeTargets: [RecentResumeTarget]?
@@ -20,7 +19,7 @@ struct PopupView: View {
     var initialTab: PopupTab = .active
     var initialCleanupCandidate: WorktreeCleanupCandidate?
     var onOpenUpdater: (() -> Void)?
-    var onHideSession: (SessionData) -> Void = { _ in }
+    var onHideSession: (SessionIdentityPolicy.LogicalIdentity) -> Void = { _ in }
     var onSelectCleanupRemovalAction: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalAction)?
     var onExecuteCleanupRemovalAction: ((WorktreeRemovalService.RemovalAction) async -> WorktreeRemovalService.RemovalResult)?
     var onCleanupTabVisible: () -> Void = {}
@@ -56,7 +55,7 @@ struct PopupView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HeaderView(sessions: sessions)
+            HeaderView(counts: StatusCounts(userSessions: userSessions))
             if showTabs {
                 tabPicker
             }
@@ -106,7 +105,6 @@ struct PopupView: View {
         }
         .onReceive(relativeTimeRefresh) { relativeTimeNow = $0 }
         .onChange(of: selectedTab) { handleSelectedTabChanged($0) }
-        .onChange(of: sessions) { _ in ensureSelectedTabAvailable() }
         .onChange(of: recentTargets.map(\.id)) { _ in ensureSelectedTabAvailable() }
         .onChange(of: actionableCleanupCandidates) { _ in handleCleanupCandidatesChanged() }
         .onChange(of: cleanupIsScanning) { _ in handleCleanupScanningChanged() }
@@ -150,8 +148,8 @@ struct PopupView: View {
 
     private func count(for tab: PopupTab) -> Int {
         switch tab {
-        case .active: return sortedActiveSessions.count
-        case .idle: return sortedIdleSessions.count
+        case .active: return activeSessionRows.count
+        case .idle: return idleSessionRows.count
         case .recent: return recentTargets.count
         case .cleanup: return actionableCleanupCandidates.count
         }
@@ -180,9 +178,9 @@ struct PopupView: View {
     // MARK: - Active tab
     private var activeContent: some View {
         Group {
-            if sessions.isEmpty {
+            if userSessions.isEmpty {
                 EmptyStateView(pluginManager: pluginManager)
-            } else if sortedActiveSessions.isEmpty {
+            } else if activeSessionRows.isEmpty {
                 noActiveSessionsContent
             } else {
                 VStack(spacing: 0) {
@@ -206,7 +204,7 @@ struct PopupView: View {
     // MARK: - Idle tab
     @ViewBuilder
     private var idleContent: some View {
-        if sortedIdleSessions.isEmpty {
+        if idleSessionRows.isEmpty {
             noIdleSessionsContent
         } else {
             sessionList(idleSessionRows, tab: .idle)

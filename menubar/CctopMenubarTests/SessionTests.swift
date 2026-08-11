@@ -507,9 +507,18 @@ final class SessionTests: XCTestCase {
             id: "unrelated", cctopSessionId: "22222222-2222-4222-8222-222222222222",
             status: .waitingPermission, pid: 33_333, source: SessionData.opencodeSource
         )
-        let oldRequest = try XCTUnwrap(SessionManager.notificationRequest(for: oldRecord))
-        let currentRequest = try XCTUnwrap(SessionManager.notificationRequest(for: currentRecord))
-        let unrelatedRequest = try XCTUnwrap(SessionManager.notificationRequest(for: unrelated))
+        let oldRequest = try XCTUnwrap(SessionManager.notificationRequest(
+            forCctopSessionID: sharedID,
+            displayData: oldRecord
+        ))
+        let currentRequest = try XCTUnwrap(SessionManager.notificationRequest(
+            forCctopSessionID: sharedID,
+            displayData: currentRecord
+        ))
+        let unrelatedRequest = try XCTUnwrap(SessionManager.notificationRequest(
+            forCctopSessionID: "22222222-2222-4222-8222-222222222222",
+            displayData: unrelated
+        ))
         let preMigrationContent = UNMutableNotificationContent()
         preMigrationContent.userInfo = [
             SessionIdentityPolicy.notificationCctopSessionIDKey: sharedID,
@@ -552,7 +561,7 @@ final class SessionTests: XCTestCase {
 
         let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
             matchingNotificationUserInfo: userInfo,
-            in: userSessionProjection(from: [first, second])
+            in: userSessions(fromDataFixtures: [first, second])
         )
 
         XCTAssertEqual(resolvedID, secondID)
@@ -568,7 +577,7 @@ final class SessionTests: XCTestCase {
 
         let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
             matchingNotificationUserInfo: userInfo,
-            in: userSessionProjection(from: [session])
+            in: userSessions(fromDataFixtures: [session])
         )
 
         XCTAssertNil(resolvedID)
@@ -586,7 +595,7 @@ final class SessionTests: XCTestCase {
 
         let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
             matchingNotificationUserInfo: userInfo,
-            in: userSessionProjection(from: [currentRecord])
+            in: userSessions(fromDataFixtures: [currentRecord])
         )
 
         XCTAssertEqual(resolvedID, cctopSessionID)
@@ -607,7 +616,7 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(
             SessionIdentityPolicy.notificationCctopSessionID(
                 matchingNotificationUserInfo: [SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1"],
-                in: userSessionProjection(from: [first, second])
+                in: userSessions(fromDataFixtures: [first, second])
             )
         )
     }
@@ -626,7 +635,11 @@ final class SessionTests: XCTestCase {
             matchingNotificationUserInfo: [
                 SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1",
             ],
-            in: [userSession(display: current, records: [stale, current])]
+            in: [userSession(
+                identity: SessionIdentityPolicy.logicalIdentity(for: current),
+                display: current,
+                records: [stale, current]
+            )]
         )
 
         XCTAssertEqual(resolvedID, current.cctopSessionId)
@@ -650,7 +663,7 @@ final class SessionTests: XCTestCase {
                 matchingNotificationUserInfo: [
                     SessionIdentityPolicy.notificationSessionIDKey: "shared-session",
                 ],
-                in: userSessionProjection(from: [unstampedCodex, stampedDesktop])
+                in: userSessions(fromDataFixtures: [unstampedCodex, stampedDesktop])
             )
         )
     }
@@ -668,7 +681,7 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(
             SessionIdentityPolicy.notificationCctopSessionID(
                 matchingNotificationUserInfo: userInfo,
-                in: userSessionProjection(from: [session])
+                in: userSessions(fromDataFixtures: [session])
             )
         )
     }
@@ -685,7 +698,7 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(
             SessionIdentityPolicy.notificationCctopSessionID(
                 matchingNotificationUserInfo: userInfo,
-                in: userSessionProjection(from: [session])
+                in: userSessions(fromDataFixtures: [session])
             )
         )
     }
@@ -702,7 +715,7 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(
             SessionIdentityPolicy.notificationCctopSessionID(
                 matchingNotificationUserInfo: userInfo,
-                in: userSessionProjection(from: [session])
+                in: userSessions(fromDataFixtures: [session])
             )
         )
     }
@@ -737,8 +750,8 @@ final class SessionTests: XCTestCase {
             source: SessionData.codexSource
         )
 
-        store.hide(terminal)
-        store.hide(codex)
+        store.hide(cctopSessionID: try XCTUnwrap(terminal.cctopSessionId))
+        store.hide(cctopSessionID: try XCTUnwrap(codex.cctopSessionId))
 
         let stored = try XCTUnwrap(defaults.stringArray(forKey: ManualSessionVisibilityStore.defaultsKey))
         XCTAssertEqual(stored, [
@@ -757,14 +770,11 @@ final class SessionTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = ManualSessionVisibilityStore(defaults: defaults)
-        let first = SessionData.mock(
-            id: "first", cctopSessionId: "11111111-1111-4111-8111-111111111111"
-        )
+        let firstID = "11111111-1111-4111-8111-111111111111"
         let secondID = "22222222-2222-4222-8222-222222222222"
-        let second = SessionData.mock(id: "second", cctopSessionId: secondID)
 
-        store.hide(first)
-        store.hide(second)
+        store.hide(cctopSessionID: firstID)
+        store.hide(cctopSessionID: secondID)
         store.prune(retaining: [secondID])
 
         XCTAssertEqual(store.hiddenSessionIDs, [secondID])
@@ -874,13 +884,13 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(store.unresolvedDurableLegacyKeys, [legacyKey])
 
         let first = SessionData.mock(
-            id: "first-observation",
+            id: "first-record",
             cctopSessionId: firstID,
             harnessSessionId: threadID,
             source: SessionData.codexSource
         )
         let second = SessionData.mock(
-            id: "second-observation",
+            id: "second-record",
             cctopSessionId: secondID,
             harnessSessionId: threadID,
             source: SessionData.codexSource
@@ -904,11 +914,14 @@ final class SessionTests: XCTestCase {
         var legacy = SessionData.mock(id: "legacy")
         legacy.cctopSessionId = nil
 
-        store.hide(legacy)
+        store.hide(cctopSessionID: "not-a-uuid")
 
-        XCTAssertFalse(store.isHidden(legacy))
+        XCTAssertFalse(store.isHidden(cctopSessionID: "not-a-uuid"))
         XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.defaultsKey))
-        XCTAssertNil(ManualSessionHideConfirmation(session: legacy))
+        XCTAssertNil(ManualSessionHideConfirmation(
+            identity: SessionIdentityPolicy.logicalIdentity(for: legacy),
+            displayName: legacy.displayName
+        ))
     }
 
     func testManualSessionHideConfirmationDescribesIrreversibleVisibleEffect() throws {
@@ -920,7 +933,11 @@ final class SessionTests: XCTestCase {
             source: SessionData.codexSource
         )
 
-        let confirmation = try XCTUnwrap(ManualSessionHideConfirmation(session: session))
+        let identity = SessionIdentityPolicy.logicalIdentity(for: session)
+        let confirmation = try XCTUnwrap(ManualSessionHideConfirmation(
+            identity: identity,
+            displayName: session.displayName
+        ))
 
         XCTAssertEqual(confirmation.id, "hide:11111111-1111-4111-8111-111111111111")
         XCTAssertEqual(confirmation.title, "Hide “Investigate lifecycle” from cctop?")
@@ -931,7 +948,8 @@ final class SessionTests: XCTestCase {
                 + "This does not stop or delete the underlying session; cctop will keep it available for lifecycle and Cleanup. "
                 + "You cannot show it again while its local session record exists."
         )
-        XCTAssertEqual(confirmation.session, session)
+        XCTAssertEqual(confirmation.identity, identity)
+        XCTAssertEqual(confirmation.displayName, session.displayName)
     }
 
     func testPopupConfirmationRoutesCleanupAndSessionHideWithDistinctIdentity() throws {
@@ -939,11 +957,8 @@ final class SessionTests: XCTestCase {
             .normalRemove(.mock(state: .review(["Worktree has untracked files"])))
         )
         let sessionConfirmation = try XCTUnwrap(ManualSessionHideConfirmation(
-            session: .mock(
-                id: "private-session",
-                cctopSessionId: "11111111-1111-4111-8111-111111111111",
-                source: SessionData.codexSource
-            )
+            identity: .permanent(try XCTUnwrap(UUID(uuidString: "11111111-1111-4111-8111-111111111111"))),
+            displayName: "Private session"
         ))
         let cleanupRoute = PopupConfirmation.cleanup(cleanupConfirmation)
         let sessionRoute = PopupConfirmation.sessionHide(sessionConfirmation)
@@ -963,7 +978,7 @@ final class SessionTests: XCTestCase {
         )
     }
 
-    func testNotificationRequestDoesNotUseVisibleThreadGrouping() throws {
+    func testNotificationRequestUsesExplicitUserSessionIdentity() throws {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
         let session = SessionData.mock(
             id: "claude-desktop-thread-1",
@@ -973,20 +988,22 @@ final class SessionTests: XCTestCase {
             source: "cc"
         )
 
-        let request = try XCTUnwrap(SessionManager.notificationRequest(for: session))
+        let request = try XCTUnwrap(SessionManager.notificationRequest(
+            forCctopSessionID: cctopSessionID,
+            displayData: session
+        ))
 
         XCTAssertEqual(request.identifier, "session-\(cctopSessionID)")
         XCTAssertEqual(request.content.threadIdentifier, "")
     }
 
-    func testNotificationRequestFailsClosedWithoutPermanentIdentity() {
-        var missing = SessionData.mock(id: "legacy", status: .waitingInput)
-        missing.cctopSessionId = nil
-        var malformed = missing
-        malformed.cctopSessionId = "not-a-uuid"
+    func testNotificationRequestRejectsInvalidExplicitIdentity() {
+        let displayData = SessionData.mock(id: "legacy", status: .waitingInput)
 
-        XCTAssertNil(SessionManager.notificationRequest(for: missing))
-        XCTAssertNil(SessionManager.notificationRequest(for: malformed))
+        XCTAssertNil(SessionManager.notificationRequest(
+            forCctopSessionID: "not-a-uuid",
+            displayData: displayData
+        ))
     }
 
     @MainActor
@@ -1023,9 +1040,9 @@ final class SessionTests: XCTestCase {
             dataSources: sources,
             startMonitoring: false
         )
-        setSessionProjection([session], on: manager)
+        manager.updateSessionProjection(userSessions(fromDataFixtures: [session]))
 
-        manager.postNotification(for: session)
+        manager.postNotification(forCctopSessionID: cctopSessionID)
 
         XCTAssertEqual(
             recorder.events,
@@ -1077,16 +1094,16 @@ final class SessionTests: XCTestCase {
         )
         var noLongerNeedsAttention = session
         noLongerNeedsAttention.status = .working
-        setSessionProjection([noLongerNeedsAttention], on: manager)
-        manager.postNotification(for: session)
+        manager.updateSessionProjection(userSessions(fromDataFixtures: [noLongerNeedsAttention]))
+        manager.postNotification(forCctopSessionID: try XCTUnwrap(session.cctopSessionId))
 
-        setSessionProjection([session], on: manager)
-        store.hide(session)
+        manager.updateSessionProjection(userSessions(fromDataFixtures: [session]))
+        store.hide(cctopSessionID: try XCTUnwrap(session.cctopSessionId))
 
-        manager.postNotification(for: session)
+        manager.postNotification(forCctopSessionID: try XCTUnwrap(session.cctopSessionId))
         store.prune(retaining: [])
-        setSessionProjection([], on: manager)
-        manager.postNotification(for: session)
+        manager.updateSessionProjection([])
+        manager.postNotification(forCctopSessionID: try XCTUnwrap(session.cctopSessionId))
 
         XCTAssertEqual(recorder.events, [])
     }
@@ -1120,15 +1137,15 @@ final class SessionTests: XCTestCase {
             dataSources: sources,
             startMonitoring: false
         )
-        setSessionProjection([replacement], on: manager)
+        manager.updateSessionProjection(userSessions(fromDataFixtures: [replacement]))
 
-        manager.postNotification(for: original)
+        manager.postNotification(forCctopSessionID: try XCTUnwrap(original.cctopSessionId))
 
         XCTAssertTrue(recorder.events.isEmpty)
     }
 
     @MainActor
-    func testPostNotificationFailsClosedWithoutPermanentIdentity() throws {
+    func testPostNotificationFailsClosedForInvalidExplicitIdentity() throws {
         final class Recorder {
             var events: [String] = []
         }
@@ -1155,9 +1172,9 @@ final class SessionTests: XCTestCase {
             dataSources: sources,
             startMonitoring: false
         )
-        setSessionProjection([missingIdentity], on: manager)
+        manager.updateSessionProjection(userSessions(fromDataFixtures: [missingIdentity]))
 
-        manager.postNotification(for: missingIdentity)
+        manager.postNotification(forCctopSessionID: "not-a-uuid")
 
         XCTAssertTrue(recorder.events.isEmpty)
     }
@@ -1197,14 +1214,14 @@ final class SessionTests: XCTestCase {
         )
         var staleWaitingSnapshot = working
         staleWaitingSnapshot.status = .waitingPermission
-        staleWaitingSnapshot.notificationMessage = "Stale observation"
-        waiting.notificationMessage = "Current observation"
-        setSessionProjection([waiting], on: manager)
+        staleWaitingSnapshot.notificationMessage = "Stale record"
+        waiting.notificationMessage = "Current record"
+        manager.updateSessionProjection(userSessions(fromDataFixtures: [waiting]))
 
-        manager.postNotification(for: staleWaitingSnapshot)
+        manager.postNotification(forCctopSessionID: sharedID)
 
         let request = try XCTUnwrap(recorder.requests.first)
-        XCTAssertEqual(request.content.body, "Current observation")
+        XCTAssertEqual(request.content.body, "Current record")
         XCTAssertEqual(request.identifier, "session-\(sharedID)")
         XCTAssertEqual(recorder.removals, [
             "pending:session-\(sharedID)",
@@ -1213,8 +1230,8 @@ final class SessionTests: XCTestCase {
 
         recorder.requests.removeAll()
         recorder.removals.removeAll()
-        setSessionProjection([working], on: manager)
-        manager.postNotification(for: staleWaitingSnapshot)
+        manager.updateSessionProjection(userSessions(fromDataFixtures: [working]))
+        manager.postNotification(forCctopSessionID: sharedID)
         XCTAssertTrue(recorder.requests.isEmpty)
         XCTAssertTrue(recorder.removals.isEmpty)
     }
@@ -1256,17 +1273,21 @@ final class SessionTests: XCTestCase {
             startMonitoring: false
         )
         manager.updateSessionProjection([
-            userSession(display: first, records: [unstamped, first]),
+            userSession(
+                identity: SessionIdentityPolicy.logicalIdentity(for: first),
+                display: first,
+                records: [unstamped, first]
+            ),
         ])
 
-        manager.hideSession(first)
+        manager.hideSession(try XCTUnwrap(manager.userSessions.first?.identity))
 
         let expectedIdentifiers = [
             "session-\(sharedID)",
             "session-codex:current-codex-thread",
             "session-codex:legacy-codex-thread",
         ]
-        XCTAssertTrue(manager.sessions.isEmpty)
+        XCTAssertTrue(manager.userSessions.isEmpty)
         XCTAssertEqual(recorder.pending, [expectedIdentifiers])
         XCTAssertEqual(recorder.delivered, [expectedIdentifiers])
         XCTAssertNil(SessionIdentityPolicy.legacyNotificationRequestIdentifier(for: processScoped))
@@ -1316,11 +1337,11 @@ final class SessionTests: XCTestCase {
             status: .waitingInput, source: SessionData.codexSource
         )
         attention.lifecycle = .active
-        setSessionProjection([attention], on: manager)
+        manager.updateSessionProjection(userSessions(fromDataFixtures: [attention]))
 
-        manager.hideSession(attention)
+        manager.hideSession(try XCTUnwrap(manager.userSessions.first?.identity))
 
-        XCTAssertEqual(manager.sessions, [])
+        XCTAssertEqual(manager.userSessions, [])
         XCTAssertEqual(recorder.events, [
             "pending:session-\(cctopSessionID),session-codex:attention",
             "delivered:session-\(cctopSessionID),session-codex:attention",
@@ -1330,21 +1351,21 @@ final class SessionTests: XCTestCase {
     func testNotificationActionsRemoveResolvedAttentionSession() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
         let oldSession = SessionData.mock(
-            id: "old-observation", cctopSessionId: cctopSessionID,
+            id: "old-record", cctopSessionId: cctopSessionID,
             status: .waitingInput,
             lastPrompt: "Waiting",
             pid: 11_111, source: SessionData.opencodeSource
         )
         let resolvedSession = SessionData.mock(
-            id: "new-observation", cctopSessionId: cctopSessionID,
+            id: "new-record", cctopSessionId: cctopSessionID,
             status: .working,
             pid: 22_222, source: SessionData.opencodeSource
         )
 
         XCTAssertEqual(
             SessionManager.notificationActions(
-                newSessions: [resolvedSession],
-                oldSessions: [oldSession],
+                newUserSessions: userSessions(fromDataFixtures: [resolvedSession]),
+                oldUserSessions: userSessions(fromDataFixtures: [oldSession]),
                 notificationsEnabled: true
             ),
             [.remove(cctopSessionID: cctopSessionID)]
@@ -1362,8 +1383,8 @@ final class SessionTests: XCTestCase {
 
         XCTAssertEqual(
             SessionManager.notificationActions(
-                newSessions: [],
-                oldSessions: [oldSession],
+                newUserSessions: [],
+                oldUserSessions: userSessions(fromDataFixtures: [oldSession]),
                 notificationsEnabled: true
             ),
             [.remove(cctopSessionID: cctopSessionID)]
@@ -1396,12 +1417,15 @@ final class SessionTests: XCTestCase {
             id: "codex-thread-1", cctopSessionId: cctopSessionID,
             status: .waitingPermission, pid: 11_111, source: SessionData.codexSource
         )
-        let currentSession = SessionData.mock(
+        let currentData = SessionData.mock(
             id: "codex-thread-1", cctopSessionId: cctopSessionID,
             status: .working, pid: 22_222, source: SessionData.codexSource
         )
 
-        manager.syncTransitionNotifications(for: [currentSession], oldSessions: [oldSession])
+        manager.syncTransitionNotifications(
+            for: userSessions(fromDataFixtures: [currentData]),
+            oldUserSessions: userSessions(fromDataFixtures: [oldSession])
+        )
 
         let identifiers = ["session-\(cctopSessionID)", "session-codex:codex-thread-1"]
         XCTAssertEqual(recorder.pending, [identifiers])
@@ -1409,14 +1433,70 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(recorder.cctopSessionIDs, [cctopSessionID])
     }
 
+    @MainActor
+    func testResolvedTransitionRemovesNotificationIdentifiersFromAllRetainedRecords() throws {
+        final class Recorder {
+            var pending: [[String]] = []
+            var delivered: [[String]] = []
+        }
+
+        let recorder = Recorder()
+        var sources = try isolatedSessionDataSources(prefix: "cctop-retained-notification-removal")
+        sources.notificationClient = SessionNotificationClient(
+            add: { _, completion in completion(nil) },
+            removePending: { recorder.pending.append($0) },
+            removeDelivered: { recorder.delivered.append($0) }
+        )
+        let manager = SessionManager(
+            historyManager: HistoryManager(historyDir: FileManager.default.temporaryDirectory),
+            dataSources: sources,
+            startMonitoring: false
+        )
+        let cctopSessionID = "11111111-1111-4111-8111-111111111111"
+        let oldDisplay = SessionData.mock(
+            id: "current-thread", cctopSessionId: cctopSessionID,
+            status: .waitingPermission, pid: 11_111, source: SessionData.codexSource
+        )
+        var retainedLegacy = SessionData.mock(
+            id: "legacy-thread", status: .waitingPermission,
+            pid: 22_222, source: SessionData.codexSource
+        )
+        retainedLegacy.cctopSessionId = nil
+        let currentDisplay = SessionData.mock(
+            id: "current-thread", cctopSessionId: cctopSessionID,
+            status: .working, pid: 33_333, source: SessionData.codexSource
+        )
+
+        manager.syncTransitionNotifications(
+            for: [userSession(
+                identity: SessionIdentityPolicy.logicalIdentity(for: currentDisplay),
+                display: currentDisplay,
+                records: [currentDisplay]
+            )],
+            oldUserSessions: [userSession(
+                identity: SessionIdentityPolicy.logicalIdentity(for: oldDisplay),
+                display: oldDisplay,
+                records: [oldDisplay, retainedLegacy]
+            )]
+        )
+
+        let identifiers = [
+            "session-\(cctopSessionID)",
+            "session-codex:current-thread",
+            "session-codex:legacy-thread",
+        ]
+        XCTAssertEqual(recorder.pending, [identifiers])
+        XCTAssertEqual(recorder.delivered, [identifiers])
+    }
+
     func testNotificationActionsPostOneTransitionAcrossReplacementRecord() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
         let oldSession = SessionData.mock(
-            id: "old-observation", cctopSessionId: cctopSessionID,
+            id: "old-record", cctopSessionId: cctopSessionID,
             status: .working, pid: 11_111, source: SessionData.opencodeSource
         )
         let waitingSession = SessionData.mock(
-            id: "new-observation", cctopSessionId: cctopSessionID,
+            id: "new-record", cctopSessionId: cctopSessionID,
             status: .waitingInput,
             lastPrompt: "Waiting",
             pid: 22_222, source: SessionData.opencodeSource
@@ -1424,28 +1504,30 @@ final class SessionTests: XCTestCase {
 
         XCTAssertEqual(
             SessionManager.notificationActions(
-                newSessions: [waitingSession],
-                oldSessions: [oldSession],
+                newUserSessions: userSessions(fromDataFixtures: [waitingSession]),
+                oldUserSessions: userSessions(fromDataFixtures: [oldSession]),
                 notificationsEnabled: true
             ),
-            [.post(session: waitingSession)]
+            [.post(cctopSessionID: cctopSessionID)]
         )
     }
 
     func testNotificationActionsDoNotRepostWaitingTransitionAcrossReplacementRecord() {
         let cctopSessionID = "11111111-1111-4111-8111-111111111111"
         let oldSession = SessionData.mock(
-            id: "old-observation", cctopSessionId: cctopSessionID,
+            id: "old-record", cctopSessionId: cctopSessionID,
             status: .waitingPermission, pid: 11_111, source: SessionData.opencodeSource
         )
         let replacement = SessionData.mock(
-            id: "new-observation", cctopSessionId: cctopSessionID,
+            id: "new-record", cctopSessionId: cctopSessionID,
             status: .waitingPermission, pid: 22_222, source: SessionData.opencodeSource
         )
 
         XCTAssertEqual(
             SessionManager.notificationActions(
-                newSessions: [replacement], oldSessions: [oldSession], notificationsEnabled: true
+                newUserSessions: userSessions(fromDataFixtures: [replacement]),
+                oldUserSessions: userSessions(fromDataFixtures: [oldSession]),
+                notificationsEnabled: true
             ),
             []
         )
@@ -1461,7 +1543,9 @@ final class SessionTests: XCTestCase {
 
         XCTAssertEqual(
             SessionManager.notificationActions(
-                newSessions: [waitingSession], oldSessions: [oldSession], notificationsEnabled: true
+                newUserSessions: userSessions(fromDataFixtures: [waitingSession]),
+                oldUserSessions: userSessions(fromDataFixtures: [oldSession]),
+                notificationsEnabled: true
             ),
             []
         )
@@ -1474,8 +1558,8 @@ final class SessionTests: XCTestCase {
     ) -> [SessionNotificationAction] {
         XCTAssertEqual(newSession.cctopSessionId, oldSession.cctopSessionId)
         return SessionManager.notificationActions(
-            newSessions: [newSession],
-            oldSessions: [oldSession],
+            newUserSessions: userSessions(fromDataFixtures: [newSession]),
+            oldUserSessions: userSessions(fromDataFixtures: [oldSession]),
             notificationsEnabled: notificationsEnabled
         )
     }
@@ -1597,7 +1681,7 @@ final class SessionTests: XCTestCase {
 
         XCTAssertEqual(
             notificationActions(newSession: waitingSession, oldSession: oldSession),
-            [.post(session: waitingSession)]
+            [.post(cctopSessionID: notificationTestCctopSessionID)]
         )
     }
 
@@ -1653,19 +1737,19 @@ final class SessionTests: XCTestCase {
 
         XCTAssertEqual(
             notificationActions(newSession: explicitMessageSession, oldSession: oldSession),
-            [.post(session: explicitMessageSession)]
+            [.post(cctopSessionID: notificationTestCctopSessionID)]
         )
         XCTAssertEqual(
             notificationActions(newSession: scaffoldWithRequestSession, oldSession: oldSession),
-            [.post(session: scaffoldWithRequestSession)]
+            [.post(cctopSessionID: notificationTestCctopSessionID)]
         )
         XCTAssertEqual(
             notificationActions(newSession: promptStartingWithScaffoldHeading, oldSession: oldSession),
-            [.post(session: promptStartingWithScaffoldHeading)]
+            [.post(cctopSessionID: notificationTestCctopSessionID)]
         )
         XCTAssertEqual(
             notificationActions(newSession: multilinePromptStartingWithScaffoldHeading, oldSession: oldSession),
-            [.post(session: multilinePromptStartingWithScaffoldHeading)]
+            [.post(cctopSessionID: notificationTestCctopSessionID)]
         )
     }
 
@@ -1695,11 +1779,11 @@ final class SessionTests: XCTestCase {
 
         XCTAssertEqual(
             notificationActions(newSession: permissionSession, oldSession: oldSession),
-            [.post(session: permissionSession)]
+            [.post(cctopSessionID: notificationTestCctopSessionID)]
         )
         XCTAssertEqual(
             notificationActions(newSession: errorSession, oldSession: oldSession),
-            [.post(session: errorSession)]
+            [.post(cctopSessionID: notificationTestCctopSessionID)]
         )
     }
 
@@ -1721,7 +1805,7 @@ final class SessionTests: XCTestCase {
 
         XCTAssertEqual(
             notificationActions(newSession: userFacingSession, oldSession: oldMachineOnlySession),
-            [.post(session: userFacingSession)]
+            [.post(cctopSessionID: notificationTestCctopSessionID)]
         )
     }
 
@@ -1766,8 +1850,8 @@ final class SessionTests: XCTestCase {
 
         XCTAssertEqual(
             SessionManager.notificationActions(
-                newSessions: [waitingSession],
-                oldSessions: [oldSession],
+                newUserSessions: userSessions(fromDataFixtures: [waitingSession]),
+                oldUserSessions: userSessions(fromDataFixtures: [oldSession]),
                 notificationsEnabled: false
             ),
             []
@@ -2417,27 +2501,27 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(rotated.terminal, newTerminal)
     }
 
-    func testPermanentIDFocusResolverReturnsCurrentRecord() throws {
+    func testPermanentIDFocusResolverReturnsCurrentUserSession() throws {
         let targetID = "11111111-2222-4333-8444-555555555555"
         let target = SessionData.mock(id: "abc", cctopSessionId: targetID, harnessSessionId: "abc", pid: 111)
         let other = SessionData.mock(id: "def", harnessSessionId: "def", pid: 222)
 
         let resolved = try XCTUnwrap(
-            FocusTargetResolver.currentSession(
+            FocusTargetResolver.currentUserSession(
                 forCctopSessionID: targetID,
-                in: userSessionProjection(from: [other, target])
+                in: userSessions(fromDataFixtures: [other, target])
             )
         )
-        XCTAssertEqual(resolved.sessionId, "abc")
+        XCTAssertEqual(resolved.focusTarget.sessionId, "abc")
     }
 
     func testPermanentIDFocusResolverRejectsInvalidIdentity() {
         let currentID = "11111111-2222-4333-8444-555555555555"
         let current = SessionData.mock(id: "current", cctopSessionId: currentID)
 
-        XCTAssertNil(FocusTargetResolver.currentSession(
+        XCTAssertNil(FocusTargetResolver.currentUserSession(
             forCctopSessionID: "111",
-            in: userSessionProjection(from: [current])
+            in: userSessions(fromDataFixtures: [current])
         ))
     }
 
@@ -2446,9 +2530,9 @@ final class SessionTests: XCTestCase {
         let missingID = "22222222-3333-4444-8555-666666666666"
         let current = SessionData.mock(id: "current", cctopSessionId: currentID)
 
-        let userSessions = userSessionProjection(from: [current])
-        XCTAssertNil(FocusTargetResolver.currentSession(forCctopSessionID: missingID, in: userSessions))
-        XCTAssertNil(FocusTargetResolver.currentSession(forCctopSessionID: currentID, in: []))
+        let userSessions = userSessions(fromDataFixtures: [current])
+        XCTAssertNil(FocusTargetResolver.currentUserSession(forCctopSessionID: missingID, in: userSessions))
+        XCTAssertNil(FocusTargetResolver.currentUserSession(forCctopSessionID: currentID, in: []))
     }
 
     func testLogicalFocusResolverUsesUserSessionDisplayRecord() {
@@ -2456,26 +2540,33 @@ final class SessionTests: XCTestCase {
         let first = SessionData.mock(id: "first", cctopSessionId: cctopSessionID, pid: 111)
         let second = SessionData.mock(id: "second", cctopSessionId: cctopSessionID, pid: 222)
         let identity = SessionIdentityPolicy.logicalIdentity(for: first)
-        let current = userSession(display: second, records: [first, second])
+        let current = userSession(identity: identity, display: second, records: [first, second])
 
-        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [current])?.pid, 222)
+        XCTAssertEqual(FocusTargetResolver.currentUserSession(for: identity, in: [current])?.focusTarget.pid, 222)
     }
 
     func testLogicalFocusResolverKeepsLegacyFallbackUniqueAndFailsClosedWhenAmbiguous() {
         var first = SessionData.mock(id: "first", pid: 111, source: SessionData.opencodeSource)
         first.cctopSessionId = nil
         let identity = SessionIdentityPolicy.logicalIdentity(for: first)
-        let current = userSession(display: first, records: [first])
+        let current = userSession(identity: identity, display: first, records: [first])
         var conflicting = first
         conflicting.cctopSessionId = "22222222-3333-4444-8555-666666666666"
-        let conflictingUserSession = userSession(display: conflicting, records: [conflicting])
+        let conflictingUserSession = userSession(
+            identity: SessionIdentityPolicy.logicalIdentity(for: conflicting),
+            display: conflicting,
+            records: [conflicting]
+        )
 
-        XCTAssertEqual(FocusTargetResolver.currentSession(for: identity, in: [current])?.sessionId, "first")
-        XCTAssertNil(FocusTargetResolver.currentSession(for: identity, in: [current, conflictingUserSession]))
-        XCTAssertNil(FocusTargetResolver.currentSession(for: identity, in: []))
+        XCTAssertEqual(
+            FocusTargetResolver.currentUserSession(for: identity, in: [current])?.focusTarget.sessionId,
+            "first"
+        )
+        XCTAssertNil(FocusTargetResolver.currentUserSession(for: identity, in: [current, conflictingUserSession]))
+        XCTAssertNil(FocusTargetResolver.currentUserSession(for: identity, in: []))
     }
 
-    func testRepeatedCctopSessionIDKeepsRows() {
+    func testRepeatedCctopSessionIDFormsOneDisplayStateUserSession() {
         let now = Date()
         let cctopSessionID = "11111111-2222-4333-8444-555555555555"
         var working = SessionData.mock(
@@ -2489,18 +2580,17 @@ final class SessionTests: XCTestCase {
         )
         idle.lastActivity = now.addingTimeInterval(-5)
 
+        let userSessions = userSessions(fromDataFixtures: [idle, working])
         let snapshot = DisplayStateWriter.snapshot(
-            sessions: [idle, working],
+            userSessions: userSessions,
             theme: .claude,
             appRunning: true,
             appIdentity: nil,
             now: now
         )
-        XCTAssertEqual(snapshot.sessions.count, 2)
-
-        let ordered = SessionDisplayPolicy.activeSessions(from: [idle, working], now: now)
-        XCTAssertEqual(ordered.count, 2)
-        XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [cctopSessionID, cctopSessionID])
+        XCTAssertEqual(userSessions.count, 1)
+        XCTAssertEqual(snapshot.sessions.count, 1)
+        XCTAssertEqual(snapshot.sessions.map(\.cctopSessionId), [cctopSessionID])
     }
 
     // MARK: - Cctop session identity
