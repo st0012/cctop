@@ -461,6 +461,89 @@ final class FocusStrategyTests: XCTestCase {
         )
     }
 
+    func testCodexDesktopAppServerOverridesInheritedCmux() throws {
+        let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        let appServerPID: pid_t = 61_871
+        let multiplexer = MultiplexerInfo.cmux(
+            socket: "/tmp/cmux.sock",
+            workspaceId: "b48dbe7e-b98f-48e7-9914-17d7f119beaa",
+            surfaceId: "0beee68a-a07d-4225-acf6-8c973615aa91",
+            paneId: nil,
+            binaryPath: "/Applications/cmux.app/Contents/Resources/bin/cmux"
+        )
+        let session = SessionData.mock(
+            id: threadID,
+            project: "myapp",
+            pid: UInt32(appServerPID),
+            terminal: TerminalInfo(program: "", multiplexer: multiplexer),
+            source: SessionData.codexSource
+        )
+        let app = CodexDesktopRuntimeProbe.RunningApp(
+            pid: 61_700,
+            bundleIdentifier: HostAppBundleID.codexDesktop,
+            bundleURLPath: "/Applications/ChatGPT.app"
+        )
+        let appServer = CodexDesktopRuntimeProbe.ProcessSnapshot(
+            pid: appServerPID,
+            executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
+            arguments: ["codex", "app-server", "--analytics-default-enabled"]
+        )
+        let makeProbe = {
+            (apps: [CodexDesktopRuntimeProbe.RunningApp], servers: [CodexDesktopRuntimeProbe.ProcessSnapshot]) in
+            CodexDesktopRuntimeProbe(
+                runningApps: { apps },
+                childProcesses: { _ in servers },
+                environment: { _ in [:] }
+            )
+        }
+        let probe = makeProbe([app], [appServer])
+        let isDesktopTarget = probe.isCurrentDesktopAppServer(pid: appServerPID)
+
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            isCodexDesktopAppServerTarget: isDesktopTarget
+        )
+        let intended = FocusStrategy.openURL(
+            try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
+            restoreBundleID: HostAppBundleID.codexDesktop
+        )
+
+        XCTAssertTrue(isDesktopTarget)
+        XCTAssertEqual(strategy, intended)
+        XCTAssertNotEqual(strategy, .openURL(try XCTUnwrap(cmuxNavigationURL(multiplexer: multiplexer))))
+        XCTAssertNotEqual(strategy, .openInFinder(session.projectPath))
+        XCTAssertNil(resolveMultiplexerFocus(session: session, primaryStrategy: strategy))
+        XCTAssertFalse(probe.isCurrentDesktopAppServer(pid: appServerPID + 1))
+        XCTAssertFalse(makeProbe([app, app], [appServer]).isCurrentDesktopAppServer(pid: appServerPID))
+        XCTAssertFalse(makeProbe([app], [appServer, appServer]).isCurrentDesktopAppServer(pid: appServerPID))
+    }
+
+    func testCodexCLICmuxStillUsesCmuxRoute() throws {
+        let multiplexer = MultiplexerInfo.cmux(
+            socket: "/tmp/cmux.sock",
+            workspaceId: "b48dbe7e-b98f-48e7-9914-17d7f119beaa",
+            surfaceId: "0beee68a-a07d-4225-acf6-8c973615aa91",
+            paneId: nil,
+            binaryPath: "/Applications/cmux.app/Contents/Resources/bin/cmux"
+        )
+        let session = SessionData.mock(
+            id: "019e1eff-3374-74b0-8d3d-6fba94e7d75f",
+            project: "myapp",
+            pid: 61_872,
+            terminal: TerminalInfo(program: "cmux", multiplexer: multiplexer),
+            source: SessionData.codexSource
+        )
+
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            isCodexDesktopAppServerTarget: false
+        )
+
+        XCTAssertEqual(strategy, .openURL(try XCTUnwrap(cmuxNavigationURL(multiplexer: multiplexer))))
+    }
+
     func testCurrentPermanentIDCodexRouteUsesThreadDeepLinkDespiteStalePID() throws {
         let threadID = "019faecb-6e9b-7f41-a51f-bb998875ca77"
         let cctopSessionID = "82498aba-410e-4b6b-b48d-62f7c6a81eae"
