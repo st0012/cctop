@@ -48,8 +48,12 @@ struct CodexDesktopRuntimeProbe {
         return environment(server.pid)["CODEX_SQLITE_HOME"].flatMap(Config.nonEmpty)
     }
 
-    func isCurrentDesktopAppServer(pid: pid_t) -> Bool {
-        currentDesktopAppServer()?.pid == pid
+    func isCurrentDesktopAppServer(for session: SessionData) -> Bool {
+        guard session.isCodex,
+              session.pidStartTime != nil,
+              session.isAlive,
+              let pid = session.pid.flatMap(pid_t.init(exactly:)) else { return false }
+        return currentDesktopAppServer()?.pid == pid
     }
 
     private func currentDesktopAppServer() -> ProcessSnapshot? {

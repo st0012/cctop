@@ -25,6 +25,29 @@ final class FocusStrategyTests: XCTestCase {
         )
     }
 
+    private func makeCodexDesktopProbe(
+        apps: [CodexDesktopRuntimeProbe.RunningApp],
+        servers: [CodexDesktopRuntimeProbe.ProcessSnapshot]
+    ) -> CodexDesktopRuntimeProbe {
+        CodexDesktopRuntimeProbe(
+            runningApps: { apps },
+            childProcesses: { _ in servers },
+            environment: { _ in [:] }
+        )
+    }
+
+    private func spawnLiveProcess() throws -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["30"]
+        try process.run()
+        addTeardownBlock {
+            if process.isRunning { process.terminate() }
+            process.waitUntilExit()
+        }
+        return process
+    }
+
     func testActionTitleDescribesResolvedFocusBehavior() throws {
         let codexURL = try XCTUnwrap(URL(string: "codex://threads/019e1eff-3374-74b0-8d3d-6fba94e7d75f"))
 
@@ -463,7 +486,8 @@ final class FocusStrategyTests: XCTestCase {
 
     func testCodexDesktopAppServerOverridesInheritedCmux() throws {
         let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
-        let appServerPID: pid_t = 61_871
+        let appServerPID = pid_t(try spawnLiveProcess().processIdentifier)
+        let appServerStartTime = try XCTUnwrap(SessionData.processStartTime(pid: UInt32(appServerPID)))
         let multiplexer = MultiplexerInfo.cmux(
             socket: "/tmp/cmux.sock",
             workspaceId: "b48dbe7e-b98f-48e7-9914-17d7f119beaa",
@@ -475,6 +499,7 @@ final class FocusStrategyTests: XCTestCase {
             id: threadID,
             project: "myapp",
             pid: UInt32(appServerPID),
+            pidStartTime: appServerStartTime,
             terminal: TerminalInfo(program: "", multiplexer: multiplexer),
             source: SessionData.codexSource
         )
@@ -488,16 +513,8 @@ final class FocusStrategyTests: XCTestCase {
             executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
             arguments: ["codex", "app-server", "--analytics-default-enabled"]
         )
-        let makeProbe = {
-            (apps: [CodexDesktopRuntimeProbe.RunningApp], servers: [CodexDesktopRuntimeProbe.ProcessSnapshot]) in
-            CodexDesktopRuntimeProbe(
-                runningApps: { apps },
-                childProcesses: { _ in servers },
-                environment: { _ in [:] }
-            )
-        }
-        let probe = makeProbe([app], [appServer])
-        let isDesktopTarget = probe.isCurrentDesktopAppServer(pid: appServerPID)
+        let probe = makeCodexDesktopProbe(apps: [app], servers: [appServer])
+        let isDesktopTarget = probe.isCurrentDesktopAppServer(for: session)
 
         let strategy = resolveFocusStrategy(
             session: session,
@@ -514,9 +531,21 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertNotEqual(strategy, .openURL(try XCTUnwrap(cmuxNavigationURL(multiplexer: multiplexer))))
         XCTAssertNotEqual(strategy, .openInFinder(session.projectPath))
         XCTAssertNil(resolveMultiplexerFocus(session: session, primaryStrategy: strategy))
-        XCTAssertFalse(probe.isCurrentDesktopAppServer(pid: appServerPID + 1))
-        XCTAssertFalse(makeProbe([app, app], [appServer]).isCurrentDesktopAppServer(pid: appServerPID))
-        XCTAssertFalse(makeProbe([app], [appServer, appServer]).isCurrentDesktopAppServer(pid: appServerPID))
+
+        var staleGeneration = session
+        staleGeneration.pidStartTime = appServerStartTime - 10
+        var missingGeneration = session
+        missingGeneration.pidStartTime = nil
+        var otherProcess = session
+        otherProcess.pid = UInt32(appServerPID) + 1
+
+        XCTAssertFalse(probe.isCurrentDesktopAppServer(for: staleGeneration))
+        XCTAssertFalse(probe.isCurrentDesktopAppServer(for: missingGeneration))
+        XCTAssertFalse(probe.isCurrentDesktopAppServer(for: otherProcess))
+        XCTAssertFalse(makeCodexDesktopProbe(apps: [app, app], servers: [appServer])
+            .isCurrentDesktopAppServer(for: session))
+        XCTAssertFalse(makeCodexDesktopProbe(apps: [app], servers: [appServer, appServer])
+            .isCurrentDesktopAppServer(for: session))
     }
 
     func testCodexCLICmuxStillUsesCmuxRoute() throws {

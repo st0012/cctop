@@ -129,9 +129,7 @@ private let focusQueue = DispatchQueue(label: "cctop.focus-terminal", qos: .user
 func focusTerminal(session: SessionData) {
     focusQueue.async {
         let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
-        let isCodexDesktopAppServerTarget = session.isCodex && session.pid.flatMap(pid_t.init(exactly:)).map {
-            CodexDesktopRuntimeProbe().isCurrentDesktopAppServer(pid: $0)
-        } == true
+        let isCodexDesktopAppServerTarget = CodexDesktopRuntimeProbe().isCurrentDesktopAppServer(for: session)
         let strategy = resolveFocusStrategy(
             session: session,
             multiplexerOverride: multiplexerOverride,
