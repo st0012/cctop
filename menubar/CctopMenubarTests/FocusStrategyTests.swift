@@ -69,6 +69,10 @@ final class FocusStrategyTests: XCTestCase {
             FocusStrategy.activateByBundleID(HostAppBundleID.claudeDesktop).actionTitle,
             "Bring Claude Desktop Forward"
         )
+        XCTAssertEqual(
+            FocusStrategy.activateByBundleID("dev.commandline.waveterm").actionTitle,
+            "Bring App Forward"
+        )
         XCTAssertEqual(FocusStrategy.openInFinder(projectPath).actionTitle, "Open Project in Finder")
         XCTAssertEqual(FocusStrategy.unavailable(.codexTaskIdentifierInvalid).actionTitle, "Why Focus Is Unavailable")
     }
@@ -519,7 +523,7 @@ final class FocusStrategyTests: XCTestCase {
         let strategy = resolveFocusStrategy(
             session: session,
             multiplexerOverride: nil,
-            isCodexDesktopAppServerTarget: isDesktopTarget
+            verifiedHostApp: isDesktopTarget ? .codexDesktop : nil
         )
         let intended = FocusStrategy.openURL(
             try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
@@ -560,14 +564,17 @@ final class FocusStrategyTests: XCTestCase {
             id: "019e1eff-3374-74b0-8d3d-6fba94e7d75f",
             project: "myapp",
             pid: 61_872,
-            terminal: TerminalInfo(program: "cmux", multiplexer: multiplexer),
+            terminal: TerminalInfo(
+                program: "cmux",
+                bundleId: "dev.commandline.waveterm",
+                multiplexer: multiplexer
+            ),
             source: SessionData.codexSource
         )
 
         let strategy = resolveFocusStrategy(
             session: session,
-            multiplexerOverride: nil,
-            isCodexDesktopAppServerTarget: false
+            multiplexerOverride: nil
         )
 
         XCTAssertEqual(strategy, .openURL(try XCTUnwrap(cmuxNavigationURL(multiplexer: multiplexer))))
@@ -641,6 +648,51 @@ final class FocusStrategyTests: XCTestCase {
 
         XCTAssertEqual(
             strategy,
+            .openURL(
+                try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
+                restoreBundleID: HostAppBundleID.codexDesktop
+            )
+        )
+    }
+
+    // MARK: - Unknown host bundle fallback
+
+    func testUnknownTerminalBundleActivatesHostApp() {
+        let session = makeSession(
+            program: "waveterm",
+            tty: "/dev/ttys013",
+            bundleId: "dev.commandline.waveterm"
+        )
+
+        XCTAssertEqual(
+            resolveFocusStrategy(session: session),
+            .activateByBundleID("dev.commandline.waveterm")
+        )
+    }
+
+    func testUnknownTerminalWithWhitespaceBundleOpensInFinder() {
+        let session = makeSession(program: "waveterm", tty: "/dev/ttys013", bundleId: " \n ")
+
+        XCTAssertEqual(resolveFocusStrategy(session: session), .openInFinder(projectPath))
+    }
+
+    func testKnownRejectedDesktopBundlesDoNotUseUnknownBundleFallback() throws {
+        var claudeCode = makeSession(
+            program: "UnsupportedHost",
+            bundleId: HostAppBundleID.codexDesktop
+        )
+        claudeCode.source = SessionData.ccSource
+        XCTAssertEqual(resolveFocusStrategy(session: claudeCode), .openInFinder(projectPath))
+
+        let threadID = "019e1eff-3374-74b0-8d3d-6fba94e7d75f"
+        var codex = makeSession(
+            program: "",
+            bundleId: HostAppBundleID.claudeDesktop,
+            sessionUuid: threadID
+        )
+        codex.source = SessionData.codexSource
+        XCTAssertEqual(
+            resolveFocusStrategy(session: codex),
             .openURL(
                 try XCTUnwrap(URL(string: "codex://threads/\(threadID)")),
                 restoreBundleID: HostAppBundleID.codexDesktop

@@ -83,7 +83,7 @@ the most specific place it can.
 
 - **Targets the exact session:** [iTerm2](https://iterm2.com/), [cmux](https://cmux.com/), [Kitty](https://sw.kovidgoyal.net/kitty/), [Ghostty](https://ghostty.org/), [Terminal](https://support.apple.com/guide/terminal/welcome/mac), [Codex Desktop](https://developers.openai.com/codex/app), [Herdr](https://github.com/ogulcancelik/herdr), [Zellij](https://zellij.dev/), [tmux](https://tmux.us/). cctop jumps to the right window, tab, pane, surface, or desktop thread.
 - **Opens the project:** [VS Code](https://code.visualstudio.com/), [Cursor](https://cursor.com/), [Windsurf](https://windsurf.com/download), [Zed](https://zed.dev/). cctop focuses the editor window, using the workspace file if present.
-- **Activates the app:** [Claude Desktop](https://claude.com/download), [Warp](https://www.warp.dev/terminal). cctop raises the host app so you can find the tab manually.
+- **Activates the app:** [Claude Desktop](https://claude.com/download), [Warp](https://www.warp.dev/terminal), and other detected macOS apps. cctop brings the app to the front so you can find the tab manually.
 
 <details>
 <summary>Focus details and requirements</summary>
@@ -99,7 +99,7 @@ the most specific place it can.
 - Apple Terminal targets the tab by tty. Inside a multiplexer such as tmux or
   screen, it falls back to raising Terminal because the captured tty belongs to
   the multiplexer pane.
-- Other hosts fall back to opening the project folder in Finder.
+- If cctop cannot find an exact target or app, it opens the project folder in Finder.
 
 </details>
 
