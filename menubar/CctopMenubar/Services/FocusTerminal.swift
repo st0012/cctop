@@ -44,25 +44,22 @@ func resolveFocusStrategy(session: SessionData) -> FocusStrategy {
 func resolveFocusStrategy(
     session: SessionData,
     multiplexerOverride: MultiplexerInfo?,
-    isCodexDesktopAppServerTarget: Bool = false
+    verifiedHostApp: HostApp? = nil
 ) -> FocusStrategy {
     let terminal = session.terminal
     let multiplexer = multiplexerOverride ?? terminal?.multiplexer
 
-    // Positive live Codex Desktop app-server evidence wins over inherited terminal metadata.
+    // Verified live host evidence wins over inherited terminal metadata.
     // Otherwise direct terminal/editor metadata wins. Persisted `com.openai.codex` metadata is ignored.
     let program = terminal?.program
     let directHost = multiplexer?.isCmux == true ? HostApp.cmux : HostApp.from(editorName: program)
     let hasProgramEvidence = program?.isEmpty == false && program?.lowercased() != "codex"
     let hasDirectHostEvidence = hasProgramEvidence || terminal?.tty?.isEmpty == false || multiplexer != nil
-    let hostApp = (session.isCodex && isCodexDesktopAppServerTarget ? HostApp.codexDesktop : nil) ?? session.trustedHostApp
-        ?? (hasDirectHostEvidence ? directHost : nil)
-        ?? (session.isCodex ? HostApp.codexDesktop : nil)
-        ?? .unknown
+    let hostApp = verifiedHostApp ?? session.trustedHostApp ?? (hasDirectHostEvidence ? directHost : nil)
+        ?? (session.isCodex ? HostApp.codexDesktop : nil) ?? .unknown
     let target = session.workspaceFile ?? session.projectPath
 
-    if hostApp == .cmux,
-       let url = cmuxNavigationURL(multiplexer: multiplexer) {
+    if hostApp == .cmux, let url = cmuxNavigationURL(multiplexer: multiplexer) {
         return .openURL(url)
     }
 
@@ -111,11 +108,14 @@ func resolveFocusStrategy(
         return .appleTerminal(tty: tty)
     }
 
-    // Try activation by name, then bundle ID, then Finder
+    // Try recognized app activation, then an unrecognized captured bundle, then Finder.
     if let name = hostApp.activationName {
         return .activateByName(name)
     }
     if let bundleID = hostApp.bundleID {
+        return .activateByBundleID(bundleID)
+    }
+    if let bundleID = terminal?.bundleId.flatMap(Config.nonEmpty), HostApp.from(bundleIdentifier: bundleID) == nil {
         return .activateByBundleID(bundleID)
     }
     return .openInFinder(session.projectPath)
@@ -129,11 +129,13 @@ private let focusQueue = DispatchQueue(label: "cctop.focus-terminal", qos: .user
 func focusTerminal(session: SessionData) {
     focusQueue.async {
         let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
-        let isCodexDesktopAppServerTarget = CodexDesktopRuntimeProbe().isCurrentDesktopAppServer(for: session)
+        let verifiedHostApp: HostApp? = CodexDesktopRuntimeProbe().isCurrentDesktopAppServer(for: session)
+            ? .codexDesktop
+            : nil
         let strategy = resolveFocusStrategy(
             session: session,
             multiplexerOverride: multiplexerOverride,
-            isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget
+            verifiedHostApp: verifiedHostApp
         )
         let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride,
                                                   primaryStrategy: strategy)
