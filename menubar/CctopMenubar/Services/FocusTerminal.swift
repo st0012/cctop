@@ -43,18 +43,19 @@ func resolveFocusStrategy(session: SessionData) -> FocusStrategy {
 /// Pure function — no AppKit side effects, fully testable.
 func resolveFocusStrategy(
     session: SessionData,
-    multiplexerOverride: MultiplexerInfo?
+    multiplexerOverride: MultiplexerInfo?,
+    isCodexDesktopAppServerTarget: Bool = false
 ) -> FocusStrategy {
     let terminal = session.terminal
     let multiplexer = multiplexerOverride ?? terminal?.multiplexer
 
-    // Direct terminal/editor metadata wins. A Codex session without it uses its exact
-    // thread deep link. Persisted `com.openai.codex` metadata is ignored.
+    // Positive live Codex Desktop app-server evidence wins over inherited terminal metadata.
+    // Otherwise direct terminal/editor metadata wins. Persisted `com.openai.codex` metadata is ignored.
     let program = terminal?.program
     let directHost = multiplexer?.isCmux == true ? HostApp.cmux : HostApp.from(editorName: program)
     let hasProgramEvidence = program?.isEmpty == false && program?.lowercased() != "codex"
     let hasDirectHostEvidence = hasProgramEvidence || terminal?.tty?.isEmpty == false || multiplexer != nil
-    let hostApp = session.trustedHostApp
+    let hostApp = (session.isCodex && isCodexDesktopAppServerTarget ? HostApp.codexDesktop : nil) ?? session.trustedHostApp
         ?? (hasDirectHostEvidence ? directHost : nil)
         ?? (session.isCodex ? HostApp.codexDesktop : nil)
         ?? .unknown
@@ -128,7 +129,12 @@ private let focusQueue = DispatchQueue(label: "cctop.focus-terminal", qos: .user
 func focusTerminal(session: SessionData) {
     focusQueue.async {
         let multiplexerOverride = resolveCmuxLiveMultiplexer(session: session)
-        let strategy = resolveFocusStrategy(session: session, multiplexerOverride: multiplexerOverride)
+        let isCodexDesktopAppServerTarget = CodexDesktopRuntimeProbe().isCurrentDesktopAppServer(for: session)
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: multiplexerOverride,
+            isCodexDesktopAppServerTarget: isCodexDesktopAppServerTarget
+        )
         let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride,
                                                   primaryStrategy: strategy)
         let shouldDeactivate = executeFocusStrategy(strategy)
