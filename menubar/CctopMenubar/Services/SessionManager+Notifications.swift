@@ -70,23 +70,205 @@ enum SessionNotificationAction: Equatable {
     case post(cctopSessionID: String)
 }
 
+struct SessionAttentionProjection {
+    let userSessions: [UserSession]
+    let acknowledgedSessionIDs: Set<String>
+}
+
+struct SessionTemporaryDropProjection {
+    let visible: [UserSession]
+    let dropped: [UserSession]
+}
+
 @MainActor
 extension SessionManager {
+    func publishRecentResumeTargets(_ targets: [RecentResumeTarget]) {
+        if targets != recentResumeTargets {
+            recentResumeTargets = targets
+        }
+    }
+
+    func updateAuxiliarySessionProjections(
+        dropped: [UserSession],
+        acknowledgedSessionIDs: Set<String>
+    ) {
+        if dropped != droppedUserSessions {
+            droppedUserSessions = dropped
+        }
+        if acknowledgedSessionIDs != self.acknowledgedSessionIDs {
+            self.acknowledgedSessionIDs = acknowledgedSessionIDs
+        }
+    }
+
+    func acknowledgeSession(_ identity: SessionIdentityPolicy.LogicalIdentity) {
+        guard let cctopSessionID = identity.cctopSessionID,
+              let current = userSessions.first(where: { $0.identity == identity }),
+              current.status.needsAttention else { return }
+
+        let oldUserSessions = userSessions
+        dataSources.attentionAcknowledgements.acknowledge(
+            cctopSessionID: cctopSessionID,
+            session: current.displayRecord.data
+        )
+        let acknowledged = userSessions.map { userSession -> UserSession in
+            guard userSession.identity == identity else { return userSession }
+            var displayData = userSession.displayRecord.data
+            displayData.status = .idle
+            return userSession.replacingDisplayData(displayData)
+        }
+        let now = dataSources.now()
+        let reordered = SessionDisplayPolicy.reconcilingOrder(
+            in: acknowledged,
+            preserving: oldUserSessions,
+            now: now
+        )
+        var nextAcknowledgedSessionIDs = acknowledgedSessionIDs
+        nextAcknowledgedSessionIDs.insert(cctopSessionID)
+        updateAuxiliarySessionProjections(
+            dropped: droppedUserSessions,
+            acknowledgedSessionIDs: nextAcknowledgedSessionIDs
+        )
+        updateSessionProjection(
+            reordered,
+            displaySignature: SessionDisplayPolicy.signature(for: reordered, now: now),
+            syncNotificationsFrom: oldUserSessions
+        )
+    }
+
+    /// Apply user acknowledgement against hook-owned status before display-only
+    /// lifecycle and timeout adjustments. This preserves the exact acknowledgement
+    /// until a newer hook event while regular surfaces use a neutral idle presentation.
+    func applyingAttentionAcknowledgements(
+        to userSessions: [UserSession],
+        inventoryComplete: Bool
+    ) -> SessionAttentionProjection {
+        var revisions: [String: SessionAttentionRevision] = [:]
+        var lastActivities: [String: Date] = [:]
+        for userSession in userSessions {
+            guard let cctopSessionID = userSession.identity.cctopSessionID else { continue }
+            lastActivities[cctopSessionID] = userSession.records.map(\.data.lastActivity).max()
+                ?? userSession.displayRecord.data.lastActivity
+            if let revision = SessionAttentionRevision(session: userSession.displayRecord.data) {
+                revisions[cctopSessionID] = revision
+            }
+        }
+        dataSources.attentionAcknowledgements.reconcile(
+            currentAttentionRevisions: revisions,
+            currentLastActivities: lastActivities,
+            inventoryComplete: inventoryComplete
+        )
+        let acknowledgedRevisions = dataSources.attentionAcknowledgements.acknowledgedRevisions
+        var acknowledgedSessionIDs: Set<String> = []
+        let projectedUserSessions = userSessions.map { userSession in
+            guard let cctopSessionID = userSession.identity.cctopSessionID,
+                  let currentRevision = revisions[cctopSessionID],
+                  let acknowledgedRevision = acknowledgedRevisions[cctopSessionID] else {
+                return userSession
+            }
+            let coversCurrentRevision = acknowledgedRevision == currentRevision
+                || (!inventoryComplete
+                    && acknowledgedRevision.lastActivity >= currentRevision.lastActivity)
+            guard coversCurrentRevision else { return userSession }
+            acknowledgedSessionIDs.insert(cctopSessionID)
+            var displayData = userSession.displayRecord.data
+            displayData.status = .idle
+            return userSession.replacingDisplayData(displayData)
+        }
+        return SessionAttentionProjection(
+            userSessions: projectedUserSessions,
+            acknowledgedSessionIDs: acknowledgedSessionIDs
+        )
+    }
+
+    /// Separate exact, unchanged activity revisions from operational surfaces.
+    /// The Dropped selector retains reachability; a later hook event advances
+    /// `lastActivity`, expires the drop, and returns the session to normal tabs.
+    func partitioningTemporaryDrops(
+        to userSessions: [UserSession],
+        inventoryComplete: Bool
+    ) -> SessionTemporaryDropProjection {
+        var revisions: [String: SessionActivityRevision] = [:]
+        for userSession in userSessions {
+            guard let cctopSessionID = userSession.identity.cctopSessionID else { continue }
+            revisions[cctopSessionID] = SessionActivityRevision(userSession: userSession)
+        }
+        dataSources.temporaryDrops.reconcile(
+            currentRevisions: revisions,
+            inventoryComplete: inventoryComplete
+        )
+        let droppedRevisions = dataSources.temporaryDrops.droppedRevisions
+        var visible: [UserSession] = []
+        var dropped: [UserSession] = []
+        for userSession in userSessions {
+            guard let cctopSessionID = userSession.identity.cctopSessionID,
+                  let droppedRevision = droppedRevisions[cctopSessionID],
+                  let currentRevision = revisions[cctopSessionID] else {
+                visible.append(userSession)
+                continue
+            }
+            let coversCurrentRevision = droppedRevision == currentRevision
+                || (!inventoryComplete
+                    && droppedRevision.lastActivity >= currentRevision.lastActivity)
+            guard coversCurrentRevision else {
+                visible.append(userSession)
+                continue
+            }
+            dropped.append(userSession)
+        }
+        return SessionTemporaryDropProjection(visible: visible, dropped: dropped)
+    }
+
+    func dropSession(_ identity: SessionIdentityPolicy.LogicalIdentity) {
+        guard let cctopSessionID = identity.cctopSessionID,
+              let droppedUserSession = userSessions.first(where: { $0.identity == identity }) else { return }
+
+        dataSources.temporaryDrops.drop(
+            cctopSessionID: cctopSessionID,
+            userSession: droppedUserSession
+        )
+        dataSources.attentionAcknowledgements.remove(cctopSessionID: cctopSessionID)
+        removeNotification(cctopSessionID: cctopSessionID, matching: droppedUserSession.records)
+        let nextDroppedUserSessions = SessionDisplayPolicy.reconcilingOrder(
+            in: droppedUserSessions + [droppedUserSession],
+            preserving: droppedUserSessions,
+            now: dataSources.now()
+        )
+        updateAuxiliarySessionProjections(
+            dropped: nextDroppedUserSessions,
+            acknowledgedSessionIDs: acknowledgedSessionIDs.subtracting([cctopSessionID])
+        )
+        updateSessionProjection(userSessions.filter { $0.identity != identity })
+    }
+
+    func restoreDroppedSession(_ identity: SessionIdentityPolicy.LogicalIdentity) {
+        guard let cctopSessionID = identity.cctopSessionID,
+              droppedUserSessions.contains(where: { $0.identity == identity }) else { return }
+        dataSources.temporaryDrops.remove(cctopSessionID: cctopSessionID)
+        loadSessions()
+    }
+
     func hideSession(_ identity: SessionIdentityPolicy.LogicalIdentity) {
         guard let cctopSessionID = identity.cctopSessionID,
-              let hiddenUserSession = userSessions.first(where: { $0.identity == identity }) else { return }
+              let hiddenUserSession = (userSessions + droppedUserSessions)
+                .first(where: { $0.identity == identity }) else { return }
 
         let hiddenRecords = hiddenUserSession.records
         let hiddenProjectPaths = Set(hiddenRecords.map {
             HistoryManager.canonicalRecentProjectPath($0.data.projectPath)
         })
         dataSources.manualSessionVisibility.hide(cctopSessionID: cctopSessionID)
+        dataSources.attentionAcknowledgements.remove(cctopSessionID: cctopSessionID)
+        dataSources.temporaryDrops.remove(cctopSessionID: cctopSessionID)
         recentResumeTargets.removeAll { target in
             if target.cctopSessionId == cctopSessionID { return true }
             guard case .project = target else { return false }
             return hiddenProjectPaths.contains(HistoryManager.canonicalRecentProjectPath(target.projectPath))
         }
         removeNotification(cctopSessionID: cctopSessionID, matching: hiddenRecords)
+        updateAuxiliarySessionProjections(
+            dropped: droppedUserSessions.filter { $0.identity != identity },
+            acknowledgedSessionIDs: acknowledgedSessionIDs.subtracting([cctopSessionID])
+        )
         updateSessionProjection(userSessions.filter { $0.identity != identity })
     }
 

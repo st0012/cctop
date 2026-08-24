@@ -45,14 +45,31 @@ struct PanelSessionRow: Identifiable {
     let slot: Int
     let userSession: UserSession
     let id: SessionIdentityPolicy.LogicalIdentity
+    var presentation: PanelSessionPresentation = .standard
 
     /// Direct actions use the exact data selected for this rendered row.
     var session: SessionData { userSession.displayRecord.data }
 }
 
+enum PanelSessionPresentation: Equatable {
+    case standard
+    case acknowledged
+    case dropped
+
+    var statusLabel: String? {
+        switch self {
+        case .standard: nil
+        case .acknowledged: "Acknowledged"
+        case .dropped: "Dropped"
+        }
+    }
+}
+
 extension PopupView {
     var isNavigateActive: Bool { navigate?.isActive ?? false }
-    var hasMultipleSources: Bool { Set(userSessions.map(\.agentBadge)).count > 1 }
+    var hasMultipleSources: Bool {
+        Set((userSessions + droppedUserSessions).map(\.agentBadge)).count > 1
+    }
 
     var currentActiveUserSessions: [UserSession] {
         SessionDisplayPolicy.activeSessions(from: userSessions)
@@ -92,6 +109,53 @@ extension PopupView {
         }
     }
 
+    var currentAcknowledgedUserSessions: [UserSession] {
+        userSessions.filter { userSession in
+            guard let cctopSessionID = userSession.identity.cctopSessionID else { return false }
+            return acknowledgedSessionIDs.contains(cctopSessionID)
+        }
+    }
+
+    var acknowledgedSessionRows: [PanelSessionRow] {
+        currentAcknowledgedUserSessions.enumerated().map { index, userSession in
+            PanelSessionRow(
+                slot: index,
+                userSession: userSession,
+                id: userSession.identity,
+                presentation: .acknowledged
+            )
+        }
+    }
+
+    var droppedSessionRows: [PanelSessionRow] {
+        droppedUserSessions.enumerated().map { index, userSession in
+            PanelSessionRow(
+                slot: index,
+                userSession: userSession,
+                id: userSession.identity,
+                presentation: .dropped
+            )
+        }
+    }
+
+    @ViewBuilder
+    var acknowledgedContent: some View {
+        if acknowledgedSessionRows.isEmpty {
+            noAcknowledgedSessionsContent
+        } else {
+            sessionList(acknowledgedSessionRows, tab: .acknowledged)
+        }
+    }
+
+    @ViewBuilder
+    var droppedContent: some View {
+        if droppedSessionRows.isEmpty {
+            noDroppedSessionsContent
+        } else {
+            sessionList(droppedSessionRows, tab: .dropped)
+        }
+    }
+
     func sessionList(
         _ rows: [PanelSessionRow],
         tab: PopupTab,
@@ -116,6 +180,7 @@ extension PopupView {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func sessionRow(_ row: PanelSessionRow, showNavigateNumbers: Bool) -> some View {
         let focusStrategy = resolveFocusStrategy(session: row.session)
         let focusActionTitle = focusStrategy.actionTitle
@@ -124,7 +189,8 @@ extension PopupView {
             navigateIndex: showNavigateNumbers && isNavigateActive ? row.slot + 1 : nil,
             showSourceBadge: hasMultipleSources,
             isSelected: selectedSessionIdentity == row.id,
-            relativeTimeNow: relativeTimeNow
+            relativeTimeNow: relativeTimeNow,
+            presentationStatusLabel: row.presentation.statusLabel
         )
         .id(row.id)
         .onTapGesture { focusSession(row.session) }
@@ -143,6 +209,26 @@ extension PopupView {
             Button { copyPath(row.session.projectPath) } label: {
                 Label("Copy Project Path", systemImage: "doc.on.doc")
             }
+            if row.presentation == .dropped {
+                Divider()
+                Button { restoreDroppedSession(row) } label: {
+                    Label("Restore Session", systemImage: "arrow.uturn.backward.circle")
+                }
+                .disabled(row.userSession.identity.cctopSessionID == nil)
+            } else {
+                if row.session.status.needsAttention {
+                    Divider()
+                    Button { acknowledgeSession(row) } label: {
+                        Label("Acknowledge", systemImage: "checkmark.circle")
+                    }
+                    .disabled(row.userSession.identity.cctopSessionID == nil)
+                }
+                Divider()
+                Button { dropSession(row) } label: {
+                    Label("Drop Until Next Activity", systemImage: "xmark.circle")
+                }
+                .disabled(row.userSession.identity.cctopSessionID == nil)
+            }
             Divider()
             Button { requestHideSession(row) } label: {
                 Label("Hide Session", systemImage: "eye.slash")
@@ -151,9 +237,41 @@ extension PopupView {
         }
         .help(focusActionTitle)
         .accessibilityActions {
+            if row.presentation == .dropped {
+                Button("Restore Session") { restoreDroppedSession(row) }
+                    .disabled(row.userSession.identity.cctopSessionID == nil)
+            } else {
+                if row.session.status.needsAttention {
+                    Button("Acknowledge") { acknowledgeSession(row) }
+                        .disabled(row.userSession.identity.cctopSessionID == nil)
+                }
+                Button("Drop Until Next Activity") { dropSession(row) }
+                    .disabled(row.userSession.identity.cctopSessionID == nil)
+            }
             Button("Hide Session") { requestHideSession(row) }
                 .disabled(row.userSession.identity.cctopSessionID == nil)
         }
+    }
+
+    func acknowledgeSession(_ row: PanelSessionRow) {
+        guard row.session.status.needsAttention,
+              row.userSession.identity.cctopSessionID != nil else { return }
+        onAcknowledgeSession(row.userSession.identity)
+    }
+
+    func dropSession(_ row: PanelSessionRow) {
+        guard row.userSession.identity.cctopSessionID != nil else { return }
+        onDropSession(row.userSession.identity)
+        selectedIndex = nil
+        selectedSessionIdentity = nil
+    }
+
+    func restoreDroppedSession(_ row: PanelSessionRow) {
+        guard row.presentation == .dropped,
+              row.userSession.identity.cctopSessionID != nil else { return }
+        onRestoreDroppedSession(row.userSession.identity)
+        selectedIndex = nil
+        selectedSessionIdentity = nil
     }
 
     func moveSessionSelection(by delta: Int, in rows: [PanelSessionRow]) {
@@ -184,6 +302,10 @@ extension PopupView {
             candidates = SessionDisplayPolicy.activeSessions(from: userSessions)
         case .idle:
             candidates = SessionDisplayPolicy.idleSessions(from: userSessions)
+        case .acknowledged:
+            candidates = currentAcknowledgedUserSessions
+        case .dropped:
+            candidates = droppedUserSessions
         case .recent, .cleanup:
             return nil
         }

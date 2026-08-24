@@ -36,6 +36,22 @@ extension PopupView {
         )
     }
 
+    var noAcknowledgedSessionsContent: some View {
+        emptyPlaceholder(
+            systemImage: "checkmark.circle",
+            title: "No acknowledged sessions",
+            detail: PopupTab.acknowledged.emptyStateDetail
+        )
+    }
+
+    var noDroppedSessionsContent: some View {
+        emptyPlaceholder(
+            systemImage: "arrow.uturn.backward.circle",
+            title: "No dropped sessions",
+            detail: PopupTab.dropped.emptyStateDetail
+        )
+    }
+
     func emptyPlaceholder(systemImage: String, title: String, detail: String? = nil) -> some View {
         VStack(spacing: 8) {
             Image(systemName: systemImage)

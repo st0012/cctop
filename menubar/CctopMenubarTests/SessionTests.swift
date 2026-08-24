@@ -2618,6 +2618,387 @@ final class SessionTests: XCTestCase {
     }
 }
 
+@MainActor
+final class SessionAttentionAcknowledgementTests: XCTestCase {
+    private let firstID = "11111111-1111-4111-8111-111111111111"
+    private let secondID = "22222222-2222-4222-8222-222222222222"
+
+    func testAcknowledgementMatchesOnlyExactAttentionRevision() {
+        let store = isolatedAttentionAcknowledgements(prefix: "cctop-attention-revision")
+        var attention = SessionData.mock(
+            id: "attention",
+            cctopSessionId: firstID,
+            status: .waitingPermission
+        )
+        attention.lastActivity = Date(timeIntervalSince1970: 1_000)
+
+        store.acknowledge(cctopSessionID: firstID, session: attention)
+
+        XCTAssertTrue(store.isAcknowledged(cctopSessionID: firstID, session: attention))
+        var newerEvent = attention
+        newerEvent.lastActivity = Date(timeIntervalSince1970: 1_001)
+        XCTAssertFalse(store.isAcknowledged(cctopSessionID: firstID, session: newerEvent))
+        var differentAttentionState = attention
+        differentAttentionState.status = .waitingInput
+        XCTAssertFalse(store.isAcknowledged(cctopSessionID: firstID, session: differentAttentionState))
+        var working = attention
+        working.status = .working
+        XCTAssertFalse(store.isAcknowledged(cctopSessionID: firstID, session: working))
+    }
+
+    func testReconcileRetainsPartialOlderEvidenceAndOnlyNewerActivityExpiresIt() {
+        let store = isolatedAttentionAcknowledgements(prefix: "cctop-attention-reconcile")
+        var first = SessionData.mock(id: "first", cctopSessionId: firstID, status: .waitingInput)
+        first.lastActivity = Date(timeIntervalSince1970: 1_000)
+        var second = SessionData.mock(id: "second", cctopSessionId: secondID, status: .waitingInput)
+        second.lastActivity = Date(timeIntervalSince1970: 2_000)
+        store.acknowledge(cctopSessionID: firstID, session: first)
+        store.acknowledge(cctopSessionID: secondID, session: second)
+        let firstRevision = SessionAttentionRevision(session: first)!
+
+        store.reconcile(
+            currentAttentionRevisions: [firstID: firstRevision],
+            currentLastActivities: [firstID: first.lastActivity],
+            inventoryComplete: false
+        )
+        XCTAssertEqual(Set(store.acknowledgedRevisions.keys), [firstID, secondID])
+
+        var olderFirst = first
+        olderFirst.lastActivity = first.lastActivity.addingTimeInterval(-1)
+        store.reconcile(
+            currentAttentionRevisions: [firstID: SessionAttentionRevision(session: olderFirst)!],
+            currentLastActivities: [firstID: olderFirst.lastActivity],
+            inventoryComplete: false
+        )
+        XCTAssertEqual(Set(store.acknowledgedRevisions.keys), [firstID, secondID])
+
+        store.reconcile(
+            currentAttentionRevisions: [:],
+            currentLastActivities: [firstID: first.lastActivity.addingTimeInterval(1)],
+            inventoryComplete: false
+        )
+        XCTAssertEqual(Set(store.acknowledgedRevisions.keys), [secondID])
+
+        store.reconcile(
+            currentAttentionRevisions: [:],
+            currentLastActivities: [:],
+            inventoryComplete: true
+        )
+        XCTAssertTrue(store.acknowledgedRevisions.isEmpty)
+    }
+
+    func testPartialUnreadableLatestPeerDoesNotRepublishAcknowledgedAttention() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-attention-partial-peer-\(UUID().uuidString)", isDirectory: true)
+        let sessionsDir = root.appendingPathComponent("sessions", isDirectory: true)
+        let historyDir = root.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        let store = isolatedAttentionAcknowledgements(prefix: "cctop-attention-partial-peer-store")
+        let olderActivity = Date(timeIntervalSince1970: 4_000)
+        var olderPeer = SessionData.mock(
+            id: "older-peer",
+            cctopSessionId: firstID,
+            status: .waitingPermission,
+            pid: UInt32(ProcessInfo.processInfo.processIdentifier),
+            source: SessionData.opencodeSource
+        )
+        olderPeer.lastActivity = olderActivity
+        var latestPeer = SessionData.mock(
+            id: "latest-peer",
+            cctopSessionId: firstID,
+            status: .waitingInput,
+            pid: UInt32(ProcessInfo.processInfo.processIdentifier),
+            source: SessionData.opencodeSource
+        )
+        latestPeer.lastActivity = olderActivity.addingTimeInterval(1)
+        let olderURL = sessionsDir.appendingPathComponent("older-peer.json")
+        let latestURL = sessionsDir.appendingPathComponent("latest-peer.json")
+        try olderPeer.writeToFile(path: olderURL.path)
+        try latestPeer.writeToFile(path: latestURL.path)
+        let manager = makeManager(
+            sessionsDir: sessionsDir.path,
+            historyDir: historyDir.path,
+            processAlive: { _ in true },
+            attentionAcknowledgements: store,
+            now: { latestPeer.lastActivity }
+        )
+        let identity = try XCTUnwrap(manager.userSessions.first?.identity)
+        manager.acknowledgeSession(identity)
+
+        try Data("{".utf8).write(to: latestURL)
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.userSessions.first?.status, .idle)
+        XCTAssertEqual(manager.acknowledgedSessionIDs, [firstID])
+        XCTAssertEqual(store.acknowledgedRevisions[firstID]?.lastActivity, latestPeer.lastActivity)
+
+        try latestPeer.writeToFile(path: latestURL.path)
+        manager.loadSessions()
+        XCTAssertEqual(manager.userSessions.first?.status, .idle)
+        XCTAssertEqual(manager.acknowledgedSessionIDs, [firstID])
+    }
+
+    func testAcknowledgementTurnsCurrentEventIdleWithoutEndingAndNewEventRestoresAttention() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-attention-manager-\(UUID().uuidString)", isDirectory: true)
+        let sessionsDir = root.appendingPathComponent("sessions", isDirectory: true)
+        let historyDir = root.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        let store = isolatedAttentionAcknowledgements(prefix: "cctop-attention-manager-store")
+        let now = Date(timeIntervalSince1970: 10_000)
+        var attention = SessionData.mock(
+            id: "attention",
+            cctopSessionId: firstID,
+            status: .waitingInput,
+            pid: UInt32(ProcessInfo.processInfo.processIdentifier),
+            source: SessionData.opencodeSource
+        )
+        attention.lastActivity = now
+        let sessionPath = sessionsDir.appendingPathComponent("attention.json").path
+        try attention.writeToFile(path: sessionPath)
+        let manager = makeManager(
+            sessionsDir: sessionsDir.path,
+            historyDir: historyDir.path,
+            processAlive: { _ in true },
+            attentionAcknowledgements: store,
+            now: { now }
+        )
+        let identity = try XCTUnwrap(manager.userSessions.first?.identity)
+
+        manager.acknowledgeSession(identity)
+
+        let acknowledged = try XCTUnwrap(manager.userSessions.first)
+        XCTAssertEqual(acknowledged.status, .idle)
+        XCTAssertEqual(acknowledged.displayRecord.data.lifecycle, .active)
+        XCTAssertEqual(acknowledged.records.first?.data.status, .waitingInput)
+        XCTAssertEqual(StatusCounts(userSessions: manager.userSessions, now: now).idle, 1)
+        XCTAssertTrue(store.isAcknowledged(cctopSessionID: firstID, session: attention))
+        XCTAssertEqual(manager.acknowledgedSessionIDs, [firstID])
+
+        attention.lastActivity = now.addingTimeInterval(1)
+        try attention.writeToFile(path: sessionPath)
+        manager.loadSessions()
+
+        XCTAssertEqual(manager.userSessions.first?.status, .waitingInput)
+        XCTAssertFalse(store.isAcknowledged(cctopSessionID: firstID, session: attention))
+        XCTAssertTrue(manager.acknowledgedSessionIDs.isEmpty)
+    }
+
+    func testAcknowledgementRemainsSelectableAcrossDisplayOnlyDormancy() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-attention-dormant-\(UUID().uuidString)", isDirectory: true)
+        let sessionsDir = root.appendingPathComponent("sessions", isDirectory: true)
+        let historyDir = root.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        let store = isolatedAttentionAcknowledgements(prefix: "cctop-attention-dormant-store")
+        let lastActivity = Date(timeIntervalSince1970: 15_000)
+        var attention = SessionData.mock(
+            id: "attention-dormant",
+            cctopSessionId: firstID,
+            status: .waitingInput,
+            pid: 999_999,
+            source: SessionData.codexSource
+        )
+        attention.lastActivity = lastActivity
+        store.acknowledge(cctopSessionID: firstID, session: attention)
+        try attention.writeToFile(path: sessionsDir.appendingPathComponent("attention-dormant.json").path)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir.path,
+            historyDir: historyDir.path,
+            processAlive: { _ in false },
+            attentionAcknowledgements: store,
+            now: { lastActivity.addingTimeInterval(700) }
+        )
+
+        XCTAssertEqual(manager.userSessions.first?.displayRecord.data.lifecycle, .dormant)
+        XCTAssertEqual(manager.userSessions.first?.status, .idle)
+        XCTAssertEqual(manager.acknowledgedSessionIDs, [firstID])
+        XCTAssertTrue(store.isAcknowledged(cctopSessionID: firstID, session: attention))
+    }
+}
+
+@MainActor
+final class SessionTemporaryDropTests: XCTestCase {
+    private let sessionID = "33333333-3333-4333-8333-333333333333"
+
+    func testDropSurvivesReloadAndNewActivityRestoresSession() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-temporary-drop-manager-\(UUID().uuidString)", isDirectory: true)
+        let sessionsDir = root.appendingPathComponent("sessions", isDirectory: true)
+        let historyDir = root.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        let store = isolatedTemporaryDrops(prefix: "cctop-temporary-drop-manager-store")
+        let now = Date(timeIntervalSince1970: 20_000)
+        var session = SessionData.mock(
+            id: "drop-me",
+            cctopSessionId: sessionID,
+            status: .waitingInput,
+            pid: UInt32(ProcessInfo.processInfo.processIdentifier),
+            source: SessionData.opencodeSource
+        )
+        session.lastActivity = now
+        let sessionPath = sessionsDir.appendingPathComponent("drop-me.json").path
+        try session.writeToFile(path: sessionPath)
+        let manager = makeManager(
+            sessionsDir: sessionsDir.path,
+            historyDir: historyDir.path,
+            processAlive: { _ in true },
+            temporaryDrops: store,
+            now: { now }
+        )
+        let identity = try XCTUnwrap(manager.userSessions.first?.identity)
+
+        manager.dropSession(identity)
+
+        XCTAssertTrue(manager.userSessions.isEmpty)
+        XCTAssertEqual(manager.droppedUserSessions.map(\.identity.cctopSessionID), [sessionID])
+        XCTAssertEqual(store.droppedRevisions[sessionID]?.lastActivity, now)
+        XCTAssertEqual(try SessionData.fromFile(path: sessionPath).lastActivity, now)
+
+        let reloaded = makeManager(
+            sessionsDir: sessionsDir.path,
+            historyDir: historyDir.path,
+            processAlive: { _ in true },
+            temporaryDrops: store,
+            now: { now }
+        )
+        XCTAssertTrue(reloaded.userSessions.isEmpty, "Drop should survive a cctop restart")
+        XCTAssertEqual(reloaded.droppedUserSessions.map(\.identity.cctopSessionID), [sessionID])
+
+        session.lastActivity = now.addingTimeInterval(1)
+        try session.writeToFile(path: sessionPath)
+        reloaded.loadSessions()
+
+        XCTAssertEqual(reloaded.userSessions.count, 1)
+        XCTAssertTrue(reloaded.droppedUserSessions.isEmpty)
+        XCTAssertEqual(reloaded.userSessions.first?.identity.cctopSessionID, sessionID)
+        XCTAssertTrue(store.droppedRevisions.isEmpty)
+    }
+
+    func testRestoreDroppedSessionReturnsItImmediatelyWithoutEditingSource() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-temporary-drop-restore-\(UUID().uuidString)", isDirectory: true)
+        let sessionsDir = root.appendingPathComponent("sessions", isDirectory: true)
+        let historyDir = root.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        let store = isolatedTemporaryDrops(prefix: "cctop-temporary-drop-restore-store")
+        let now = Date(timeIntervalSince1970: 25_000)
+        var session = SessionData.mock(
+            id: "restore-me",
+            cctopSessionId: sessionID,
+            status: .working,
+            pid: UInt32(ProcessInfo.processInfo.processIdentifier),
+            source: SessionData.opencodeSource
+        )
+        session.lastActivity = now
+        let sessionPath = sessionsDir.appendingPathComponent("restore-me.json").path
+        try session.writeToFile(path: sessionPath)
+        let manager = makeManager(
+            sessionsDir: sessionsDir.path,
+            historyDir: historyDir.path,
+            processAlive: { _ in true },
+            temporaryDrops: store,
+            now: { now }
+        )
+        let identity = try XCTUnwrap(manager.userSessions.first?.identity)
+        manager.dropSession(identity)
+
+        manager.restoreDroppedSession(identity)
+
+        XCTAssertEqual(manager.userSessions.map(\.identity.cctopSessionID), [sessionID])
+        XCTAssertTrue(manager.droppedUserSessions.isEmpty)
+        XCTAssertTrue(store.droppedRevisions.isEmpty)
+        XCTAssertEqual(try SessionData.fromFile(path: sessionPath).lastActivity, now)
+    }
+
+    func testDropReconcileRetainsPartialOlderRevisionAndOnlyNewerActivityExpiresIt() {
+        let store = isolatedTemporaryDrops(prefix: "cctop-temporary-drop-reconcile")
+        var session = SessionData.mock(id: "drop", cctopSessionId: sessionID)
+        session.lastActivity = Date(timeIntervalSince1970: 30_000)
+        let userSession = userSessions(fromDataFixtures: [session])[0]
+        store.drop(cctopSessionID: sessionID, userSession: userSession)
+
+        store.reconcile(currentRevisions: [:], inventoryComplete: false)
+        XCTAssertNotNil(store.droppedRevisions[sessionID])
+
+        let olderRevision = SessionActivityRevision(lastActivity: session.lastActivity.addingTimeInterval(-1))
+        store.reconcile(currentRevisions: [sessionID: olderRevision], inventoryComplete: false)
+        XCTAssertNotNil(store.droppedRevisions[sessionID])
+
+        let newerRevision = SessionActivityRevision(lastActivity: session.lastActivity.addingTimeInterval(1))
+        store.reconcile(currentRevisions: [sessionID: newerRevision], inventoryComplete: false)
+        XCTAssertTrue(store.droppedRevisions.isEmpty)
+
+        store.drop(cctopSessionID: sessionID, userSession: userSession)
+        store.reconcile(currentRevisions: [:], inventoryComplete: true)
+        XCTAssertTrue(store.droppedRevisions.isEmpty)
+    }
+
+    func testPartialUnreadableLatestPeerDoesNotRepublishDroppedSession() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cctop-drop-partial-peer-\(UUID().uuidString)", isDirectory: true)
+        let sessionsDir = root.appendingPathComponent("sessions", isDirectory: true)
+        let historyDir = root.appendingPathComponent("history", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        let store = isolatedTemporaryDrops(prefix: "cctop-drop-partial-peer-store")
+        let olderActivity = Date(timeIntervalSince1970: 35_000)
+        var olderPeer = SessionData.mock(
+            id: "older-peer",
+            cctopSessionId: sessionID,
+            status: .working,
+            pid: UInt32(ProcessInfo.processInfo.processIdentifier),
+            source: SessionData.opencodeSource
+        )
+        olderPeer.lastActivity = olderActivity
+        var latestPeer = SessionData.mock(
+            id: "latest-peer",
+            cctopSessionId: sessionID,
+            status: .waitingInput,
+            pid: UInt32(ProcessInfo.processInfo.processIdentifier),
+            source: SessionData.opencodeSource
+        )
+        latestPeer.lastActivity = olderActivity.addingTimeInterval(1)
+        let olderURL = sessionsDir.appendingPathComponent("older-peer.json")
+        let latestURL = sessionsDir.appendingPathComponent("latest-peer.json")
+        try olderPeer.writeToFile(path: olderURL.path)
+        try latestPeer.writeToFile(path: latestURL.path)
+        let manager = makeManager(
+            sessionsDir: sessionsDir.path,
+            historyDir: historyDir.path,
+            processAlive: { _ in true },
+            temporaryDrops: store,
+            now: { latestPeer.lastActivity }
+        )
+        let identity = try XCTUnwrap(manager.userSessions.first?.identity)
+        manager.dropSession(identity)
+
+        try Data("{".utf8).write(to: latestURL)
+        manager.loadSessions()
+
+        XCTAssertTrue(manager.userSessions.isEmpty)
+        XCTAssertEqual(manager.droppedUserSessions.map(\.identity.cctopSessionID), [sessionID])
+        XCTAssertEqual(store.droppedRevisions[sessionID]?.lastActivity, latestPeer.lastActivity)
+
+        try latestPeer.writeToFile(path: latestURL.path)
+        manager.loadSessions()
+        XCTAssertTrue(manager.userSessions.isEmpty)
+        XCTAssertEqual(manager.droppedUserSessions.map(\.identity.cctopSessionID), [sessionID])
+    }
+}
+
 final class CctopSessionIdentityStoreTests: XCTestCase {
     private var rootURL: URL!
     private var sessionsURL: URL!

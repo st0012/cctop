@@ -1,4 +1,9 @@
-import { focusURL, openCctopURL, TOGGLE_URL } from "./launcher.mjs";
+import {
+  acknowledgeURL,
+  focusURL,
+  openCctopURL,
+  TOGGLE_URL,
+} from "./launcher.mjs";
 import { keyImageFor } from "./render.mjs";
 import {
   commandSessionForSlot,
@@ -8,6 +13,7 @@ import {
 
 export const SESSION_ACTION = "com.st0012.cctop.session";
 export const TOGGLE_ACTION = "com.st0012.cctop.toggle-panel";
+export const SESSION_DOUBLE_PRESS_WINDOW_MS = 350;
 const CCTOP_APP_BUNDLE_ID = "com.st0012.CctopMenubar";
 
 export function parseArgs(argv) {
@@ -51,6 +57,7 @@ export class StreamDeckController {
     this.registerEvent = registerEvent;
     this.deviceColumns = new Map();
     this.sessionContexts = new Map();
+    this.lastSessionPresses = new Map();
     for (const device of info?.devices ?? []) {
       if (device?.id && Number.isInteger(device.size?.columns)) {
         this.deviceColumns.set(device.id, device.size.columns);
@@ -86,6 +93,7 @@ export class StreamDeckController {
         break;
       case "willDisappear":
         this.sessionContexts.delete(message.context);
+        this.lastSessionPresses.delete(message.context);
         break;
       case "didReceiveSettings":
         this.handleDidReceiveSettings(message);
@@ -148,28 +156,35 @@ export class StreamDeckController {
       this.alert(context);
       return;
     }
-    // Send exactly the permanent id this key last rendered — never re-resolve the slot, or a
-    // press could target whichever session shifted into it after the image was drawn.
-    // The permanent id resolves to the first current target in cctop's canonical panel order;
-    // a missing id can never retarget the key to an unrelated session.
-    if (entry.renderedCctopSessionId) {
-      this.launch(focusURL(entry.renderedCctopSessionId), context);
-      return;
-    }
-    const state = readDisplayState();
-    if (state?.app_running === true) {
+    const cctopSessionID = this.commandSessionID(entry);
+    if (!cctopSessionID) {
       this.alert(context);
       return;
     }
+    const now = Date.now();
+    const previousPress = this.lastSessionPresses.get(context);
+    const isDoublePress = previousPress?.cctopSessionID === cctopSessionID
+      && now >= previousPress.timestamp
+      && now - previousPress.timestamp <= SESSION_DOUBLE_PRESS_WINDOW_MS;
+    if (isDoublePress) {
+      this.lastSessionPresses.delete(context);
+      this.launch(acknowledgeURL(cctopSessionID), context);
+      return;
+    }
+    this.lastSessionPresses.set(context, { cctopSessionID, timestamp: now });
+    this.launch(focusURL(cctopSessionID), context);
+  }
+
+  commandSessionID(entry) {
+    // Send exactly the permanent id this key last rendered, never whichever session
+    // later shifted into its slot. A missing id cannot retarget an unrelated session.
+    if (entry.renderedCctopSessionId) return entry.renderedCctopSessionId;
+
+    const state = readDisplayState();
+    if (state?.app_running === true) return null;
     // A key first shown while cctop is down has no rendered id. A recent graceful-quit
     // snapshot may still resolve its slot so the press cold-launches that session.
-    const session = commandSessionForSlot(state, entry.slot);
-    const url = session ? focusURL(session.cctopSessionId) : null;
-    if (!url) {
-      this.alert(context);
-      return;
-    }
-    this.launch(url, context);
+    return commandSessionForSlot(state, entry.slot)?.cctopSessionId ?? null;
   }
 
   renderContext(context, entry, state) {

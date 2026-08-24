@@ -30,6 +30,10 @@ project with a keystroke.
 ## Why cctop
 
 - See at a glance which coding sessions are working, idle, or waiting on you.
+- Acknowledge an attention state you already reviewed without closing the
+  session. It stays neutral until a newer attention event arrives.
+- Temporarily drop a session from operational status until its next activity,
+  or restore it directly from the Dropped selector.
 - Right-click to hide a session from cctop without stopping it or deleting its data.
   cctop asks first because you cannot show it again while its local session record exists.
 - Jump directly to the right editor window, terminal pane, desktop thread, or project.
@@ -185,7 +189,9 @@ Open **Settings**. cctop shows setup actions for detected coding clients under
   column 1 without switching away from your current profile. If you skip that
   prompt, use **Import default profile** later or place the Session and Toggle
   Panel actions manually on any supported model. To show more sessions, add
-  Session actions and set their slots to 6, 7, and so on.
+  Session actions and set their slots to 6, 7, and so on. Press a session key
+  once to focus it; press the same key again within 350 ms to acknowledge its
+  current attention event.
 - Codex CLI / Codex Desktop: click **Install Hooks**, then start a new Codex CLI
   session and choose **Trust all and continue** when Codex reviews the hooks.
   Codex Desktop shares that trust state.

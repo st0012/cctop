@@ -80,6 +80,29 @@ again while its local record exists. Persist the preference by cctop's permanent
 while continuing lifecycle classification and Cleanup protection from the full
 local session inventory.
 
+### Acknowledgement is not lifecycle
+
+Users may acknowledge an attention state they have already reviewed. This
+quietly maps that exact event to cctop's existing neutral idle presentation
+without hiding, ending, or editing the underlying session. The acknowledgement
+expires when the same session reports a newer attention event, so cctop earns
+the right to become conspicuous again. Acknowledged sessions remain grey in
+Active or Idle and are also collected in the Ack selector so the user can find
+them directly. A Stream Deck session key focuses on the first press and
+acknowledges that same permanent session when pressed again within the
+double-press window. Presses on separate keys never combine.
+
+### Temporary drop is not hiding
+
+Users may drop a session they no longer need to see right now. Drop removes the
+exact current session revision from operational surfaces without stopping,
+archiving, ending, or editing the underlying session. The Dropped selector
+keeps it reachable for explicit restoration. A drop survives a cctop restart so
+the session does not immediately return to Active or Idle, but either Restore
+Session or the next genuine hook event restores it. Keep this action distinct
+from durable **Hide Session**, and do not require destructive-action confirmation
+for it.
+
 ### Show decision evidence inline
 
 When cctop asks users to decide, the evidence needed for that decision should be
@@ -224,6 +247,10 @@ When cctop cannot prove something, it should say so plainly:
 - **Active**: a visible session with live work or recent state.
 - **Idle**: a session that is connected but not currently asking for action.
 - **Waiting**: a session that needs user input or permission.
+- **Ack**: acknowledged sessions, mirrored from Active or Idle in a neutral grey
+  presentation until newer attention arrives.
+- **Dropped**: temporarily suppressed sessions, excluded from operational
+  surfaces but reachable for restoration.
 - **Recent**: a remembered project or session target that is no longer active.
 - **Clean**: a cleanup candidate whose fresh checks support direct removal.
 - **Review**: a cleanup candidate that needs user inspection before removal.
