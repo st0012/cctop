@@ -549,6 +549,7 @@ extension SessionManager {
         var repairedByPath: [String: SessionData] = [:]
         for (url, data) in decoded where data.hidden
             && data.isSubagentSession
+            && !data.isClaudeCodeDelegatedSession
             && repairableThreadIDs.contains(data.sessionId) {
             withSessionLockForMaintenance(
                 sessionPath: url.path,
@@ -675,6 +676,7 @@ extension SessionManager {
         var latest = try SessionData.fromFile(path: path)
         guard latest.hidden,
               latest.isSubagentSession,
+              !latest.isClaudeCodeDelegatedSession,
               latest.isCodex,
               repairableThreadIDs.contains(latest.sessionId) else {
             return nil

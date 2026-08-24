@@ -291,6 +291,26 @@ When `is_subagent` is `true`, the session file represents a delegated subagent's
 
 Clients that can identify internal helper sessions should set `is_subagent: true` in their hook payloads. For Codex sessions, cctop decodes the structured `threads.source` value from Codex's local thread database: `SessionSource::SubAgent(...)` and `SessionSource::Internal(...)` are hidden, while `cli` and `vscode` remain user-visible even if the legacy diagnostic `thread_source` says `subagent`. `thread_spawn_edges` corroborates topology but is not the primary classifier, because review and guardian helpers may have no edge. Missing, malformed, unknown, or contradictory source evidence fails open and is counted in the session-load diagnostics.
 
+Direct Codex hook events also count as delegated when their process environment
+contains the `CLAUDE_CODE_CHILD_SESSION` key. Claude Code supplies that key,
+with or without a value, to Codex subprocesses it launches for delegated work. Those
+subprocesses can inherit Ghostty metadata from the parent Claude session, so
+terminal metadata is not evidence that the Codex session was started directly
+by the user. The marker applies only to `source: "codex"`; normal Claude Code,
+Codex Desktop, and directly launched Codex CLI sessions remain visible.
+
+### `claude_code_delegated`
+
+Type: `boolean`
+
+Default: `false` when omitted.
+
+The hook persists `claude_code_delegated: true` with `is_subagent: true` when a
+Codex event inherits Claude Code's child-session marker. This provenance keeps
+the session hidden even if Codex's thread database classifies the subprocess as
+an otherwise interactive `cli` or `vscode` root. It is cctop-owned state and is
+not accepted from the hook payload.
+
 Codex hooks do not yet expose semantic visibility or openability for ephemeral
 root workers. cctop treats an explicitly null `transcript_path` on a positively
 identified `startup` only as a short deferral signal, not as proof that a session
@@ -305,4 +325,4 @@ upstream contract is an explicit `user_openable`/visibility field or structured
 session source on every hook; `ephemeral` alone would describe persistence, not
 whether a task belongs in the user-facing session list.
 
-Older cctop versions may have persisted both `is_subagent = true` and `hidden = true` from `thread_source` alone. cctop clears that sticky pair only when structured source proves `cli` or `vscode`, the edge schema is readable and has no spawn edge for the thread, and no independent memory/title auto-hide rule applies.
+Older cctop versions may have persisted both `is_subagent = true` and `hidden = true` from `thread_source` alone. cctop clears that sticky pair only when `claude_code_delegated` is false, structured source proves `cli` or `vscode`, the edge schema is readable and has no spawn edge for the thread, and no independent memory/title auto-hide rule applies.

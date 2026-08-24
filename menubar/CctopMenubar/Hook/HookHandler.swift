@@ -32,7 +32,9 @@ enum HookHandler {
         }
 
         let branch = deps.currentBranch(input.cwd)
-        let terminal = captureTerminalInfo(env: deps.environment(), process: deps.process)
+        let environment = deps.environment()
+        let terminal = captureTerminalInfo(env: environment, process: deps.process)
+        let isClaudeCodeDelegatedSession = input.isClaudeCodeDelegatedSession(environment: environment)
         let startTime = deps.process.startTime(pid: pid)
         let cctopSessionId = try resolvedCctopSessionID(
             input: input, sessionPath: sessionPath,
@@ -76,7 +78,10 @@ enum HookHandler {
                 data.workspaceFile = SessionData.findWorkspaceFile(in: input.cwd)
             }
             applySideEffects(event: event, data: &data, input: input, sessionsDir: sessionsDir, safeId: safeId)
-            if input.isSubagentSession == true { data.isSubagentSession = true }
+            if isClaudeCodeDelegatedSession { data.isClaudeCodeDelegatedSession = true }
+            if input.isSubagentSession == true || data.isClaudeCodeDelegatedSession {
+                data.isSubagentSession = true
+            }
             if data.shouldAutoHide || (event == .userPromptSubmit && input.hasCodexProjectSuggestionEvidence) { data.hidden = true }
             data.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: isNewSessionFile)
 
@@ -278,6 +283,9 @@ enum HookHandler {
         }
     }
 
+}
+
+extension HookHandler {
     static func captureTerminalInfo(env: [String: String], process: any ProcessProbing) -> TerminalInfo {
         let program = env["TERM_PROGRAM"] ?? ""
         let sessionId = sanitizeTerminalSessionId(
@@ -409,6 +417,9 @@ extension HookHandler {
         let primaryPath = (sessionsDir as NSString).appendingPathComponent(sessionFileName(input: input, pid: pid, safeSessionId: safeId))
         let label = HookLogger.sessionLabel(cwd: input.cwd, sessionId: safeId)
         let source = input.resolvedHarnessName ?? SessionData.ccSource
+        let isClaudeCodeDelegatedSession = input.isClaudeCodeDelegatedSession(
+            environment: deps.environment()
+        )
 
         // The end-time parent walk can resolve a different PID than at start (ancestors
         // exit during teardown), so the PID-derived path may miss the session's file or
@@ -462,6 +473,11 @@ extension HookHandler {
             data.endedAt = endedAt
             if hasTrustedClaudeDesktopBundle(data, sourceOverride: input.resolvedHarnessName) {
                 data.disconnectedAt = data.disconnectedAt ?? endedAt
+            }
+            if isClaudeCodeDelegatedSession { data.isClaudeCodeDelegatedSession = true }
+            if data.isClaudeCodeDelegatedSession {
+                data.isSubagentSession = true
+                data.hidden = true
             }
             data.markWrittenByHook(version: Config.hookVersion, isNewSessionFile: false)
             do {

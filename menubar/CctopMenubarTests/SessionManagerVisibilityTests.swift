@@ -2159,6 +2159,51 @@ final class SessionManagerVisibilityTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionManagerDoesNotRepairClaudeCodeDelegatedCodexInteractiveRoot() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-delegated-repair-\(UUID().uuidString)"
+        let sessionsDir = (root as NSString).appendingPathComponent("sessions")
+        let historyDir = (root as NSString).appendingPathComponent("history")
+        let stateDB = (root as NSString).appendingPathComponent("state_5.sqlite")
+        try FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(atPath: historyDir, withIntermediateDirectories: true)
+        try writeCodexStateDatabase(
+            path: stateDB,
+            archivedThreads: [],
+            delegatedThreads: ["claude-delegated-interactive-root"]
+        )
+
+        setenv("CCTOP_CODEX_STATE_DB", stateDB, 1)
+        defer {
+            unsetenv("CCTOP_CODEX_STATE_DB")
+            try? FileManager.default.removeItem(atPath: root)
+        }
+
+        let sessionPath = (sessionsDir as NSString)
+            .appendingPathComponent("codex-claude-delegated-interactive-root.json")
+        var session = codexSession(
+            sessionId: "claude-delegated-interactive-root",
+            projectPath: (root as NSString).appendingPathComponent("projects/cctop")
+        )
+        session.isSubagentSession = true
+        session.isClaudeCodeDelegatedSession = true
+        session.hidden = true
+        try session.writeToFile(path: sessionPath)
+
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: CodexThreadArchiveLookup(stateDatabasePath: stateDB)
+        )
+        manager.loadSessions()
+
+        XCTAssertTrue(manager.userSessions.isEmpty)
+        let persisted = try SessionData.fromFile(path: sessionPath)
+        XCTAssertTrue(persisted.hidden)
+        XCTAssertTrue(persisted.isSubagentSession)
+        XCTAssertTrue(persisted.isClaudeCodeDelegatedSession)
+    }
+
+    @MainActor
     func testSessionManagerDoesNotRepairStickyDelegatedCodexThreadWithContradictorySpawnEdge() throws {
         let root = NSTemporaryDirectory() + "cctop-codex-delegated-contradiction-\(UUID().uuidString)"
         let sessionsDir = (root as NSString).appendingPathComponent("sessions")
