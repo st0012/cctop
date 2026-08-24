@@ -261,4 +261,21 @@ final class HookInputTests: XCTestCase {
         let input = try JSONDecoder().decode(HookInput.self, from: Data(json.utf8))
         XCTAssertNil(input.resolvedHarnessName, "non-allowlisted source must be rejected")
     }
+
+    func testClaudeChildMarkerIsDelegatedOnlyForCodex() throws {
+        let legacyCodex = try JSONDecoder().decode(HookInput.self, from: Data("""
+        {"session_id":"codex-child","cwd":"/tmp","hook_event_name":"SessionStart","source":"codex"}
+        """.utf8))
+        XCTAssertTrue(legacyCodex.isClaudeCodeDelegatedSession(environment: [
+            "CLAUDE_CODE_CHILD_SESSION": ""
+        ]))
+        XCTAssertFalse(legacyCodex.isClaudeCodeDelegatedSession(environment: [:]))
+
+        let claude = try JSONDecoder().decode(HookInput.self, from: Data("""
+        {"session_id":"claude","cwd":"/tmp","hook_event_name":"SessionStart","harness_name":"cc"}
+        """.utf8))
+        XCTAssertFalse(claude.isClaudeCodeDelegatedSession(environment: [
+            "CLAUDE_CODE_CHILD_SESSION": ""
+        ]))
+    }
 }

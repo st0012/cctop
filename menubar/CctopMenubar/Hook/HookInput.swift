@@ -132,6 +132,15 @@ struct HookInput: Codable {
         return prompt.distance(from: prompt.startIndex, to: range.lowerBound)
             == Self.codexSuggestionPromptFragmentOffset
     }
+
+    /// Claude Code marks delegated child processes with this environment key, even when
+    /// its value is empty. A Codex subprocess inherits terminal metadata from the parent
+    /// Claude session, so Ghostty metadata alone cannot distinguish it from a user-started
+    /// Codex CLI session.
+    func isClaudeCodeDelegatedSession(environment: [String: String]) -> Bool {
+        resolvedHarnessName == SessionData.codexSource
+            && environment["CLAUDE_CODE_CHILD_SESSION"] != nil
+    }
 }
 
 private enum ToolInputValue: Decodable {

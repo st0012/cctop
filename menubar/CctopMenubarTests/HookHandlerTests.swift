@@ -1598,6 +1598,134 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertTrue(try loadSession().hidden)
     }
 
+    @MainActor
+    func testClaudeCodeChildCodexSessionWritesHiddenSession() throws {
+        let sessionId = "claude-delegated-codex"
+        let deps = makeDeps(env: [
+            "CLAUDE_CODE_CHILD_SESSION": "",
+            "TERM_PROGRAM": "ghostty",
+            "__CFBundleIdentifier": "com.mitchellh.ghostty"
+        ])
+
+        try handleHook("""
+        {
+          "session_id": "\(sessionId)",
+          "cwd": "/tmp/p",
+          "hook_event_name": "SessionStart",
+          "harness_name": "codex"
+        }
+        """, hookName: "SessionStart", deps: deps)
+
+        let session = try loadSession("codex-\(sessionId).json")
+        XCTAssertTrue(session.isSubagentSession)
+        XCTAssertTrue(session.isClaudeCodeDelegatedSession)
+        XCTAssertTrue(session.hidden)
+        XCTAssertEqual(session.terminal?.program, "ghostty")
+
+        let historyDir = (sessionsDir as NSString).appendingPathComponent("history")
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: StubCodexThreadState(existing: [sessionId]),
+            processAlive: { _ in true }
+        )
+        XCTAssertTrue(manager.userSessions.isEmpty)
+    }
+
+    @MainActor
+    func testExplicitCodexDesktopAndGhosttySessionsRemainVisible() throws {
+        let desktopId = "explicit-codex-desktop"
+        try handleHook("""
+        {
+          "session_id": "\(desktopId)",
+          "cwd": "/tmp/p",
+          "hook_event_name": "SessionStart",
+          "harness_name": "codex"
+        }
+        """, hookName: "SessionStart", deps: makeDeps(env: [
+            "__CFBundleIdentifier": HostAppBundleID.codexDesktop
+        ]))
+
+        let desktop = try loadSession("codex-\(desktopId).json")
+        XCTAssertFalse(desktop.isSubagentSession)
+        XCTAssertFalse(desktop.isClaudeCodeDelegatedSession)
+        XCTAssertFalse(desktop.hidden)
+
+        let ghosttyId = "explicit-codex-ghostty"
+        try handleHook("""
+        {
+          "session_id": "\(ghosttyId)",
+          "cwd": "/tmp/p",
+          "hook_event_name": "SessionStart",
+          "harness_name": "codex"
+        }
+        """, hookName: "SessionStart", deps: makeDeps(env: [
+            "TERM_PROGRAM": "ghostty",
+            "__CFBundleIdentifier": "com.mitchellh.ghostty"
+        ]))
+
+        let ghostty = try loadSession("codex-\(ghosttyId).json")
+        XCTAssertFalse(ghostty.isSubagentSession)
+        XCTAssertFalse(ghostty.isClaudeCodeDelegatedSession)
+        XCTAssertFalse(ghostty.hidden)
+
+        let historyDir = (sessionsDir as NSString).appendingPathComponent("history")
+        let manager = makeManager(
+            sessionsDir: sessionsDir,
+            historyDir: historyDir,
+            codexThreads: StubCodexThreadState(existing: [desktopId, ghosttyId]),
+            processAlive: { _ in true }
+        )
+        XCTAssertEqual(
+            manager.userSessions.map(\.displayRecord.data.sessionId).sorted(),
+            [desktopId, ghosttyId].sorted()
+        )
+    }
+
+    func testClaudeChildMarkerDoesNotHideClaudeCodeSession() throws {
+        try handleHook("""
+        {
+          "session_id": "claude-child-marker",
+          "cwd": "/tmp/p",
+          "hook_event_name": "SessionStart",
+          "harness_name": "cc"
+        }
+        """, hookName: "SessionStart", deps: makeDeps(env: [
+            "CLAUDE_CODE_CHILD_SESSION": ""
+        ]))
+
+        let session = try loadSession()
+        XCTAssertFalse(session.isSubagentSession)
+        XCTAssertFalse(session.isClaudeCodeDelegatedSession)
+        XCTAssertFalse(session.hidden)
+    }
+
+    func testClaudeCodeChildEvidenceHidesExistingCodexSessionOnSessionEnd() throws {
+        let sessionId = "existing-claude-delegated-codex"
+        let input = """
+        {
+          "session_id": "\(sessionId)",
+          "cwd": "/tmp/p",
+          "hook_event_name": "SessionStart",
+          "harness_name": "codex"
+        }
+        """
+        try handleHook(input, hookName: "SessionStart")
+        XCTAssertFalse(try loadSession("codex-\(sessionId).json").hidden)
+
+        try handleHook(
+            input.replacingOccurrences(of: "SessionStart", with: "SessionEnd"),
+            hookName: "SessionEnd",
+            deps: makeDeps(env: ["CLAUDE_CODE_CHILD_SESSION": ""])
+        )
+
+        let ended = try loadSession("codex-\(sessionId).json")
+        XCTAssertTrue(ended.isSubagentSession)
+        XCTAssertTrue(ended.isClaudeCodeDelegatedSession)
+        XCTAssertTrue(ended.hidden)
+        XCTAssertNotNil(ended.endedAt)
+    }
+
     // MARK: - Project cleanup (stale-PID GC)
 
     func testProjectCleanupPreservesHookMarkedSubagentSession() throws {

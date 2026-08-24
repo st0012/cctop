@@ -256,6 +256,7 @@ struct SessionData: Codable, Identifiable, Equatable {
     var disconnectedAt: Date?
     var activeSubagents: [SubagentInfo]?
     var isSubagentSession: Bool
+    var isClaudeCodeDelegatedSession: Bool
     var hidden: Bool
     var createdByHookVersion: String?
     var lastWrittenByHookVersion: String?
@@ -327,6 +328,7 @@ struct SessionData: Codable, Identifiable, Equatable {
         case disconnectedAt = "disconnected_at"
         case activeSubagents = "active_subagents"
         case isSubagentSession = "is_subagent"
+        case isClaudeCodeDelegatedSession = "claude_code_delegated"
         case hidden
         case createdByHookVersion = "created_by_hook_version"
         case lastWrittenByHookVersion = "last_written_by_hook_version"
@@ -360,6 +362,10 @@ struct SessionData: Codable, Identifiable, Equatable {
         disconnectedAt = try container.decodeIfPresent(Date.self, forKey: .disconnectedAt)
         activeSubagents = try container.decodeIfPresent([SubagentInfo].self, forKey: .activeSubagents)
         isSubagentSession = try container.decodeIfPresent(Bool.self, forKey: .isSubagentSession) ?? false
+        isClaudeCodeDelegatedSession = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .isClaudeCodeDelegatedSession
+        ) ?? false
         hidden = try container.decodeIfPresent(Bool.self, forKey: .hidden) ?? false
         createdByHookVersion = try container.decodeIfPresent(String.self, forKey: .createdByHookVersion)
         lastWrittenByHookVersion = try container.decodeIfPresent(String.self, forKey: .lastWrittenByHookVersion)
@@ -391,6 +397,7 @@ struct SessionData: Codable, Identifiable, Equatable {
         disconnectedAt: Date? = nil,
         activeSubagents: [SubagentInfo]? = nil,
         isSubagentSession: Bool = false,
+        isClaudeCodeDelegatedSession: Bool = false,
         hidden: Bool = false,
         createdByHookVersion: String? = nil,
         lastWrittenByHookVersion: String? = nil
@@ -419,6 +426,7 @@ struct SessionData: Codable, Identifiable, Equatable {
         self.disconnectedAt = disconnectedAt
         self.activeSubagents = activeSubagents
         self.isSubagentSession = isSubagentSession
+        self.isClaudeCodeDelegatedSession = isClaudeCodeDelegatedSession
         self.hidden = hidden
         self.createdByHookVersion = createdByHookVersion
         self.lastWrittenByHookVersion = lastWrittenByHookVersion

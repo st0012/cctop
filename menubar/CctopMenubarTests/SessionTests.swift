@@ -2389,6 +2389,7 @@ final class SessionTests: XCTestCase {
         """
         let session = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: Data(json.utf8))
         XCTAssertEqual(session.lifecycle, .active)
+        XCTAssertFalse(session.isClaudeCodeDelegatedSession)
     }
 
     // The transient field participates in Equatable, so a dormant flip re-renders the card.
@@ -2441,6 +2442,7 @@ final class SessionTests: XCTestCase {
                 SubagentInfo(agentId: "agent-1", agentType: "explore", startedAt: isoDate("2026-02-08T12:10:00.345Z"))
             ],
             isSubagentSession: true,
+            isClaudeCodeDelegatedSession: true,
             hidden: true,
             createdByHookVersion: "0.16.0",
             lastWrittenByHookVersion: "0.17.2"
@@ -2458,11 +2460,11 @@ final class SessionTests: XCTestCase {
         return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    // 27 persisted fields + the transient `lifecycle`. If this fails, a stored property was
+    // 28 persisted fields + the transient `lifecycle`. If this fails, a stored property was
     // added or removed: wire it through CodingKeys, init(from:), the memberwise init, and
     // makeFullyPopulatedSession() above, then update this count.
     func testStoredPropertyCountTripwire() {
-        XCTAssertEqual(Mirror(reflecting: makeFullyPopulatedSession()).children.count, 28)
+        XCTAssertEqual(Mirror(reflecting: makeFullyPopulatedSession()).children.count, 29)
     }
 
     // Catches asymmetry between CodingKeys, init(from:), and the synthesized encode: a field
