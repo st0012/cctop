@@ -132,6 +132,66 @@ final class QASnapshotTests: XCTestCase {
         )
     }
 
+    func testAttentionAcknowledgementPreview() throws {
+        var attention = SessionData.mock(
+            id: "attention-preview",
+            cctopSessionId: "11111111-1111-4111-8111-111111111111",
+            status: .waitingPermission,
+            notificationMessage: "Review completed; session remains open"
+        )
+        attention.lifecycle = .active
+        let before = userSessions(fromDataFixtures: [attention])
+        var acknowledgedData = before[0].displayRecord.data
+        acknowledgedData.status = .idle
+        let after = [before[0].replacingDisplayData(acknowledgedData)]
+
+        try renderFixedSnapshot(
+            AttentionAcknowledgementPreviewScene(
+                before: before,
+                after: after,
+                beforePluginManager: inertPluginManager(),
+                afterPluginManager: inertPluginManager()
+            ),
+            name: "18-attention-acknowledgement",
+            size: NSSize(width: 720, height: 390),
+            colorScheme: .dark
+        )
+    }
+
+    func testAckAndDroppedSelectorsPreview() throws {
+        let acknowledgedID = "22222222-2222-4222-8222-222222222222"
+        var acknowledged = SessionData.mock(
+            id: "ack-selector-preview",
+            cctopSessionId: acknowledgedID,
+            status: .idle,
+            notificationMessage: "Reviewed; this session remains open"
+        )
+        acknowledged.lifecycle = .active
+        let dropped = SessionData.mock(
+            id: "drop-selector-preview",
+            cctopSessionId: "33333333-3333-4333-8333-333333333333",
+            status: .working,
+            notificationMessage: "Hidden from operational status until activity"
+        )
+        let acknowledgedSessions = userSessions(fromDataFixtures: [acknowledged])
+        let droppedSessions = userSessions(fromDataFixtures: [dropped])
+
+        try renderSelectorSnapshot(
+            userSessions: acknowledgedSessions,
+            acknowledgedSessionIDs: [acknowledgedID],
+            droppedUserSessions: droppedSessions,
+            initialTab: .acknowledged,
+            name: "19a-ack-selector-dark"
+        )
+        try renderSelectorSnapshot(
+            userSessions: acknowledgedSessions,
+            acknowledgedSessionIDs: [acknowledgedID],
+            droppedUserSessions: droppedSessions,
+            initialTab: .dropped,
+            name: "19b-dropped-selector-dark"
+        )
+    }
+
     // MARK: - Polish review matrix
 
     func testPolishReviewMatrix() throws {
@@ -313,6 +373,41 @@ final class QASnapshotTests: XCTestCase {
         try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
     }
 
+    private func renderSelectorSnapshot(
+        userSessions: [UserSession],
+        acknowledgedSessionIDs: Set<String>,
+        droppedUserSessions: [UserSession],
+        initialTab: PopupTab,
+        name: String
+    ) throws {
+        let view = PopupView(
+            userSessions: userSessions,
+            acknowledgedSessionIDs: acknowledgedSessionIDs,
+            droppedUserSessions: droppedUserSessions,
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager(),
+            initialTab: initialTab
+        )
+        .frame(width: 320)
+        .panelSnapshotChrome()
+        .environment(\.colorScheme, .dark)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 800),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = NSAppearance(named: .darkAqua)
+        let hostingView = NSHostingView(rootView: view)
+        window.contentView = hostingView
+        let fittingSize = hostingView.fittingSize
+        window.setContentSize(fittingSize)
+        hostingView.frame = NSRect(origin: .zero, size: fittingSize)
+        hostingView.layoutSubtreeIfNeeded()
+        try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
+    }
+
     private func renderSettingsSnapshot(
         updater: UpdaterBase,
         name: String,
@@ -383,6 +478,30 @@ final class QASnapshotTests: XCTestCase {
         try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
     }
 
+    private func renderFixedSnapshot<Content: View>(
+        _ content: Content,
+        name: String,
+        size: NSSize,
+        colorScheme: ColorScheme
+    ) throws {
+        let appearance: NSAppearance.Name = colorScheme == .dark ? .darkAqua : .aqua
+        let view = content
+            .frame(width: size.width, height: size.height)
+            .environment(\.colorScheme, colorScheme)
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.appearance = NSAppearance(named: appearance)
+        let hostingView = NSHostingView(rootView: view)
+        window.contentView = hostingView
+        hostingView.frame = NSRect(origin: .zero, size: size)
+        hostingView.layoutSubtreeIfNeeded()
+        try captureToFile(hostingView: hostingView, path: "/tmp/cctop-qa/\(name).png")
+    }
+
     private func scrollFirstScrollViewToBottom(in view: NSView) {
         guard
             let scrollView = firstSubview(ofType: NSScrollView.self, in: view),
@@ -416,6 +535,50 @@ final class QASnapshotTests: XCTestCase {
 
         try pngData.write(to: URL(fileURLWithPath: path))
         print("QA snapshot saved: \(path)")
+    }
+}
+
+private struct AttentionAcknowledgementPreviewScene: View {
+    let before: [UserSession]
+    let after: [UserSession]
+    let beforePluginManager: PluginManager
+    let afterPluginManager: PluginManager
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 24) {
+            panel(title: "Before", detail: "Needs attention", sessions: before, pluginManager: beforePluginManager)
+            panel(
+                title: "After Acknowledge",
+                detail: "Still one active session",
+                sessions: after,
+                pluginManager: afterPluginManager
+            )
+        }
+        .padding(24)
+        .background(Color(red: 0.07, green: 0.075, blue: 0.09))
+    }
+
+    private func panel(
+        title: String,
+        detail: String,
+        sessions: [UserSession],
+        pluginManager: PluginManager
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.white)
+            Text(detail)
+                .font(.system(size: 11))
+                .foregroundStyle(Color.white.opacity(0.62))
+            PopupView(
+                userSessions: sessions,
+                updater: DisabledUpdater(),
+                pluginManager: pluginManager
+            )
+            .frame(width: 320)
+            .panelSnapshotChrome()
+        }
     }
 }
 

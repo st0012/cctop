@@ -19,6 +19,7 @@ const {
   defaultSlot,
   parseArgs,
   SESSION_ACTION,
+  SESSION_DOUBLE_PRESS_WINDOW_MS,
   StreamDeckController,
   TOGGLE_ACTION,
 } = await import("../com.st0012.cctop.sdPlugin/lib/controller.mjs");
@@ -191,6 +192,62 @@ test("a session key asks Launch Services to deliver the exact encoded cctop comm
   }]);
   assert.equal(messages(socket, "openUrl").length, 0);
   assert.equal(messages(socket, "showAlert").length, 0);
+});
+
+test("a double press focuses then acknowledges the exact session the key rendered", async () => {
+  writeState();
+  const { controller, socket } = makeController();
+  controller.handleMessage(willAppear("key-1", { row: 0, column: 0 }, { slot: 1 }));
+
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
+  // The source may reorder before the second press; the key still owns the id it rendered.
+  writeState({ sessions: [
+    { cctop_session_id: ID_SECOND, name: "second", status: "working", color: "#DD5353" },
+    { cctop_session_id: ID_FIRST, name: "first", status: "idle", color: "#7DAEA3" },
+  ] });
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
+  await new Promise(setImmediate);
+
+  assert.deepEqual(launches.map((launch) => launch.args[0]), [
+    `cctop://focus?sid=${ID_FIRST}`,
+    `cctop://acknowledge?sid=${ID_FIRST}`,
+  ]);
+  assert.equal(messages(socket, "showAlert").length, 0);
+});
+
+test("presses on separate session keys never combine into a double press", async () => {
+  writeState({ sessions: [
+    { cctop_session_id: ID_FIRST, name: "first target", status: "working", color: "#7EAA6E" },
+    { cctop_session_id: ID_FIRST, name: "second target", status: "idle", color: "#7DAEA3" },
+  ] });
+  const { controller } = makeController();
+  controller.handleMessage(willAppear("key-1", { row: 0, column: 0 }, { slot: 1 }));
+  controller.handleMessage(willAppear("key-2", { row: 0, column: 1 }, { slot: 2 }));
+
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-2" });
+  await new Promise(setImmediate);
+
+  assert.deepEqual(launches.map((launch) => launch.args[0]), [
+    `cctop://focus?sid=${ID_FIRST}`,
+    `cctop://focus?sid=${ID_FIRST}`,
+  ]);
+});
+
+test("a later press outside the double-press window remains a normal focus", async () => {
+  writeState();
+  const { controller } = makeController();
+  controller.handleMessage(willAppear("key-1", { row: 0, column: 0 }, { slot: 1 }));
+
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
+  await new Promise((resolve) => setTimeout(resolve, SESSION_DOUBLE_PRESS_WINDOW_MS + 25));
+  controller.handleMessage({ event: "keyDown", action: SESSION_ACTION, context: "key-1" });
+  await new Promise(setImmediate);
+
+  assert.deepEqual(launches.map((launch) => launch.args[0]), [
+    `cctop://focus?sid=${ID_FIRST}`,
+    `cctop://focus?sid=${ID_FIRST}`,
+  ]);
 });
 
 test("toggle uses the same direct cctop command boundary", async () => {

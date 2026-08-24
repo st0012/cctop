@@ -7,6 +7,8 @@ private let relativeTimeRefresh = Timer.publish(every: 10, on: .main, in: .commo
 
 struct PopupView: View {
     let userSessions: [UserSession]
+    var acknowledgedSessionIDs: Set<String> = []
+    var droppedUserSessions: [UserSession] = []
     var recentProjects: [RecentProject] = []
     var recentResumeTargets: [RecentResumeTarget]?
     var cleanupCandidates: [WorktreeCleanupCandidate] = []
@@ -19,6 +21,9 @@ struct PopupView: View {
     var initialTab: PopupTab = .active
     var initialCleanupCandidate: WorktreeCleanupCandidate?
     var onOpenUpdater: (() -> Void)?
+    var onAcknowledgeSession: (SessionIdentityPolicy.LogicalIdentity) -> Void = { _ in }
+    var onDropSession: (SessionIdentityPolicy.LogicalIdentity) -> Void = { _ in }
+    var onRestoreDroppedSession: (SessionIdentityPolicy.LogicalIdentity) -> Void = { _ in }
     var onHideSession: (SessionIdentityPolicy.LogicalIdentity) -> Void = { _ in }
     var onSelectCleanupRemovalAction: ((WorktreeCleanupCandidate) async -> WorktreeRemovalService.RemovalAction)?
     var onExecuteCleanupRemovalAction: ((WorktreeRemovalService.RemovalAction) async -> WorktreeRemovalService.RemovalResult)?
@@ -64,6 +69,8 @@ struct PopupView: View {
                     switch selectedTab {
                     case .active: activeContent
                     case .idle: idleContent
+                    case .acknowledged: acknowledgedContent
+                    case .dropped: droppedContent
                     case .recent: recentContent
                     case .cleanup: cleanupContent
                     }
@@ -128,8 +135,8 @@ struct PopupView: View {
     // MARK: - Tab picker
 
     private var tabPicker: some View {
-        HStack(spacing: 0) {
-            ForEach(availableTabs, id: \.self) { tab in
+        HStack(spacing: 1) {
+            ForEach(PopupTab.primaryCases, id: \.self) { tab in
                 tabButton(
                     tab.label,
                     count: count(for: tab),
@@ -138,6 +145,13 @@ struct PopupView: View {
                     hasAttention: tab == .cleanup && cleanupHasUnseenCandidates
                 )
             }
+            SecondaryTabMenuView(
+                selectedTab: selectedTab,
+                cleanupIsScanning: cleanupIsScanning,
+                cleanupHasAttention: cleanupHasUnseenCandidates,
+                count: count(for:),
+                onSelect: selectTab
+            )
         }
         .padding(2)
         .background(Color.segmentBackground)
@@ -150,6 +164,8 @@ struct PopupView: View {
         switch tab {
         case .active: return activeSessionRows.count
         case .idle: return idleSessionRows.count
+        case .acknowledged: return acknowledgedSessionRows.count
+        case .dropped: return droppedSessionRows.count
         case .recent: return recentTargets.count
         case .cleanup: return actionableCleanupCandidates.count
         }
@@ -169,16 +185,20 @@ struct PopupView: View {
             hasAttention: hasAttention && selectedTab != tab,
             isSelected: selectedTab == tab
         ) {
-            if overlayController.active != nil { closeOverlay(animated: false) }
-            withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
-            notifyLayoutChanged()
+            selectTab(tab)
         }
         .help(tab.helpText)
+    }
+
+    private func selectTab(_ tab: PopupTab) {
+        if overlayController.active != nil { closeOverlay(animated: false) }
+        withAnimation(.easeInOut(duration: 0.15)) { selectedTab = tab }
+        notifyLayoutChanged()
     }
     // MARK: - Active tab
     private var activeContent: some View {
         Group {
-            if userSessions.isEmpty {
+            if userSessions.isEmpty && droppedUserSessions.isEmpty {
                 EmptyStateView(pluginManager: pluginManager)
             } else if activeSessionRows.isEmpty {
                 noActiveSessionsContent
@@ -210,6 +230,7 @@ struct PopupView: View {
             sessionList(idleSessionRows, tab: .idle)
         }
     }
+
     func panelList<Item: Identifiable, Row: View>(
         _ list: [Item],
         tab: PopupTab,
@@ -397,6 +418,12 @@ extension PopupView {
         case .idle:
             moveSessionSelection(by: delta, in: idleSessionRows)
             return
+        case .acknowledged:
+            moveSessionSelection(by: delta, in: acknowledgedSessionRows)
+            return
+        case .dropped:
+            moveSessionSelection(by: delta, in: droppedSessionRows)
+            return
         case .recent:
             moveIndexedSelection(by: delta, count: recentTargets.count)
         case .cleanup:
@@ -410,7 +437,7 @@ extension PopupView {
     }
 
     private func confirmSelection() {
-        if selectedTab == .active || selectedTab == .idle {
+        if [.active, .idle, .acknowledged, .dropped].contains(selectedTab) {
             confirmSessionSelection()
             return
         }

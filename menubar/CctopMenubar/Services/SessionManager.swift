@@ -3,18 +3,17 @@ import Darwin.libproc
 import Foundation
 @preconcurrency import UserNotifications
 import os.log
-
 let sessionManagerLogger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
-
 struct WorktreeCleanupSessionSnapshot {
     let cleanupSources: [SessionDataCleanupSource]
     let activeProjectPaths: Set<String>
 }
-
 @MainActor
 // swiftlint:disable:next type_body_length
 class SessionManager: ObservableObject {
     @Published private(set) var userSessions: [UserSession] = []
+    @Published var droppedUserSessions: [UserSession] = []
+    @Published var acknowledgedSessionIDs: Set<String> = []
     @Published var recentResumeTargets: [RecentResumeTarget] = []
 
     let historyManager: HistoryManager
@@ -73,6 +72,7 @@ class SessionManager: ObservableObject {
             lastDisplaySignature = .empty
             lastLoadLogSignature = nil
             sessionFileCache.removeAll()
+            updateAuxiliarySessionProjections(dropped: [], acknowledgedSessionIDs: [])
             updateSessionProjection([])
             if !hasStoredHideEvidence {
                 publishRecentResumeTargets(historyManager.recentProjects.map(RecentResumeTarget.project))
@@ -119,15 +119,32 @@ class SessionManager: ObservableObject {
             winners: visibleCandidates,
             records: visibleRecords
         )
-        let loadedUserSessions = groupedUserSessions.map {
+        let dropProjection = partitioningTemporaryDrops(
+            to: groupedUserSessions,
+            inventoryComplete: inventoryComplete
+        )
+        let acknowledgementProjection = applyingAttentionAcknowledgements(
+            to: dropProjection.visible,
+            inventoryComplete: inventoryComplete
+        )
+        let adjustedUserSessions = acknowledgementProjection.userSessions.map {
             $0.replacingDisplayData(adjustDisplayStatus($0.displayRecord.data))
         }
         let newUserSessions = SessionDisplayPolicy.reconcilingOrder(
-            in: loadedUserSessions,
+            in: adjustedUserSessions,
             preserving: oldUserSessions,
             now: now
         )
+        let newDroppedUserSessions = SessionDisplayPolicy.reconcilingOrder(
+            in: dropProjection.dropped,
+            preserving: droppedUserSessions,
+            now: now
+        )
         let displaySignature = SessionDisplayPolicy.signature(for: newUserSessions, now: now)
+        updateAuxiliarySessionProjections(
+            dropped: newDroppedUserSessions,
+            acknowledgedSessionIDs: acknowledgementProjection.acknowledgedSessionIDs
+        )
         updateSessionProjection(
             newUserSessions,
             displaySignature: displaySignature,
@@ -148,7 +165,9 @@ class SessionManager: ObservableObject {
         )
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenProjectPaths(hiddenSessionIDs))
-        let publishedSessionIDs = Set(newUserSessions.compactMap { $0.identity.cctopSessionID })
+        let publishedSessionIDs = Set(
+            (newUserSessions + newDroppedUserSessions).compactMap { $0.identity.cctopSessionID }
+        )
         let shouldFreezeVisibilityProjections = manualHides.hasUnresolvedLegacyKeys
             || (!inventoryComplete && !hiddenSessionIDs.isEmpty)
         if !shouldFreezeVisibilityProjections {
@@ -175,12 +194,6 @@ class SessionManager: ObservableObject {
         if inventoryComplete {
             let validSessionIDs = Set(identifiedInventory.compactMap(\.cctopSessionId).filter(CctopSessionID.isValid))
             dataSources.manualSessionVisibility.prune(retaining: validSessionIDs)
-        }
-    }
-
-    private func publishRecentResumeTargets(_ targets: [RecentResumeTarget]) {
-        if targets != recentResumeTargets {
-            recentResumeTargets = targets
         }
     }
 

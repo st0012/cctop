@@ -7,6 +7,7 @@ struct SessionCardView: View {
     var showSourceBadge = false
     var isSelected = false
     var relativeTimeNow = Date()
+    var presentationStatusLabel: String?
 
     @State private var isHovered = false
     @Environment(\.colorScheme) private var colorScheme
@@ -144,7 +145,9 @@ struct SessionCardView: View {
 
     @ViewBuilder
     private var statusLabel: some View {
-        if session.lifecycle == .dormant {
+        if let presentationStatusLabel {
+            statusText(presentationStatusLabel, color: Color.textMuted)
+        } else if session.lifecycle == .dormant {
             statusText("Dormant", color: Color.textMuted)
         } else {
             switch session.status {

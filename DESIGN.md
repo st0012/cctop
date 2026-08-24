@@ -251,7 +251,7 @@ body type, and never used in the app.
 | 10.5 · semibold   | Status label ("Working" / "Waiting" / "Permission")                  |
 | 10.5 mono         | Command stripe (working session row 3)                               |
 | 10                | Subagent badge, branch (mono), timestamp                             |
-| 11 · medium       | Main Active / Idle / Recent / Cleanup tab labels and counts          |
+| 10 · medium       | Primary Active / Idle / Ack / Dropped selector labels and counts |
 | 9.5 · semibold    | Uppercase Settings section labels                                    |
 | 9.5 · medium      | Settings segmented picker labels and source badges                   |
 
@@ -318,7 +318,8 @@ when you glance at it from peripheral vision.
 | **Row 3 — waiting**       | 10.5 px `textSecondary` note: `notificationMessage ?? contextLine ?? "Waiting for input"`. Permission notes are 10.5 px italic `statusAttention`. |
 | Selected / hover          | `cardSelectionStyle` uses a theme-ink 7–7.5% fill, radius 10, and an 8 px horizontal inset. It has no stroke, divider, or left accent bar. |
 | Source badge visibility   | Shown only when `Set(sessions.map(\.agentBadge)).count > 1` (keyed on `agentBadge`, not `sourceLabel`, so CC + Claude Desktop counts as multiple sources) |
-| Hide interaction          | A native context-menu item and named accessibility action open the same destructive confirmation. Left-click remains jump-to-session. |
+| Acknowledge interaction   | Attention rows expose a native context-menu item and named accessibility action. Acknowledgement maps only the current event to the existing neutral idle presentation; it does not end or hide the session. |
+| Hide interaction          | A separate native context-menu item and named accessibility action open the same destructive confirmation. Left-click remains jump-to-session. |
 
 #### Source badge (`SourceBadgeView.swift`) — six variants
 
@@ -388,6 +389,11 @@ Deck's action picker. The bundled Claude Code,
 Codex, opencode, and pi integrations do not expose logo fields in their current
 direct hook/extension formats; do not invent unsupported manifest metadata.
 
+A Stream Deck Session key focuses its exact rendered permanent session ID on a
+single press. A second press on that same physical key and session ID within
+350 ms sends Acknowledge for the same target. The first focus still occurs, and
+presses on different key contexts never combine into a double press.
+
 The menubar status item is 36×18 with a centered 36×6 live hairline. It
 resolves semantic colors against the status button's effective light/dark
 appearance. It contains no separate glyph.
@@ -430,19 +436,22 @@ Always black, regardless of theme — it's OS chrome that meets the camera notch
 | Border        | None                                                  |
 | Radius        | 5 px                                                  |
 
-### Tab button (Active / Idle / Recent / Cleanup)
+### Selector bar (Active / Idle / Ack / Dropped, with overflow)
 
-The four equal-width 22 px segments live in one track with 2 px inset and
-8 px outer / 6 px inner radii. The selected tab uses a native-style thumb
+Four equal-width 22 px primary segments and one fixed 28 px overflow control
+live in one compact track with 2 px inset and 8 px outer / 6 px inner radii.
+The overflow menu exposes Recent and Cleanup with their counts. The selected tab uses a native-style thumb
 and subtle shadow, never an accent stroke. Hover is fill-only. Labels and
-tabular counts are 11 px; zero counts mute, while scanning and unseen Cleanup
-states keep their existing progress/attention cues.
+tabular counts are 10 px with tight 2 px internal spacing and 1 px between segments; zero counts remain visible, while scanning and unseen Cleanup
+states keep their existing progress/attention cues. Ack mirrors acknowledged
+rows that remain in Active or Idle. Dropped is the only selector that exposes
+temporarily dropped rows and their Restore Session action.
 
 ### Settings grouped list
 
-Settings uses a native grouped-list structure. Active, Idle, and Recent all use
-the same flat, dense panel list renderer so tab changes do not change the
-component vocabulary.
+Settings uses a native grouped-list structure. Active, Idle, Ack, Dropped, and
+Recent all use the same flat, dense panel list renderer so selector changes do
+not change the component vocabulary.
 
 | Property            | Value                                                  |
 |---------------------|--------------------------------------------------------|
@@ -521,12 +530,12 @@ site-only and reserved for sections, not components.
 | Width                     | Fixed 320 px                                   |
 | Outer surface             | Continuous `panelBackground`, radius 16, one subtle inner rim; no tinted header/tab/footer bands |
 | Header padding            | 16 / 14 / 14 / 10 (l / t / r / b)             |
-| Tab bar                   | 16 px horizontal margin · 8 px bottom margin · four equal 22 px segments |
+| Tab bar                   | 16 px horizontal margin · 8 px bottom margin · four equal 22 px segments + 28 px overflow |
 | Card padding              | 9 px inner horizontal + 8 px selection inset · 8 px vertical |
 | Footer padding            | 16 / 12 / 6 / 10 (l / r / t / b)              |
 | Footer content            | 10.5 px Quit · version · shortcut, separated by muted middle dots; 20 px neutral Settings glyph/fill with a 28 px hit target |
 | Scroll area max height    | 290 px (then scrolls)                          |
-| Active/Idle/Recent spacing| 2 px row gap, 0 px top and 4 px bottom; no dividers |
+| Session/Recent spacing    | 2 px row gap, 0 px top and 4 px bottom; no dividers |
 | Settings content padding  | 8 px horizontal · 0 px top · 6 px bottom around the sunk well |
 
 The panel reflows in **height only**; width is fixed to keep card layout

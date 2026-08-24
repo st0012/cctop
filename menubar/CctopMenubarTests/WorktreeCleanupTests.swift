@@ -1377,8 +1377,42 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertFalse(WorktreeCleanupCandidate.State.ignored(["main checkout"]).isActionable)
     }
 
-    func testPopupTabAvailabilityAlwaysIncludesAllFourProductSurfaces() {
-        XCTAssertEqual(PopupTab.allCases, [.active, .idle, .recent, .cleanup])
+    func testPopupTabAvailabilityIncludesSessionStateSelectorsAndProductSurfaces() {
+        XCTAssertEqual(
+            PopupTab.allCases,
+            [.active, .idle, .acknowledged, .dropped, .recent, .cleanup]
+        )
+        XCTAssertEqual(PopupTab.primaryCases, [.active, .idle, .acknowledged, .dropped])
+        XCTAssertEqual(PopupTab.secondaryCases, [.recent, .cleanup])
+    }
+
+    @MainActor
+    func testAckAndDroppedSelectorsUseTheirDedicatedSessionCollections() {
+        let acknowledgedID = "44444444-4444-4444-8444-444444444444"
+        let droppedID = "55555555-5555-4555-8555-555555555555"
+        let acknowledged = SessionData.mock(
+            id: "acknowledged",
+            cctopSessionId: acknowledgedID,
+            status: .idle
+        )
+        let dropped = SessionData.mock(
+            id: "dropped",
+            cctopSessionId: droppedID,
+            status: .working
+        )
+        let view = PopupView(
+            userSessions: userSessions(fromDataFixtures: [acknowledged]),
+            acknowledgedSessionIDs: [acknowledgedID],
+            droppedUserSessions: userSessions(fromDataFixtures: [dropped]),
+            updater: DisabledUpdater(),
+            pluginManager: inertPluginManager()
+        )
+
+        XCTAssertEqual(view.acknowledgedSessionRows.map(\.id.cctopSessionID), [acknowledgedID])
+        XCTAssertEqual(view.acknowledgedSessionRows.map(\.presentation), [.acknowledged])
+        XCTAssertEqual(view.droppedSessionRows.map(\.id.cctopSessionID), [droppedID])
+        XCTAssertEqual(view.droppedSessionRows.map(\.presentation), [.dropped])
+        XCTAssertEqual(StatusCounts(userSessions: view.userSessions).total, 1)
     }
 
     func testPopupTabHelpTextDescribesCurrentBuckets() {
@@ -1391,6 +1425,14 @@ final class WorktreeCleanupTests: XCTestCase {
         XCTAssertEqual(
             PopupTab.idle.helpText,
             "Dormant sessions and idle sessions over \(staleIdleHours) hours."
+        )
+        XCTAssertEqual(
+            PopupTab.acknowledged.helpText,
+            "Acknowledged sessions; newer attention clears the acknowledgement."
+        )
+        XCTAssertEqual(
+            PopupTab.dropped.helpText,
+            "Sessions removed from normal surfaces until restored or newer activity."
         )
         let recentHelpText = PopupTab.recent.helpText
         XCTAssertTrue(recentHelpText.contains("Finished work"))
@@ -1414,6 +1456,14 @@ final class WorktreeCleanupTests: XCTestCase {
             PopupTab.idle.emptyStateDetail,
             "Dormant and long-idle sessions appear here."
         )
+        XCTAssertEqual(
+            PopupTab.acknowledged.emptyStateDetail,
+            "Acknowledged sessions appear here until they report newer attention."
+        )
+        XCTAssertEqual(
+            PopupTab.dropped.emptyStateDetail,
+            "Dropped sessions appear here until restored or they report newer activity."
+        )
         let recentEmptyStateDetail = PopupTab.recent.emptyStateDetail
         XCTAssertTrue(recentEmptyStateDetail.contains("Finished work"))
         XCTAssertTrue(recentEmptyStateDetail.contains("archived desktop sessions"))
@@ -1429,13 +1479,16 @@ final class WorktreeCleanupTests: XCTestCase {
         )
     }
 
-    func testKeyboardTabSwitchingIncludesCleanup() {
+    func testKeyboardTabSwitchingIncludesSessionStateSelectorsAndCleanup() {
         let tabs = PopupTab.allCases
 
         XCTAssertEqual(PopupTab.switched(from: .recent, action: .nextTab, availableTabs: tabs), .cleanup)
         XCTAssertEqual(PopupTab.switched(from: .cleanup, action: .nextTab, availableTabs: tabs), .active)
         XCTAssertEqual(PopupTab.switched(from: .active, action: .previousTab, availableTabs: tabs), .cleanup)
         XCTAssertEqual(PopupTab.switched(from: .active, action: .nextTab, availableTabs: tabs), .idle)
+        XCTAssertEqual(PopupTab.switched(from: .idle, action: .nextTab, availableTabs: tabs), .acknowledged)
+        XCTAssertEqual(PopupTab.switched(from: .acknowledged, action: .nextTab, availableTabs: tabs), .dropped)
+        XCTAssertEqual(PopupTab.switched(from: .dropped, action: .nextTab, availableTabs: tabs), .recent)
     }
 
     func testConfirmingCleanupSelectionTargetsCleanupDetail() {

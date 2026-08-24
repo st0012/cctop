@@ -33,12 +33,17 @@ final class PanelToggleTests: XCTestCase {
         )
     }
 
-    func testFocusTargetDecodesCctopSessionIdentity() throws {
+    func testSessionCommandsDecodeCctopSessionIdentity() throws {
         let url = try XCTUnwrap(URL(string: "cctop://focus?sid=codex%3Aabc%2Fdef%3Fghi"))
         XCTAssertEqual(AppDelegate.urlCommand(from: url), "focus")
-        XCTAssertEqual(AppDelegate.focusSessionID(from: url), "codex:abc/def?ghi")
-        XCTAssertNil(AppDelegate.focusSessionID(from: try XCTUnwrap(URL(string: "cctop://focus"))))
-        XCTAssertNil(AppDelegate.focusSessionID(from: try XCTUnwrap(URL(string: "cctop://focus?sid="))))
+        XCTAssertEqual(AppDelegate.sessionID(from: url), "codex:abc/def?ghi")
+
+        let acknowledgeURL = try XCTUnwrap(URL(string: "cctop://acknowledge?sid=codex%3Aabc%2Fdef%3Fghi"))
+        XCTAssertEqual(AppDelegate.urlCommand(from: acknowledgeURL), "acknowledge")
+        XCTAssertEqual(AppDelegate.sessionID(from: acknowledgeURL), "codex:abc/def?ghi")
+
+        XCTAssertNil(AppDelegate.sessionID(from: try XCTUnwrap(URL(string: "cctop://focus"))))
+        XCTAssertNil(AppDelegate.sessionID(from: try XCTUnwrap(URL(string: "cctop://focus?sid="))))
     }
 
     func testNotificationActivationResolvesPermanentIDToCurrentCanonicalRecord() {

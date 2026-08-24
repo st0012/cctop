@@ -7,12 +7,18 @@ export function focusURL(displayID) {
   return `cctop://focus?sid=${encodeURIComponent(displayID)}`;
 }
 
+export function acknowledgeURL(displayID) {
+  if (typeof displayID !== "string" || displayID.length === 0) return null;
+  return `cctop://acknowledge?sid=${encodeURIComponent(displayID)}`;
+}
+
 function isSupportedCommandURL(value) {
   try {
     const url = new URL(value);
     if (url.protocol !== "cctop:") return false;
     if (url.hostname === "toggle") return url.search === "";
-    return url.hostname === "focus" && Boolean(url.searchParams.get("sid"));
+    return ["focus", "acknowledge"].includes(url.hostname)
+      && Boolean(url.searchParams.get("sid"));
   } catch {
     return false;
   }

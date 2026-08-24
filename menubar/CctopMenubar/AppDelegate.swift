@@ -784,7 +784,7 @@ extension AppDelegate {
         case "toggle":
             togglePanel()
         case "focus":
-            guard let cctopSessionID = Self.focusSessionID(from: url),
+            guard let cctopSessionID = Self.sessionID(from: url),
                   CctopSessionID.isValid(cctopSessionID) else {
                 Self.urlLogger.notice("Ignored malformed cctop focus command")
                 return
@@ -824,9 +824,26 @@ extension AppDelegate {
             )
             guard let resolvedUserSession else { return }
             focusTerminal(session: resolvedUserSession.focusTarget)
+        case "acknowledge":
+            handleAcknowledgeCommand(url)
         default:
             break
         }
+    }
+
+    @MainActor private func handleAcknowledgeCommand(_ url: URL) {
+        guard let cctopSessionID = Self.sessionID(from: url),
+              CctopSessionID.isValid(cctopSessionID) else {
+            Self.urlLogger.notice("Ignored malformed cctop acknowledge command")
+            return
+        }
+        sessionManager.loadSessions()
+        let activeUserSessions = SessionDisplayPolicy.activeSessions(from: sessionManager.userSessions)
+        guard let userSession = FocusTargetResolver.currentUserSession(
+            forCctopSessionID: cctopSessionID,
+            in: activeUserSessions
+        ) else { return }
+        sessionManager.acknowledgeSession(userSession.identity)
     }
 
     nonisolated static func urlCommand(from url: URL) -> String {
@@ -836,7 +853,7 @@ extension AppDelegate {
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 
-    nonisolated static func focusSessionID(from url: URL) -> String? {
+    nonisolated static func sessionID(from url: URL) -> String? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let value = components.queryItems?.first(where: { $0.name == "sid" })?.value,
               !value.isEmpty else { return nil }

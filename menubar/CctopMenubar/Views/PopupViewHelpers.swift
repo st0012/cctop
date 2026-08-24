@@ -153,7 +153,7 @@ struct TabButtonView: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 Text(label)
                     .foregroundStyle(labelForegroundColor)
                 if isScanning {
@@ -174,9 +174,9 @@ struct TabButtonView: View {
                     }
                 }
             }
-            .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+            .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
             .lineLimit(1)
-            .minimumScaleFactor(0.85)
+            .minimumScaleFactor(0.9)
             .allowsTightening(true)
             .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22)
             .background {
@@ -300,7 +300,7 @@ extension PopupView {
 
     func hideSession(_ identity: SessionIdentityPolicy.LogicalIdentity) {
         guard identity.cctopSessionID != nil,
-              userSessions.contains(where: { $0.identity == identity }) else { return }
+              (userSessions + droppedUserSessions).contains(where: { $0.identity == identity }) else { return }
         onHideSession(identity)
         selectedIndex = nil
         selectedSessionIdentity = nil
@@ -330,6 +330,8 @@ struct PanelContentView: View {
     var body: some View {
         PopupView(
             userSessions: sessionManager.userSessions,
+            acknowledgedSessionIDs: sessionManager.acknowledgedSessionIDs,
+            droppedUserSessions: sessionManager.droppedUserSessions,
             recentProjects: historyManager.recentProjects,
             recentResumeTargets: sessionManager.recentResumeTargets,
             cleanupCandidates: cleanupManager.candidates,
@@ -340,6 +342,9 @@ struct PanelContentView: View {
             navigate: navigate,
             overlayController: overlayController,
             onOpenUpdater: onOpenUpdater,
+            onAcknowledgeSession: { sessionManager.acknowledgeSession($0) },
+            onDropSession: { sessionManager.dropSession($0) },
+            onRestoreDroppedSession: { sessionManager.restoreDroppedSession($0) },
             onHideSession: { sessionManager.hideSession($0) },
             onSelectCleanupRemovalAction: onSelectCleanupRemovalAction,
             onExecuteCleanupRemovalAction: onExecuteCleanupRemovalAction,
