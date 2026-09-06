@@ -11,6 +11,7 @@ final class FocusStrategyTests: XCTestCase {
         tty: String? = nil,
         bundleId: String? = nil,
         socket: String? = nil,
+        focusUrl: String? = nil,
         binaryPaths: [String: String]? = nil,
         sessionUuid: String = "test"
     ) -> SessionData {
@@ -19,7 +20,7 @@ final class FocusStrategyTests: XCTestCase {
             project: "myapp",
             terminal: TerminalInfo(
                 program: program, sessionId: sessionId, tty: tty,
-                bundleId: bundleId, socket: socket,
+                bundleId: bundleId, socket: socket, focusUrl: focusUrl,
                 binaryPaths: binaryPaths
             )
         )
@@ -206,6 +207,60 @@ final class FocusStrategyTests: XCTestCase {
         XCTAssertEqual(strategy, .kitty(
             socket: "unix:/tmp/kitty-1234", windowId: "1", binaryPath: "/opt/homebrew/bin/kitty"
         ))
+    }
+
+    // MARK: - Warp uses the session deep link from WARP_FOCUS_URL
+
+    private let warpFocusURL = "warp://session/550e8400e29b41d4a716446655440000"
+
+    func testWarpFocusLinkOpensChannelURLForEveryHostEvidence() throws {
+        // Both channels, whether TERM_PROGRAM names Warp or a multiplexer (tmux
+        // inside Warp) leaves only the channel bundle ID to identify the host.
+        let previewURL = "warppreview://session/550e8400e29b41d4a716446655440000"
+        let cases: [(program: String, bundleId: String, url: String)] = [
+            ("WarpTerminal", "dev.warp.Warp-Stable", warpFocusURL),
+            ("tmux", "dev.warp.Warp-Stable", warpFocusURL),
+            ("WarpTerminal", "dev.warp.Warp-Preview", previewURL),
+            ("tmux", "dev.warp.Warp-Preview", previewURL)
+        ]
+        for testCase in cases {
+            let session = makeSession(program: testCase.program, bundleId: testCase.bundleId, focusUrl: testCase.url)
+            XCTAssertEqual(
+                resolveFocusStrategy(session: session),
+                .openURL(try XCTUnwrap(URL(string: testCase.url))),
+                "\(testCase.program) in \(testCase.bundleId)"
+            )
+        }
+    }
+
+    func testWarpChannelSessionWithoutFocusLinkActivatesExactBundle() {
+        // Older Warp (no WARP_FOCUS_URL) under tmux: the captured channel bundle
+        // is more exact than matching running apps by name.
+        let session = makeSession(program: "tmux", bundleId: "dev.warp.Warp-Preview")
+        XCTAssertEqual(resolveFocusStrategy(session: session), .activateByBundleID("dev.warp.Warp-Preview"))
+    }
+
+    func testWarpWithInvalidFocusURLFallsBackToActivate() {
+        // Tampered session JSON must not make cctop open arbitrary URLs.
+        let invalid = [
+            "https://evil.example/session/550e8400e29b41d4a716446655440000",
+            "warpevil://session/550e8400e29b41d4a716446655440000",
+            "WARP://session/550e8400e29b41d4a716446655440000",
+            "warp://session/550e8400e29b41d4a716446655440000/extra",
+            "warp://session/550E8400E29B41D4A716446655440000",
+            "warp://session/550e8400-e29b-41d4-a716-446655440000",
+            "warp://session/550e8400e29b41d4a716446655440000?open=/etc",
+            "warp://settings/550e8400e29b41d4a716446655440000",
+            "warp://session/",
+            "warp://session/550e8400e29b41d4a716446655440000\n",
+            "warp://session/550e8400e29b41d4a716446655440000\r\n",
+            "\nwarp://session/550e8400e29b41d4a716446655440000"
+        ]
+        for url in invalid {
+            let session = makeSession(program: "WarpTerminal", focusUrl: url)
+            let strategy = resolveFocusStrategy(session: session)
+            XCTAssertEqual(strategy, .activateByName("warp"), "should reject \(url)")
+        }
     }
 
     // MARK: - Other terminals use activate

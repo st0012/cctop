@@ -34,6 +34,8 @@ extension HookHandler {
         // WezTerm also has a CLI (https://wezterm.org/cli/cli/index.html) — when
         // added, socket will likely become an enum keyed by terminal.
         let socket = env["KITTY_LISTEN_ON"]
+        // Session deep link for pane focusing; currently Warp (see WarpFocusLink).
+        let focusUrl = WarpFocusLink.sanitized(env["WARP_FOCUS_URL"])
         // binaryPaths is a map so it can grow to cover other socket-based terminals
         // (e.g. wezterm) without a schema change.
         let binaryPaths = socket.flatMap { _ in
@@ -42,8 +44,8 @@ extension HookHandler {
         let multiplexer = captureMultiplexerInfo(env: env)
         return TerminalInfo(
             program: program, sessionId: sessionId, tty: tty,
-            bundleId: bundleId, socket: socket, multiplexer: multiplexer,
-            binaryPaths: binaryPaths
+            bundleId: bundleId, socket: socket, focusUrl: focusUrl,
+            multiplexer: multiplexer, binaryPaths: binaryPaths
         )
     }
 

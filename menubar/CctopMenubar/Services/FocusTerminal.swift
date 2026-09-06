@@ -80,32 +80,15 @@ func resolveFocusStrategy(
         return .openWithApp(bundleID: bundleID, target: target)
     }
 
-    // iTerm2 → AppleScript to focus the specific session
-    if hostApp == .iterm2,
-       let guid = extractITermGUID(from: terminal?.sessionId),
-       guid.range(of: #"^[0-9a-fA-F-]+$"#, options: .regularExpression) != nil {
-        return .iTerm2(guid: guid)
+    if let paneFocus = resolveTerminalPaneFocus(hostApp: hostApp, session: session) {
+        return paneFocus
     }
 
-    // Kitty → remote control to focus the specific window (pane in Kitty's terms)
-    if hostApp == .kitty,
-       let socket = terminal?.socket,
-       let windowId = terminal?.sessionId,
-       let binaryPath = terminal?.binaryPaths?["kitty"] {
-        return .kitty(socket: socket, windowId: windowId, binaryPath: binaryPath)
-    }
-
-    if hostApp == .ghostty {
-        return .ghostty(ghosttyFocusTarget(for: session))
-    }
-
-    // Apple Terminal → AppleScript to focus the specific tab by tty.
-    // NSRunningApplication.activate() can't target a single tab, and on macOS
-    // Sonoma+ cooperative activation often fails to even raise the app.
-    if hostApp == .terminal,
-       let tty = terminal?.tty,
-       tty.range(of: #"^/dev/ttys\d+$"#, options: .regularExpression) != nil {
-        return .appleTerminal(tty: tty)
+    // A captured bundle that names another channel of the recognized host (Warp
+    // Preview under tmux) is more exact than matching running apps by name.
+    if let bundleID = terminal?.bundleId.flatMap(Config.nonEmpty),
+       HostApp.from(bundleIdentifier: bundleID) == hostApp, bundleID != hostApp.bundleID {
+        return .activateByBundleID(bundleID)
     }
 
     // Try recognized app activation, then an unrecognized captured bundle, then Finder.

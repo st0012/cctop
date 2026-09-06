@@ -43,6 +43,7 @@
 		FTR000010000000000000001 /* FocusTargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = FTR000020000000000000001 /* FocusTargetResolver.swift */; };
 		E10000010000000000000001 /* FocusTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000001 /* FocusTerminal.swift */; };
 		EAPPRESTORE0010000000001 /* FocusTerminal+AppRestore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */; };
+		EPANEFOCUS00100000000001 /* FocusTerminal+PaneFocus.swift in Sources */ = {isa = PBXBuildFile; fileRef = EPANEFOCUS00200000000001 /* FocusTerminal+PaneFocus.swift */; };
 		ECMUX001000000000000001 /* FocusTerminal+Cmux.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECMUX002000000000000001 /* FocusTerminal+Cmux.swift */; };
 		EMUX0010000000000000001 /* FocusTerminal+Multiplexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EMUX0020000000000000001 /* FocusTerminal+Multiplexer.swift */; };
 		ERCT00010000000000000001 /* FocusTerminal+Recent.swift in Sources */ = {isa = PBXBuildFile; fileRef = ERCT00020000000000000001 /* FocusTerminal+Recent.swift */; };
@@ -243,6 +244,7 @@
 		FTR000020000000000000001 /* FocusTargetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTargetResolver.swift; sourceTree = "<group>"; };
 		E10000020000000000000001 /* FocusTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTerminal.swift; sourceTree = "<group>"; };
 		EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+AppRestore.swift"; sourceTree = "<group>"; };
+		EPANEFOCUS00200000000001 /* FocusTerminal+PaneFocus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+PaneFocus.swift"; sourceTree = "<group>"; };
 		ECMUX002000000000000001 /* FocusTerminal+Cmux.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+Cmux.swift"; sourceTree = "<group>"; };
 		EMUX0020000000000000001 /* FocusTerminal+Multiplexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+Multiplexer.swift"; sourceTree = "<group>"; };
 		ERCT00020000000000000001 /* FocusTerminal+Recent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FocusTerminal+Recent.swift"; sourceTree = "<group>"; };
@@ -419,6 +421,7 @@
 				FTR000020000000000000001 /* FocusTargetResolver.swift */,
 				E10000020000000000000001 /* FocusTerminal.swift */,
 				EAPPRESTORE0020000000001 /* FocusTerminal+AppRestore.swift */,
+				EPANEFOCUS00200000000001 /* FocusTerminal+PaneFocus.swift */,
 				ECMUX002000000000000001 /* FocusTerminal+Cmux.swift */,
 				EMUX0020000000000000001 /* FocusTerminal+Multiplexer.swift */,
 				ERCT00020000000000000001 /* FocusTerminal+Recent.swift */,
@@ -769,6 +772,7 @@
 				FTR000010000000000000001 /* FocusTargetResolver.swift in Sources */,
 				E10000010000000000000001 /* FocusTerminal.swift in Sources */,
 				EAPPRESTORE0010000000001 /* FocusTerminal+AppRestore.swift in Sources */,
+				EPANEFOCUS00100000000001 /* FocusTerminal+PaneFocus.swift in Sources */,
 				ECMUX001000000000000001 /* FocusTerminal+Cmux.swift in Sources */,
 				EMUX0010000000000000001 /* FocusTerminal+Multiplexer.swift in Sources */,
 				ERCT00010000000000000001 /* FocusTerminal+Recent.swift in Sources */,
