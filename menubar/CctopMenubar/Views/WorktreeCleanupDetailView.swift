@@ -109,7 +109,7 @@ struct WorktreeCleanupDetailView: View {
                 }
                 if remainingReasonCount > 0 {
                     let noun = remainingReasonCount == 1 ? "item" : "items"
-                    evidenceRow("\(remainingReasonCount) more review \(noun)", systemImage: "ellipsis.circle", color: stateColor)
+                    evidenceRow("\(remainingReasonCount) more review \(noun)", systemImage: "ellipsis.circle", color: candidate.state.accentColor)
                 }
             }
         }
@@ -117,7 +117,7 @@ struct WorktreeCleanupDetailView: View {
 
     private func reviewReasonRow(_ reason: String) -> some View {
         VStack(alignment: .leading, spacing: reviewReasonRowSpacing) {
-            evidenceRow(reason, systemImage: "exclamationmark.triangle", color: stateColor)
+            evidenceRow(reason, systemImage: "exclamationmark.triangle", color: candidate.state.accentColor)
             if reason == WorktreeCleanupCandidate.untrackedFilesReason,
                let preview = candidate.reviewEvidence.untrackedPreview {
                 CleanupUntrackedPreviewBlock(preview: preview, isCompact: usesCompactUntrackedPreviewLayout)
@@ -134,7 +134,7 @@ struct WorktreeCleanupDetailView: View {
             if nonOKChecks.isEmpty {
                 evidenceRow("\(passedCheckCount) checks passed", systemImage: "checkmark.circle", color: Color.statusGreen)
             } else {
-                evidenceRow("\(nonOKChecks.count) checks need review", systemImage: "exclamationmark.circle", color: stateColor)
+                evidenceRow("\(nonOKChecks.count) checks need review", systemImage: "exclamationmark.circle", color: candidate.state.accentColor)
             }
         }
     }
@@ -193,11 +193,11 @@ struct WorktreeCleanupDetailView: View {
     private var stateBadge: some View {
         Text(candidate.state.label)
             .font(.system(size: 10.5, weight: .semibold))
-            .foregroundStyle(stateTextColor)
+            .foregroundStyle(candidate.state.accentTextColor)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background {
-                Capsule().fill(stateColor.opacity(0.10))
+                Capsule().fill(candidate.state.accentColor.opacity(0.10))
             }
             .fixedSize(horizontal: true, vertical: false)
     }
@@ -240,22 +240,6 @@ struct WorktreeCleanupDetailView: View {
                 .foregroundStyle(Color.textSecondary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var stateColor: Color {
-        switch candidate.state {
-        case .clean: return Color.statusGreen
-        case .review: return Color.statusAttention
-        case .ignored: return Color.agentBadge
-        }
-    }
-
-    private var stateTextColor: Color {
-        switch candidate.state {
-        case .clean: return Color.statusWorkingText
-        case .review: return Color.statusAttentionText
-        case .ignored: return Color.agentBadge
         }
     }
 

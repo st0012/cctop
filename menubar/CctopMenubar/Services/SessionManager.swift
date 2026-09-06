@@ -1,7 +1,6 @@
-import AppKit
+import Combine
 import Darwin.libproc
 import Foundation
-@preconcurrency import UserNotifications
 import os.log
 
 let sessionManagerLogger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
@@ -106,10 +105,7 @@ class SessionManager: ObservableObject {
         let now = dataSources.now()
         let identifiedCandidates = identifiedPublishableCandidates(winners: winners, knownRecords: allDecoded)
         let identifiedInventory = classification.records.map(\.candidate.data) + identifiedCandidates.map(\.data)
-        dataSources.manualSessionVisibility.migrateLegacyStableKeys(
-            using: identifiedInventory, persistedSessions: allDecoded.map(\.session), inventoryComplete: inventoryComplete
-        )
-        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence(in: identifiedInventory)
+        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence
         let hiddenSessionIDs = manualHides.hiddenSessionIDs
         let retainedFinishedCleanupSources = retainedFinishedCleanupSources(winners: winners, manualHides: manualHides)
         let observedCleanupSources = classification.cleanupSources + retainedFinishedCleanupSources
@@ -149,8 +145,7 @@ class SessionManager: ObservableObject {
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenProjectPaths(hiddenSessionIDs))
         let publishedSessionIDs = Set(newUserSessions.compactMap { $0.identity.cctopSessionID })
-        let shouldFreezeVisibilityProjections = manualHides.hasUnresolvedLegacyKeys
-            || (!inventoryComplete && !hiddenSessionIDs.isEmpty)
+        let shouldFreezeVisibilityProjections = !inventoryComplete && !hiddenSessionIDs.isEmpty
         if !shouldFreezeVisibilityProjections {
             _ = historyManager.rebuildRecentProjects(excludingActive: recentExcludedPaths)
             publishRecentResumeTargets(RecentResumeTarget.build(
@@ -246,15 +241,7 @@ class SessionManager: ObservableObject {
                       session.disconnectedAt != nil else {
                     return
                 }
-                let lifecycle = SessionLifecyclePolicy.lifecycle(
-                    for: session,
-                    hostClass: SessionHostClass.desktop,
-                    processAlive: dataSources.processAlive(session),
-                    now: now,
-                    windows: Self.lifecycleWindows,
-                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
-                )
-                guard lifecycle == .active else { return }
+                guard deriveLifecycle(for: session, now: now) == .active else { return }
                 session.disconnectedAt = nil
                 try? session.writeToFile(path: candidate.path)
             }
@@ -276,19 +263,23 @@ class SessionManager: ObservableObject {
                       session.disconnectedAt == nil else {
                     return
                 }
-                let lifecycle = SessionLifecyclePolicy.lifecycle(
-                    for: session,
-                    hostClass: SessionHostClass.desktop,
-                    processAlive: dataSources.processAlive(session),
-                    now: now,
-                    windows: Self.lifecycleWindows,
-                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
-                )
-                guard lifecycle == .dormant else { return }
+                guard deriveLifecycle(for: session, now: now) == .dormant else { return }
                 session.disconnectedAt = now
                 try? session.writeToFile(path: candidate.path)
             }
         }
+    }
+
+    /// Derive one session's lifecycle from the live data sources using the standard windows.
+    func deriveLifecycle(for session: SessionData, now: Date) -> SessionLifecycle {
+        SessionLifecyclePolicy.lifecycle(
+            for: session,
+            hostClass: session.hostClass,
+            processAlive: dataSources.processAlive(session),
+            now: now,
+            windows: Self.lifecycleWindows,
+            desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
+        )
     }
 
     /// Reap finished desktop and pre-PID legacy files after lock-held lifecycle validation.
@@ -296,12 +287,8 @@ class SessionManager: ObservableObject {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
         let now = dataSources.now()
-        let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
-        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence(
-            in: jsonFiles.compactMap { url in
-                (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.sessionDecoder.decode(SessionData.self, from: $0) }
-            }
-        )
+        let jsonFiles = sessionJSONFiles(in: files)
+        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence
         preloadArchiveStateForFinishedRetainedSessions(in: jsonFiles, now: now)
         var removedAny = false
         for url in jsonFiles {
@@ -311,22 +298,12 @@ class SessionManager: ObservableObject {
                 sessionId: url.deletingPathExtension().lastPathComponent,
                 action: "retained session GC"
             ) {
-                guard let data = try? Data(contentsOf: url),
-                      let session = try? JSONDecoder.sessionDecoder.decode(SessionData.self, from: data) else {
+                guard let session = try? SessionData.fromFile(path: url.path) else {
                     return   // decode failure → never treat as finished
                 }
                 guard !session.hidden, !session.shouldAutoHide else { return }
-                let hostClass = session.hostClass
-                guard session.isCodex || hostClass == .desktop else { return } // Other sessions use the fast path.
-                let life = SessionLifecyclePolicy.lifecycle(
-                    for: session,
-                    hostClass: hostClass,
-                    processAlive: dataSources.processAlive(session),
-                    now: now,
-                    windows: Self.lifecycleWindows,
-                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
-                )
-                guard life == .finished else { return }
+                guard session.isCodex || session.hostClass == .desktop else { return } // Other sessions use the fast path.
+                guard deriveLifecycle(for: session, now: now) == .finished else { return }
                 guard !shouldRetainFinishedManualHideEvidence(session, matching: manualHides) else { return }
                 // Re-check external archive state under the lock so a concurrent archive retains its file.
                 guard !Self.isArchivedRetainedSession(
@@ -416,40 +393,6 @@ class SessionManager: ObservableObject {
         let actual = proc_listchildpids(pid_t(pid), &pids, ProcessChildPIDProbe.bufferSize(forCapacity: count))
         let actualCount = ProcessChildPIDProbe.returnedCount(actual, capacity: count)
         return Array(pids.prefix(actualCount))
-    }
-
-    static func requestNotificationPermission() {
-        let center = UNUserNotificationCenter.current()
-        center.getNotificationSettings { settings in
-            switch settings.authorizationStatus {
-            case .notDetermined:
-                DispatchQueue.main.async {
-                    // Menubar-only apps (activationPolicy = .accessory) can't show the
-                    // macOS notification permission prompt. Temporarily become a regular
-                    // app so the system presents the dialog, then switch back.
-                    let wasAccessory = NSApplication.shared.activationPolicy() == .accessory
-                    if wasAccessory { NSApplication.shared.setActivationPolicy(.regular) }
-
-                    center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-                        if let error {
-                            sessionManagerLogger.error("Notification permission error: \(error, privacy: .public)")
-                        }
-                        sessionManagerLogger.info("Notification permission granted: \(granted, privacy: .public)")
-                        DispatchQueue.main.async {
-                            if wasAccessory { NSApplication.shared.setActivationPolicy(.accessory) }
-                        }
-                    }
-                }
-            case .denied:
-                DispatchQueue.main.async {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-            default:
-                break
-            }
-        }
     }
 
     private func startWatching() {

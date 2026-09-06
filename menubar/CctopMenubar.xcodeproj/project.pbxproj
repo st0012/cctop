@@ -7,6 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F3E2942A590F45E88162D217 /* AppDelegate+URLCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6674CA488EE4C65B28AE4B3 /* AppDelegate+URLCommands.swift */; };
+		F7FD2797EBCC4E29B60CAA8E /* AppDelegate+PanelEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6FC4F60BBCB4F0486A3A3CB /* AppDelegate+PanelEvents.swift */; };
+		E635A5CC52AD4500BC598EEF /* AppDelegate+PanelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32C0340D28BC497986926D02 /* AppDelegate+PanelGeometry.swift */; };
+		148087F051C94EECB7455540 /* HookHandler+SessionEnd.swift in Sources */ = {isa = PBXBuildFile; fileRef = A970E0A4A47B408494DA0FB7 /* HookHandler+SessionEnd.swift */; };
+		1455458748354E07858B6C0D /* HookHandler+SessionEnd.swift in Sources */ = {isa = PBXBuildFile; fileRef = A970E0A4A47B408494DA0FB7 /* HookHandler+SessionEnd.swift */; };
+		0E7184A7C4714878AE9966E3 /* HookHandler+Capture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1302DB024672470A9F438794 /* HookHandler+Capture.swift */; };
+		4FCBC43B06584C6E8A94224A /* HookHandler+Capture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1302DB024672470A9F438794 /* HookHandler+Capture.swift */; };
+		694D70925BD44E79A5BFAB66 /* SessionData+Process.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9432D73D272542F6B3C6F445 /* SessionData+Process.swift */; };
+		D9E4C720FC4D4392896E5224 /* SessionData+Process.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9432D73D272542F6B3C6F445 /* SessionData+Process.swift */; };
+		BE83AF0D2F044A299CD73467 /* TerminalInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CCD8B34FF744FDADD59D0B /* TerminalInfo.swift */; };
+		6E12BF2ACECA40F9892F5893 /* TerminalInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8CCD8B34FF744FDADD59D0B /* TerminalInfo.swift */; };
+		9AFFA6CFCA0D44C2B5B7942E /* SessionManager+Classification.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97A36AE9A264E049F3BA0E3 /* SessionManager+Classification.swift */; };
+		307918FD1C8B47C79A1E8356 /* SessionClassification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A7407E2CADC40E1AE6CC64A /* SessionClassification.swift */; };
+		455650383669416F98D65C67 /* SessionDataSources.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FBE6D70C1E41D5B8A04F3E /* SessionDataSources.swift */; };
 		9C7FB5862F422A830090B18A /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = 9C7FB52D2F3A0CEA0090B18A /* KeyboardShortcuts */; };
 		9C7FB58D2F422D1E0090B18A /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 9C7FB58C2F422D1E0090B18A /* Sparkle */; };
 		TOMLDEC0100000000000001 /* TOMLDecoder in Frameworks */ = {isa = PBXBuildFile; productRef = TOMLDEC0300000000000001 /* TOMLDecoder */; };
@@ -186,6 +200,16 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D6674CA488EE4C65B28AE4B3 /* AppDelegate+URLCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+URLCommands.swift"; sourceTree = "<group>"; };
+		C6FC4F60BBCB4F0486A3A3CB /* AppDelegate+PanelEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+PanelEvents.swift"; sourceTree = "<group>"; };
+		32C0340D28BC497986926D02 /* AppDelegate+PanelGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate+PanelGeometry.swift"; sourceTree = "<group>"; };
+		A970E0A4A47B408494DA0FB7 /* HookHandler+SessionEnd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HookHandler+SessionEnd.swift"; sourceTree = "<group>"; };
+		1302DB024672470A9F438794 /* HookHandler+Capture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HookHandler+Capture.swift"; sourceTree = "<group>"; };
+		9432D73D272542F6B3C6F445 /* SessionData+Process.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionData+Process.swift"; sourceTree = "<group>"; };
+		B8CCD8B34FF744FDADD59D0B /* TerminalInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalInfo.swift; sourceTree = "<group>"; };
+		B97A36AE9A264E049F3BA0E3 /* SessionManager+Classification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SessionManager+Classification.swift"; sourceTree = "<group>"; };
+		2A7407E2CADC40E1AE6CC64A /* SessionClassification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionClassification.swift; sourceTree = "<group>"; };
+		D0FBE6D70C1E41D5B8A04F3E /* SessionDataSources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDataSources.swift; sourceTree = "<group>"; };
 		A10000020000000000000001 /* CctopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CctopApp.swift; sourceTree = "<group>"; };
 		A10000030000000000000001 /* CctopMenubar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CctopMenubar.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC0000020000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -413,6 +437,9 @@
 				WDS000020000000000000001 /* DirectorySizeScanner.swift */,
 				WGM000020000000000000001 /* WorktreeCleanupManager.swift */,
 				WRS000020000000000000001 /* WorktreeRemovalService.swift */,
+				D0FBE6D70C1E41D5B8A04F3E /* SessionDataSources.swift */,
+				2A7407E2CADC40E1AE6CC64A /* SessionClassification.swift */,
+				B97A36AE9A264E049F3BA0E3 /* SessionManager+Classification.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -440,6 +467,9 @@
 				A1000000A000000000000001 /* Services */,
 				P1000000F000000000000001 /* Hook */,
 				EXT000010000000000000001 /* Extensions */,
+				32C0340D28BC497986926D02 /* AppDelegate+PanelGeometry.swift */,
+				C6FC4F60BBCB4F0486A3A3CB /* AppDelegate+PanelEvents.swift */,
+				D6674CA488EE4C65B28AE4B3 /* AppDelegate+URLCommands.swift */,
 			);
 			path = CctopMenubar;
 			sourceTree = "<group>";
@@ -478,6 +508,8 @@
 				PPO000020000000000000001 /* PanelPositioning.swift */,
 				WCC000020000000000000001 /* WorktreeCleanupCandidate.swift */,
 				WCM000020000000000000001 /* WorktreeCleanupCandidate+Mock.swift */,
+				B8CCD8B34FF744FDADD59D0B /* TerminalInfo.swift */,
+				9432D73D272542F6B3C6F445 /* SessionData+Process.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -527,6 +559,8 @@
 				HD0000030000000000000001 /* HookDependencies.swift */,
 				P10000080000000000000001 /* HookLogger.swift */,
 				SN0000020000000000000001 /* SessionNameLookup.swift */,
+				1302DB024672470A9F438794 /* HookHandler+Capture.swift */,
+				A970E0A4A47B408494DA0FB7 /* HookHandler+SessionEnd.swift */,
 			);
 			path = Hook;
 			sourceTree = "<group>";
@@ -802,6 +836,16 @@
 				WCV000010000000000000001 /* WorktreeCleanupCardView.swift in Sources */,
 				WDV000010000000000000001 /* WorktreeCleanupDetailView.swift in Sources */,
 				WTV000010000000000000001 /* WorktreeCleanupTabView.swift in Sources */,
+				455650383669416F98D65C67 /* SessionDataSources.swift in Sources */,
+				307918FD1C8B47C79A1E8356 /* SessionClassification.swift in Sources */,
+				9AFFA6CFCA0D44C2B5B7942E /* SessionManager+Classification.swift in Sources */,
+				BE83AF0D2F044A299CD73467 /* TerminalInfo.swift in Sources */,
+				694D70925BD44E79A5BFAB66 /* SessionData+Process.swift in Sources */,
+				0E7184A7C4714878AE9966E3 /* HookHandler+Capture.swift in Sources */,
+				148087F051C94EECB7455540 /* HookHandler+SessionEnd.swift in Sources */,
+				E635A5CC52AD4500BC598EEF /* AppDelegate+PanelGeometry.swift in Sources */,
+				F7FD2797EBCC4E29B60CAA8E /* AppDelegate+PanelEvents.swift in Sources */,
+				F3E2942A590F45E88162D217 /* AppDelegate+URLCommands.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -821,6 +865,10 @@
 				P1000000B000000000000001 /* HookEvent.swift in Sources */,
 				P1000000C000000000000001 /* Config.swift in Sources */,
 				CCTHK001000000000000001 /* CodexConfigToml.swift in Sources */,
+				6E12BF2ACECA40F9892F5893 /* TerminalInfo.swift in Sources */,
+				D9E4C720FC4D4392896E5224 /* SessionData+Process.swift in Sources */,
+				4FCBC43B06584C6E8A94224A /* HookHandler+Capture.swift in Sources */,
+				1455458748354E07858B6C0D /* HookHandler+SessionEnd.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

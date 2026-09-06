@@ -71,29 +71,15 @@ func executeMultiplexerFocus(_ strategy: MultiplexerFocusStrategy) {
 }
 
 private func executeHerdrFocus(binaryPath: String, socket: String, paneId: String) {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: binaryPath)
-    process.arguments = ["agent", "focus", paneId]
-    process.environment = ["HERDR_SOCKET_PATH": socket]
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    do {
-        try process.run()
-        process.waitUntilExit()
-    } catch {}
+    runFocusCommand(
+        binaryPath: binaryPath, arguments: ["agent", "focus", paneId],
+        environment: ["HERDR_SOCKET_PATH": socket]
+    )
 }
 
 // https://zellij.dev/documentation/controlling-zellij-through-cli
 private func executeZellijFocus(binaryPath: String, sessionName: String, paneId: String) {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: binaryPath)
-    process.arguments = ["--session", sessionName, "action", "focus-pane-id", paneId]
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    do {
-        try process.run()
-        process.waitUntilExit()
-    } catch {}
+    runFocusCommand(binaryPath: binaryPath, arguments: ["--session", sessionName, "action", "focus-pane-id", paneId])
 }
 
 // https://man.openbsd.org/tmux.1
@@ -101,14 +87,25 @@ private func executeZellijFocus(binaryPath: String, sessionName: String, paneId:
 // select-pane then activates the specific pane within that window.
 private func executeTmuxFocus(binaryPath: String, socket: String, paneId: String) {
     for cmd in [["select-window", "-t", paneId], ["select-pane", "-t", paneId]] {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: binaryPath)
-        process.arguments = ["-S", socket] + cmd
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {}
+        runFocusCommand(binaryPath: binaryPath, arguments: ["-S", socket] + cmd)
+    }
+}
+
+/// Run a terminal CLI synchronously with its output discarded. Returns whether it
+/// exited successfully; a launch failure counts as unsuccessful.
+@discardableResult
+func runFocusCommand(binaryPath: String, arguments: [String], environment: [String: String]? = nil) -> Bool {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: binaryPath)
+    process.arguments = arguments
+    if let environment { process.environment = environment }
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    do {
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus == 0
+    } catch {
+        return false
     }
 }

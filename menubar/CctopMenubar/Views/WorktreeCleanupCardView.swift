@@ -102,25 +102,29 @@ struct WorktreeCleanupCardView: View {
     private var cleanupBadge: some View {
         Text(candidate.state.label)
             .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(badgeTextColor)
+            .foregroundStyle(candidate.state.accentTextColor)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background {
                 Capsule()
-                    .fill(badgeColor.opacity(0.10))
+                    .fill(candidate.state.accentColor.opacity(0.10))
             }
     }
+}
 
-    private var badgeColor: Color {
-        switch candidate.state {
+extension WorktreeCleanupCandidate.State {
+    /// Accent for the state badge and review evidence.
+    var accentColor: Color {
+        switch self {
         case .clean: return Color.statusGreen
         case .review: return Color.statusAttention
         case .ignored: return Color.agentBadge
         }
     }
 
-    private var badgeTextColor: Color {
-        switch candidate.state {
+    /// Text color paired with `accentColor` inside the state badge.
+    var accentTextColor: Color {
+        switch self {
         case .clean: return Color.statusWorkingText
         case .review: return Color.statusAttentionText
         case .ignored: return Color.agentBadge

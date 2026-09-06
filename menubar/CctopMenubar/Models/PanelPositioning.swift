@@ -81,14 +81,6 @@ struct PanelGeometryModel {
         clearCustomPosition(forScreenKey: key)
     }
 
-    /// Migrate the legacy single-position keys to the established per-screen store.
-    func saveLegacyPosition(originX: CGFloat, topY: CGFloat, screens: [ScreenLayout], fallbackScreenKey: String?) {
-        let key = PanelPositioning.screenKey(containing: NSPoint(x: originX, y: topY), in: screens)
-            ?? fallbackScreenKey
-            ?? "builtin"
-        saveCustomPosition(originX: originX, topY: topY, forScreenKey: key)
-    }
-
     private func saveCustomPosition(originX: CGFloat, topY: CGFloat, forScreenKey key: String) {
         var dict = store.positionsDict
         dict[key] = ["originX": originX, "topY": topY]

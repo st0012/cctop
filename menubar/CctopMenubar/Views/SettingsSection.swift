@@ -353,7 +353,7 @@ private struct PluginRowView: View {
     let name: String; let installed: Bool; var needsUpdate: Bool = false
     var installLabel = "Install Plugin"; var updateLabel = "Update Plugin"
     let install: () -> Bool; let remove: () -> Bool
-    @State private var justInstalled = false; @State private var removeHovered = false
+    @State private var justInstalled = false
     @State private var installFailed = false
     var body: some View {
         VStack(spacing: 0) {
@@ -387,10 +387,7 @@ private struct PluginRowView: View {
                 updateButton
             } else if installed {
                 InstalledBadge()
-                Button { if !remove() { flashFailed() } } label: {
-                    Text("Remove").font(.system(size: 10))
-                        .foregroundStyle(removeHovered ? Color.textPrimary : Color.textMuted)
-                }.buttonStyle(.plain).onHover { removeHovered = $0 }
+                PluginRemoveButton { if !remove() { flashFailed() } }
             } else {
                 installButton
             }

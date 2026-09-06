@@ -5,7 +5,6 @@ struct StreamDeckPluginRowView: View {
     @State private var justInstalled = false
     @State private var pluginOperationFailed = false
     @State private var profileFailed = false
-    @State private var removeHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -65,15 +64,9 @@ struct StreamDeckPluginRowView: View {
     }
 
     private var removeButton: some View {
-        Button {
+        PluginRemoveButton {
             if !pluginManager.removeStreamDeckPlugin() { flashPluginOperationFailure() }
-        } label: {
-            Text("Remove")
-                .font(.system(size: 10))
-                .foregroundStyle(removeHovered ? Color.textPrimary : Color.textMuted)
         }
-        .buttonStyle(.plain)
-        .onHover { removeHovered = $0 }
         .help("Remove cctop's plugin; Stream Deck profiles remain unchanged")
         .accessibilityLabel("Remove cctop Stream Deck plugin")
     }
@@ -128,19 +121,13 @@ struct StreamDeckPluginRowView: View {
         iconColor: Color,
         textColor: Color
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            rowDivider
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 9))
-                    .foregroundStyle(iconColor)
-                Text(text)
-                    .font(.system(size: 10))
-                    .foregroundStyle(textColor)
-            }
-            .padding(.horizontal, AppChrome.settingsRowHorizontalPadding)
-            .padding(.vertical, 4)
-            .frame(minHeight: 25)
+        SettingsSecondaryRow(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9))
+                .foregroundStyle(iconColor)
+            Text(text)
+                .font(.system(size: 10))
+                .foregroundStyle(textColor)
         }
         .transition(.opacity)
     }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Classifies the application hosting a coding session (editor or terminal).
-/// Used by focusTerminal, openInEditor, and editorIcon.
+/// Used by focusTerminal and editorIcon.
 enum HostApp: CaseIterable {
     case vscode
     case cursor

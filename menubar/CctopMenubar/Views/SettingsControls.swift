@@ -40,6 +40,22 @@ struct StatusDotBadge: View {
 
 struct InstalledBadge: View { var body: some View { StatusDotBadge(text: "Installed") } }
 
+/// The muted "Remove" text button shared by the plugin rows.
+struct PluginRemoveButton: View {
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Text("Remove")
+                .font(.system(size: 10))
+                .foregroundStyle(isHovered ? Color.textPrimary : Color.textMuted)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
 struct AmberSegmentedPicker<Value: Hashable>: View {
     let options: [(value: Value, label: String)]
     @Binding var selection: Value

@@ -489,7 +489,7 @@ final class SessionTests: XCTestCase {
             cctopSessionID
         )
         XCTAssertNil(userInfo[SessionIdentityPolicy.notificationSessionIDKey])
-        XCTAssertNil(userInfo[SessionIdentityPolicy.notificationSessionPIDKey])
+        XCTAssertNil(userInfo["sessionPID"])
         XCTAssertNil(SessionIdentityPolicy.notificationUserInfo(forCctopSessionID: "not-a-uuid"))
     }
 
@@ -523,7 +523,7 @@ final class SessionTests: XCTestCase {
         preMigrationContent.userInfo = [
             SessionIdentityPolicy.notificationCctopSessionIDKey: sharedID,
             SessionIdentityPolicy.notificationSessionIDKey: oldRecord.sessionId,
-            SessionIdentityPolicy.notificationSessionPIDKey: String(try XCTUnwrap(oldRecord.pid)),
+            "sessionPID": String(try XCTUnwrap(oldRecord.pid)),
         ]
         let preMigrationRequest = UNNotificationRequest(
             identifier: "session-active:\(oldRecord.id)",
@@ -556,7 +556,7 @@ final class SessionTests: XCTestCase {
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationCctopSessionIDKey: secondID,
             SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1",
-            SessionIdentityPolicy.notificationSessionPIDKey: "12345",
+            "sessionPID": "12345",
         ]
 
         let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
@@ -572,7 +572,7 @@ final class SessionTests: XCTestCase {
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationCctopSessionIDKey: "not-a-uuid",
             SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1",
-            SessionIdentityPolicy.notificationSessionPIDKey: "12345",
+            "sessionPID": "12345",
         ]
 
         let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
@@ -590,7 +590,7 @@ final class SessionTests: XCTestCase {
         )
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationSessionIDKey: "codex-thread-1",
-            SessionIdentityPolicy.notificationSessionPIDKey: "99999",
+            "sessionPID": "99999",
         ]
 
         let resolvedID = SessionIdentityPolicy.notificationCctopSessionID(
@@ -675,7 +675,7 @@ final class SessionTests: XCTestCase {
         )
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationSessionIDKey: "stale-session",
-            SessionIdentityPolicy.notificationSessionPIDKey: "12345",
+            "sessionPID": "12345",
         ]
 
         XCTAssertNil(
@@ -692,7 +692,7 @@ final class SessionTests: XCTestCase {
             pid: 12345, source: SessionData.opencodeSource
         )
         let userInfo: [AnyHashable: Any] = [
-            SessionIdentityPolicy.notificationSessionPIDKey: "12345",
+            "sessionPID": "12345",
         ]
 
         XCTAssertNil(
@@ -778,132 +778,6 @@ final class SessionTests: XCTestCase {
         store.prune(retaining: [secondID])
 
         XCTAssertEqual(store.hiddenSessionIDs, [secondID])
-    }
-
-    func testManualSessionVisibilityMigratesOnlyExactDurableLegacyKeys() {
-        let suiteName = "cctop-manual-visibility-legacy-migration-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let codexID = "11111111-1111-4111-8111-111111111111"
-        let desktopID = "22222222-2222-4222-8222-222222222222"
-        let activeID = "33333333-3333-4333-8333-333333333333"
-        defaults.set(
-            ["active:42", "codex:durable-codex", "codex:missing", "desktop:durable-desktop"],
-            forKey: ManualSessionVisibilityStore.legacyDefaultsKey
-        )
-        let store = ManualSessionVisibilityStore(defaults: defaults)
-        let codex = SessionData.mock(id: "durable-codex", cctopSessionId: codexID, source: SessionData.codexSource)
-        let desktop = SessionData.mock(
-            id: "durable-desktop",
-            cctopSessionId: desktopID,
-            terminal: TerminalInfo(bundleId: HostAppBundleID.claudeDesktop),
-            source: SessionData.ccSource
-        )
-        let active = SessionData.mock(id: "terminal", cctopSessionId: activeID, pid: 42, source: SessionData.ccSource)
-        var unstampedCodex = codex
-        unstampedCodex.cctopSessionId = nil
-
-        let partialIDs = store.migrateLegacyStableKeys(
-            using: [codex, desktop, active],
-            persistedSessions: [unstampedCodex, desktop, active],
-            inventoryComplete: false
-        )
-
-        XCTAssertEqual(partialIDs, [codexID, desktopID])
-        XCTAssertEqual(store.hiddenSessionIDs, [codexID, desktopID])
-        XCTAssertEqual(
-            store.unresolvedDurableLegacyKeys,
-            ["codex:durable-codex", "codex:missing", "desktop:durable-desktop"]
-        )
-        XCTAssertEqual(
-            defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
-            ["active:42", "codex:durable-codex", "codex:missing", "desktop:durable-desktop"]
-        )
-
-        let completeIDs = store.migrateLegacyStableKeys(
-            using: [codex, desktop, active],
-            persistedSessions: [unstampedCodex, desktop, active],
-            inventoryComplete: true
-        )
-
-        XCTAssertEqual(completeIDs, [codexID, desktopID])
-        XCTAssertEqual(store.unresolvedDurableLegacyKeys, ["codex:durable-codex"])
-        XCTAssertEqual(
-            defaults.stringArray(forKey: ManualSessionVisibilityStore.legacyDefaultsKey),
-            ["codex:durable-codex"]
-        )
-
-        let confirmedIDs = store.migrateLegacyStableKeys(
-            using: [codex, desktop, active],
-            persistedSessions: [codex, desktop, active],
-            inventoryComplete: true
-        )
-
-        XCTAssertEqual(confirmedIDs, [codexID, desktopID])
-        XCTAssertTrue(store.unresolvedDurableLegacyKeys.isEmpty)
-        XCTAssertNil(defaults.object(forKey: ManualSessionVisibilityStore.legacyDefaultsKey))
-    }
-
-    func testLegacyManualHideEvidenceAcceptsOnlyCanonicalSupportedUUIDKeys() {
-        let sessionID = "AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE"
-        let lowercaseID = sessionID.lowercased()
-
-        XCTAssertEqual(
-            ManualSessionVisibilityStore.durableEvidence(forLegacyKey: "codex:\(sessionID)"),
-            "codex:\(lowercaseID)"
-        )
-        XCTAssertEqual(
-            ManualSessionVisibilityStore.durableEvidence(forLegacyKey: "desktop:\(sessionID)"),
-            "cc:\(lowercaseID)"
-        )
-        for key in ["active:\(sessionID)", "cc:\(sessionID)", "codex:not-a-uuid", "desktop:\(sessionID.replacingOccurrences(of: "-", with: ""))"] {
-            XCTAssertNil(ManualSessionVisibilityStore.durableEvidence(forLegacyKey: key))
-        }
-    }
-
-    func testManualSessionVisibilityRetainsAmbiguousLegacyKey() {
-        let suiteName = "cctop-manual-visibility-ambiguous-legacy-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let threadID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
-        let legacyKey = "codex:\(threadID)"
-        defaults.set([legacyKey], forKey: ManualSessionVisibilityStore.legacyDefaultsKey)
-        let store = ManualSessionVisibilityStore(defaults: defaults)
-        let firstID = "11111111-1111-4111-8111-111111111111"
-        let secondID = "22222222-2222-4222-8222-222222222222"
-        var legacy = SessionData.mock(id: threadID, harnessSessionId: threadID, source: SessionData.codexSource)
-        legacy.cctopSessionId = nil
-        let unresolvedIDs = store.migrateLegacyStableKeys(
-            using: [legacy],
-            persistedSessions: [legacy],
-            inventoryComplete: true
-        )
-
-        XCTAssertTrue(unresolvedIDs.isEmpty)
-        XCTAssertTrue(store.hiddenSessionIDs.isEmpty)
-        XCTAssertEqual(store.unresolvedDurableLegacyKeys, [legacyKey])
-
-        let first = SessionData.mock(
-            id: "first-record",
-            cctopSessionId: firstID,
-            harnessSessionId: threadID,
-            source: SessionData.codexSource
-        )
-        let second = SessionData.mock(
-            id: "second-record",
-            cctopSessionId: secondID,
-            harnessSessionId: threadID,
-            source: SessionData.codexSource
-        )
-        let ambiguousIDs = store.migrateLegacyStableKeys(
-            using: [legacy, first, second],
-            persistedSessions: [legacy, first, second],
-            inventoryComplete: true
-        )
-
-        XCTAssertTrue(ambiguousIDs.isEmpty)
-        XCTAssertTrue(store.hiddenSessionIDs.isEmpty)
-        XCTAssertEqual(store.unresolvedDurableLegacyKeys, [legacyKey])
     }
 
     func testManualSessionVisibilityIgnoresRowsWithoutPermanentIdentity() {
@@ -2164,13 +2038,6 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.agentBadge.label, "CC")
     }
 
-    func testSourceCarriedInWithSessionId() {
-        let session = SessionData.mock(source: "opencode")
-        let carried = session.withSessionId("new-id")
-        XCTAssertEqual(carried.source, "opencode")
-        XCTAssertEqual(carried.sessionId, "new-id")
-    }
-
     // MARK: - Case-insensitive tool display
 
     func testContextLineLowercaseToolName() {
@@ -2472,33 +2339,6 @@ final class SessionTests: XCTestCase {
         let data = try JSONEncoder.sessionEncoder.encode(session)
         let decoded = try JSONDecoder.sessionDecoder.decode(SessionData.self, from: data)
         XCTAssertEqual(decoded, session)
-    }
-
-    // Session ID rotation must be lossless: the rotated copy's persisted JSON differs from the
-    // original in session_id only, so a future field forgotten in withSessionId fails loudly
-    // instead of silently resetting on every Claude Code resume.
-    func testWithSessionIdPreservesEveryPersistedField() throws {
-        let session = makeFullyPopulatedSession()
-        let rotated = session.withSessionId("rotated-id")
-
-        var original = try encodeToDictionary(session)
-        var copy = try encodeToDictionary(rotated)
-        XCTAssertEqual(original["session_id"] as? String, "full-fixture-1")
-        XCTAssertEqual(copy["session_id"] as? String, "rotated-id")
-        original.removeValue(forKey: "session_id")
-        copy.removeValue(forKey: "session_id")
-        XCTAssertEqual(original as NSDictionary, copy as NSDictionary)
-    }
-
-    func testWithSessionIdAppliesBranchAndTerminalOverrides() {
-        let session = makeFullyPopulatedSession()
-        let newTerminal = TerminalInfo(program: "WezTerm", bundleId: "com.github.wez.wezterm")
-
-        let rotated = session.withSessionId("rotated-id", branch: "hotfix/rotation", terminal: newTerminal)
-
-        XCTAssertEqual(rotated.sessionId, "rotated-id")
-        XCTAssertEqual(rotated.branch, "hotfix/rotation")
-        XCTAssertEqual(rotated.terminal, newTerminal)
     }
 
     func testPermanentIDFocusResolverReturnsCurrentUserSession() throws {
