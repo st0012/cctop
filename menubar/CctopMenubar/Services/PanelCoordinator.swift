@@ -65,154 +65,118 @@ struct PanelCoordinator {
         }
     }
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func handle(event: PanelEvent, state: PanelState) -> Result {
-        switch (state.mode, event) {
+        switch state.mode {
+        case .hidden:
+            return handleHidden(event: event, state: state)
+        case .normal:
+            return handleNormal(event: event, state: state)
+        case .navigate(let origin):
+            return handleNavigate(event: event, state: state, origin: origin)
+        }
+    }
 
-        // MARK: hidden
+    // MARK: - Per-mode handlers
 
-        case (.hidden, .menubarIconClicked):
-            return Result(
-                state: PanelState(mode: .normal),
-                actions: [.captureApps, .showPanel, .activateApp, .startNavKeyMonitor,
-                          .postNavAction(.reset)]
-            )
-
-        case (.hidden, .navigateShortcut):
-            let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: true))
-            return Result(
-                state: PanelState(mode: mode),
-                actions: [.showPanel, .activateApp, .startNavKeyMonitor,
-                          .startNavigateMode(panelWasClosed: true)]
-            )
-
-        case (.hidden, _):
+    private static func handleHidden(event: PanelEvent, state: PanelState) -> Result {
+        switch event {
+        case .menubarIconClicked:
+            return openPanelResult()
+        case .navigateShortcut:
+            return openPanelInNavigateModeResult()
+        default:
             return Result(state: state, actions: [], eventConsumed: false)
+        }
+    }
 
-        // MARK: normal
+    private static func handleNormal(event: PanelEvent, state: PanelState) -> Result {
+        switch event {
+        case .menubarIconClicked(appIsActive: _, onDifferentScreen: _, panelVisibleInActiveSpace: false):
+            return openPanelResult()
 
-        case (.normal, .menubarIconClicked(
-            appIsActive: _,
-            onDifferentScreen: _,
-            panelVisibleInActiveSpace: false
-        )):
-            return Result(
-                state: PanelState(mode: .normal),
-                actions: [.captureApps, .showPanel, .activateApp, .startNavKeyMonitor,
-                          .postNavAction(.reset)]
-            )
+        case .menubarIconClicked(appIsActive: _, onDifferentScreen: true, panelVisibleInActiveSpace: true):
+            return Result(state: PanelState(mode: .normal), actions: [.positionPanel, .activateApp])
 
-        case (.normal, .menubarIconClicked(
-            appIsActive: _,
-            onDifferentScreen: true,
-            panelVisibleInActiveSpace: true
-        )):
-            return Result(
-                state: PanelState(mode: .normal),
-                actions: [.positionPanel, .activateApp]
-            )
-
-        case (.normal, .menubarIconClicked(
-            appIsActive: let appIsActive,
-            onDifferentScreen: false,
-            panelVisibleInActiveSpace: true
-        )):
+        case .menubarIconClicked(appIsActive: let appIsActive, onDifferentScreen: false, panelVisibleInActiveSpace: true):
             var actions: [PanelAction] = [.dismissPanel]
             if appIsActive { actions.append(.restorePreviousApp) }
-            return Result(
-                state: PanelState(mode: .hidden),
-                actions: actions
-            )
+            return Result(state: PanelState(mode: .hidden), actions: actions)
 
-        case (.normal, .escape):
+        case .escape:
             return Result(state: state, actions: [.postNavAction(.escape)])
 
-        case (.normal, .appLostFocus):
+        case .appLostFocus:
             return Result(state: state, actions: [])
 
-        case (.normal, .navigateShortcut(panelVisibleInActiveSpace: false)):
-            let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: true))
-            return Result(
-                state: PanelState(mode: mode),
-                actions: [.showPanel, .activateApp, .startNavKeyMonitor,
-                          .startNavigateMode(panelWasClosed: true)]
-            )
+        case .navigateShortcut(panelVisibleInActiveSpace: false):
+            return openPanelInNavigateModeResult()
 
-        case (.normal, .navigateShortcut(panelVisibleInActiveSpace: true)):
+        case .navigateShortcut(panelVisibleInActiveSpace: true):
             let mode: PanelMode = .navigate(origin: NavigateOrigin(panelWasClosed: false))
             return Result(
                 state: PanelState(mode: mode),
                 actions: [.activateApp, .startNavigateMode(panelWasClosed: false)]
             )
 
-        case (.normal, .navKey(let action)):
+        case .navKey(let action):
             return Result(state: state, actions: [.postNavAction(action)])
 
-        case (.normal, _):
+        default:
             return Result(state: state, actions: [], eventConsumed: false)
+        }
+    }
 
-        // MARK: navigate
-
-        case (.navigate, .menubarIconClicked(
-            appIsActive: _,
-            onDifferentScreen: true,
-            panelVisibleInActiveSpace: _
-        )):
-            if case .navigate(let origin) = state.mode, !origin.panelWasClosed {
+    private static func handleNavigate(event: PanelEvent, state: PanelState, origin: NavigateOrigin) -> Result {
+        switch event {
+        case .menubarIconClicked(appIsActive: _, onDifferentScreen: true, panelVisibleInActiveSpace: _):
+            if !origin.panelWasClosed {
                 return Result(
                     state: PanelState(mode: .normal),
                     actions: [.endNavigateMode, .positionPanel, .activateApp]
                 )
             }
-            return endNavigateResult(state: state, restoreFocus: false)
+            return endNavigateResult(origin: origin, restoreFocus: false)
 
-        case (.navigate, .menubarIconClicked):
-            return endNavigateResult(state: state, restoreFocus: true)
+        case .menubarIconClicked, .escape, .navigateTimedOut, .unrecognizedKeyDuringNavigate:
+            return endNavigateResult(origin: origin, restoreFocus: true)
 
-        case (.navigate, .escape):
-            return endNavigateResult(state: state, restoreFocus: true)
+        case .appLostFocus, .navigateConfirmed:
+            return endNavigateResult(origin: origin, restoreFocus: false)
 
-        case (.navigate, .appLostFocus):
-            return endNavigateResult(state: state, restoreFocus: false)
-
-        case (.navigate, .navigateConfirmed):
-            return endNavigateResult(state: state, restoreFocus: false)
-
-        case (.navigate, .navigateTimedOut):
-            return endNavigateResult(state: state, restoreFocus: true)
-
-        case (.navigate, .navKey(let action)):
+        case .navKey(let action):
             return Result(state: state, actions: [.postNavAction(action)])
 
-        case (.navigate, .unrecognizedKeyDuringNavigate):
-            return endNavigateResult(state: state, restoreFocus: true)
-
-        case (.navigate, _):
+        default:
             return Result(state: state, actions: [], eventConsumed: false)
         }
     }
 
     // MARK: - Helpers
 
-    private static func endNavigateResult(state: PanelState, restoreFocus: Bool) -> Result {
-        guard case .navigate(let origin) = state.mode else {
-            return Result(state: state, actions: [])
-        }
+    /// Show the panel in normal mode, remembering the apps to restore on dismiss.
+    private static func openPanelResult() -> Result {
+        Result(
+            state: PanelState(mode: .normal),
+            actions: [.captureApps, .showPanel, .activateApp, .startNavKeyMonitor, .postNavAction(.reset)]
+        )
+    }
 
+    /// Show a closed panel directly in navigate mode.
+    private static func openPanelInNavigateModeResult() -> Result {
+        Result(
+            state: PanelState(mode: .navigate(origin: NavigateOrigin(panelWasClosed: true))),
+            actions: [.showPanel, .activateApp, .startNavKeyMonitor, .startNavigateMode(panelWasClosed: true)]
+        )
+    }
+
+    private static func endNavigateResult(origin: NavigateOrigin, restoreFocus: Bool) -> Result {
         var actions: [PanelAction] = [.endNavigateMode]
         if origin.panelWasClosed {
             actions.append(.dismissPanel)
         }
-        if restoreFocus {
-            actions.append(.activateExternalApp)
-        } else {
-            actions.append(.deactivateApp)
-        }
-
-        let newMode: PanelMode = origin.panelWasClosed ? .hidden : .normal
-
+        actions.append(restoreFocus ? .activateExternalApp : .deactivateApp)
         return Result(
-            state: PanelState(mode: newMode),
+            state: PanelState(mode: origin.panelWasClosed ? .hidden : .normal),
             actions: actions
         )
     }

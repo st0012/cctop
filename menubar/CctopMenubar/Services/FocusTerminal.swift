@@ -466,18 +466,7 @@ private func primeGhosttyCWD(tty: String, workingDirectory: String) -> Bool {
 // https://sw.kovidgoyal.net/kitty/remote-control/
 
 private func executeKittyFocusWindow(binaryPath: String, socket: String, windowId: String) -> Bool {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: binaryPath)
-    process.arguments = ["@", "--to", socket, "focus-window", "--match", "id:\(windowId)"]
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    do {
-        try process.run()
-        process.waitUntilExit()
-        return process.terminationStatus == 0
-    } catch {
-        return false
-    }
+    runFocusCommand(binaryPath: binaryPath, arguments: ["@", "--to", socket, "focus-window", "--match", "id:\(windowId)"])
 }
 
 func openInEditor(project: RecentProject) {

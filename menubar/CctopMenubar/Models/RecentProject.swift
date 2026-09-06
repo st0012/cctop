@@ -40,7 +40,7 @@ struct RecentProject: Identifiable, Equatable {
     }
 
     var pathContext: String {
-        compactProjectPath
+        Self.compactProjectPath(projectPath)
     }
 
     var metadataEvidenceText: String {
@@ -96,12 +96,13 @@ struct RecentProject: Identifiable, Equatable {
         return trimmed
     }
 
-    private var compactProjectPath: String {
+    /// Abbreviate the current user's home directory prefix to `~`.
+    static func compactProjectPath(_ path: String) -> String {
         let home = NSHomeDirectory()
-        if projectPath == home { return "~" }
-        if projectPath.hasPrefix(home + "/") {
-            return "~" + String(projectPath.dropFirst(home.count))
+        if path == home { return "~" }
+        if path.hasPrefix(home + "/") {
+            return "~" + String(path.dropFirst(home.count))
         }
-        return projectPath
+        return path
     }
 }

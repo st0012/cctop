@@ -144,10 +144,21 @@ struct CctopSessionIdentityStore {
         return "v1-\(digest.map { String(format: "%02x", $0) }.joined()).json"
     }
 
-    private func readMapping(at url: URL) throws -> String {
+    private static let mappingDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let mapping = try decoder.decode(Mapping.self, from: Data(contentsOf: url))
+        return decoder
+    }()
+
+    private static let mappingEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return encoder
+    }()
+
+    private func readMapping(at url: URL) throws -> String {
+        let mapping = try Self.mappingDecoder.decode(Mapping.self, from: Data(contentsOf: url))
         guard CctopSessionID.isValid(mapping.cctopSessionId) else {
             throw StoreError.corruptMapping(url.lastPathComponent)
         }
@@ -155,10 +166,7 @@ struct CctopSessionIdentityStore {
     }
 
     private func writeMapping(_ mapping: Mapping, to url: URL) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        let data = try encoder.encode(mapping)
+        let data = try Self.mappingEncoder.encode(mapping)
         let tempURL = url.appendingPathExtension("\(ProcessInfo.processInfo.processIdentifier).\(UUID().uuidString).tmp")
         do {
             try data.write(to: tempURL)

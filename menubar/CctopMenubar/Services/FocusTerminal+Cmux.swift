@@ -160,13 +160,5 @@ func executeCmuxFocus(
         paneId: paneId
     ) else { return }
 
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: binaryPath)
-    process.arguments = arguments
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    do {
-        try process.run()
-        process.waitUntilExit()
-    } catch {}
+    runFocusCommand(binaryPath: binaryPath, arguments: arguments)
 }

@@ -142,7 +142,7 @@ enum RecentResumeTarget: Identifiable, Equatable {
         case .project(let project):
             return Self.joinedMetadata([project.metadataEvidenceText, project.pathContext])
         case .desktopThread(let thread):
-            return Self.joinedMetadata(["Archived", "Claude", Self.compactProjectPath(thread.projectPath)])
+            return Self.joinedMetadata(["Archived", "Claude", RecentProject.compactProjectPath(thread.projectPath)])
         }
     }
 
@@ -196,15 +196,6 @@ enum RecentResumeTarget: Identifiable, Equatable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: " \u{00B7} ")
-    }
-
-    private static func compactProjectPath(_ path: String) -> String {
-        let home = NSHomeDirectory()
-        if path == home { return "~" }
-        if path.hasPrefix(home + "/") {
-            return "~" + String(path.dropFirst(home.count))
-        }
-        return path
     }
 }
 

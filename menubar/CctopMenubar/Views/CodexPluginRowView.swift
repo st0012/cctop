@@ -7,7 +7,6 @@ import SwiftUI
 struct CodexPluginRowView: View {
     @ObservedObject var pluginManager: PluginManager
     @StateObject private var setupFlow = CodexSetupFlow()
-    @State private var removeHovered = false
     @State private var installFailed = false
 
     var body: some View {
@@ -123,15 +122,9 @@ struct CodexPluginRowView: View {
     }
 
     private var removeButton: some View {
-        Button {
+        PluginRemoveButton {
             if !pluginManager.removeCodexPlugin() { flashFailed() }
-        } label: {
-            Text("Remove")
-                .font(.system(size: 10))
-                .foregroundStyle(removeHovered ? Color.textPrimary : Color.textMuted)
         }
-        .buttonStyle(.plain)
-        .onHover { removeHovered = $0 }
     }
 
     /// No success flash here on purpose — see `CodexSetupFlow`. Green

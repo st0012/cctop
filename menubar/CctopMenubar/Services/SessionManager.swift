@@ -246,15 +246,7 @@ class SessionManager: ObservableObject {
                       session.disconnectedAt != nil else {
                     return
                 }
-                let lifecycle = SessionLifecyclePolicy.lifecycle(
-                    for: session,
-                    hostClass: SessionHostClass.desktop,
-                    processAlive: dataSources.processAlive(session),
-                    now: now,
-                    windows: Self.lifecycleWindows,
-                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
-                )
-                guard lifecycle == .active else { return }
+                guard deriveLifecycle(for: session, now: now) == .active else { return }
                 session.disconnectedAt = nil
                 try? session.writeToFile(path: candidate.path)
             }
@@ -276,19 +268,23 @@ class SessionManager: ObservableObject {
                       session.disconnectedAt == nil else {
                     return
                 }
-                let lifecycle = SessionLifecyclePolicy.lifecycle(
-                    for: session,
-                    hostClass: SessionHostClass.desktop,
-                    processAlive: dataSources.processAlive(session),
-                    now: now,
-                    windows: Self.lifecycleWindows,
-                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
-                )
-                guard lifecycle == .dormant else { return }
+                guard deriveLifecycle(for: session, now: now) == .dormant else { return }
                 session.disconnectedAt = now
                 try? session.writeToFile(path: candidate.path)
             }
         }
+    }
+
+    /// Derive one session's lifecycle from the live data sources using the standard windows.
+    func deriveLifecycle(for session: SessionData, now: Date) -> SessionLifecycle {
+        SessionLifecyclePolicy.lifecycle(
+            for: session,
+            hostClass: session.hostClass,
+            processAlive: dataSources.processAlive(session),
+            now: now,
+            windows: Self.lifecycleWindows,
+            desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
+        )
     }
 
     /// Reap finished desktop and pre-PID legacy files after lock-held lifecycle validation.
@@ -296,11 +292,9 @@ class SessionManager: ObservableObject {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
         let now = dataSources.now()
-        let jsonFiles = files.filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".tmp") }
+        let jsonFiles = sessionJSONFiles(in: files)
         let manualHides = dataSources.manualSessionVisibility.manualHideEvidence(
-            in: jsonFiles.compactMap { url in
-                (try? Data(contentsOf: url)).flatMap { try? JSONDecoder.sessionDecoder.decode(SessionData.self, from: $0) }
-            }
+            in: jsonFiles.compactMap { try? SessionData.fromFile(path: $0.path) }
         )
         preloadArchiveStateForFinishedRetainedSessions(in: jsonFiles, now: now)
         var removedAny = false
@@ -311,22 +305,12 @@ class SessionManager: ObservableObject {
                 sessionId: url.deletingPathExtension().lastPathComponent,
                 action: "retained session GC"
             ) {
-                guard let data = try? Data(contentsOf: url),
-                      let session = try? JSONDecoder.sessionDecoder.decode(SessionData.self, from: data) else {
+                guard let session = try? SessionData.fromFile(path: url.path) else {
                     return   // decode failure → never treat as finished
                 }
                 guard !session.hidden, !session.shouldAutoHide else { return }
-                let hostClass = session.hostClass
-                guard session.isCodex || hostClass == .desktop else { return } // Other sessions use the fast path.
-                let life = SessionLifecyclePolicy.lifecycle(
-                    for: session,
-                    hostClass: hostClass,
-                    processAlive: dataSources.processAlive(session),
-                    now: now,
-                    windows: Self.lifecycleWindows,
-                    desktopAppRunning: Self.desktopAppRunning(for: session, lookup: dataSources.desktopAppConnection)
-                )
-                guard life == .finished else { return }
+                guard session.isCodex || session.hostClass == .desktop else { return } // Other sessions use the fast path.
+                guard deriveLifecycle(for: session, now: now) == .finished else { return }
                 guard !shouldRetainFinishedManualHideEvidence(session, matching: manualHides) else { return }
                 // Re-check external archive state under the lock so a concurrent archive retains its file.
                 guard !Self.isArchivedRetainedSession(

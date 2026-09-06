@@ -17,7 +17,7 @@ protocol ProcessProbing {
 struct LiveProcessProber: ProcessProbing {
     func parentPID() -> UInt32 { HookHandler.getParentPID() }
     func startTime(pid: UInt32) -> TimeInterval? { SessionData.processStartTime(pid: pid) }
-    func isAlive(pid: UInt32) -> Bool { HookHandler.isPIDAlive(pid) }
+    func isAlive(pid: UInt32) -> Bool { SessionData.processExists(pid: pid) }
     func commandName(pid: UInt32) -> String? { SessionData.processCommandName(pid: pid) }
     func controllingTTY() -> String? { HookHandler.findTTY() }
 }
@@ -89,23 +89,9 @@ func withSessionLock(
     onError: (String) -> Void = { HookLogger().logError($0) },
     body: () throws -> Void
 ) throws {
-    let lockPath = sessionPath + ".lock"
-    let fd = open(lockPath, O_CREAT | O_WRONLY, 0o600)
-    guard fd >= 0 else {
-        let err = errno
-        onError("withSessionLock: open(\(lockPath)) failed: \(err)")
-        throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
-                      userInfo: [NSLocalizedDescriptionKey: "Failed to open lock file: \(lockPath)"])
-    }
-    defer { close(fd) }
-    guard flock(fd, LOCK_EX) == 0 else {
-        let err = errno
-        onError("withSessionLock: flock(\(lockPath)) failed: \(err)")
-        throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
-                      userInfo: [NSLocalizedDescriptionKey: "Failed to acquire lock: \(lockPath)"])
-    }
-    defer { flock(fd, LOCK_UN) }
-    try body()
+    _ = try withSessionLock(
+        sessionPath: sessionPath, blocking: true, caller: "withSessionLock", onError: onError, body: body
+    )
 }
 
 /// Try to acquire the per-session lock without waiting. Returns `false` when another
@@ -117,21 +103,35 @@ func withSessionLockIfAvailable(
     onError: (String) -> Void = { HookLogger().logError($0) },
     body: () throws -> Void
 ) throws -> Bool {
+    try withSessionLock(
+        sessionPath: sessionPath, blocking: false, caller: "withSessionLockIfAvailable", onError: onError, body: body
+    )
+}
+
+/// Shared flock cycle for both entry points. `caller` keeps the diagnostic messages
+/// attributed to the public function that was invoked.
+private func withSessionLock(
+    sessionPath: String,
+    blocking: Bool,
+    caller: String,
+    onError: (String) -> Void,
+    body: () throws -> Void
+) throws -> Bool {
     let lockPath = sessionPath + ".lock"
     let fd = open(lockPath, O_CREAT | O_WRONLY, 0o600)
     guard fd >= 0 else {
         let err = errno
-        onError("withSessionLockIfAvailable: open(\(lockPath)) failed: \(err)")
+        onError("\(caller): open(\(lockPath)) failed: \(err)")
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
                       userInfo: [NSLocalizedDescriptionKey: "Failed to open lock file: \(lockPath)"])
     }
     defer { close(fd) }
-    guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
+    guard flock(fd, blocking ? LOCK_EX : LOCK_EX | LOCK_NB) == 0 else {
         let err = errno
-        if err == EWOULDBLOCK || err == EAGAIN {
+        if !blocking, err == EWOULDBLOCK || err == EAGAIN {
             return false
         }
-        onError("withSessionLockIfAvailable: flock(\(lockPath)) failed: \(err)")
+        onError("\(caller): flock(\(lockPath)) failed: \(err)")
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(err),
                       userInfo: [NSLocalizedDescriptionKey: "Failed to acquire lock: \(lockPath)"])
     }
