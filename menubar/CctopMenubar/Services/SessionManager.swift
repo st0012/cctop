@@ -1,7 +1,6 @@
-import AppKit
+import Combine
 import Darwin.libproc
 import Foundation
-@preconcurrency import UserNotifications
 import os.log
 
 let sessionManagerLogger = Logger(subsystem: "com.st0012.CctopMenubar", category: "SessionManager")
@@ -106,10 +105,7 @@ class SessionManager: ObservableObject {
         let now = dataSources.now()
         let identifiedCandidates = identifiedPublishableCandidates(winners: winners, knownRecords: allDecoded)
         let identifiedInventory = classification.records.map(\.candidate.data) + identifiedCandidates.map(\.data)
-        dataSources.manualSessionVisibility.migrateLegacyStableKeys(
-            using: identifiedInventory, persistedSessions: allDecoded.map(\.session), inventoryComplete: inventoryComplete
-        )
-        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence(in: identifiedInventory)
+        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence
         let hiddenSessionIDs = manualHides.hiddenSessionIDs
         let retainedFinishedCleanupSources = retainedFinishedCleanupSources(winners: winners, manualHides: manualHides)
         let observedCleanupSources = classification.cleanupSources + retainedFinishedCleanupSources
@@ -149,8 +145,7 @@ class SessionManager: ObservableObject {
         let activeProjectPaths = classification.protectedProjectPathsForCleanup
         let recentExcludedPaths = activeProjectPaths.union(classification.manualHiddenProjectPaths(hiddenSessionIDs))
         let publishedSessionIDs = Set(newUserSessions.compactMap { $0.identity.cctopSessionID })
-        let shouldFreezeVisibilityProjections = manualHides.hasUnresolvedLegacyKeys
-            || (!inventoryComplete && !hiddenSessionIDs.isEmpty)
+        let shouldFreezeVisibilityProjections = !inventoryComplete && !hiddenSessionIDs.isEmpty
         if !shouldFreezeVisibilityProjections {
             _ = historyManager.rebuildRecentProjects(excludingActive: recentExcludedPaths)
             publishRecentResumeTargets(RecentResumeTarget.build(
@@ -293,9 +288,7 @@ class SessionManager: ObservableObject {
         guard let files = try? fm.contentsOfDirectory(at: sessionsDir, includingPropertiesForKeys: nil) else { return }
         let now = dataSources.now()
         let jsonFiles = sessionJSONFiles(in: files)
-        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence(
-            in: jsonFiles.compactMap { try? SessionData.fromFile(path: $0.path) }
-        )
+        let manualHides = dataSources.manualSessionVisibility.manualHideEvidence
         preloadArchiveStateForFinishedRetainedSessions(in: jsonFiles, now: now)
         var removedAny = false
         for url in jsonFiles {
@@ -400,40 +393,6 @@ class SessionManager: ObservableObject {
         let actual = proc_listchildpids(pid_t(pid), &pids, ProcessChildPIDProbe.bufferSize(forCapacity: count))
         let actualCount = ProcessChildPIDProbe.returnedCount(actual, capacity: count)
         return Array(pids.prefix(actualCount))
-    }
-
-    static func requestNotificationPermission() {
-        let center = UNUserNotificationCenter.current()
-        center.getNotificationSettings { settings in
-            switch settings.authorizationStatus {
-            case .notDetermined:
-                DispatchQueue.main.async {
-                    // Menubar-only apps (activationPolicy = .accessory) can't show the
-                    // macOS notification permission prompt. Temporarily become a regular
-                    // app so the system presents the dialog, then switch back.
-                    let wasAccessory = NSApplication.shared.activationPolicy() == .accessory
-                    if wasAccessory { NSApplication.shared.setActivationPolicy(.regular) }
-
-                    center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-                        if let error {
-                            sessionManagerLogger.error("Notification permission error: \(error, privacy: .public)")
-                        }
-                        sessionManagerLogger.info("Notification permission granted: \(granted, privacy: .public)")
-                        DispatchQueue.main.async {
-                            if wasAccessory { NSApplication.shared.setActivationPolicy(.accessory) }
-                        }
-                    }
-                }
-            case .denied:
-                DispatchQueue.main.async {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-            default:
-                break
-            }
-        }
     }
 
     private func startWatching() {

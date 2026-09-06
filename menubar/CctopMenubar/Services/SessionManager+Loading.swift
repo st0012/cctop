@@ -135,14 +135,11 @@ extension SessionManager {
         in classification: SessionClassificationSnapshot,
         knownRecords: [(url: URL, session: SessionData)]
     ) -> SessionClassificationSnapshot {
-        let legacyKeys = dataSources.manualSessionVisibility.unresolvedDurableLegacyKeys
         let indices = classification.records.indices.filter { index in
             let record = classification.records[index]
             let data = record.candidate.data
             guard !CctopSessionID.isValid(data.cctopSessionId) else { return false }
-            let stableKey = SessionIdentityPolicy.stableKey(for: data)
             if hasExistingMappedManualHide(data) { return true }
-            if legacyKeys.contains(stableKey) { return true }
             guard case .hidden(let reason) = record.disposition else { return false }
             switch reason {
             case .archivedClaudeDesktop:

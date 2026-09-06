@@ -52,7 +52,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard !Self.isXcodeTestHost else { return }
         UserDefaults.standard.register(defaults: ["notificationsEnabled": true])
         notificationPermissionReconciler.refresh()
-        migrateLegacyPanelPosition()
         installHookBinaryIfNeeded()
         UNUserNotificationCenter.current().delegate = self
         notchController = NotchStatusController()

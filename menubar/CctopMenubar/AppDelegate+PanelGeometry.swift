@@ -2,12 +2,6 @@ import AppKit
 
 // MARK: - Panel geometry and per-screen position
 extension AppDelegate {
-    private enum PanelPositionKeys {
-        // MIGRATION(v0.12.0→v0.13.0): Remove legacyOriginX, legacyTopY, migrateLegacyPanelPosition
-        static let legacyOriginX = "panelCustomX"
-        static let legacyTopY = "panelCustomTopY"
-    }
-
     /// The screen key for the screen the panel is currently on.
     @MainActor func panelScreenKey() -> String? {
         PanelPositioning.screenKey(forPanelFrame: panel.frame, in: screenLayouts)
@@ -16,20 +10,6 @@ extension AppDelegate {
     /// The screen key for the screen containing a point.
     func screenKey(at point: NSPoint) -> String? {
         PanelPositioning.screenKey(containing: point, in: screenLayouts)
-    }
-
-    /// Migrate legacy single-position UserDefaults to per-screen dictionary.
-    func migrateLegacyPanelPosition() {
-        let ud = UserDefaults.standard
-        guard let originX = ud.object(forKey: PanelPositionKeys.legacyOriginX) as? Double else { return }
-        let topY = ud.double(forKey: PanelPositionKeys.legacyTopY)
-        panelGeometry.saveLegacyPosition(
-            originX: CGFloat(originX), topY: CGFloat(topY),
-            screens: screenLayouts,
-            fallbackScreenKey: NSScreen.main?.screenKey
-        )
-        ud.removeObject(forKey: PanelPositionKeys.legacyOriginX)
-        ud.removeObject(forKey: PanelPositionKeys.legacyTopY)
     }
 
     private var screenLayouts: [ScreenLayout] {

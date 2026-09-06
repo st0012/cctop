@@ -26,7 +26,7 @@ reference; the raw reference is not copied into this directory. Existing
 publishable session JSON files without the field are assigned an ID once and
 stamped with the same per-file locking and atomic-write rules as hook updates.
 Hidden, finished, cleanup, and history records keep their existing identity
-contracts until a current hook, manual-hide migration, or archived desktop
+contracts until a current hook, a stored manual hide, or an archived desktop
 Recent projection needs this field.
 Identity mappings intentionally outlive session and history cleanup and are not
 automatically pruned in this version.
@@ -265,18 +265,13 @@ Stream Deck output while the full record remains available for lifecycle and
 Cleanup tracking. There is no in-app restore. cctop prunes the preference only
 after a complete local inventory proves the session record is gone; partial or
 unreadable inventories retain it to avoid unexpectedly revealing the session.
-Finished manually hidden records remain exempt from lifecycle cleanup, including
-after legacy preferences migrate, so their permanent identity evidence stays
-available until the record is removed externally.
+Finished manually hidden records remain exempt from lifecycle cleanup, so their
+permanent identity evidence stays available until the record is removed
+externally.
 
-Upgrades migrate an unambiguous legacy Codex or desktop key to its permanent
-`cctop_session_id` before building the visible projection. The canonical source
-and session UUID in the key can adopt the sole permanent ID already stamped on
-a peer even after the exact legacy record disappears. Partial inventories
-retain the fallback; zero or multiple matching permanent IDs keep every current
-candidate hidden and the visibility projections frozen. Complete inventories
-retire disk-confirmed migrations and proven-missing keys. Process/PID keys are
-retired rather than rebound. Retained finished winners and archived desktop
+While a partial or unreadable inventory coexists with stored manual hides, the
+Recent and Cleanup projections stay frozen so a transient read failure never
+reveals a hidden session. Retained finished winners and archived desktop
 records remain available to Cleanup without entering Recent Projects. Unreadable
 pre-PID files survive while stored manual-hide evidence prevents proving them
 unrelated.

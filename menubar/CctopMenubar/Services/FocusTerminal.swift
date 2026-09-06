@@ -469,10 +469,6 @@ private func executeKittyFocusWindow(binaryPath: String, socket: String, windowI
     runFocusCommand(binaryPath: binaryPath, arguments: ["@", "--to", socket, "focus-window", "--match", "id:\(windowId)"])
 }
 
-func openInEditor(project: RecentProject) {
-    executeFocusStrategy(resolveRecentProjectOpenStrategy(project: project))
-}
-
 func openRecentResumeTarget(_ target: RecentResumeTarget) {
     executeFocusStrategy(resolveRecentResumeTargetOpenStrategy(target: target))
 }

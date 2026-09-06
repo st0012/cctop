@@ -3,9 +3,6 @@ import Foundation
 // MARK: - Session end and stale-session cleanup
 
 extension HookHandler {
-    // MIGRATION(v0.6.0): Remove after all users have migrated to PID-keyed sessions.
-    private static let noPIDMaxAge: TimeInterval = 300
-
     // Target selection, identity resolution, and lock-held revalidation form one fail-closed cycle.
     // swiftlint:disable:next function_body_length
     static func handleSessionEnd(hookName: String, input: HookInput, deps: HookDependencies) {
@@ -214,24 +211,21 @@ extension HookHandler {
             guard !data.isCodex, !hasTrustedClaudeDesktopBundle(data) else { return }
 
             guard !data.hidden, !data.shouldAutoHide else { return }
+            // A record without a PID cannot be liveness-checked here; the app's legacy-file sweep owns it.
+            guard let pid = data.pid else { return }
 
             let isStale: Bool
-            if let pid = data.pid {
-                if !process.isAlive(pid: pid) {
-                    isStale = true
-                } else if let storedStart = data.pidStartTime,
-                          let currentStart = process.startTime(pid: pid),
-                          abs(storedStart - currentStart) > 1.0 {
-                    isStale = true  // PID reused by a different process
-                } else if let comm = process.commandName(pid: pid),
-                          SessionData.isForeignHarnessComm(comm, source: data.source) {
-                    isStale = true  // PID adopted from/reused by another harness (issue #155)
-                } else {
-                    isStale = false
-                }
+            if !process.isAlive(pid: pid) {
+                isStale = true
+            } else if let storedStart = data.pidStartTime,
+                      let currentStart = process.startTime(pid: pid),
+                      abs(storedStart - currentStart) > 1.0 {
+                isStale = true  // PID reused by a different process
+            } else if let comm = process.commandName(pid: pid),
+                      SessionData.isForeignHarnessComm(comm, source: data.source) {
+                isStale = true  // PID adopted from/reused by another harness (issue #155)
             } else {
-                // MIGRATION(v0.6.0): Remove no-PID branch after all users have migrated.
-                isStale = -data.lastActivity.timeIntervalSinceNow > noPIDMaxAge
+                isStale = false
             }
 
             if isStale {

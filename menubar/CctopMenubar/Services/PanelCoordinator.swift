@@ -37,7 +37,6 @@ enum PanelEvent {
 enum PanelAction: Equatable {
     case showPanel
     case dismissPanel          // hides panel + stops nav key monitor
-    case navigatePanel
     case positionPanel
     case activateApp
     case deactivateApp

@@ -99,7 +99,7 @@ final class PanelToggleTests: XCTestCase {
         let userInfo: [AnyHashable: Any] = [
             SessionIdentityPolicy.notificationCctopSessionIDKey: "11111111-1111-4111-8111-111111111111",
             SessionIdentityPolicy.notificationSessionIDKey: "other-session",
-            SessionIdentityPolicy.notificationSessionPIDKey: "22222",
+            "sessionPID": "22222",
         ]
 
         let userSessions = [userSession(

@@ -47,9 +47,6 @@ extension AppDelegate {
                 }
             case .dismissPanel:
                 dismissPanel()
-            case .navigatePanel:
-                panel.makeKeyAndOrderFront(nil)
-                updateCleanupPanelVisibility()
             case .positionPanel:
                 positionPanel()
             case .activateApp:

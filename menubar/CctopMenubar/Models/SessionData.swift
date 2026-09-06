@@ -360,18 +360,6 @@ struct SessionData: Codable, Identifiable, Equatable {
         return String(filtered.prefix(64))
     }
 
-    /// Returns a copy with a new session_id (and optionally updated branch/terminal).
-    /// Used when the same OS process gets a new CC session_id on resume.
-    /// Copy-mutation preserves every other field by construction, so fields added
-    /// to `SessionData` later can never be silently dropped on session-id rotation.
-    func withSessionId(_ newId: String, branch: String? = nil, terminal: TerminalInfo? = nil) -> SessionData {
-        var copy = self
-        copy.sessionId = newId
-        if let branch { copy.branch = branch }
-        if let terminal { copy.terminal = terminal }
-        return copy
-    }
-
     /// Look for a `.code-workspace` file in the given directory.
     /// If exactly one exists, return it. If multiple exist, prefer one matching the project name.
     static func findWorkspaceFile(in projectPath: String) -> String? {
