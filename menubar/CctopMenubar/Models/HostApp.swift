@@ -26,6 +26,11 @@ enum HostApp: CaseIterable {
         if id == "com.cmuxterm.app" || id.hasPrefix("com.cmuxterm.app.") {
             return .cmux
         }
+        // Warp ships one bundle ID per release channel; `bundleID`/`allByBundleID`
+        // carry only the stable one, so consult the channel registry for the rest.
+        if WarpFocusLink.isChannelBundleID(id) {
+            return .warp
+        }
         return allByBundleID[id]
     }
 

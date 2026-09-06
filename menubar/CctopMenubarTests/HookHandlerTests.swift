@@ -323,6 +323,31 @@ final class HookHandlerTests: XCTestCase {
         XCTAssertEqual(try loadSession().harnessSessionId, "test-session-001")
     }
 
+    func testSessionStartCapturesWarpFocusURL() throws {
+        let env = [
+            "TERM_PROGRAM": "WarpTerminal",
+            "__CFBundleIdentifier": "dev.warp.Warp-Stable",
+            "WARP_FOCUS_URL": "warp://session/550e8400e29b41d4a716446655440000"
+        ]
+
+        try handleFixture("SessionStart", deps: makeDeps(env: env))
+        let session = try loadSession()
+
+        XCTAssertEqual(session.terminal?.program, "WarpTerminal")
+        XCTAssertEqual(session.terminal?.focusUrl, "warp://session/550e8400e29b41d4a716446655440000")
+    }
+
+    func testSessionStartRejectsMalformedWarpFocusURL() throws {
+        let env = [
+            "TERM_PROGRAM": "WarpTerminal",
+            "WARP_FOCUS_URL": "https://evil.example/session/550e8400e29b41d4a716446655440000"
+        ]
+
+        try handleFixture("SessionStart", deps: makeDeps(env: env))
+
+        XCTAssertNil(try loadSession().terminal?.focusUrl)
+    }
+
     func testSessionStartCapturesCmuxMultiplexerContext() throws {
         let cmuxPath = try makeExecutable(named: "cmux")
         let env = [

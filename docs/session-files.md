@@ -239,6 +239,25 @@ jump strategy. Older live cmux session files may not have
 `CMUX_*` environment variables, the app can recover the cmux workspace and
 surface at jump time without rewriting the session file.
 
+### `terminal.focus_url`
+
+Type: `string`
+
+Default: `null` when omitted.
+
+When present, `terminal.focus_url` stores an app-specific session deep link.
+Opening the link focuses the exact pane that hosts the session. Warp is the
+only source today. Warp v0.2026.05.27 and newer export the link as
+`WARP_FOCUS_URL`, shaped `<channel-scheme>://session/<32 lowercase hex>`.
+
+The hook stores the value only when it matches that exact shape. The app
+validates it again at focus time, because session files are user-writable.
+The URL scheme names the Warp release channel: `warp`, `warppreview`,
+`warpdev`, or `warposs`. Launch Services opens the link with that channel's
+app and activates it. Warp ignores a stale or unknown session UUID, but the
+window still comes forward. Sessions without a captured link keep plain app
+activation, like the other terminals.
+
 ## Visibility
 
 ### `hidden`

@@ -28,6 +28,9 @@ extension FocusStrategy {
             if url.scheme?.lowercased() == "codex" {
                 return "Focus Codex Task"
             }
+            if WarpFocusLink.isChannelScheme(url.scheme) {
+                return "Focus Warp Pane"
+            }
             if url.scheme?.lowercased() == "cmux" {
                 let target = url.pathComponents.contains("surface") ? "Surface" : "Pane"
                 return "Focus cmux \(target)"

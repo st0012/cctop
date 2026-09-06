@@ -6,6 +6,7 @@ struct TerminalInfo: Codable, Equatable {
     let tty: String?
     let bundleId: String?
     let socket: String? // Remote-control socket (e.g. KITTY_LISTEN_ON)
+    let focusUrl: String? // Session deep link for pane focusing (e.g. WARP_FOCUS_URL)
     let multiplexer: MultiplexerInfo?
     let binaryPaths: [String: String]?
 
@@ -15,20 +16,68 @@ struct TerminalInfo: Codable, Equatable {
         case tty
         case bundleId = "bundle_id"
         case socket
+        case focusUrl = "focus_url"
         case multiplexer
         case binaryPaths = "binary_paths"
     }
 
     init(program: String = "", sessionId: String? = nil, tty: String? = nil,
-         bundleId: String? = nil, socket: String? = nil, multiplexer: MultiplexerInfo? = nil,
+         bundleId: String? = nil, socket: String? = nil, focusUrl: String? = nil,
+         multiplexer: MultiplexerInfo? = nil,
          binaryPaths: [String: String]? = nil) {
         self.program = program
         self.sessionId = sessionId
         self.tty = tty
         self.bundleId = bundleId
         self.socket = socket
+        self.focusUrl = focusUrl
         self.multiplexer = multiplexer
         self.binaryPaths = binaryPaths
+    }
+}
+
+/// Warp session deep link (`<channel-scheme>://session/<32 hex>`), exposed to shells
+/// as `WARP_FOCUS_URL` since Warp v0.2026.05.27 (warpdotdev/warp#11130). Opening it
+/// makes Warp raise the window and focus the exact pane hosting that terminal
+/// session. Launch Services routes the scheme to the channel app and activates it,
+/// so the window still comes forward when Warp silently ignores a stale UUID.
+///
+/// Session JSON is user-writable, so both the hook (capture) and the app (focus)
+/// validate against this exact shape — anything else is dropped rather than opened.
+/// Each Warp release channel registers its own URL scheme and bundle ID
+/// (warpdotdev/warp script/macos/bundle); this table is the single registry behind
+/// both the scheme allowlist and `HostApp`'s Warp channel classification.
+enum WarpFocusLink {
+    private static let bundleIDsByScheme: [String: String] = [
+        "warp": "dev.warp.Warp-Stable",
+        "warppreview": "dev.warp.Warp-Preview",
+        "warpdev": "dev.warp.Warp-Dev",
+        "warposs": "dev.warp.WarpOss"
+    ]
+
+    static func isChannelScheme(_ scheme: String?) -> Bool {
+        scheme.map { bundleIDsByScheme[$0] != nil } ?? false
+    }
+
+    static func isChannelBundleID(_ bundleID: String) -> Bool {
+        bundleIDsByScheme.values.contains(bundleID)
+    }
+
+    /// The link as a URL when it has the exact expected shape and a known channel scheme.
+    static func validatedURL(_ raw: String?) -> URL? {
+        // `\z` anchors at true end-of-input, so a trailing line terminator can
+        // never slip past the match regardless of ICU `$` semantics.
+        guard let raw,
+              raw.range(of: #"^[a-z]+://session/[0-9a-f]{32}\z"#, options: .regularExpression) != nil,
+              let url = URL(string: raw),
+              isChannelScheme(url.scheme)
+        else { return nil }
+        return url
+    }
+
+    /// Capture-side sanitizer: returns the value only when it is a valid focus link.
+    static func sanitized(_ raw: String?) -> String? {
+        validatedURL(raw) != nil ? raw : nil
     }
 }
 
