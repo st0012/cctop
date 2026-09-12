@@ -50,6 +50,7 @@ lint:
 contract:
 	scripts/validate-fixtures.sh
 	scripts/validate-hooks-coverage.sh
+	scripts/test-claude-hook-payload.sh
 	scripts/test-validate-release-version.sh
 
 clean:

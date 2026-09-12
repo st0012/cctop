@@ -12,8 +12,8 @@ mkdir -p "$LOGS_DIR"
 INPUT=$(cat)
 
 # Extract session ID and label for logging
-CWD=$(echo "$INPUT" | sed -n 's/.*"cwd" *: *"\([^"]*\)".*/\1/p' | head -1)
-SID=$(echo "$INPUT" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -1)
+CWD=$(printf '%s\n' "$INPUT" | sed -n 's/.*"cwd" *: *"\([^"]*\)".*/\1/p' | head -1)
+SID=$(printf '%s\n' "$INPUT" | sed -n 's/.*"session_id" *: *"\([^"]*\)".*/\1/p' | head -1)
 SID=$(echo "$SID" | tr -cd 'a-zA-Z0-9_-')
 PROJECT=$(basename "$CWD")
 LABEL="${PROJECT:-unknown}:$(echo "$SID" | cut -c1-8)"
@@ -23,11 +23,11 @@ TS=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 echo "$TS SHIM $EVENT $LABEL dispatching" >> "$LOG" 2>/dev/null
 
 if [ -x "$HOME/.cctop/bin/cctop-hook" ]; then
-    echo "$INPUT" | "$HOME/.cctop/bin/cctop-hook" "$EVENT" --harness cc
+    printf '%s\n' "$INPUT" | "$HOME/.cctop/bin/cctop-hook" "$EVENT" --harness cc
 elif [ -x "/Applications/cctop.app/Contents/MacOS/cctop-hook" ]; then
-    echo "$INPUT" | /Applications/cctop.app/Contents/MacOS/cctop-hook "$EVENT" --harness cc
+    printf '%s\n' "$INPUT" | /Applications/cctop.app/Contents/MacOS/cctop-hook "$EVENT" --harness cc
 elif [ -x "$HOME/Applications/cctop.app/Contents/MacOS/cctop-hook" ]; then
-    echo "$INPUT" | "$HOME/Applications/cctop.app/Contents/MacOS/cctop-hook" "$EVENT" --harness cc
+    printf '%s\n' "$INPUT" | "$HOME/Applications/cctop.app/Contents/MacOS/cctop-hook" "$EVENT" --harness cc
 else
     echo "$TS ERROR run-hook.sh: cctop-hook not found ($LABEL event=$EVENT)" >> "$LOG" 2>/dev/null
 fi
