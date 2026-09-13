@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing stable release tag to update in the appcast (vX.Y.Z)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,6 +17,7 @@ permissions:
 jobs:
   validate-release-version:
     name: Validate release version
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -164,6 +171,7 @@ jobs:
   update-appcast:
     name: Update Sparkle Appcast
     needs: release
+    if: ${{ always() && ((github.event_name == 'push' && needs.release.result == 'success') || github.event_name == 'workflow_dispatch') }}
     runs-on: macos-15
     steps:
       - name: Check for signing key
@@ -180,19 +188,57 @@ jobs:
           ref: master
           fetch-depth: 0
 
-      - name: Download all artifacts
+      - name: Select release version
+        id: version
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RELEASE_TAG="${REQUESTED_TAG:-$GITHUB_REF_NAME}"
+          ./scripts/validate-release-version.sh "$RELEASE_TAG"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            STABLE_TAG=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --json tagName,isDraft,isPrerelease \
+              --jq 'select(.isDraft == false and .isPrerelease == false) | .tagName')
+            if [[ "$STABLE_TAG" != "$RELEASE_TAG" ]]; then
+              echo "Appcast recovery requires an existing stable release." >&2
+              exit 1
+            fi
+          fi
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download release artifacts
+        if: github.event_name == 'push'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts
 
-      - name: Install Sparkle tools
-        run: brew install sparkle
-
-      - name: Extract version from tag
-        id: version
+      - name: Download published release ZIPs
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          for arch in arm64 x86_64; do
+            gh release download "v$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" \
+              --pattern "cctop-macOS-$arch.zip" --dir "artifacts/cctop-macOS-$arch"
+          done
+
+      - name: Install pinned Sparkle tools
+        run: |
+          # Match Sparkle 2.9.1 and its artifact checksum in the pinned Swift package.
+          ARCHIVE="$RUNNER_TEMP/sparkle-tools.zip"
+          TOOLS="$RUNNER_TEMP/sparkle-tools"
+          curl --fail --location \
+            https://github.com/sparkle-project/Sparkle/releases/download/2.9.1/Sparkle-for-Swift-Package-Manager.zip \
+            --output "$ARCHIVE"
+          printf '%s  %s\n' \
+            9fec2b888e6e2940b1bfbd5d3d010b9f67076b52170923549095cbb74132403b \
+            "$ARCHIVE" | shasum -a 256 --check
+          unzip -q "$ARCHIVE" -d "$TOOLS"
+          test -x "$TOOLS/bin/generate_appcast"
+          test -x "$TOOLS/bin/sign_update"
+          echo "$TOOLS/bin" >> "$GITHUB_PATH"
 
       - name: Generate appcast
         env:
