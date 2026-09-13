@@ -112,6 +112,9 @@ Codex lifecycle does not read `disconnected_at`, even when a Codex record contai
 
 ## Dedup and Cleanup
 
+For the complete scan and removal flow, see [Worktree Cleanup](worktree-cleanup.md).
+That guide explains refresh requests, scan scheduling, results, and removal checks with diagrams.
+
 Session files are deduplicated by a stable identity key before publishing. `SessionIdentityPolicy` owns that grouping rule. Codex sessions use `session_id` across both old PID-keyed files and newer `codex-<session_id>` files. Known desktop sessions also use `session_id`; other terminal or ambiguous sessions keep PID identity.
 
 Archived active or dormant Codex threads are filtered before display dedup regardless of whether their cctop record came from Codex Desktop, Codex CLI, VS Code, or another Codex surface. This archive rule does not classify the record as Desktop. cctop does not persist `hidden = true` or remove the `.json`, so an unarchived thread that is otherwise active becomes visible again. A transiently unreadable Codex state store retains the last authoritative classification; when no readable archive evidence has ever been available, display fails open rather than guessing.

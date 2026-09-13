@@ -12,7 +12,13 @@ class WorktreeCleanupManager: ObservableObject {
     @Published private(set) var isScanning = false
 
     fileprivate let scanner: WorktreeCleanupScanner
-    private var refreshGeneration = 0
+    private struct RefreshRequest {
+        let cleanupSources: [SessionDataCleanupSource]
+        let activeProjectPaths: Set<String>
+        let onCompletion: (([WorktreeCleanupCandidate]) -> Void)?
+    }
+
+    private var pendingRefresh: RefreshRequest?
     private var lastRefreshSignature: WorktreeCleanupRefreshSignature?
 
     init(scanner: WorktreeCleanupScanner = .live()) {
@@ -32,22 +38,38 @@ class WorktreeCleanupManager: ObservableObject {
         guard force || signature != lastRefreshSignature else { return }
         lastRefreshSignature = signature
 
-        refreshGeneration += 1
-        let generation = refreshGeneration
+        let request = RefreshRequest(
+            cleanupSources: cleanupSources,
+            activeProjectPaths: activeProjectPaths,
+            onCompletion: onCompletion
+        )
+        // Keep only the newest request while the current scan releases its resources.
+        if isScanning {
+            pendingRefresh = request
+        } else {
+            scan(request)
+        }
+    }
+
+    private func scan(_ request: RefreshRequest) {
         let scanner = scanner
         isScanning = true
         DispatchQueue.global(qos: .utility).async {
             let next = scanner
-                .candidates(from: cleanupSources, activeProjectPaths: activeProjectPaths)
+                .candidates(from: request.cleanupSources, activeProjectPaths: request.activeProjectPaths)
                 .filter(\.state.isActionable)
             DispatchQueue.main.async {
-                guard generation == self.refreshGeneration else { return }
+                if let pending = self.pendingRefresh {
+                    self.pendingRefresh = nil
+                    self.scan(pending)
+                    return
+                }
                 self.isScanning = false
                 if next != self.candidates {
                     worktreeCleanupLogger.info("cleanup candidates \(self.candidates.count) -> \(next.count)")
                     self.candidates = next
                 }
-                onCompletion?(next)
+                request.onCompletion?(next)
             }
         }
     }
