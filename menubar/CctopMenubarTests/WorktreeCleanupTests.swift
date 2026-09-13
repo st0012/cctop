@@ -1725,50 +1725,106 @@ final class WorktreeCleanupTests: XCTestCase {
     }
 
     @MainActor
-    func testRefreshKeepsScanningUntilLatestGenerationCompletes() async throws {
+    func testRefreshCoalescesBurstAndPublishesOnlyNewestRequest() async throws {
         let firstPath = "/Users/dev/.codex/worktrees/first"
-        let secondPath = "/Users/dev/.codex/worktrees/second"
+        let newestPath = "/Users/dev/.codex/worktrees/newest"
         let firstStarted = expectation(description: "first scan started")
-        let secondStarted = expectation(description: "second scan started")
+        let newestStarted = expectation(description: "newest scan started")
+        let finished = expectation(description: "newest request published")
         let releaseFirst = DispatchSemaphore(value: 0)
-        let releaseSecond = DispatchSemaphore(value: 0)
+        let releaseNewest = DispatchSemaphore(value: 0)
+        defer {
+            releaseFirst.signal()
+            releaseNewest.signal()
+        }
+        let lock = NSLock()
+        var startedPaths: [String] = []
+        var running = 0
+        var peakRunning = 0
+        var completions: [String] = []
         let manager = WorktreeCleanupManager(
             scanner: WorktreeCleanupScanner(
                 fileExists: { _ in true },
                 resolveWorktreeRoot: { _ in nil },
                 inspectGit: { path in
-                    switch path {
-                    case firstPath:
-                        firstStarted.fulfill()
-                        releaseFirst.wait()
-                        return self.cleanInspection(branch: "feature/first")
-                    case secondPath:
-                        secondStarted.fulfill()
-                        releaseSecond.wait()
-                        return self.cleanInspection(branch: "feature/second")
-                    default:
-                        return self.cleanInspection()
+                    lock.withLock {
+                        startedPaths.append(path)
+                        running += 1
+                        peakRunning = max(peakRunning, running)
                     }
+                    defer { lock.withLock { running -= 1 } }
+                    if path == firstPath {
+                        firstStarted.fulfill()
+                        XCTAssertEqual(releaseFirst.wait(timeout: .now() + 10), .success)
+                    } else if path == newestPath {
+                        newestStarted.fulfill()
+                        XCTAssertEqual(releaseNewest.wait(timeout: .now() + 10), .success)
+                    }
+                    return self.cleanInspection()
                 },
                 measureSize: { _ in 1_024 }
             )
         )
 
-        manager.refresh(from: [historySession(path: firstPath)], activeProjectPaths: [], force: true)
-        await fulfillment(of: [firstStarted], timeout: 1)
-
-        manager.refresh(from: [historySession(path: secondPath)], activeProjectPaths: [], force: true)
-        XCTAssertTrue(manager.isScanning)
-        await fulfillment(of: [secondStarted], timeout: 1)
-
-        releaseFirst.signal()
-        try await Task.sleep(nanoseconds: 100_000_000)
-        XCTAssertTrue(manager.isScanning)
-
-        releaseSecond.signal()
-        try await waitForCleanupCandidates(manager) { candidates in
-            candidates.first?.id == secondPath
+        manager.refresh(from: [historySession(path: firstPath)], activeProjectPaths: []) { _ in
+            completions.append("first")
         }
+        await fulfillment(of: [firstStarted], timeout: 2)
+        for index in 0..<32 {
+            manager.refresh(
+                from: [historySession(path: "/Users/dev/.codex/worktrees/burst-\(index)")],
+                activeProjectPaths: []
+            ) { _ in completions.append("intermediate") }
+        }
+        let newest = historySession(path: newestPath)
+        manager.refresh(from: [newest], activeProjectPaths: []) { _ in completions.append("superseded") }
+        // Forced refresh of the same signature must also replace the pending callback.
+        manager.refresh(from: [newest], activeProjectPaths: [], force: true) { _ in
+            completions.append("newest")
+            finished.fulfill()
+        }
+        XCTAssertTrue(manager.isScanning)
+        releaseFirst.signal()
+        await fulfillment(of: [newestStarted], timeout: 2)
+
+        XCTAssertEqual(lock.withLock { startedPaths }, [firstPath, newestPath])
+        XCTAssertEqual(lock.withLock { peakRunning }, 1)
+        XCTAssertTrue(manager.isScanning)
+        XCTAssertTrue(manager.candidates.isEmpty)
+        XCTAssertTrue(completions.isEmpty)
+
+        releaseNewest.signal()
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertEqual(manager.candidates.map(\.id), [newestPath])
+        XCTAssertEqual(completions, ["newest"])
+        XCTAssertFalse(manager.isScanning)
+        XCTAssertEqual(lock.withLock { startedPaths }, [firstPath, newestPath])
+    }
+
+    @MainActor
+    func testRefreshRecoversAfterGitInspectionFailure() async throws {
+        let path = "/Users/dev/.codex/worktrees/retry"
+        let session = historySession(path: path)
+        var inspection = cleanInspection(failureReasons: [WorktreeCleanupCandidate.statusUnreadableReason])
+        let manager = WorktreeCleanupManager(
+            scanner: WorktreeCleanupScanner(
+                fileExists: { _ in true },
+                resolveWorktreeRoot: { _ in nil },
+                inspectGit: { _ in inspection },
+                measureSize: { _ in 1_024 }
+            )
+        )
+        let failed = expectation(description: "failed inspection completed")
+        manager.refresh(from: [session], activeProjectPaths: []) { _ in failed.fulfill() }
+        await fulfillment(of: [failed], timeout: 2)
+        XCTAssertEqual(manager.candidates.first?.state, .review([WorktreeCleanupCandidate.statusUnreadableReason]))
+        XCTAssertFalse(manager.isScanning)
+
+        inspection = cleanInspection()
+        let recovered = expectation(description: "retry completed")
+        manager.refresh(from: [session], activeProjectPaths: [], force: true) { _ in recovered.fulfill() }
+        await fulfillment(of: [recovered], timeout: 2)
+        XCTAssertEqual(manager.candidates.first?.state, .clean)
         XCTAssertFalse(manager.isScanning)
     }
 
@@ -2289,6 +2345,10 @@ final class WorktreeCleanupTests: XCTestCase {
         let secondStarted = expectation(description: "second scan started")
         let releaseFirst = DispatchSemaphore(value: 0)
         let releaseSecond = DispatchSemaphore(value: 0)
+        defer {
+            releaseFirst.signal()
+            releaseSecond.signal()
+        }
         let manager = WorktreeCleanupManager(
             scanner: WorktreeCleanupScanner(
                 fileExists: { _ in true },
@@ -2297,11 +2357,11 @@ final class WorktreeCleanupTests: XCTestCase {
                     switch path {
                     case firstPath:
                         firstStarted.fulfill()
-                        releaseFirst.wait()
+                        XCTAssertEqual(releaseFirst.wait(timeout: .now() + 10), .success)
                         return self.cleanInspection(branch: "feature/invoices")
                     case secondPath:
                         secondStarted.fulfill()
-                        releaseSecond.wait()
+                        XCTAssertEqual(releaseSecond.wait(timeout: .now() + 10), .success)
                         return self.cleanInspection(branch: "feature/reports")
                     default:
                         return self.cleanInspection()
@@ -2316,17 +2376,16 @@ final class WorktreeCleanupTests: XCTestCase {
         await fulfillment(of: [firstStarted], timeout: 1)
 
         gate.updateSources([historySession(id: "second", path: secondPath)], activeProjectPaths: [])
+        releaseFirst.signal()
         await fulfillment(of: [secondStarted], timeout: 1)
+        XCTAssertTrue(manager.isScanning)
+        XCTAssertTrue(manager.candidates.isEmpty)
+        XCTAssertFalse(gate.hasHiddenCleanupNudge)
 
         releaseSecond.signal()
         try await waitForCleanupCandidates(manager) { candidates in
             candidates.map(\.id) == [secondPath]
         }
-        XCTAssertTrue(gate.hasHiddenCleanupNudge)
-
-        releaseFirst.signal()
-        try await Task.sleep(nanoseconds: 100_000_000)
-
         XCTAssertEqual(manager.candidates.map(\.id), [secondPath])
         XCTAssertTrue(gate.hasHiddenCleanupNudge)
     }
