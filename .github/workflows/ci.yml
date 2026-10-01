@@ -10,7 +10,7 @@ jobs:
     name: Swift Lint
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install SwiftLint
         run: brew install swiftlint
       - name: SwiftLint
@@ -20,8 +20,8 @@ jobs:
     name: Plugin Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           # pi plugin tests need >= 23.6 for built-in TypeScript type stripping
           node-version: "24"
@@ -36,7 +36,7 @@ jobs:
     name: Hook Contract
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install check-jsonschema
         run: |
           python3 -m venv .venv-contract
@@ -51,7 +51,7 @@ jobs:
     name: Swift Build & Test
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app
       - name: Cache DerivedData
