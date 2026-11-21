@@ -244,14 +244,15 @@ extension XCTestCase {
         isArchived: Bool,
         lastActivityAt: Any? = nil,
         originCwd: Any? = nil,
-        worktreeName: Any? = nil
+        worktreeName: Any? = nil,
+        sessionId: String? = nil
     ) throws {
         let sessionDir = (root as NSString).appendingPathComponent("account/project")
         try FileManager.default.createDirectory(atPath: sessionDir, withIntermediateDirectories: true)
         let metadataPath = (sessionDir as NSString)
             .appendingPathComponent("local_\(UUID().uuidString).json")
         var payload: [String: Any] = [
-            "sessionId": "local_\(UUID().uuidString)",
+            "sessionId": sessionId ?? "local_\(UUID().uuidString)",
             "cliSessionId": cliSessionId,
             "isArchived": isArchived,
             "title": "Archived Claude Session"

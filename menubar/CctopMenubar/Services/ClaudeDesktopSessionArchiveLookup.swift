@@ -32,6 +32,13 @@ final class ClaudeDesktopSessionArchiveLookup {
         metadataSnapshot(matching: sessionIDs)?.archivedSessionIDs
     }
 
+    /// Returns Claude Desktop's own session UUID for a Claude Code `session_id`, or `nil` when
+    /// no readable metadata names that session. A `claude://resume` link with this UUID focuses
+    /// the existing desktop session on every Claude Desktop version that has the link.
+    func desktopSessionID(forCLISessionID sessionID: String) -> String? {
+        metadataSnapshot(matching: [sessionID])?.desktopSessionIDsBySessionID[sessionID]
+    }
+
     /// Returns Claude metadata matches for validation and archive filtering, or `nil` when the
     /// metadata store exists but cannot be read safely.
     func metadataSnapshot(matching sessionIDs: Set<String>) -> ClaudeDesktopSessionMetadataSnapshot? {
@@ -137,6 +144,7 @@ final class ClaudeDesktopSessionArchiveLookup {
 
             let match = ClaudeArchiveMatch(
                 isArchived: metadata.isArchived == true,
+                desktopSessionID: Self.desktopSessionID(fromMetadataSessionID: metadata.sessionId),
                 projectName: Self.projectName(originCwd: metadata.originCwd, worktreeName: metadata.worktreeName),
                 recencyKey: metadata.lastActivityAt ?? metadata.createdAt ?? .missing,
                 path: url.path
@@ -213,6 +221,13 @@ final class ClaudeDesktopSessionArchiveLookup {
         return value
     }
 
+    /// Claude Desktop stores its session ID as `local_<uuid>`. The resume link takes the bare UUID.
+    private static func desktopSessionID(fromMetadataSessionID sessionID: String?) -> String? {
+        let prefix = "local_"
+        guard let sessionID, sessionID.hasPrefix(prefix) else { return nil }
+        return nonEmpty(String(sessionID.dropFirst(prefix.count)))
+    }
+
     private static func projectName(originCwd: String?, worktreeName: String?) -> String? {
         basename(fromPath: originCwd) ?? nonEmpty(worktreeName)
     }
@@ -258,6 +273,7 @@ private struct ClaudeDesktopMetadataIndex {
                 match.isArchived ? sessionID : nil
             }),
             projectNamesBySessionID: latestMatches.compactMapValues(\.projectName),
+            desktopSessionIDsBySessionID: latestMatches.compactMapValues(\.desktopSessionID),
             isAuthoritative: true
         )
     }
@@ -267,22 +283,26 @@ struct ClaudeDesktopSessionMetadataSnapshot: Equatable {
     let matchedSessionIDs: Set<String>
     let archivedSessionIDs: Set<String>
     let projectNamesBySessionID: [String: String]
+    let desktopSessionIDsBySessionID: [String: String]
     let isAuthoritative: Bool
 
     init(
         matchedSessionIDs: Set<String> = [],
         archivedSessionIDs: Set<String> = [],
         projectNamesBySessionID: [String: String] = [:],
+        desktopSessionIDsBySessionID: [String: String] = [:],
         isAuthoritative: Bool = true
     ) {
         self.matchedSessionIDs = matchedSessionIDs
         self.archivedSessionIDs = archivedSessionIDs
         self.projectNamesBySessionID = projectNamesBySessionID
+        self.desktopSessionIDsBySessionID = desktopSessionIDsBySessionID
         self.isAuthoritative = isAuthoritative
     }
 }
 
 private struct ClaudeDesktopSessionMetadata: Decodable {
+    let sessionId: String?
     let cliSessionId: String?
     let isArchived: Bool?
     let originCwd: String?
@@ -291,6 +311,7 @@ private struct ClaudeDesktopSessionMetadata: Decodable {
     let createdAt: ClaudeArchiveRecencyKey?
 
     private enum CodingKeys: String, CodingKey {
+        case sessionId
         case cliSessionId
         case isArchived
         case originCwd
@@ -301,6 +322,7 @@ private struct ClaudeDesktopSessionMetadata: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        sessionId = Self.decodeStringIfPresent(from: container, forKey: .sessionId)
         cliSessionId = try container.decodeIfPresent(String.self, forKey: .cliSessionId)
         isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived)
         originCwd = Self.decodeStringIfPresent(from: container, forKey: .originCwd)
@@ -372,6 +394,7 @@ private struct ClaudeArchiveRecencyKey: Comparable {
 
 private struct ClaudeArchiveMatch {
     let isArchived: Bool
+    let desktopSessionID: String?
     let projectName: String?
     let recencyKey: ClaudeArchiveRecencyKey
     let path: String
