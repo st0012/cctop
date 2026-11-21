@@ -416,10 +416,10 @@ final class FocusStrategyTests: XCTestCase {
 
     // MARK: - Desktop AI apps
 
-    func testClaudeDesktopUsesActivateByBundleID() {
-        // Claude Desktop has a claude://resume?session=... URL but it FORKS the
-        // conversation instead of focusing it — destructive, so we deliberately
-        // fall through to plain bundle-ID activation. See HostApp.sessionDeepLink.
+    func testClaudeDesktopWithoutDesktopSessionIDUsesActivateByBundleID() {
+        // The hook session ID forks the conversation on Claude Desktop versions that do
+        // not map it back to the desktop session, so it never goes into a resume link.
+        // See HostApp.sessionDeepLink.
         let bundleID = HostApp.claudeDesktop.bundleID!
         let session = makeSession(
             program: "", bundleId: bundleID,
@@ -427,6 +427,34 @@ final class FocusStrategyTests: XCTestCase {
         )
         let strategy = resolveFocusStrategy(session: session)
         XCTAssertEqual(strategy, .activateByBundleID(bundleID))
+    }
+
+    func testClaudeDesktopWithDesktopSessionIDUsesResumeDeepLink() throws {
+        let bundleID = HostApp.claudeDesktop.bundleID!
+        let desktopSessionID = "7b0c1a52-3f6e-4d7a-9c1b-2e5f8a4d6c30"
+        let session = makeSession(
+            program: "", bundleId: bundleID,
+            sessionUuid: "002fb6fa-eae0-4631-94bd-84071dbd21d8"
+        )
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            claudeDesktopSessionID: desktopSessionID
+        )
+        XCTAssertEqual(
+            strategy,
+            .openURL(try XCTUnwrap(URL(string: "claude://resume?session=\(desktopSessionID)")))
+        )
+    }
+
+    func testClaudeDesktopSessionIDDoesNotChangeOtherHosts() {
+        let session = makeSession(program: "Terminal")
+        let strategy = resolveFocusStrategy(
+            session: session,
+            multiplexerOverride: nil,
+            claudeDesktopSessionID: "7b0c1a52-3f6e-4d7a-9c1b-2e5f8a4d6c30"
+        )
+        XCTAssertEqual(strategy, .activateByName("terminal"))
     }
 
     func testCodexWithoutDirectHostUsesThreadDeepLinkWithOrWithoutPersistedBundle() throws {

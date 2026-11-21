@@ -114,6 +114,42 @@ final class ClaudeDesktopSessionArchiveLookupTests: XCTestCase {
         )
     }
 
+    func testDesktopSessionIDMapsHookSessionIDToDesktopSessionUUID() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-desktop-id-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        let hookSessionID = "002fb6fa-eae0-4631-94bd-84071dbd21d8"
+        let desktopSessionID = "7b0c1a52-3f6e-4d7a-9c1b-2e5f8a4d6c30"
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: hookSessionID,
+            isArchived: false,
+            sessionId: "local_\(desktopSessionID)"
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        let lookup = ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+        XCTAssertEqual(lookup.desktopSessionID(forCLISessionID: hookSessionID), desktopSessionID)
+        XCTAssertNil(lookup.desktopSessionID(forCLISessionID: "5d3e9f10-8a2b-4c6d-b7e1-0f4a9c2d8e57"))
+    }
+
+    func testDesktopSessionIDRequiresLocalUUIDSessionID() throws {
+        let root = NSTemporaryDirectory() + "cctop-claude-desktop-id-shape-\(UUID().uuidString)"
+        let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")
+        let hookSessionID = "002fb6fa-eae0-4631-94bd-84071dbd21d8"
+        try writeClaudeDesktopSessionMetadata(
+            root: claudeDir,
+            cliSessionId: hookSessionID,
+            isArchived: false,
+            sessionId: "session_01ABCDEF"
+        )
+        defer { try? FileManager.default.removeItem(atPath: root) }
+
+        XCTAssertNil(
+            ClaudeDesktopSessionArchiveLookup(sessionsDirectory: claudeDir)
+                .desktopSessionID(forCLISessionID: hookSessionID)
+        )
+    }
+
     func testClaudeDesktopMetadataSnapshotIncludesProjectNameFromOriginCwd() throws {
         let root = NSTemporaryDirectory() + "cctop-claude-project-name-\(UUID().uuidString)"
         let claudeDir = (root as NSString).appendingPathComponent("claude-code-sessions")

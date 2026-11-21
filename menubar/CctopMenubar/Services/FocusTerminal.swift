@@ -40,11 +40,14 @@ func resolveFocusStrategy(session: SessionData) -> FocusStrategy {
 
 /// Resolve which strategy to use for jumping to a session, optionally using
 /// freshly resolved multiplexer metadata for legacy live sessions.
+/// `claudeDesktopSessionID` is Claude Desktop's own session UUID for this session. Without it,
+/// a Claude Desktop session falls back to app activation.
 /// Pure function — no AppKit side effects, fully testable.
 func resolveFocusStrategy(
     session: SessionData,
     multiplexerOverride: MultiplexerInfo?,
-    verifiedHostApp: HostApp? = nil
+    verifiedHostApp: HostApp? = nil,
+    claudeDesktopSessionID: String? = nil
 ) -> FocusStrategy {
     let terminal = session.terminal
     let multiplexer = multiplexerOverride ?? terminal?.multiplexer
@@ -63,7 +66,12 @@ func resolveFocusStrategy(
         return .openURL(url)
     }
 
-    if let url = hostApp.sessionDeepLink(sessionId: session.sessionId) {
+    // The restore path reports Codex-specific failures, so the Claude link opens like other app links.
+    if hostApp == .claudeDesktop {
+        if let url = claudeDesktopSessionID.flatMap(hostApp.sessionDeepLink(sessionId:)) {
+            return .openURL(url)
+        }
+    } else if let url = hostApp.sessionDeepLink(sessionId: session.sessionId) {
         return .openURL(url, restoreBundleID: hostApp.bundleID)
     }
     if session.isCodex, hostApp == .codexDesktop {
@@ -115,10 +123,14 @@ func focusTerminal(session: SessionData) {
         let verifiedHostApp: HostApp? = CodexDesktopRuntimeProbe().isCurrentDesktopAppServer(for: session)
             ? .codexDesktop
             : nil
+        let claudeDesktopSessionID = session.isClaudeDesktopHost
+            ? ClaudeDesktopSessionArchiveLookup().desktopSessionID(forCLISessionID: session.sessionId)
+            : nil
         let strategy = resolveFocusStrategy(
             session: session,
             multiplexerOverride: multiplexerOverride,
-            verifiedHostApp: verifiedHostApp
+            verifiedHostApp: verifiedHostApp,
+            claudeDesktopSessionID: claudeDesktopSessionID
         )
         let muxStrategy = resolveMultiplexerFocus(session: session, multiplexerOverride: multiplexerOverride,
                                                   primaryStrategy: strategy)

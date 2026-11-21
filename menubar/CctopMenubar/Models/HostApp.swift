@@ -241,12 +241,16 @@ extension SessionData {
 
 extension HostApp {
     /// Returns an exact-session deep link for supported apps and valid UUIDs.
-    /// Claude resume links are unsupported because they fork instead of focusing the conversation.
+    /// For Claude Desktop, `sessionId` must be the desktop app's own session UUID. The hook
+    /// session ID forks the conversation on Claude Desktop versions that do not map it back
+    /// to the desktop session.
     func sessionDeepLink(sessionId: String) -> URL? {
         guard Self.isUUID(sessionId) else { return nil }
         switch self {
         case .codexDesktop:
             return URL(string: "codex://threads/\(sessionId)")
+        case .claudeDesktop:
+            return URL(string: "claude://resume?session=\(sessionId)")
         default:
             return nil
         }
